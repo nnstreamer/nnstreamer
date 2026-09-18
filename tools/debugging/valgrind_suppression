@@ -312,3 +312,24 @@
         fun:gst_init
         fun:main
 }
+# glibc parses resolv.conf on the first name lookup and caches the result.
+# Through the runner this job uses, that block is reported as definitely lost
+# every time - 156 bytes on the runner, 96 where it was measured by hand -
+# against whoever called getaddrinfo first, which here is an edge element of
+# ours by way of libnnstreamer-edge. That makes our call site the innermost
+# frame of this repository on the allocation stack, and the leak ours to
+# answer for, although nothing in it is ours to free.
+#
+# Why the block is lost is not established. glibc 2.35 does release the cached
+# configuration in a cleanup of its own, so something is still holding a
+# reference when the process ends; the suppression describes what is reported,
+# not a proven cause. The name is internal to glibc, so matching it needs
+# libc6-dbg, which the job that runs the gate installs.
+{
+        glibc_resolv_conf_cache
+        Memcheck:Leak
+        match-leak-kinds: definite
+        ...
+        fun:__resolv_conf_allocate
+        ...
+}
