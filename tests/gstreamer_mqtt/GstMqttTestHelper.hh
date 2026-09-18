@@ -16,6 +16,7 @@
 #include <glib.h>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 /**
  * @brief A helper class for testing the GstMQTT elements
@@ -169,6 +170,52 @@ class GstMqttTestHelper
     return this->ma;
   }
 
+  /**
+   * @brief Record a call to MQTTAsync_send () (count, payload length, and a copy of the payload)
+   */
+  void recordSend (const void *payload, int payloadlen)
+  {
+    const guint8 *bytes = static_cast<const guint8 *> (payload);
+
+    this->send_count++;
+    this->last_payloadlen = payloadlen;
+    this->last_payload.assign (bytes, bytes + payloadlen);
+  }
+
+  /**
+   * @brief Reset the record of MQTTAsync_send () calls
+   */
+  void resetSendRecord ()
+  {
+    this->send_count = 0;
+    this->last_payloadlen = 0;
+    this->last_payload.clear ();
+  }
+
+  /**
+   * @brief Getter for the number of MQTTAsync_send () calls since the last reset
+   */
+  int getSendCount ()
+  {
+    return this->send_count;
+  }
+
+  /**
+   * @brief Getter for the payloadlen given to the most recent MQTTAsync_send () call
+   */
+  int getLastPayloadLen ()
+  {
+    return this->last_payloadlen;
+  }
+
+  /**
+   * @brief Getter for a copy of the payload given to the most recent MQTTAsync_send () call
+   */
+  const std::vector<guint8> &getLastPayload ()
+  {
+    return this->last_payload;
+  }
+
   private:
   /* Variables for instance management */
   static std::unique_ptr<GstMqttTestHelper> mInstance;
@@ -181,7 +228,8 @@ class GstMqttTestHelper
   GstMqttTestHelper ()
       : context (nullptr), cl (nullptr), ma (nullptr), dc (nullptr),
         fail_send (false), fail_disconnect (false), fail_subscribe (false),
-        fail_unsubscribe (false), is_connected (false){};
+        fail_unsubscribe (false), is_connected (false), send_count (0),
+        last_payloadlen (0){};
 
   /** @brief Disable the copy constructor to keep this class a singleton */
   GstMqttTestHelper (const GstMqttTestHelper &) = delete;
@@ -197,4 +245,8 @@ class GstMqttTestHelper
   bool fail_subscribe;
   bool fail_unsubscribe;
   bool is_connected;
+
+  int send_count;
+  int last_payloadlen;
+  std::vector<guint8> last_payload;
 };
