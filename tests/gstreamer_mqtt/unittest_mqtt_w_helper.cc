@@ -705,6 +705,137 @@ TEST (testMqttSinkWithHelper, stopReturnsWhenDisconnected)
   gst_harness_teardown (h);
 }
 
+/** Tells a bounded wait that the pusher thread has come back out of render () */
+static std::atomic<bool> push_finished (false);
+
+/**
+ * @brief Push one buffer and report that the push has returned
+ */
+static void
+_push_one_buffer_watched (GstHarness *h, GstFlowReturn *ret)
+{
+  *ret = gst_harness_push (h, gst_harness_create_buffer (h, 4));
+  push_finished = true;
+}
+
+/**
+ * @brief Wait for the pusher thread, aborting the binary if render () never returns
+ */
+static void
+_wait_push_or_abort (const gchar *what)
+{
+  for (int waited = 0; !push_finished.load (); waited++) {
+    if (waited >= 30000)
+      g_error ("%s did not return within 30 s: a deadlock in mqttsink?", what);
+    g_usleep (1000);
+  }
+}
+
+/**
+ * @brief Test render () seeing a connection that came up while it was taking the lock
+ */
+TEST (testMqttSinkWithHelper, renderWakesOnConnectedState)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn push_ret = GST_FLOW_ERROR;
+  GstMqttSink *self;
+  gint64 elapsed_ms;
+  gint64 started;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  self = GST_MQTT_SINK (h->element);
+  /** Long enough that taking the wait cannot be mistaken for anything else */
+  g_object_set (h->element, "pub-wait-timeout", (gulong) 10, NULL);
+
+  /**
+   * Hold the lock the callbacks broadcast with, so that render () reaches it
+   * only after the connected state has been set and the broadcast is over:
+   * the wakeup it would wait for has already been sent to nobody.
+   */
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  g_atomic_int_set (&self->mqtt_sink_state, SINK_INITIALIZING);
+
+  push_finished = false;
+  std::thread pusher (_push_one_buffer_watched, h, &push_ret);
+  g_usleep (200 * 1000);
+
+  started = g_get_monotonic_time ();
+  g_atomic_int_set (&self->mqtt_sink_state, MQTT_CONNECTED);
+  g_cond_broadcast (&self->mqtt_sink_gcond);
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+
+  _wait_push_or_abort ("a push whose connection came up");
+  pusher.join ();
+  elapsed_ms = (g_get_monotonic_time () - started) / 1000;
+
+  EXPECT_EQ (push_ret, GST_FLOW_OK);
+  EXPECT_LT (elapsed_ms, 3000) << "render () waited " << elapsed_ms
+                               << " ms for a connection it had already been told about";
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test render () reporting the end of the stream instead of publishing
+ */
+TEST (testMqttSinkWithHelper, renderReportsEndOfStream)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstMqttSink *self;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  self = GST_MQTT_SINK (h->element);
+  g_atomic_int_set (&self->mqtt_sink_state, SINK_RENDER_EOS);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_EOS);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 0);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test render () giving up instead of waiting forever for a connection that never comes up
+ */
+TEST (testMqttSinkWithHelper, renderGivesUpWhenNotConnected_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn push_ret = GST_FLOW_OK;
+  GstMqttSink *self;
+  gint64 elapsed_ms;
+  gint64 started;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  self = GST_MQTT_SINK (h->element);
+  g_object_set (h->element, "pub-wait-timeout", (gulong) 1, NULL);
+  g_atomic_int_set (&self->mqtt_sink_state, SINK_INITIALIZING);
+
+  push_finished = false;
+  started = g_get_monotonic_time ();
+  std::thread pusher (_push_one_buffer_watched, h, &push_ret);
+
+  _wait_push_or_abort ("a push whose connection never comes up");
+  pusher.join ();
+  elapsed_ms = (g_get_monotonic_time () - started) / 1000;
+
+  EXPECT_EQ (push_ret, GST_FLOW_ERROR);
+  EXPECT_GE (elapsed_ms, 900) << "render () gave up after " << elapsed_ms
+                              << " ms, before the 'pub-wait-timeout' it was given";
+  EXPECT_LT (elapsed_ms, 10000)
+      << "render () waited " << elapsed_ms
+      << " ms, more than the one 'pub-wait-timeout' it was given";
+
+  gst_harness_teardown (h);
+}
+
 /**
  * @brief Test the header mqttsink prepends to a message: memory sizes, caps, timestamps and send time
  */
