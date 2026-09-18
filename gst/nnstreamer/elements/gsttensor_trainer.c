@@ -340,6 +340,8 @@ gst_tensor_trainer_finalize (GObject * object)
     trainer->fw->destroy (trainer->fw, &trainer->prop, &trainer->privateData);
   }
 
+  gst_tensors_info_free (&trainer->prop.input_meta);
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -1012,12 +1014,15 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
       }
 
       /* copy TensorsInfo from negotiated caps to GstTensorTrainerProperties's input_meta */
+      gst_tensors_info_free (&trainer->prop.input_meta);
       gst_tensors_info_copy (&trainer->prop.input_meta, &config.info);
 
       /* set tensor-config and out caps */
+      gst_tensors_config_free (&trainer->in_config);
       trainer->in_config = config;
       trainer->out_config.rate_n = config.rate_n;
       trainer->out_config.rate_d = config.rate_d;
+      gst_tensors_info_free (&trainer->out_config.info);
       gst_tensors_info_copy (&trainer->out_config.info, &trainer->output_meta);
 
       out_caps =
