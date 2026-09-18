@@ -810,13 +810,6 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
     if (self->max_msg_buf_size == 0) {
       self->mqtt_msg_buf_size = in_buf_size + GST_MQTT_LEN_MSG_HDR;
     } else {
-      if (self->max_msg_buf_size < in_buf_size) {
-        g_printerr ("%s: The given size for a message buffer is too small: "
-            "given (%" G_GSIZE_FORMAT " bytes) vs. incoming (%" G_GSIZE_FORMAT
-            " bytes)\n", TAG_ERR_MQTTSINK, self->max_msg_buf_size, in_buf_size);
-        ret = GST_FLOW_ERROR;
-        goto ret_with;
-      }
       self->mqtt_msg_buf_size = self->max_msg_buf_size + GST_MQTT_LEN_MSG_HDR;
       self->is_static_sized_buf = TRUE;
     }
@@ -832,6 +825,15 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
   msg_pub = self->mqtt_msg_buf;
   if (!msg_pub) {
     self->mqtt_msg_buf_size = 0;
+    ret = GST_FLOW_ERROR;
+    goto ret_with;
+  }
+
+  if (self->mqtt_msg_buf_size < in_buf_size + GST_MQTT_LEN_MSG_HDR) {
+    g_printerr ("%s: The given size for a message buffer is too small: "
+        "given (%" G_GSIZE_FORMAT " bytes) vs. incoming (%" G_GSIZE_FORMAT
+        " bytes)\n", TAG_ERR_MQTTSINK,
+        self->mqtt_msg_buf_size - GST_MQTT_LEN_MSG_HDR, in_buf_size);
     ret = GST_FLOW_ERROR;
     goto ret_with;
   }

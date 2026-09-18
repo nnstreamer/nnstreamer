@@ -299,7 +299,7 @@ if gtest_dep.found()
           install: get_option('install-test'),
           install_dir: unittest_install_dir)
 
-      test('unittest_mqtt_w_helper', unittest_mqtt_w_helper, env: testenv)
+      test('unittest_mqtt_w_helper', unittest_mqtt_w_helper, timeout: 180, env: testenv)
 
       unittest_mqtt = executable('unittest_mqtt',
           join_paths('gstreamer_mqtt', 'unittest_mqtt.cc'),

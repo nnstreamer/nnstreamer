@@ -74,6 +74,8 @@ MQTTAsync_send (MQTTAsync handle, const char *destinationName, int payloadlen,
   std::future<void> ret;
   MQTTAsync_successData data;
 
+  GstMqttTestHelper::getInstance ().recordSend (payload, payloadlen);
+
   if (GstMqttTestHelper::getInstance ().getFailSend ()) {
     MQTTAsync_failureData failure_data;
 
@@ -549,6 +551,288 @@ TEST (testMqttSinkWithHelper, sinkPush3_n)
 
   ret = gst_harness_push_from_src (h);
   EXPECT_NE (ret, GST_FLOW_OK);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink with max-buffer-size fitting every pushed buffer (E4 static buffer reuse)
+ */
+TEST (testMqttSinkWithHelper, sinkPushMaxBufferSizeSmaller)
+{
+  const gsize sizes[] = { 256, 16, 128, 256 };
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  guint i;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", 256UL, NULL);
+
+  for (i = 0; i < G_N_ELEMENTS (sizes); ++i) {
+    GstBuffer *in_buf = gst_harness_create_buffer (h, sizes[i]);
+    guint8 pattern = (guint8) (0x10 * (i + 1));
+    GstMapInfo map;
+    gsize j;
+
+    ASSERT_TRUE (gst_buffer_map (in_buf, &map, GST_MAP_WRITE));
+    for (j = 0; j < map.size; ++j)
+      map.data[j] = (guint8) (pattern + j);
+    gst_buffer_unmap (in_buf, &map);
+
+    ret = gst_harness_push (h, in_buf);
+    EXPECT_EQ (ret, GST_FLOW_OK);
+    EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), (int) (i + 1));
+    EXPECT_EQ ((gsize) GstMqttTestHelper::getInstance ().getLastPayloadLen (),
+        GST_MQTT_LEN_MSG_HDR + sizes[i]);
+
+    {
+      const std::vector<guint8> &payload
+          = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+      ASSERT_EQ (payload.size (), (size_t) (GST_MQTT_LEN_MSG_HDR + sizes[i]));
+      for (j = 0; j < sizes[i]; ++j)
+        EXPECT_EQ (payload[GST_MQTT_LEN_MSG_HDR + j], (guint8) (pattern + j));
+    }
+  }
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test the header mqttsink prepends to a message: memory sizes, caps, timestamps and send time
+ */
+TEST (testMqttSinkWithHelper, sinkPushMessageHeader)
+{
+  const gsize sizes[] = { 24, 40 };
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstMQTTMessageHdr hdr;
+  GstBuffer *in_buf;
+  GstFlowReturn ret;
+  gint64 before, after;
+  gsize j, offset;
+  guint i;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  gst_harness_set_src_caps_str (h, "application/octet-stream");
+
+  in_buf = gst_buffer_new ();
+  for (i = 0; i < G_N_ELEMENTS (sizes); ++i) {
+    GstMemory *mem = gst_allocator_alloc (NULL, sizes[i], NULL);
+    GstMapInfo map;
+
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+    memset (map.data, 0xA0 + i, map.size);
+    gst_memory_unmap (mem, &map);
+    gst_buffer_append_memory (in_buf, mem);
+  }
+  GST_BUFFER_PTS (in_buf) = GST_SECOND;
+  GST_BUFFER_DTS (in_buf) = 900 * GST_MSECOND;
+  GST_BUFFER_DURATION (in_buf) = 33 * GST_MSECOND;
+
+  before = g_get_real_time ();
+  ret = gst_harness_push (h, in_buf);
+  after = g_get_real_time ();
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  {
+    const std::vector<guint8> &payload
+        = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+    ASSERT_EQ (payload.size (), (size_t) (GST_MQTT_LEN_MSG_HDR + sizes[0] + sizes[1]));
+    memcpy (&hdr, payload.data (), GST_MQTT_LEN_MSG_HDR);
+
+    EXPECT_EQ (hdr.num_mems, 2U);
+    EXPECT_EQ (hdr.size_mems[0], sizes[0]);
+    EXPECT_EQ (hdr.size_mems[1], sizes[1]);
+    EXPECT_STREQ (hdr.gst_caps_str, "application/octet-stream");
+    EXPECT_EQ (hdr.pts, (GstClockTime) GST_SECOND);
+    EXPECT_EQ (hdr.dts, (GstClockTime) (900 * GST_MSECOND));
+    EXPECT_EQ (hdr.duration, (GstClockTime) (33 * GST_MSECOND));
+    EXPECT_GE (hdr.sent_time_epoch, before * GST_US_TO_NS_MULTIPLIER);
+    EXPECT_LE (hdr.sent_time_epoch, after * GST_US_TO_NS_MULTIPLIER);
+
+    offset = GST_MQTT_LEN_MSG_HDR;
+    for (i = 0; i < G_N_ELEMENTS (sizes); ++i) {
+      gsize mismatches = 0;
+
+      for (j = 0; j < sizes[i]; ++j) {
+        if (payload[offset + j] != (guint8) (0xA0 + i))
+          mismatches++;
+      }
+      EXPECT_EQ (mismatches, 0U) << "memory " << i;
+      offset += sizes[i];
+    }
+  }
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink refusing buffers larger than the allocated static message buffer (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushMaxBufferSizeLarger_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  GstBuffer *in_buf;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", 64UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 64);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  in_buf = gst_harness_create_buffer (h, 65);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  in_buf = gst_harness_create_buffer (h, 1024 * 1024);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  in_buf = gst_harness_create_buffer (h, 32);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 2);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink refusing a first buffer already larger than max-buffer-size (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushFirstBufferTooLarge_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  GstBuffer *in_buf;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", 16UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 17);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 0);
+
+  in_buf = gst_harness_create_buffer (h, 16);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink not growing an already allocated static message buffer at runtime (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushMaxBufferSizeRaised_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  GstBuffer *in_buf;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", 64UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 64);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  g_object_set (h->element, "max-buffer-size", 4096UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 1024);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink refusing a buffer when max-buffer-size + header length wraps around (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushMaxBufferSizeWraps_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  GstBuffer *in_buf;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", G_MAXULONG - 511UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 16);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 0);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink's dynamic (default) message buffer re-allocating for both smaller and larger buffers (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushDynamicBufferSize)
+{
+  const gsize sizes[] = { 16, 4096, 8, 4096 };
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  guint i;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  for (i = 0; i < G_N_ELEMENTS (sizes); ++i) {
+    GstBuffer *in_buf = gst_harness_create_buffer (h, sizes[i]);
+    guint8 pattern = (guint8) (0x20 + i);
+    GstMapInfo map;
+    gsize j;
+
+    ASSERT_TRUE (gst_buffer_map (in_buf, &map, GST_MAP_WRITE));
+    for (j = 0; j < map.size; ++j)
+      map.data[j] = (guint8) (pattern + j);
+    gst_buffer_unmap (in_buf, &map);
+
+    ret = gst_harness_push (h, in_buf);
+    EXPECT_EQ (ret, GST_FLOW_OK);
+    EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), (int) (i + 1));
+    EXPECT_EQ ((gsize) GstMqttTestHelper::getInstance ().getLastPayloadLen (),
+        GST_MQTT_LEN_MSG_HDR + sizes[i]);
+
+    {
+      const std::vector<guint8> &payload
+          = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+      ASSERT_EQ (payload.size (), (size_t) (GST_MQTT_LEN_MSG_HDR + sizes[i]));
+      for (j = 0; j < sizes[i]; ++j)
+        EXPECT_EQ (payload[GST_MQTT_LEN_MSG_HDR + j], (guint8) (pattern + j));
+    }
+  }
 
   gst_harness_teardown (h);
 }
