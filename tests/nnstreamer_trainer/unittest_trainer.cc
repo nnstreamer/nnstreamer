@@ -12,7 +12,10 @@
 #include <glib/gstdio.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
+#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_trainer.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include <unittest_util.h>
 
 static const gchar filename[] = "mnist.data";
@@ -880,6 +883,141 @@ TEST_F (TensorTrainerFakeFw, renegotiateManyTensors)
   EXPECT_EQ (rate_n, 30);
   EXPECT_EQ (rate_d, 1);
   gst_caps_unref (caps);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Push a flexible tensor with a valid header and 4 bytes of data.
+ */
+TEST_F (TensorTrainerFakeFw, flexibleInput)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  GstTensorMetaInfo meta;
+  GstMemory *data_mem, *mem;
+  GstBuffer *buf;
+  guint8 data[4] = { 7, 8, 9, 10 };
+
+  ASSERT_NE (h, nullptr);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 4;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  data_mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, data,
+      sizeof (data), 0, sizeof (data), NULL, NULL);
+  mem = gst_tensor_meta_info_append_header (&meta, data_mem);
+  gst_memory_unref (data_mem);
+  ASSERT_NE (mem, nullptr);
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, mem);
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 1);
+  EXPECT_EQ (fake_stat.pushed_size, sizeof (data));
+  EXPECT_EQ ((guint) fake_stat.pushed_first, 7U);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Push a flexible tensor whose memory is shorter than the tensor header.
+ *
+ * The 8 bytes end right before an inaccessible page, so reading the
+ * 128-byte header out of them faults instead of silently reading the
+ * neighbouring heap.
+ */
+TEST_F (TensorTrainerFakeFw, flexibleHeaderTruncated_n)
+{
+  const gsize page = (gsize) sysconf (_SC_PAGESIZE);
+  const gsize size = 8;
+  GstHarness *h;
+  GstBuffer *buf;
+  gpointer region;
+
+  region = mmap (NULL, page * 2, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  ASSERT_NE (region, MAP_FAILED);
+  memset (region, 0, page);
+  if (mprotect ((guint8 *) region + page, page, PROT_NONE) != 0) {
+    munmap (region, page * 2);
+    FAIL () << "Cannot protect the guard page.";
+  }
+
+  h = make_fake_trainer_harness ();
+  if (!h) {
+    munmap (region, page * 2);
+    FAIL () << "Cannot create the harness.";
+  }
+  gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
+                                     region, page, page - size, size, NULL, NULL));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_calls), 0);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+  munmap (region, page * 2);
+}
+
+/**
+ * @brief Push a flexible tensor whose header is long enough but invalid.
+ */
+TEST_F (TensorTrainerFakeFw, flexibleHeaderInvalid_n)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  GstBuffer *buf;
+
+  ASSERT_NE (h, nullptr);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
+
+  buf = gst_buffer_new_allocate (NULL, 256, NULL);
+  gst_buffer_memset (buf, 0, 0, 256);
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_calls), 0);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Push a flexible tensor whose header has a version the build cannot size.
+ *
+ * The header passes validation but its size is unknown. The declared data
+ * size equals the whole memory, so only refusing the header keeps the
+ * header bytes from reaching the sub-plugin as data.
+ */
+TEST_F (TensorTrainerFakeFw, flexibleHeaderUnknownVersion_n)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  GstTensorMetaInfo meta;
+  GstBuffer *buf;
+  GstMapInfo map;
+
+  ASSERT_NE (h, nullptr);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 256;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  buf = gst_buffer_new_allocate (NULL, 256, NULL);
+  gst_buffer_memset (buf, 0, 0, 256);
+  ASSERT_TRUE (gst_buffer_map (buf, &map, GST_MAP_WRITE));
+  EXPECT_TRUE (gst_tensor_meta_info_update_header (&meta, map.data));
+  ((uint32_t *) map.data)[1] = 0xDE002000U;
+  gst_buffer_unmap (buf, &map);
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_calls), 0);
 
   gst_harness_teardown (h);
 }
