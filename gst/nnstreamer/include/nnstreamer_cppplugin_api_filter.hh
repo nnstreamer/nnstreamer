@@ -229,6 +229,7 @@ class tensor_filter_subplugin
 
   virtual int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
   /**< Optional. If not implemented, no event is handled
+   * data is zero-filled when the event carries none (e.g., SUSPEND, RESUME).
    * Return -ENOENT if the ops is not to be handled by this object
    *                 (e.g., let the framework do "free")
    * Return -EINVAL if it is an invalid request.

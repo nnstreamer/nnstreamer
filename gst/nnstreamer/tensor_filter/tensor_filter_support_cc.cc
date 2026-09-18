@@ -266,10 +266,17 @@ tensor_filter_subplugin::cpp_eventHandler (const GstTensorFilterFramework *tf,
     GstTensorFilterFrameworkEventData *data)
 {
   tensor_filter_subplugin *obj;
+  GstTensorFilterFrameworkEventData empty_data;
 
   GET_TFSP_WITH_CHECKS (obj, private_data);
   UNUSED (tf);
   UNUSED (prop);
+
+  if (data == NULL) {
+    /* An aggregate initializer zeroes only the union's first member. */
+    memset (&empty_data, 0, sizeof (empty_data));
+    data = &empty_data;
+  }
 
   int ret;
   try {
