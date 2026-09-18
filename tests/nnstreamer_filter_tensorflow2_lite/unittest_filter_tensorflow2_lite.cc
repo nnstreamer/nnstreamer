@@ -13,6 +13,15 @@
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#ifdef __GLIBC__
+#include <malloc.h>
+#if __GLIBC_PREREQ(2, 33)
+#define HAVE_MALLINFO2 1
+#endif
+#endif
+#ifndef HAVE_MALLINFO2
+#define HAVE_MALLINFO2 0
+#endif
 
 #include <nnstreamer_util.h>
 #include <unittest_util.h>
@@ -644,6 +653,32 @@ TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, sharedKeyReopen)
 }
 
 /**
+ * @brief The last ExtDelegateLib given in the custom option is the one loaded.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, extDelegateLibGivenTwice)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file, *custom_twice;
+  void *data = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  model_files[0] = model_file;
+  custom_twice = g_strdup_printf (
+      "Delegate:External,ExtDelegateLib:/nonexistent/libdelegate.so,ExtDelegateLib:%s", lib_path);
+  fillProp (&prop, model_files, custom_twice, NULL);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_EQ (get_count ("prepared"), 1);
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  g_free (custom_twice);
+  g_free (model_file);
+}
+
+/**
  * @brief ExtDelegateKeyVal entries reach the delegate; malformed ones are dropped.
  */
 TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, extDelegateKeyValOptions)
@@ -697,6 +732,169 @@ TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, extDelegateRefusesToApply_n)
 
   g_free (custom_fail);
   g_free (model_file);
+}
+
+/**
+ * @brief The external delegate is dropped when no library is given.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, extDelegateWithoutLib)
+{
+  GstTensorFilterProperties prop = {};
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file;
+  void *data = NULL;
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tensorflow2-lite");
+  ASSERT_TRUE (sp != NULL);
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+
+  model_files[0] = model_file;
+  prop.fwname = "tensorflow2-lite";
+  prop.model_files = model_files;
+  prop.num_models = 1;
+  prop.custom_properties = "Delegate:External";
+
+  EXPECT_EQ (sp->open (&prop, &data), 0);
+  sp->close (&prop, &data);
+
+  g_free (model_file);
+}
+
+/**
+ * @brief Every other custom option is parsed, and an unknown one is ignored.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, customOptionsParsed)
+{
+  GstTensorFilterProperties prop = {};
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file;
+  void *data = NULL;
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tensorflow2-lite");
+  ASSERT_TRUE (sp != NULL);
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+
+  model_files[0] = model_file;
+  prop.fwname = "tensorflow2-lite";
+  prop.model_files = model_files;
+  prop.num_models = 1;
+  prop.custom_properties = "NumThreads:2,Delegate:Unknown,QNNBackend:HTP,"
+                           "QNNPerformanceMode:powersaver,ExtDelegateKeyVal:k#v,UnknownOption:1,"
+                           "no_separator";
+
+  EXPECT_EQ (sp->open (&prop, &data), 0);
+  sp->close (&prop, &data);
+
+  g_free (model_file);
+}
+
+/**
+ * @brief Every delegate name and QNN option is parsed, whatever this build supports.
+ * @note The model is missing, so the open fails before the parsed delegate is
+ *       built; that keeps the case free of any accelerator this host lacks.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, customOptionsDelegateNames_n)
+{
+  static const gchar *customs[] = {
+    "Delegate:NNAPI",
+    "Delegate:GPU",
+    "Delegate:QNN,QNNBackend:DSP,QNNPerformanceMode:default",
+    "Delegate:QNN,QNNBackend:GPU,QNNPerformanceMode:highperformance",
+    "Delegate:QNN,QNNBackend:Unknown,QNNPerformanceMode:Unknown",
+    NULL,
+  };
+  const gchar *model_files[] = { "/nonexistent/model.tflite", NULL };
+  GstTensorFilterProperties prop = {};
+  void *data = NULL;
+  guint i;
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tensorflow2-lite");
+  ASSERT_TRUE (sp != NULL);
+
+  prop.fwname = "tensorflow2-lite";
+  prop.model_files = model_files;
+  prop.num_models = 1;
+
+  for (i = 0; customs[i]; i++) {
+    prop.custom_properties = customs[i];
+    EXPECT_NE (sp->open (&prop, &data), 0) << customs[i];
+    EXPECT_TRUE (data == NULL);
+  }
+}
+
+/**
+ * @brief The open must fail when no model file is given.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, openWithoutModelFile_n)
+{
+  const gchar *model_files[] = { NULL, NULL };
+  GstTensorFilterProperties prop = {};
+  void *data = NULL;
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tensorflow2-lite");
+  ASSERT_TRUE (sp != NULL);
+
+  prop.fwname = "tensorflow2-lite";
+  prop.model_files = model_files;
+  prop.num_models = 1;
+
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_TRUE (data == NULL);
+}
+
+/**
+ * @brief ExtDelegateLib given twice must not leak the first path.
+ * @note The paths are large so that a leak is measurable in the heap usage
+ *       reported by glibc; the model is missing so open fails before tflite
+ *       allocates anything that it may keep.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, extDelegateLibGivenTwiceNoLeak_n)
+{
+#if HAVE_MALLINFO2
+  const gsize path_len = 64 * 1024;
+  const guint repeat = 10;
+  const gchar *model_files[] = { "/nonexistent/model.tflite", NULL };
+  GstTensorFilterProperties prop;
+  gchar *long_path, *custom_twice;
+  struct mallinfo2 before, after;
+  gsize used_before, used_after;
+  void *data = NULL;
+  guint i;
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tensorflow2-lite");
+  ASSERT_TRUE (sp != NULL);
+
+  long_path = (gchar *) g_malloc (path_len + 1);
+  memset (long_path, 'a', path_len);
+  long_path[path_len] = '\0';
+  custom_twice = g_strdup_printf ("ExtDelegateLib:%s,ExtDelegateLib:%s", long_path, long_path);
+
+  memset (&prop, 0, sizeof (prop));
+  prop.fwname = "tensorflow2-lite";
+  prop.model_files = model_files;
+  prop.num_models = 1;
+  prop.custom_properties = custom_twice;
+
+  /* warm up whatever the sub-plugin initializes once */
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_NE (sp->open (&prop, &data), 0);
+
+  before = mallinfo2 ();
+  for (i = 0; i < repeat; i++) {
+    EXPECT_NE (sp->open (&prop, &data), 0);
+    EXPECT_TRUE (data == NULL);
+  }
+  after = mallinfo2 ();
+
+  used_before = before.uordblks + before.hblkhd;
+  used_after = after.uordblks + after.hblkhd;
+  EXPECT_LT (used_after, used_before + path_len);
+
+  g_free (custom_twice);
+  g_free (long_path);
+#else
+  GTEST_SKIP () << "mallinfo2 () is not available";
+#endif
 }
 
 /**

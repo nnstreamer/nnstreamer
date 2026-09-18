@@ -1455,6 +1455,7 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
           else
             ml_logw ("Unknown option to set tensorflow-lite delegate (%s).", pair[1]);
         } else if (g_ascii_strcasecmp (pair[0], "ExtDelegateLib") == 0) {
+          g_free ((gpointer) option->ext_delegate_path);
           option->ext_delegate_path = g_strdup (pair[1]);
         } else if (g_ascii_strcasecmp (pair[0], "ExtDelegateKeyVal") == 0) {
           gchar **kvpairs;
