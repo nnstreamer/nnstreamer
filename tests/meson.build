@@ -259,6 +259,16 @@ if gtest_dep.found()
 
     test('unittest_filter_event', unittest_filter_event, env: testenv)
 
+    # Run unittest_filter_common
+    unittest_filter_common = executable('unittest_filter_common',
+      join_paths('nnstreamer_filter_common', 'unittest_filter_common.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_common', unittest_filter_common, env: testenv)
+
     # Run unittest_filter_single
     unittest_filter_single = executable('unittest_filter_single',
       join_paths('nnstreamer_filter_single', 'unittest_filter_single.cc'),
