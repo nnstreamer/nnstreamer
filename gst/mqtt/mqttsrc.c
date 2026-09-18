@@ -123,6 +123,7 @@ static void gst_mqtt_src_set_opt_keep_alive_interval (GstMqttSrc * self,
     const gint num);
 static gint gst_mqtt_src_get_mqtt_qos (GstMqttSrc * self);
 static void gst_mqtt_src_set_mqtt_qos (GstMqttSrc * self, const gint qos);
+static gchar *gst_mqtt_src_dup_sub_topic (GstMqttSrc * self);
 
 static void cb_mqtt_on_connection_lost (void *context, char *cause);
 static int cb_mqtt_on_message_arrived (void *context, char *topic_name,
@@ -378,19 +379,27 @@ gst_mqtt_src_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, gst_mqtt_src_get_is_live (self));
       break;
     case PROP_MQTT_CLIENT_ID:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_src_get_client_id (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_HOST_ADDRESS:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_src_get_host_address (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_HOST_PORT:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_src_get_host_port (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_SUB_TIMEOUT:
       g_value_set_int64 (value, gst_mqtt_src_get_sub_timeout (self));
       break;
     case PROP_MQTT_SUB_TOPIC:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_src_get_sub_topic (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_OPT_CLEANSESSION:
       g_value_set_boolean (value, gst_mqtt_src_get_opt_cleansession (self));
@@ -487,8 +496,10 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
         int conn = MQTTAsync_reconnect (self->mqtt_client_handle);
 
         if (conn != MQTTASYNC_SUCCESS) {
-          GST_ERROR_OBJECT (self, "Failed to re-subscribe to %s",
-              self->mqtt_topic);
+          gchar *topic = gst_mqtt_src_dup_sub_topic (self);
+
+          GST_ERROR_OBJECT (self, "Failed to re-subscribe to %s", topic);
+          g_free (topic);
 
           return GST_STATE_CHANGE_FAILURE;
         }
@@ -503,7 +514,10 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       if (self->is_subscribed && !_unsubscribe (self)) {
-        GST_ERROR_OBJECT (self, "Cannot unsubscribe to %s", self->mqtt_topic);
+        gchar *topic = gst_mqtt_src_dup_sub_topic (self);
+
+        GST_ERROR_OBJECT (self, "Cannot unsubscribe to %s", topic);
+        g_free (topic);
       }
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PLAYING_TO_PAUSED");
       break;
@@ -529,16 +543,22 @@ static gboolean
 gst_mqtt_src_start (GstBaseSrc * basesrc)
 {
   GstMqttSrc *self = GST_MQTT_SRC (basesrc);
-  gchar *haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
-      self->mqtt_host_port);
+  gchar *client_id;
+  gchar *haddr;
   int ret;
   gint64 end_time;
+
+  GST_OBJECT_LOCK (self);
+  haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
+      self->mqtt_host_port);
 
   if (!g_strcmp0 (DEFAULT_MQTT_CLIENT_ID, self->mqtt_client_id)) {
     g_free (self->mqtt_client_id);
     self->mqtt_client_id = g_strdup_printf (DEFAULT_MQTT_CLIENT_ID_FORMAT,
         g_get_host_name (), getpid (), src_client_id++);
   }
+  client_id = g_strdup (self->mqtt_client_id);
+  GST_OBJECT_UNLOCK (self);
 
   /**
    * @todo Support other persistence mechanisms
@@ -548,9 +568,10 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
    *    MQTTCLIENT_PERSISTENCE_USER: An application-specific persistence
    *                                 mechanism
    */
-  ret = MQTTAsync_create (&self->mqtt_client_handle, haddr,
-      self->mqtt_client_id, MQTTCLIENT_PERSISTENCE_NONE, NULL);
+  ret = MQTTAsync_create (&self->mqtt_client_handle, haddr, client_id,
+      MQTTCLIENT_PERSISTENCE_NONE, NULL);
   g_free (haddr);
+  g_free (client_id);
   if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
 
@@ -746,9 +767,12 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
       /** This buffer is coming from the past. Drop it. */
       if (!_is_gst_buffer_timestamp_valid (*buf)) {
         if (self->debug) {
+          gchar *topic = gst_mqtt_src_dup_sub_topic (self);
+
           GST_DEBUG_OBJECT (self,
               "%s: Dumped the received buffer! (total: %" G_GUINT64_FORMAT ")",
-              self->mqtt_topic, ++self->num_dumped);
+              topic, ++self->num_dumped);
+          g_free (topic);
         }
         elapsed = self->mqtt_sub_timeout;
         gst_buffer_unref (*buf);
@@ -955,8 +979,15 @@ gst_mqtt_src_get_client_id (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_client_id (GstMqttSrc * self, const gchar * id)
 {
-  g_free (self->mqtt_client_id);
-  self->mqtt_client_id = g_strdup (id);
+  gchar *new_id = g_strdup (id);
+  gchar *old_id;
+
+  GST_OBJECT_LOCK (self);
+  old_id = self->mqtt_client_id;
+  self->mqtt_client_id = new_id;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_id);
 }
 
 /**
@@ -974,11 +1005,18 @@ gst_mqtt_src_get_host_address (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_host_address (GstMqttSrc * self, const gchar * addr)
 {
+  gchar *new_addr = g_strdup (addr);
+  gchar *old_addr;
+
   /**
    * @todo Handle the case where the addr is changed at runtime
    */
-  g_free (self->mqtt_host_address);
-  self->mqtt_host_address = g_strdup (addr);
+  GST_OBJECT_LOCK (self);
+  old_addr = self->mqtt_host_address;
+  self->mqtt_host_address = new_addr;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_addr);
 }
 
 /**
@@ -996,8 +1034,15 @@ gst_mqtt_src_get_host_port (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_host_port (GstMqttSrc * self, const gchar * port)
 {
-  g_free (self->mqtt_host_port);
-  self->mqtt_host_port = g_strdup (port);
+  gchar *new_port = g_strdup (port);
+  gchar *old_port;
+
+  GST_OBJECT_LOCK (self);
+  old_port = self->mqtt_host_port;
+  self->mqtt_host_port = new_port;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_port);
 }
 
 /**
@@ -1033,8 +1078,31 @@ gst_mqtt_src_get_sub_topic (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_sub_topic (GstMqttSrc * self, const gchar * topic)
 {
-  g_free (self->mqtt_topic);
-  self->mqtt_topic = g_strdup (topic);
+  gchar *new_topic = g_strdup (topic);
+  gchar *old_topic;
+
+  GST_OBJECT_LOCK (self);
+  old_topic = self->mqtt_topic;
+  self->mqtt_topic = new_topic;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_topic);
+}
+
+/**
+ * @brief Copy the 'sub-topic' property for a thread other than the one that sets it
+ * @return a new string to be released with g_free ()
+ */
+static gchar *
+gst_mqtt_src_dup_sub_topic (GstMqttSrc * self)
+{
+  gchar *topic;
+
+  GST_OBJECT_LOCK (self);
+  topic = g_strdup (self->mqtt_topic);
+  GST_OBJECT_UNLOCK (self);
+
+  return topic;
 }
 
 /**
@@ -1115,6 +1183,8 @@ cb_mqtt_on_connection_lost (void *context, char *cause)
 
 /**
   * @brief A callback to handle the arrived message
+  * @note Returning TRUE passes the ownership of both the message and the
+  *       topic name to this callback, which has to release them.
   */
 static int
 cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
@@ -1129,11 +1199,11 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   GstBuffer *buffer;
   GstBaseSrc *basesrc;
   GstMqttSrc *self;
-  GstClock *clock;
+  GstClock *clock = NULL;
   GstCaps *recv_caps;
+  gchar caps_str[GST_MQTT_MAX_LEN_GST_CAPS_STR + 1];
   gsize offset;
   guint i;
-  UNUSED (topic_name);
   UNUSED (topic_len);
 
   self = GST_MQTT_SRC_CAST (context);
@@ -1141,7 +1211,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   if (!self->is_subscribed) {
     g_mutex_unlock (&self->mqtt_src_mutex);
 
-    return TRUE;
+    goto ret_free_message;
   }
   g_mutex_unlock (&self->mqtt_src_mutex);
 
@@ -1157,6 +1227,17 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     }
     goto ret_unref_clock;
   }
+  /** The wrapped memory releases the message from now on */
+  message = NULL;
+
+  if (size < GST_MQTT_LEN_MSG_HDR) {
+    if (!self->err) {
+      self->err = g_error_new (self->gquark_err_tag, EPROTO,
+          "%s: the received message is %d bytes long while its header alone takes %d bytes",
+          __func__, size, GST_MQTT_LEN_MSG_HDR);
+    }
+    goto ret_unref_received_mem;
+  }
 
   mqtt_msg_hdr = _extract_mqtt_msg_hdr_from (received_mem, &hdr_mem,
       &hdr_map_info);
@@ -1169,7 +1250,19 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     goto ret_unref_received_mem;
   }
 
-  recv_caps = gst_caps_from_string (mqtt_msg_hdr->gst_caps_str);
+  if (mqtt_msg_hdr->num_mems > GST_MQTT_MAX_NUM_MEMS) {
+    if (!self->err) {
+      self->err = g_error_new (self->gquark_err_tag, EPROTO,
+          "%s: the received message declares %u memory blocks while its header holds %d at most",
+          __func__, mqtt_msg_hdr->num_mems, GST_MQTT_MAX_NUM_MEMS);
+    }
+    goto ret_unmap_hdr_mem;
+  }
+
+  memcpy (caps_str, mqtt_msg_hdr->gst_caps_str, GST_MQTT_MAX_LEN_GST_CAPS_STR);
+  caps_str[GST_MQTT_MAX_LEN_GST_CAPS_STR] = '\0';
+
+  recv_caps = gst_caps_from_string (caps_str);
   if (recv_caps) {
     if (!self->caps || !gst_caps_is_equal (self->caps, recv_caps)) {
       gst_caps_replace (&self->caps, recv_caps);
@@ -1183,9 +1276,21 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   offset = GST_MQTT_LEN_MSG_HDR;
   for (i = 0; i < mqtt_msg_hdr->num_mems; ++i) {
     GstMemory *each_memory;
-    int each_size;
+    gsize each_size;
 
     each_size = mqtt_msg_hdr->size_mems[i];
+    if (each_size > (gsize) size - offset) {
+      if (!self->err) {
+        self->err = g_error_new (self->gquark_err_tag, EPROTO,
+            "%s: the memory block %u of the received message declares %"
+            G_GSIZE_FORMAT " bytes while %" G_GSIZE_FORMAT
+            " bytes of its payload are left", __func__, i, each_size,
+            (gsize) size - offset);
+      }
+      gst_buffer_unref (buffer);
+      goto ret_unmap_hdr_mem;
+    }
+
     each_memory = gst_memory_share (received_mem, offset, each_size);
     gst_buffer_append_memory (buffer, each_memory);
     offset += each_size;
@@ -1206,6 +1311,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   _put_timestamp_on_gst_buf (self, mqtt_msg_hdr, buffer);
   g_async_queue_push (self->aqueue, buffer);
 
+ret_unmap_hdr_mem:
   gst_memory_unmap (hdr_mem, &hdr_map_info);
   gst_memory_unref (hdr_mem);
 
@@ -1215,6 +1321,11 @@ ret_unref_received_mem:
 ret_unref_clock:
   if (clock)
     gst_object_unref (clock);
+
+ret_free_message:
+  if (message)
+    MQTTAsync_freeMessage (&message);
+  MQTTAsync_free (topic_name);
 
   return TRUE;
 }
@@ -1259,7 +1370,10 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
   }
 
   if (!_subscribe (self)) {
-    GST_ERROR_OBJECT (self, "Failed to subscribe to %s", self->mqtt_topic);
+    gchar *topic = gst_mqtt_src_dup_sub_topic (self);
+
+    GST_ERROR_OBJECT (self, "Failed to subscribe to %s", topic);
+    g_free (topic);
   }
 }
 
@@ -1304,15 +1418,17 @@ static void
 cb_mqtt_on_subscribe_failure (void *context, MQTTAsync_failureData * response)
 {
   GstMqttSrc *self = GST_MQTT_SRC (context);
+  gchar *topic = gst_mqtt_src_dup_sub_topic (self);
 
   g_mutex_lock (&self->mqtt_src_mutex);
   if (!self->err) {
     self->err = g_error_new (self->gquark_err_tag, response->code,
         "%s: failed to subscribe the given topic, %s: %s", __func__,
-        self->mqtt_topic, response->message);
+        topic, response->message);
   }
   g_cond_broadcast (&self->mqtt_src_gcond);
   g_mutex_unlock (&self->mqtt_src_mutex);
+  g_free (topic);
 }
 
 /**
@@ -1337,15 +1453,17 @@ static void
 cb_mqtt_on_unsubscribe_failure (void *context, MQTTAsync_failureData * response)
 {
   GstMqttSrc *self = GST_MQTT_SRC (context);
+  gchar *topic = gst_mqtt_src_dup_sub_topic (self);
 
   g_mutex_lock (&self->mqtt_src_mutex);
   if (!self->err) {
     self->err = g_error_new (self->gquark_err_tag, response->code,
         "%s: failed to unsubscribe the given topic, %s: %s", __func__,
-        self->mqtt_topic, response->message);
+        topic, response->message);
   }
   g_cond_broadcast (&self->mqtt_src_gcond);
   g_mutex_unlock (&self->mqtt_src_mutex);
+  g_free (topic);
 }
 
 /**
@@ -1355,14 +1473,16 @@ static gboolean
 _subscribe (GstMqttSrc * self)
 {
   MQTTAsync_responseOptions opts = self->mqtt_respn_opts;
+  gchar *topic = gst_mqtt_src_dup_sub_topic (self);
   int mqttasync_ret;
 
   opts.onSuccess = cb_mqtt_on_subscribe;
   opts.onFailure = cb_mqtt_on_subscribe_failure;
   opts.subscribeOptions.retainHandling = 1;
 
-  mqttasync_ret = MQTTAsync_subscribe (self->mqtt_client_handle,
-      self->mqtt_topic, self->mqtt_qos, &opts);
+  mqttasync_ret = MQTTAsync_subscribe (self->mqtt_client_handle, topic,
+      self->mqtt_qos, &opts);
+  g_free (topic);
   if (mqttasync_ret != MQTTASYNC_SUCCESS)
     return FALSE;
   return TRUE;
@@ -1375,13 +1495,15 @@ static gboolean
 _unsubscribe (GstMqttSrc * self)
 {
   MQTTAsync_responseOptions opts = self->mqtt_respn_opts;
+  gchar *topic = gst_mqtt_src_dup_sub_topic (self);
   int mqttasync_ret;
 
   opts.onSuccess = cb_mqtt_on_unsubscribe;
   opts.onFailure = cb_mqtt_on_unsubscribe_failure;
 
-  mqttasync_ret = MQTTAsync_unsubscribe (self->mqtt_client_handle,
-      self->mqtt_topic, &opts);
+  mqttasync_ret = MQTTAsync_unsubscribe (self->mqtt_client_handle, topic,
+      &opts);
+  g_free (topic);
   if (mqttasync_ret != MQTTASYNC_SUCCESS)
     return FALSE;
   return TRUE;
@@ -1489,6 +1611,7 @@ _put_timestamp_on_gst_buf (GstMqttSrc * self, GstMQTTMessageHdr * hdr,
 
   if (self->debug) {
     GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
+    gchar *topic = gst_mqtt_src_dup_sub_topic (self);
     GstClock *clock;
 
     clock = gst_element_get_clock (GST_ELEMENT (self));
@@ -1496,12 +1619,13 @@ _put_timestamp_on_gst_buf (GstMqttSrc * self, GstMQTTMessageHdr * hdr,
     if (clock) {
       GST_DEBUG_OBJECT (self,
           "%s diff %" GST_STIME_FORMAT " now %" GST_TIME_FORMAT " ts (%"
-          GST_TIME_FORMAT " -> %" GST_TIME_FORMAT ")", self->mqtt_topic,
+          GST_TIME_FORMAT " -> %" GST_TIME_FORMAT ")", topic,
           GST_STIME_ARGS (diff_base_epoch),
           GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
           GST_TIME_ARGS (hdr->pts), GST_TIME_ARGS (buf->pts));
 
       gst_object_unref (clock);
     }
+    g_free (topic);
   }
 }
