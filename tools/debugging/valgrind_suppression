@@ -312,3 +312,18 @@
         fun:gst_init
         fun:main
 }
+# glibc parses resolv.conf on the first name lookup and keeps the result in a
+# cache of its own that it never gives back, so memcheck reports the block
+# against whoever called getaddrinfo first. Here that is an edge element of
+# ours by way of libnnstreamer-edge, which makes our call site the innermost
+# frame of this repository on the allocation stack and the leak ours to answer
+# for, although nothing in it is. The name is internal to glibc, so matching
+# it needs libc6-dbg, which the job that runs the gate installs.
+{
+        glibc_resolv_conf_cache
+        Memcheck:Leak
+        match-leak-kinds: definite
+        ...
+        fun:__resolv_conf_allocate
+        ...
+}

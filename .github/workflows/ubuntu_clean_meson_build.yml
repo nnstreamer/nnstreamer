@@ -33,7 +33,13 @@ jobs:
         sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
         sudo add-apt-repository -y ppa:nnstreamer/ppa
         sudo apt-get update
-        sudo apt-get install -y ssat libpaho-mqtt-dev
+        # nnstreamer-edge-dev turns on the edge and query elements, which
+        # brings unittest_edge and unittest_query into the memcheck pass
+        # below; without it neither element is built and nothing checks them.
+        # This PPA follows nnstreamer-edge daily, and a leak of its own is
+        # reported against whichever of our elements called into it, so if one
+        # ever arrives, fix it there and suppress it here meanwhile.
+        sudo apt-get install -y ssat libpaho-mqtt-dev nnstreamer-edge-dev
         sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
         sudo apt-get install -y libarmnn-dev libarmnntfliteparser-dev libarmnn-cpuref-backend22
         # The armnn subplugin auto-selects the NEON-accelerated CpuAcc backend on arm.
@@ -161,6 +167,11 @@ jobs:
         fi
 
         meson compile -C build/
+
+        # The edge elements are what brings unittest_edge and unittest_query
+        # into the memcheck pass; if nnstreamer-edge stopped being detected
+        # they would leave it without a word.
+        test -f build/gst/edge/libgstedge.so
 
         if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then
           # Fail loudly if meson stopped detecting llama.cpp; otherwise the
@@ -300,6 +311,13 @@ jobs:
         export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini
         export G_SLICE=always-malloc
         export G_DEBUG=gc-friendly
+        # unittest_edge dlopens the custom-connection library it builds, by
+        # name; meson test hands it a path, a run from here does not. Assert
+        # the library is where this says it is: a gtest failure does not fail
+        # this step, so a stale path would only make nine cases take their
+        # error paths quietly.
+        test -f `pwd`/build/tests/nnstreamer_edge/libnnstreamer-edge-custom-test.so
+        export LD_LIBRARY_PATH=`pwd`/build/tests/nnstreamer_edge${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
         skip_cases="nnstreamerFilterArmnn.invokeAdvanced"
         skip_cases="${skip_cases}:nnstreamerFilterLiteRT.sharedEnvInvokeDuringConfigure"
         skip_cases="${skip_cases}:nnstreamerFilterLiteRT.zeroCopyRepeatedInvoke"
@@ -353,6 +371,13 @@ jobs:
         currentpath=$(pwd)
         sed "s|@SUBPLUGIN_INSTALL_PREFIX@|${currentpath}|" .github/workflows/ubuntu_clean_meson_build.nnstreamer.ini > "${RUNNER_TEMP}/nnstreamer.ini"
         sudo cp "${RUNNER_TEMP}/nnstreamer.ini" /etc/nnstreamer.ini
+        # nnstreamer-example builds an edge benchmark whenever
+        # nnstreamer-edge is installed, and that benchmark needs
+        # nnstreamer's own headers from a system install, which this job
+        # does not have until its last step. nnstreamer itself is built by
+        # now and nothing after this configures against the package, so
+        # take it away and leave the example build as it was.
+        sudo apt-get remove -y nnstreamer-edge-dev
         pushd examples
         # The example apps log through _print_log() and always exit 0, even on
         # failure; turn DBG on so the assertions below can observe the logs.
