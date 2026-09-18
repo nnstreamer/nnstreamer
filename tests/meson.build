@@ -324,9 +324,16 @@ if gtest_dep.found()
 
   # tensorflow2-lite unittest
   if tflite2_support_is_available
+    shared_library('nnstreamer_unittest_tflite_lifetime_delegate',
+      join_paths('nnstreamer_filter_tensorflow2_lite', 'tflite_lifetime_delegate.cc'),
+      dependencies: [tflite2_support_deps, tflite2_extra_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
     unittest_filter_tensorflow2_lite = executable('unittest_filter_tensorflow2_lite',
       join_paths('nnstreamer_filter_tensorflow2_lite', 'unittest_filter_tensorflow2_lite.cc'),
-      dependencies: [nnstreamer_unittest_deps],
+      dependencies: [nnstreamer_unittest_deps, libdl_dep, tflite2_extra_dep],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
