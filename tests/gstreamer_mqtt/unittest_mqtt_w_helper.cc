@@ -679,6 +679,33 @@ TEST (testMqttSinkWithHelper, sinkPushMaxBufferSizeSmaller)
 }
 
 /**
+ * @brief Test stop () returning as soon as the disconnect callback has run
+ */
+TEST (testMqttSinkWithHelper, stopReturnsWhenDisconnected)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstStateChangeReturn state_ret;
+  gint64 elapsed_ms;
+  gint64 started;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+
+  started = g_get_monotonic_time ();
+  state_ret = gst_element_set_state (h->element, GST_STATE_NULL);
+  elapsed_ms = (g_get_monotonic_time () - started) / 1000;
+
+  EXPECT_EQ (state_ret, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_LT (elapsed_ms, 2500) << "stop () waited " << elapsed_ms
+                               << " ms for a disconnect it had already been told about";
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test the header mqttsink prepends to a message: memory sizes, caps, timestamps and send time
  */
 TEST (testMqttSinkWithHelper, sinkPushMessageHeader)

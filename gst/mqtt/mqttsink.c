@@ -648,6 +648,16 @@ error:
 }
 
 /**
+ * @brief Whether the state says the disconnect this element asked for is over
+ */
+static inline gboolean
+_mqtt_sink_disconnected (mqtt_sink_state_t state)
+{
+  return ((state == MQTT_DISCONNECTED) || (state == MQTT_DISCONNECT_FAILED) ||
+      (state == SINK_RENDER_EOS) || (state == SINK_RENDER_ERROR));
+}
+
+/**
  * @brief Stop mqttsink, called when state changed ready to null
  */
 static gboolean
@@ -670,14 +680,20 @@ gst_mqtt_sink_stop (GstBaseSink * basesink)
     MQTTAsync_disconnect (self->mqtt_client_handle, &disconn_opts);
     g_mutex_lock (&self->mqtt_sink_mutex);
     self->is_connected = FALSE;
-    g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
-        end_time);
+    /**
+     * The callback sets the state before it broadcasts, and it may have run
+     * before this thread took the lock, so wait on the state rather than on
+     * the signal alone.
+     */
+    while (!_mqtt_sink_disconnected (g_atomic_int_get (&self->mqtt_sink_state))) {
+      if (!g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
+              end_time))
+        break;
+    }
     g_mutex_unlock (&self->mqtt_sink_mutex);
     cur_state = g_atomic_int_get (&self->mqtt_sink_state);
 
-    if ((cur_state == MQTT_DISCONNECTED) ||
-        (cur_state == MQTT_DISCONNECT_FAILED) ||
-        (cur_state == SINK_RENDER_EOS) || (cur_state == SINK_RENDER_ERROR))
+    if (_mqtt_sink_disconnected (cur_state))
       break;
   }
   MQTTAsync_destroy (&self->mqtt_client_handle);
