@@ -73,15 +73,14 @@ int
 MQTTAsync_send (MQTTAsync handle, const char *destinationName, int payloadlen,
     const void *payload, int qos, int retained, MQTTAsync_responseOptions *response)
 {
+  MQTTAsync_successData data;
+  MQTTAsync_failureData failure_data;
   void *ctx = GstMqttTestHelper::getInstance ().getContext ();
   std::future<void> ret;
-  MQTTAsync_successData data;
 
   GstMqttTestHelper::getInstance ().recordSend (payload, payloadlen);
 
   if (GstMqttTestHelper::getInstance ().getFailSend ()) {
-    MQTTAsync_failureData failure_data;
-
     failure_data.code = -1;
     failure_data.message = "";
     ret = std::async (std::launch::async, response->onFailure, ctx, &failure_data);
@@ -108,9 +107,10 @@ MQTTAsync_isConnected (MQTTAsync handle)
 int
 MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *options)
 {
+  MQTTAsync_successData data;
+  MQTTAsync_failureData fdata;
   void *ctx;
   std::future<void> ret;
-  MQTTAsync_successData data;
 
   if (!options)
     return MQTTASYNC_SUCCESS;
@@ -118,8 +118,6 @@ MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *optio
   ctx = options->context;
   GstMqttTestHelper::getInstance ().setIsConnected (false);
   if (GstMqttTestHelper::getInstance ().getFailDisconnect ()) {
-    MQTTAsync_failureData fdata;
-
     fdata.code = -1;
     fdata.message = "";
     ret = std::async (std::launch::async, options->onFailure, ctx, &fdata);
@@ -149,12 +147,11 @@ MQTTAsync_subscribe (MQTTAsync handle, const char *topic, int qos,
     MQTTAsync_responseOptions *response)
 {
   MQTTAsync_successData data;
+  MQTTAsync_failureData fdata;
   std::future<void> ret;
   void *ctx = response->context;
 
   if (GstMqttTestHelper::getInstance ().getFailSubscribe ()) {
-    MQTTAsync_failureData fdata;
-
     fdata.code = -1;
     fdata.message = "";
     ret = std::async (std::launch::async, response->onFailure, ctx, &fdata);
@@ -171,13 +168,12 @@ MQTTAsync_subscribe (MQTTAsync handle, const char *topic, int qos,
 int
 MQTTAsync_unsubscribe (MQTTAsync handle, const char *topic, MQTTAsync_responseOptions *response)
 {
-  void *ctx = response->context;
   MQTTAsync_successData data;
+  MQTTAsync_failureData fdata;
+  void *ctx = response->context;
   std::future<void> ret;
 
   if (GstMqttTestHelper::getInstance ().getFailUnsubscribe ()) {
-    MQTTAsync_failureData fdata;
-
     fdata.code = -1;
     fdata.message = "";
     ret = std::async (std::launch::async, response->onFailure, ctx, &fdata);
@@ -1418,6 +1414,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   EXPECT_EQ (cur_state, GST_STATE_PLAYING);
 
   /** Changing caps while the pipeline is in the GST_STATE_PLAYING state */
+  g_free (caps_str);
   caps_str = g_strdup ("video/x-raw,width=320,height=160,format=YUY2");
   memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CAPS_STR);
   memcpy (hdr.gst_caps_str, caps_str,
