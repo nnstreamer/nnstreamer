@@ -9,6 +9,7 @@
  *
  */
 #include <gtest/gtest.h>
+#include <dlfcn.h>
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
@@ -16,6 +17,7 @@
 #include <nnstreamer_util.h>
 #include <unittest_util.h>
 #include "nnstreamer_plugin_api.h"
+#include "nnstreamer_plugin_api_filter.h"
 #include "nnstreamer_plugin_api_util.h"
 
 /**
@@ -37,6 +39,9 @@ _GetModelFilePath (gchar **model_file, int option)
       break;
     case 2:
       model_name = "simple_32_in_32_out.tflite";
+      break;
+    case 3:
+      model_name = "mobilenet_v1_1.0_224_quant.tflite";
       break;
     default:
       break;
@@ -415,6 +420,282 @@ TEST (nnstreamerFilterTensorFlow2Lite, suspend)
   gst_object_unref (src_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
+  g_free (model_file);
+}
+
+#define LIFETIME_DELEGATE_LIB \
+  "libnnstreamer_unittest_tflite_lifetime_delegate.so"
+
+/**
+ * @brief Fixture with the external delegate checking the lifetime of the
+ *        delegate and the model against the interpreter using them.
+ */
+class nnstreamerFilterTensorFlow2LiteLifetime : public ::testing::Test
+{
+  protected:
+  void *lib;
+  gchar *lib_path;
+  gchar *custom;
+  int (*get_count) (const char *name);
+  const GstTensorFilterFramework *sp;
+
+  /**
+   * @brief Find and load the delegate library before the sub-plugin does.
+   * @note Holding a reference keeps the library mapped whatever the interpreter
+   *       does, so a wrong destruction order is counted instead of crashing.
+   */
+  void SetUp () override
+  {
+    const gchar *build_root = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+    void (*reset) (void);
+
+    lib = NULL;
+    custom = NULL;
+    get_count = NULL;
+    lib_path = NULL;
+
+#ifndef TFLITE_EXTERNAL_DELEGATE_SUPPORTED
+    GTEST_SKIP () << "Built without the tensorflow-lite external delegate";
+#endif
+
+    if (build_root)
+      lib_path = g_build_filename (build_root, "tests", LIFETIME_DELEGATE_LIB, NULL);
+
+    if (!lib_path || !g_file_test (lib_path, G_FILE_TEST_EXISTS)) {
+      gchar *exe = g_file_read_link ("/proc/self/exe", NULL);
+      gchar *dir = exe ? g_path_get_dirname (exe) : g_get_current_dir ();
+
+      g_free (lib_path);
+      lib_path = g_build_filename (dir, LIFETIME_DELEGATE_LIB, NULL);
+      g_free (dir);
+      g_free (exe);
+    }
+    ASSERT_TRUE (g_file_test (lib_path, G_FILE_TEST_EXISTS)) << lib_path;
+
+    lib = dlopen (lib_path, RTLD_NOW | RTLD_LOCAL);
+    ASSERT_TRUE (lib != NULL) << dlerror ();
+
+    get_count = (int (*) (const char *)) dlsym (lib, "nns_tflite_lifetime_delegate_get_count");
+    reset = (void (*) (void)) dlsym (lib, "nns_tflite_lifetime_delegate_reset");
+    ASSERT_TRUE (get_count != NULL && reset != NULL);
+    reset ();
+
+    custom = g_strdup_printf ("Delegate:External,ExtDelegateLib:%s", lib_path);
+
+    sp = nnstreamer_filter_find ("tensorflow2-lite");
+    ASSERT_TRUE (sp != NULL);
+  }
+
+  /**
+   * @brief Release the delegate library.
+   */
+  void TearDown () override
+  {
+    if (lib)
+      dlclose (lib);
+    g_free (custom);
+    g_free (lib_path);
+  }
+
+  /**
+   * @brief Fill the filter properties for the model of the given option.
+   */
+  void fillProp (GstTensorFilterProperties *prop, const gchar **model_files,
+      const gchar *custom_prop, gchar *shared_key)
+  {
+    memset (prop, 0, sizeof (GstTensorFilterProperties));
+    prop->fwname = "tensorflow2-lite";
+    prop->model_files = model_files;
+    prop->num_models = 1;
+    prop->custom_properties = custom_prop;
+    prop->shared_tensor_filter_key = shared_key;
+  }
+};
+
+/**
+ * @brief Closing a filter must destroy the interpreter before its delegate and model.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, openClose)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file;
+  void *data = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  model_files[0] = model_file;
+  fillProp (&prop, model_files, custom, NULL);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_GE (get_count ("prepared"), 1);
+  EXPECT_EQ (get_count ("live"), 1);
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (get_count ("freed"), get_count ("prepared"));
+  EXPECT_GE (get_count ("model_checks"), 1);
+  EXPECT_EQ (get_count ("violations"), 0);
+  EXPECT_EQ (get_count ("live"), 0);
+
+  g_free (model_file);
+}
+
+/**
+ * @brief Reloading a model must destroy the old interpreter before its delegate and model.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, reloadModel)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file, *model_file2;
+  void *data = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  ASSERT_TRUE (_GetModelFilePath (&model_file2, 3));
+  model_files[0] = model_file;
+  fillProp (&prop, model_files, custom, NULL);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_EQ (get_count ("prepared"), 1);
+
+  model_files[0] = model_file2;
+  EXPECT_EQ (sp->reloadModel (&prop, &data), 0);
+  EXPECT_EQ (get_count ("prepared"), 2);
+  EXPECT_EQ (get_count ("freed"), 1);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (get_count ("freed"), 2);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  g_free (model_file);
+  g_free (model_file2);
+}
+
+/**
+ * @brief A refused reload must destroy the unused interpreter before its delegate and model.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, reloadUnmatchedModel_n)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file, *model_file2;
+  void *data = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  ASSERT_TRUE (_GetModelFilePath (&model_file2, 1));
+  model_files[0] = model_file;
+  fillProp (&prop, model_files, custom, NULL);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  model_files[0] = model_file2;
+  EXPECT_NE (sp->reloadModel (&prop, &data), 0);
+  EXPECT_EQ (get_count ("prepared"), 2);
+  EXPECT_EQ (get_count ("freed"), 1);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  model_files[0] = model_file;
+  sp->close (&prop, &data);
+  EXPECT_EQ (get_count ("freed"), 2);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  g_free (model_file);
+  g_free (model_file2);
+}
+
+#define SHARED_BRANCH                                                                                                 \
+  "appsrc name=src%d ! other/tensors,num_tensors=1,dimensions=3:224:224:1,types=uint8,format=static,framerate=0/1 ! " \
+  "tensor_filter framework=tensorflow2-lite model=\"%s\" custom=\"%s\" shared-tensor-filter-key=tflite_lifetime_f2f3 ! fakesink "
+
+/**
+ * @brief Starting a second filter with the same shared key reloads the shared
+ *        interpreter; the old interpreter must go before the model it was built from.
+ * @note Only the elements create the shared model table, so this case uses a
+ *       pipeline. PAUSED starts (opens) both filters; no buffer is pushed.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, sharedKeyReopen)
+{
+  GstElement *gstpipe;
+  gchar *model_file, *pipeline;
+  gchar *branch1, *branch2;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  branch1 = g_strdup_printf (SHARED_BRANCH, 1, model_file, custom);
+  branch2 = g_strdup_printf (SHARED_BRANCH, 2, model_file, custom);
+  pipeline = g_strconcat (branch1, branch2, NULL);
+
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  EXPECT_NE (gst_element_set_state (gstpipe, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (get_count ("prepared"), 2);
+  EXPECT_EQ (get_count ("freed"), 1);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  EXPECT_EQ (gst_element_set_state (gstpipe, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (get_count ("freed"), 2);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  g_free (branch1);
+  g_free (branch2);
+  g_free (model_file);
+}
+
+/**
+ * @brief ExtDelegateKeyVal entries reach the delegate; malformed ones are dropped.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, extDelegateKeyValOptions)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file, *custom_kv;
+  void *data = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  model_files[0] = model_file;
+  custom_kv = g_strdup_printf ("Delegate:External,ExtDelegateLib:%s,"
+                               "ExtDelegateKeyVal:mode#ok;no_separator,ExtDelegateKeyVal:extra#1",
+      lib_path);
+  fillProp (&prop, model_files, custom_kv, NULL);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_EQ (get_count ("options"), 2);
+  EXPECT_EQ (get_count ("prepared"), 1);
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  g_free (custom_kv);
+  g_free (model_file);
+}
+
+/**
+ * @brief A delegate that refuses to be applied must fail the open.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, extDelegateRefusesToApply_n)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file, *custom_fail;
+  void *data = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  model_files[0] = model_file;
+  custom_fail = g_strdup_printf (
+      "Delegate:External,ExtDelegateLib:%s,ExtDelegateKeyVal:mode#fail", lib_path);
+  fillProp (&prop, model_files, custom_fail, NULL);
+
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_EQ (get_count ("prepared"), 0);
+  EXPECT_EQ (get_count ("violations"), 0);
+  /* no kernel is built when the delegate refuses, but it must still be destroyed */
+  EXPECT_EQ (get_count ("live"), 0);
+  if (data)
+    sp->close (&prop, &data);
+
+  g_free (custom_fail);
   g_free (model_file);
 }
 
