@@ -87,12 +87,31 @@ os_decode (void **pdata, const GstTensorsConfig * config,
     GstMemory *mem = NULL;
 
     if (is_flexible) {
-      gst_tensor_meta_info_parse_header (&meta, input[i].data);
+      gst_tensor_meta_info_init (&meta);
+
+      /* parse_header () reads a whole header of the default version before validating it */
+      if (input[i].size < gst_tensor_meta_info_get_header_size (&meta) ||
+          !gst_tensor_meta_info_parse_header (&meta, input[i].data)) {
+        ml_loge
+            ("Failed to parse the meta header of the %u'th tensor in tensor_decoder::octet_stream.",
+            i);
+        return GST_FLOW_ERROR;
+      }
+
       offset = gst_tensor_meta_info_get_header_size (&meta);
       data_size = gst_tensor_meta_info_get_data_size (&meta);
     } else {
       data_size = gst_tensors_info_get_size (&config->info, i);
     }
+
+    if (offset > input[i].size || data_size == 0 ||
+        data_size > input[i].size - offset) {
+      ml_loge
+          ("The %u'th tensor of tensor_decoder::octet_stream describes %zd bytes of data after a %zd-byte header, which does not fit in the %zd bytes it carries.",
+          i, data_size, offset, input[i].size);
+      return GST_FLOW_ERROR;
+    }
+
     mem_data = _g_memdup ((guint8 *) input[i].data + offset, data_size);
     mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, mem_data, data_size,
         0, data_size, mem_data, g_free);

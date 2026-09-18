@@ -487,6 +487,9 @@ gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header);
  * @brief Convert GstTensorMetaInfo structure to GstTensorInfo.
  * @param[in] meta tensor meta structure to be converted
  * @param[out] info GstTensorInfo to be filled
+ * @note A meta header carries no tensor name, so this initializes @a info and
+ *       leaves its name unset. Pass an uninitialized or empty info: a name the
+ *       caller has allocated in @a info is dropped without being freed.
  * @return TRUE if successfully set the info
  */
 gboolean
