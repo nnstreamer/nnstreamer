@@ -88,6 +88,8 @@ static gint _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value);
 static void gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo
     * info);
+static gchar **gst_tensor_filter_get_model_files (GstTensorFilterPrivate * priv,
+    int *num_models);
 
 /**
  * @brief mutex for shared model table.
@@ -470,10 +472,11 @@ create_regex (const gchar ** enum_list, const gchar ** regex_utils)
  * @return TRUE if there is no error
  */
 static inline gboolean
-verify_model_path (const GstTensorFilterPrivate * priv)
+verify_model_path (GstTensorFilterPrivate * priv)
 {
   const GstTensorFilterProperties *prop;
-  int run_without_model, verify_model_path, i;
+  g_auto (GStrv) models = NULL;
+  int run_without_model, verify_model_path, i, num_models;
 
   if (priv == NULL)
     return FALSE;
@@ -504,15 +507,16 @@ verify_model_path (const GstTensorFilterPrivate * priv)
 
   if (!run_without_model) {
     /* At least one model should be configured before opening fw. */
-    if (prop->num_models <= 0 || prop->model_files == NULL) {
+    models = gst_tensor_filter_get_model_files (priv, &num_models);
+    if (num_models <= 0 || models == NULL) {
       ml_loge ("Set proper model file for filter %s.", prop->fwname);
       return FALSE;
     }
 
     if (verify_model_path) {
-      for (i = 0; i < prop->num_models; i++) {
-        if (!g_file_test (prop->model_files[i], G_FILE_TEST_IS_REGULAR)) {
-          ml_loge ("Cannot find the model file[%d] %s", i, prop->model_files[i]);
+      for (i = 0; i < num_models; i++) {
+        if (!g_file_test (models[i], G_FILE_TEST_IS_REGULAR)) {
+          ml_loge ("Cannot find the model file[%d] %s", i, models[i]);
           return FALSE;
         }
       }
@@ -748,18 +752,80 @@ nnstreamer_filter_find (const char *name)
 }
 
 /**
+ * @brief Install a new model file list, keeping the replaced one readable.
+ * @param[in] priv Struct containing the properties of the object
+ * @param[in] model_files The new model file list. This function takes its ownership.
+ * @param[in] num_models The number of the new model files
+ * @details The sub-plugin callbacks and the TF_MODELNAME() log messages read
+ *          prop->model_files without any lock, and a lock cannot be held across
+ *          a sub-plugin call: the python3 sub-plugin takes the GIL there while
+ *          PyGObject sets a property without releasing it. The replaced list is
+ *          therefore retired and released with the instance rather than here,
+ *          so that every list such a reader can still reach stays valid.
+ * @note    A reader outside the lock loads the list and the count at two
+ *          different moments, so a replacement in between pairs one with the
+ *          other. The pointer is published with a barrier before the count, so
+ *          such a reader never pairs a new count with a shorter old list. The
+ *          opposite pairing stays open: a walker that took the count before a
+ *          replacement that shortens the list can index the new, shorter list
+ *          past its end. Storing the count first would not close that either,
+ *          because the walker may have taken the count before that store as
+ *          well. Closing it needs both of them readable in one word, which
+ *          means changing the exported GstTensorFilterProperties. Until then
+ *          the retired lists keep the worst case an out-of-range read of a
+ *          live allocation rather than a use-after-free.
+ */
+static void
+gst_tensor_filter_replace_model_files (GstTensorFilterPrivate * priv,
+    const gchar ** model_files, int num_models)
+{
+  g_mutex_lock (&priv->model_lock);
+  if (priv->prop.model_files)
+    priv->retired_model_files = g_slist_prepend (priv->retired_model_files,
+        (gpointer) priv->prop.model_files);
+
+  g_atomic_pointer_set (&priv->prop.model_files, model_files);
+  priv->prop.num_models = num_models;
+  g_mutex_unlock (&priv->model_lock);
+}
+
+/**
+ * @brief Get a copy of the model file list of the given filter.
+ * @param[in] priv Struct containing the properties of the object
+ * @param[out] num_models The number of the copied model files. Can be NULL.
+ * @return The copied list, NULL if no model file is set. Free it with g_strfreev().
+ */
+static gchar **
+gst_tensor_filter_get_model_files (GstTensorFilterPrivate * priv,
+    int *num_models)
+{
+  gchar **models = NULL;
+  int num = 0;
+
+  g_mutex_lock (&priv->model_lock);
+  if (priv->prop.model_files) {
+    models = g_strdupv ((gchar **) priv->prop.model_files);
+    num = priv->prop.num_models;
+  }
+  g_mutex_unlock (&priv->model_lock);
+
+  if (num_models)
+    *num_models = num;
+
+  return models;
+}
+
+/**
  * @brief Parse the string of model
- * @param[out] prop Struct containing the properties of the object
+ * @param[in] priv Struct containing the properties of the object
  * @param[in] model_files the prediction model paths
  */
 static void
-gst_tensor_filter_parse_modelpaths_string (GstTensorFilterProperties * prop,
+gst_tensor_filter_parse_modelpaths_string (GstTensorFilterPrivate * priv,
     const gchar * model_files)
 {
-  if (prop == NULL)
+  if (priv == NULL)
     return;
-
-  g_strfreev_const (prop->model_files);
 
   if (model_files) {
     gchar **models = g_strsplit_set (model_files, ",", -1);
@@ -768,11 +834,9 @@ gst_tensor_filter_parse_modelpaths_string (GstTensorFilterProperties * prop,
     for (i = 0; i < num; i++)
       g_strstrip (models[i]);
 
-    prop->model_files = (const gchar **) models;
-    prop->num_models = num;
+    gst_tensor_filter_replace_model_files (priv, (const gchar **) models, num);
   } else {
-    prop->model_files = NULL;
-    prop->num_models = 0;
+    gst_tensor_filter_replace_model_files (priv, NULL, 0);
   }
 }
 
@@ -997,6 +1061,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
 {
   /* init null */
   memset (priv, 0, sizeof (GstTensorFilterPrivate));
+  g_mutex_init (&priv->model_lock);
 
   /* init NNFW properties */
   gst_tensor_filter_properties_init (&priv->prop);
@@ -1085,7 +1150,13 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
   }
 
   g_free_const (prop->custom_properties);
+
   g_strfreev_const (prop->model_files);
+  prop->model_files = NULL;
+  prop->num_models = 0;
+  g_slist_free_full (priv->retired_model_files, (GDestroyNotify) g_strfreev);
+  priv->retired_model_files = NULL;
+  g_mutex_clear (&priv->model_lock);
 
   gst_tensors_info_free (&prop->input_meta);
   gst_tensors_info_free (&prop->output_meta);
@@ -1326,15 +1397,19 @@ gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
   prop = &priv->prop;
 
   if (g_ascii_strcasecmp (fw_name, "auto") == 0) {
-    if (prop->model_files == NULL) {
+    g_auto (GStrv) models = NULL;
+    int num_models = 0;
+
+    models = gst_tensor_filter_get_model_files (priv, &num_models);
+    if (models == NULL) {
       /* If model file is not loaded, get framework after loading the model */
       g_free_const (prop->fwname);
       prop->fwname = g_strdup (fw_name);
       return;
     }
 
-    detected_fw = gst_tensor_filter_detect_framework (prop->model_files,
-        prop->num_models, TRUE);
+    detected_fw = gst_tensor_filter_detect_framework ((const gchar * const *)
+        models, num_models, TRUE);
   } else {
     detected_fw = g_strdup (fw_name);
   }
@@ -1440,11 +1515,11 @@ _gtfc_setprop_MODEL (GstTensorFilterPrivate * priv,
   if (prop->fw_opened) {
     /** Store a copy of the original prop in case the reload fails */
     memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
-    _prop.model_files =
-        (const gchar **) g_strdupv ((gchar **) prop->model_files);
+    _prop.model_files = (const gchar **)
+        gst_tensor_filter_get_model_files (priv, &_prop.num_models);
   }
 
-  gst_tensor_filter_parse_modelpaths_string (prop, model_files);
+  gst_tensor_filter_parse_modelpaths_string (priv, model_files);
 
   if (prop->fwname != NULL && g_ascii_strcasecmp (prop->fwname, "auto") == 0)
     gst_tensor_filter_get_available_framework (priv, "auto");
@@ -1475,9 +1550,8 @@ _gtfc_setprop_MODEL (GstTensorFilterPrivate * priv,
       g_strfreev_const (_prop.model_files);
     } else {
       ml_loge ("Fail to reload model\n");
-      g_strfreev_const (prop->model_files);
-      prop->model_files = _prop.model_files;
-      prop->num_models = _prop.num_models;
+      gst_tensor_filter_replace_model_files (priv, _prop.model_files,
+          _prop.num_models);
     }
   }
 
@@ -2133,21 +2207,11 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_MODEL:
     {
-      GString *gstr_models = g_string_new (NULL);
-      gchar *models;
-      int idx;
+      g_auto (GStrv) models = gst_tensor_filter_get_model_files (priv, NULL);
 
       /* return a comma-separated string */
-      for (idx = 0; idx < prop->num_models; ++idx) {
-        if (idx != 0) {
-          g_string_append (gstr_models, ",");
-        }
-
-        g_string_append (gstr_models, prop->model_files[idx]);
-      }
-
-      models = g_string_free (gstr_models, FALSE);
-      g_value_take_string (value, models);
+      strval = models ? g_strjoinv (",", models) : g_strdup ("");
+      g_value_take_string (value, strval);
       break;
     }
     case PROP_INPUT:
