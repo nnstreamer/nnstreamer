@@ -43,7 +43,8 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
   guint num_tensors;
   gboolean is_flexible;
   GstTensorMetaInfo meta;
-  GstTensorInfo *_info;
+  GstTensorInfo flex_info;
+  const GstTensorInfo *_info, *_shape;
 
   if (!config || !input || !outbuf) {
     ml_loge ("NULL parameter is passed to tensor_decoder::protobuf");
@@ -76,18 +77,28 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
   for (unsigned int i = 0; i < num_tensors; ++i) {
     nnstreamer::protobuf::Tensor *tensor = tensors.add_tensor ();
 
-    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i);
+    _shape = _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i);
 
     if (is_flexible) {
-      gst_tensor_meta_info_parse_header (&meta, input[i].data);
-      gst_tensor_meta_info_convert (&meta, _info);
+      gst_tensor_meta_info_init (&meta);
+
+      /* parse_header () reads a whole header of the default version before validating it */
+      if (input[i].size < gst_tensor_meta_info_get_header_size (&meta)
+          || !gst_tensor_meta_info_parse_header (&meta, input[i].data)
+          || !gst_tensor_meta_info_convert (&meta, &flex_info)) {
+        ml_loge ("Failed to parse the meta header of the %u'th tensor in tensor_decoder::protobuf.",
+            i);
+        return GST_FLOW_ERROR;
+      }
+
+      _shape = &flex_info;
     }
 
     tensor->set_name (_info->name ? _info->name : "");
-    tensor->set_type ((nnstreamer::protobuf::Tensor::Tensor_type) _info->type);
+    tensor->set_type ((nnstreamer::protobuf::Tensor::Tensor_type) _shape->type);
 
     for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j) {
-      tensor->add_dimension (_info->dimension[j]);
+      tensor->add_dimension (_shape->dimension[j]);
     }
 
     tensor->set_data (input[i].data, (int) input[i].size);
