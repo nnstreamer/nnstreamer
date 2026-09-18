@@ -678,7 +678,7 @@ ncStatus_t
 ncFifoReadElem (struct ncFifoHandle_t *fifoHandle, void *outputData,
     unsigned int *outputDataLen, void **userParam)
 {
-  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoWriteElem (
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoReadElem (
       fifoHandle, outputData, outputDataLen, userParam);
 }
 
