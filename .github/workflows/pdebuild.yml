@@ -126,3 +126,9 @@ jobs:
         # /var/cache/pbuilder/result is root-owned.
         mkdir -p ~/pdebuild_result
         pdebuild ${{ matrix.pdebuild_opts }} --buildresult ~/pdebuild_result --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}
+
+    - name: check the built packages
+      # Symlinks and dependencies only show their defects at install time, so
+      # look at the .deb files the build produced rather than at the sources.
+      if: env.rebuild == '1'
+      run: bash .github/workflows/static.check.scripts/debian-package-check.sh ~/pdebuild_result

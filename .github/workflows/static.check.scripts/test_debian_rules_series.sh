@@ -20,7 +20,11 @@
 #   - which control file override_dh_clean copies, if any,
 #   - which -Denable-openvino value override_dh_auto_configure passes,
 #   - that DEB_BUILD_OPTIONS=nocheck skips override_dh_auto_test, which dh
-#     does not do by itself for an override target at this compat level.
+#     does not do by itself for an override target at this compat level,
+#   - that override_dh_link creates the python module link from the multiarch
+#     path of this host and still runs dh_link for the other packages, and
+#     that no .links file under debian/ relies on a glob, which dh_link does
+#     not expand: it shipped a link to a literal "*" for years.
 #
 # Each skip is paired with the assertion that the same command runs without
 # nocheck, so that deleting a test command cannot turn the skip green.
@@ -136,6 +140,21 @@ expect_series() {
 }
 
 ##
+# @brief Assert that the build never drops nnstreamer-openvino.install.
+#        While it stays, dh_install aborts a legacy build whose openvino
+#        filter is missing, which debian-package-check.sh relies on instead
+#        of checking for the package itself. The nnfw line is the positive
+#        half: it shows the recipe that removes .install files was read.
+check_openvino_install_kept() {
+  expand "24.04" override_dh_auto_build || return
+
+  expect_match "${EXPANDED}" 'rm debian/nnstreamer-nnfw.install' yes \
+    "override_dh_auto_build: the conditional .install removals are visible"
+  expect_match "${EXPANDED}" 'nnstreamer-openvino.install' no \
+    "override_dh_auto_build: nnstreamer-openvino.install is never removed"
+}
+
+##
 # @brief Assert that nocheck reaches the test override, and only nocheck does.
 check_nocheck() {
   local with without
@@ -158,6 +177,49 @@ check_nocheck() {
 }
 
 ##
+# @brief Assert that the python module link is built from the multiarch path
+#        and that the override still links the other packages.
+check_python3_link() {
+  local multiarch link
+
+  multiarch=$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null)
+  if [ -z "${multiarch}" ]; then
+    echo "::error::  FAIL dpkg-architecture gave no DEB_HOST_MULTIARCH"
+    failed=1
+    return
+  fi
+
+  expand "24.04" override_dh_link || return
+  link=${EXPANDED}
+
+  expect_match "${link}"     "dh_link -pnnstreamer-python3 usr/lib/${multiarch}/nnstreamer_python3.so usr/lib/python3/dist-packages/nnstreamer_python.so"     yes "override_dh_link: links nnstreamer_python.so to the ${multiarch} helper"
+  expect_match "${link}" 'dh_link --remaining-packages' yes     "override_dh_link: still links the remaining packages"
+  expect_match "${link}" '[*?[]' no     "override_dh_link: uses no glob"
+}
+
+##
+# @brief Assert that no .links file under debian/ contains a glob character.
+#        The glob below closes its quote after the slash: the doxygen check
+#        parses shell as C, where a slash followed by a star opens a comment.
+check_links_files() {
+  local file found=0
+
+  for file in "${REPO_ROOT}/debian/"*.links; do
+    [ -e "${file}" ] || continue
+    found=1
+    if grep -q '[*?[]' "${file}"; then
+      report 1 "$(basename "${file}"): contains a glob, which dh_link does not expand"
+    else
+      report 0 "$(basename "${file}"): has no glob"
+    fi
+  done
+
+  if [ "${found}" -eq 0 ]; then
+    report 0 "no .links file under debian/ to check"
+  fi
+}
+
+##
 # @brief Run every check and exit with the verdict.
 main() {
   require_ubuntu_make
@@ -176,8 +238,14 @@ main() {
   expect_series "26.10" committed false
   expect_series ""      legacy    true
 
+  check_openvino_install_kept
+
   echo "Checking DEB_BUILD_OPTIONS=nocheck"
   check_nocheck
+
+  echo "Checking the python module link"
+  check_python3_link
+  check_links_files
 
   if [ "${failed}" -ne 0 ]; then
     echo "::error::test_debian_rules_series.sh has failed."
