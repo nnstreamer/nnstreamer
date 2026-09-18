@@ -318,6 +318,11 @@ gst_tensor_trainer_finalize (GObject * object)
   GstTensorTrainer *trainer;
   trainer = GST_TENSOR_TRAINER (object);
 
+  if (trainer->dummy_data_thread) {
+    g_thread_join (trainer->dummy_data_thread);
+    trainer->dummy_data_thread = NULL;
+  }
+
   g_free (trainer->fw_name);
   g_free ((char *) trainer->prop.model_config);
   g_free ((char *) trainer->prop.model_save_path);
@@ -330,11 +335,6 @@ gst_tensor_trainer_finalize (GObject * object)
   g_mutex_clear (&trainer->training_completion_lock);
   g_cond_clear (&trainer->epoch_completion_cond);
   g_mutex_clear (&trainer->epoch_completion_lock);
-
-  if (trainer->dummy_data_thread) {
-    g_thread_join (trainer->dummy_data_thread);
-    trainer->dummy_data_thread = NULL;
-  }
 
   if (trainer->fw_created && trainer->fw) {
     trainer->fw->destroy (trainer->fw, &trainer->prop, &trainer->privateData);
@@ -553,6 +553,8 @@ gst_tensor_trainer_change_state (GstElement * element,
         if (!g_strcmp0 (trainer->fw_name, "nntrainer")) {
           GST_INFO_OBJECT (trainer, "cur_epoch_data_cnt=%u",
               trainer->cur_epoch_data_cnt);
+          if (trainer->dummy_data_thread)
+            g_thread_join (trainer->dummy_data_thread);
           trainer->dummy_data_thread =
               g_thread_new ("dumy_data_generation_func",
               (GThreadFunc) gst_tensor_trainer_dummy_data_generation_func,

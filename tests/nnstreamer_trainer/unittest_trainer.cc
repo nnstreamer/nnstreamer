@@ -11,6 +11,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/gst.h>
+#include <nnstreamer_plugin_api_trainer.h>
 #include <unittest_util.h>
 
 static const gchar filename[] = "mnist.data";
@@ -567,6 +568,242 @@ TEST (tensor_trainer, invalidNumLabels0_n)
 
   gst_object_unref (GST_OBJECT (tensor_trainer));
   gst_object_unref (GST_OBJECT (pipeline));
+}
+
+/**
+ * @brief What the fake trainer sub-plugin has been asked to do.
+ */
+static struct {
+  gint stop_calls; /**< number of stop() calls, one per dummy-data thread */
+  gint push_calls; /**< number of push_data() calls entered */
+  gint push_done; /**< number of push_data() calls returned */
+  gulong first_push_delay; /**< microseconds the first push_data() sleeps */
+  gsize pushed_size; /**< size of the first input tensor last pushed */
+  guint8 pushed_first; /**< first byte of the first input tensor last pushed */
+  gchar expect_config[512]; /**< model-config every push_data() should see */
+  gboolean config_matched; /**< whether the last push_data() saw it */
+} fake_stat;
+
+/**
+ * @brief Fake sub-plugin callback that creates nothing.
+ */
+static int
+fake_trainer_create (const GstTensorTrainerFramework *,
+    const GstTensorTrainerProperties *, void **)
+{
+  return 0;
+}
+
+/**
+ * @brief Fake sub-plugin callback that destroys nothing.
+ */
+static int
+fake_trainer_destroy (const GstTensorTrainerFramework *,
+    const GstTensorTrainerProperties *, void **)
+{
+  return 0;
+}
+
+/**
+ * @brief Fake sub-plugin callback that starts nothing.
+ */
+static int
+fake_trainer_start (const GstTensorTrainerFramework *,
+    const GstTensorTrainerProperties *, GstTensorTrainerEventNotifier *, void *)
+{
+  return 0;
+}
+
+/**
+ * @brief Fake sub-plugin callback counting stop() calls.
+ */
+static int
+fake_trainer_stop (const GstTensorTrainerFramework *,
+    const GstTensorTrainerProperties *, void **)
+{
+  g_atomic_int_inc (&fake_stat.stop_calls);
+  return 0;
+}
+
+/**
+ * @brief Fake sub-plugin callback recording the pushed data.
+ */
+static int
+fake_trainer_push_data (const GstTensorTrainerFramework *,
+    const GstTensorTrainerProperties *prop, void *, const GstTensorMemory *input)
+{
+  if (g_atomic_int_add (&fake_stat.push_calls, 1) == 0 && fake_stat.first_push_delay > 0)
+    g_usleep (fake_stat.first_push_delay);
+
+  /* the properties must outlive this call, even when it runs during finalize */
+  if (prop->model_config && fake_stat.expect_config[0]) {
+    guint i;
+
+    fake_stat.config_matched = TRUE;
+    for (i = 0; fake_stat.expect_config[i]; i++) {
+      if (prop->model_config[i] != fake_stat.expect_config[i]) {
+        fake_stat.config_matched = FALSE;
+        break;
+      }
+    }
+  }
+
+  fake_stat.pushed_size = input[0].size;
+  if (input[0].data && input[0].size > 0)
+    fake_stat.pushed_first = ((guint8 *) input[0].data)[0];
+
+  g_atomic_int_inc (&fake_stat.push_done);
+  return 0;
+}
+
+/**
+ * @brief Fake sub-plugin callback reporting a fixed status.
+ */
+static int
+fake_trainer_get_status (
+    const GstTensorTrainerFramework *, GstTensorTrainerProperties *prop, void *)
+{
+  prop->training_loss = 1.0;
+  return 0;
+}
+
+/**
+ * @brief Fake sub-plugin callback naming the framework.
+ * @note It takes the name nntrainer, the only framework tensor_trainer
+ *       starts a dummy-data thread for.
+ */
+static int
+fake_trainer_get_framework_info (const GstTensorTrainerFramework *,
+    const GstTensorTrainerProperties *, void *, GstTensorTrainerFrameworkInfo *fw_info)
+{
+  fw_info->name = "nntrainer";
+  return 0;
+}
+
+/**
+ * @brief The fake trainer sub-plugin.
+ */
+static GstTensorTrainerFramework fake_trainer_fw = { GST_TENSOR_TRAINER_FRAMEWORK_V1,
+  fake_trainer_create, fake_trainer_destroy, fake_trainer_start, fake_trainer_stop,
+  fake_trainer_push_data, fake_trainer_get_status, fake_trainer_get_framework_info };
+
+/**
+ * @brief Test fixture registering the fake trainer sub-plugin.
+ */
+class TensorTrainerFakeFw : public ::testing::Test
+{
+  protected:
+  /**
+   * @brief Reset the counters and register the fake sub-plugin.
+   */
+  void SetUp () override
+  {
+    memset (&fake_stat, 0, sizeof (fake_stat));
+    ASSERT_TRUE (nnstreamer_trainer_probe (&fake_trainer_fw));
+  }
+
+  /**
+   * @brief Unregister the fake sub-plugin.
+   */
+  void TearDown () override
+  {
+    nnstreamer_trainer_exit (&fake_trainer_fw);
+  }
+};
+
+/**
+ * @brief Create a tensor_trainer that uses the fake sub-plugin.
+ */
+static GstElement *
+make_fake_trainer (void)
+{
+  gchar *config_path = get_file_path (model_config);
+  GstElement *trainer = gst_element_factory_make ("tensor_trainer", NULL);
+
+  if (trainer)
+    g_object_set (trainer, "framework", "nntrainer", "model-config",
+        config_path, "model-save-path", "c31_model.bin", NULL);
+  g_free (config_path);
+
+  return trainer;
+}
+
+/**
+ * @brief Wait until the fake sub-plugin has seen @a count stop() calls.
+ */
+static gboolean
+wait_for_stop_calls (gint count)
+{
+  guint i;
+
+  for (i = 0; i < 500; i++) {
+    if (g_atomic_int_get (&fake_stat.stop_calls) >= count)
+      return TRUE;
+    g_usleep (10000);
+  }
+
+  return FALSE;
+}
+
+/**
+ * @brief Pausing twice waits for the first dummy-data thread.
+ *
+ * The first thread is still inside push_data() when the element pauses
+ * again. The element must join it before starting the second one; if the
+ * handle is overwritten instead, finalize joins only the second thread and
+ * the first one outlives the element.
+ */
+TEST_F (TensorTrainerFakeFw, pauseTwiceJoinsDummyThread)
+{
+  GstElement *trainer = make_fake_trainer ();
+  ASSERT_NE (trainer, nullptr);
+
+  fake_stat.first_push_delay = G_USEC_PER_SEC;
+
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  ASSERT_TRUE (wait_for_stop_calls (1));
+
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (trainer);
+
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.stop_calls), 2);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 2);
+}
+
+/**
+ * @brief Finalizing the element waits for a running dummy-data thread.
+ *
+ * The thread is inside push_data() while the element is finalized, and it
+ * reads the properties there. Finalize must therefore join it before it
+ * frees them; if the join stays below the frees, the sub-plugin reads
+ * freed memory, which the Valgrind job reports as an error of ours.
+ */
+TEST_F (TensorTrainerFakeFw, finalizeJoinsDummyThread)
+{
+  GstElement *trainer = make_fake_trainer ();
+  gchar *config_path = get_file_path (model_config);
+
+  ASSERT_NE (trainer, nullptr);
+  ASSERT_LT (strlen (config_path), sizeof (fake_stat.expect_config));
+
+  fake_stat.first_push_delay = G_USEC_PER_SEC / 2;
+  g_strlcpy (fake_stat.expect_config, config_path, sizeof (fake_stat.expect_config));
+
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  ASSERT_TRUE (wait_for_stop_calls (1));
+
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (trainer);
+
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.stop_calls), 1);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 1);
+  EXPECT_TRUE (fake_stat.config_matched);
+
+  g_free (config_path);
 }
 
 /**
