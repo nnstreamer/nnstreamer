@@ -241,6 +241,7 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
       GstCaps *caps;
 
       gst_event_parse_caps (event, &caps);
+      gst_tensors_config_free (&tensor_demux->tensors_config);
       gst_tensors_config_from_caps (&tensor_demux->tensors_config, caps, TRUE);
       break;
     }
