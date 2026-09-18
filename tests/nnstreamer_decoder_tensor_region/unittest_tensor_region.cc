@@ -194,6 +194,70 @@ TEST (tensorDecoder, tensorRegion)
 /** A detection score far below the default threshold */
 #define NOT_DETECTED (-10.0f)
 
+/** @brief What the critical messages of the GLib domain are counted into */
+typedef struct {
+  guint count; /**< The number of messages since the last reset */
+  gchar last[256]; /**< The message counted last */
+} glib_critical_watch;
+
+/**
+ * @brief Count the critical messages GLib itself logs.
+ */
+static void
+count_glib_critical (const gchar *, GLogLevelFlags, const gchar *message, gpointer user_data)
+{
+  glib_critical_watch *watch = (glib_critical_watch *) user_data;
+
+  watch->count++;
+  if (message != NULL)
+    g_strlcpy (watch->last, message, sizeof (watch->last));
+}
+
+/**
+ * @brief Watch the critical messages of the GLib domain, with a counter self-check.
+ * @param[out] watch The counter the messages are reported into
+ * @return the handler id, to be released with g_log_remove_handler ()
+ */
+static guint
+watch_glib_critical (glib_critical_watch *watch)
+{
+  guint handler = g_log_set_handler ("GLib",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      count_glib_critical, watch);
+
+  watch->count = 0;
+  g_log ("GLib", G_LOG_LEVEL_CRITICAL, "tensor_region test: counter self-check");
+  EXPECT_EQ (watch->count, 1U);
+
+  watch->count = 0;
+  watch->last[0] = '\0';
+  return handler;
+}
+
+/**
+ * @brief The decoder allocates and releases its private data without complaint.
+ */
+TEST (tensorRegionLifecycle, initAndExit)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("tensor_region");
+  glib_critical_watch watch = {};
+  void *pdata = NULL;
+  gboolean allocated;
+  guint handler;
+
+  ASSERT_TRUE (decoder != NULL);
+
+  handler = watch_glib_critical (&watch);
+  allocated = decoder->init (&pdata);
+  if (allocated)
+    decoder->exit (&pdata);
+  g_log_remove_handler ("GLib", handler);
+
+  ASSERT_TRUE (allocated);
+  EXPECT_EQ (watch.count, 0U) << watch.last;
+  EXPECT_TRUE (pdata == NULL);
+}
+
 /**
  * @brief Test fixture holding an instance of the tensor_region decoder.
  *
