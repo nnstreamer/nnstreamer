@@ -177,6 +177,9 @@ typedef struct _GstTensorFilterPrivate
   GstTensorFilterCombination combi;
   nns_watchdog_h watchdog_h; /**< Watchdog to monitor occasional inputs */;
   gboolean is_suspended; /**< True if framework suspends processing current model. */
+
+  GMutex model_lock; /**< Protects the model file list of prop against a concurrent replacement */
+  GSList *retired_model_files; /**< Model file lists replaced while the sub-plugin may still read them */
 } GstTensorFilterPrivate;
 
 /**
