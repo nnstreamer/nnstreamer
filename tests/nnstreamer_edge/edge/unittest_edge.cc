@@ -199,6 +199,7 @@ TEST (edgeSrc, properties2_n)
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
@@ -300,12 +301,14 @@ TEST (edgeSinkSrc, runNormal)
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf), GST_FLOW_OK);
   g_usleep (100000);
 
+  EXPECT_EQ (setPipelineStateSync (src_gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (src_gstpipe);
   g_free (src_pipeline);
 
   gst_object_unref (appsrc_handle);
   gst_object_unref (edge_handle);
   gst_object_unref (sink_handle);
+  EXPECT_EQ (setPipelineStateSync (sink_gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (sink_gstpipe);
   g_free (sink_pipeline);
 }
@@ -700,6 +703,7 @@ TEST (edgeCustom, srcInvalidProp_n)
   EXPECT_EQ (GST_EDGESRC_CAST (edge_handle)->edge_h, (nns_edge_h) NULL);
   gst_object_unref (edge_handle);
 
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
@@ -730,6 +734,7 @@ TEST (edgeCustom, srcInvalidProp2_n)
   EXPECT_EQ (GST_EDGESRC_CAST (edge_handle)->edge_h, (nns_edge_h) NULL);
   gst_object_unref (edge_handle);
 
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
