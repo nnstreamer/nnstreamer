@@ -83,6 +83,9 @@ NCSDKTensorFilterTestHelper::init (model_t model)
   }
   this->mModelPath = nullptr;
   this->mFailStage = fail_stage_t::NONE;
+  std::queue<uint32_t> ().swap (this->mFifoIn);
+  std::queue<uint32_t> ().swap (this->mFifoOut);
+  this->mNumFifoDestroy = 0;
 
   switch (model) {
     default:
@@ -351,8 +354,16 @@ NCSDKTensorFilterTestHelper::ncGraphQueueInference (struct ncGraphHandle_t *grap
   UNUSED (fifoOut);
   UNUSED (outFifoCount);
   if (this->mFailStage == fail_stage_t::FAIL_GRAPH_Q_INFER) {
+    /* The queued input is left where it is, as a device failure would leave it. */
     return NC_ERROR;
   }
+
+  if (this->mFifoIn.empty ()) {
+    return NC_ERROR;
+  }
+
+  this->mFifoOut.push (this->mFifoIn.front ());
+  this->mFifoIn.pop ();
 
   return NC_OK;
 }
@@ -452,47 +463,74 @@ NCSDKTensorFilterTestHelper::ncFifoGetOption (struct ncFifoHandle_t *fifoHandle,
 }
 
 /**
- * @brief A method mocking ncFifoDestroy(). Do nothing.
+ * @brief A method mocking ncFifoDestroy(); only counts the call.
+ * @details The count tells a test whether the sub-plugin has released its
+ *          handles, which it must not do while the framework still holds it.
  */
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoDestroy (struct ncFifoHandle_t **fifoHandle)
 {
   UNUSED (fifoHandle);
+  this->mNumFifoDestroy++;
   return NC_OK;
 }
 
 /**
- * @brief A method mocking ncFifoWriteElem(). Do nothing.
+ * @brief Get how many times a FIFO has been destroyed since init ()
+ */
+guint
+NCSDKTensorFilterTestHelper::getNumFifoDestroy ()
+{
+  return this->mNumFifoDestroy;
+}
+
+/**
+ * @brief A method mocking ncFifoWriteElem(); queues the tag the tensor opens with.
+ * @details A failure is modelled as queueing nothing. The sub-plugin does not
+ *          rely on that: it gives up on the instance whichever stage failed.
  */
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoWriteElem (struct ncFifoHandle_t *fifoHandle,
     const void *inputTensor, unsigned int *inputTensorLength, void *userParam)
 {
   UNUSED (fifoHandle);
-  UNUSED (inputTensor);
-  UNUSED (inputTensorLength);
   UNUSED (userParam);
   if (this->mFailStage == fail_stage_t::FAIL_FIFO_WRT_ELEM) {
     return NC_ERROR;
   }
 
+  if ((inputTensor == nullptr) || (inputTensorLength == nullptr)
+      || (*inputTensorLength < sizeof (uint32_t))) {
+    return NC_INVALID_PARAMETERS;
+  }
+
+  this->mFifoIn.push (*((const uint32_t *) inputTensor));
+
   return NC_OK;
 }
 
 /**
- * @brief A method mocking ncFifoReadElem(). Do nothing.
+ * @brief A method mocking ncFifoReadElem(); returns the oldest queued tag.
+ * @details A failure takes nothing off the queue, which is the case that leaves
+ *          a result behind for a later inference to pick up.
  */
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoReadElem (struct ncFifoHandle_t *fifoHandle,
     void *outputData, unsigned int *outputDataLen, void **userParam)
 {
   UNUSED (fifoHandle);
-  UNUSED (outputData);
-  UNUSED (outputDataLen);
   UNUSED (userParam);
   if (this->mFailStage == fail_stage_t::FAIL_FIFO_RD_ELEM) {
     return NC_ERROR;
   }
+
+  if ((outputData == nullptr) || (outputDataLen == nullptr)
+      || (*outputDataLen < sizeof (uint32_t)) || this->mFifoOut.empty ()) {
+    return NC_INVALID_PARAMETERS;
+  }
+
+  *((uint32_t *) outputData) = this->mFifoOut.front ();
+  this->mFifoOut.pop ();
 
   return NC_OK;
 }
@@ -678,7 +716,7 @@ ncStatus_t
 ncFifoReadElem (struct ncFifoHandle_t *fifoHandle, void *outputData,
     unsigned int *outputDataLen, void **userParam)
 {
-  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoWriteElem (
+  return NCSDKTensorFilterTestHelper::getInstance ().ncFifoReadElem (
       fifoHandle, outputData, outputDataLen, userParam);
 }
 
