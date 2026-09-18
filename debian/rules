@@ -109,6 +109,12 @@ override_dh_install:
 	dh_install --sourcedir=debian/tmp --list-missing
 # Add --fail-missing option after adding *.install files for all subpackages.
 
+# dh_link does not expand globs, so the python module link cannot come from a
+# .links file while the helper library lives under the multiarch directory.
+override_dh_link:
+	dh_link -pnnstreamer-python3 usr/lib/$(DEB_HOST_MULTIARCH)/nnstreamer_python3.so usr/lib/python3/dist-packages/nnstreamer_python.so
+	dh_link --remaining-packages
+
 
 override_dh_clean:
 	dh_clean $@
