@@ -31,6 +31,15 @@
 #define WAIT_TIMEOUT_US (5 * G_TIME_SPAN_SECOND)
 
 /**
+ * @brief The mocked paho call a test case can hold open on another thread
+ */
+typedef enum {
+  HOLD_NONE = 0,
+  HOLD_CREATE,
+  HOLD_SUBSCRIBE,
+} hold_site_e;
+
+/**
  * @brief The state shared between the mocked paho calls and the test cases
  */
 typedef struct {
@@ -57,6 +66,9 @@ typedef struct {
   guint free_topic_count;
   guint subscribe_count;
 
+  hold_site_e hold_site;
+  gboolean hold_entered;
+  gboolean hold_released;
 } mqtt_mock_s;
 
 static mqtt_mock_s g_mock;
@@ -85,6 +97,9 @@ _mock_reset (void)
   g_mock.free_message_count = 0;
   g_mock.free_topic_count = 0;
   g_mock.subscribe_count = 0;
+  g_mock.hold_site = HOLD_NONE;
+  g_mock.hold_entered = FALSE;
+  g_mock.hold_released = FALSE;
   g_mutex_unlock (&g_mock.lock);
 }
 
@@ -99,6 +114,68 @@ _mock_join_threads (void)
       g_mock_threads[i].join ();
   }
   g_mock_threads.clear ();
+}
+
+/**
+ * @brief Make the next call at the given site block until the test releases it
+ */
+static void
+_hold_arm (hold_site_e site)
+{
+  g_mutex_lock (&g_mock.lock);
+  g_mock.hold_site = site;
+  g_mock.hold_entered = FALSE;
+  g_mock.hold_released = FALSE;
+  g_mutex_unlock (&g_mock.lock);
+}
+
+/**
+ * @brief Block inside a mocked call while the site is armed
+ */
+static void
+_hold_enter (hold_site_e site)
+{
+  g_mutex_lock (&g_mock.lock);
+  if (g_mock.hold_site == site) {
+    g_mock.hold_entered = TRUE;
+    g_cond_broadcast (&g_mock.cond);
+    while (!g_mock.hold_released)
+      g_cond_wait (&g_mock.cond, &g_mock.lock);
+  }
+  g_mutex_unlock (&g_mock.lock);
+}
+
+/**
+ * @brief Wait until another thread is blocked inside the armed call
+ */
+static gboolean
+_hold_wait_entered (void)
+{
+  gint64 end_time = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+  gboolean entered;
+
+  g_mutex_lock (&g_mock.lock);
+  while (!g_mock.hold_entered) {
+    if (!g_cond_wait_until (&g_mock.cond, &g_mock.lock, end_time))
+      break;
+  }
+  entered = g_mock.hold_entered;
+  g_mutex_unlock (&g_mock.lock);
+
+  return entered;
+}
+
+/**
+ * @brief Let the held call continue
+ */
+static void
+_hold_release (void)
+{
+  g_mutex_lock (&g_mock.lock);
+  g_mock.hold_site = HOLD_NONE;
+  g_mock.hold_released = TRUE;
+  g_cond_broadcast (&g_mock.cond);
+  g_mutex_unlock (&g_mock.lock);
 }
 
 /**
@@ -169,6 +246,8 @@ MQTTAsync_create (MQTTAsync *handle, const char *serverURI,
   (void) persistence_context;
 
   gboolean fail;
+
+  _hold_enter (HOLD_CREATE);
 
   g_mutex_lock (&g_mock.lock);
   g_mock.last_server_uri.assign (serverURI ? serverURI : "");
@@ -244,6 +323,8 @@ MQTTAsync_subscribe (MQTTAsync handle, const char *topic, int qos,
 
   (void) handle;
   (void) qos;
+
+  _hold_enter (HOLD_SUBSCRIBE);
 
   g_mutex_lock (&g_mock.lock);
   g_mock.last_sub_topic.assign (topic ? topic : "");
@@ -366,6 +447,29 @@ MQTTAsync_freeMessage (MQTTAsync_message **message)
   g_free ((*message)->payload);
   g_free (*message);
   *message = NULL;
+}
+
+/**
+ * @brief A log function that reads the logged object under its own lock
+ */
+static void
+_path_log_func (GstDebugCategory *category, GstDebugLevel level,
+    const gchar *file, const gchar *function, gint line, GObject *object,
+    GstDebugMessage *message, gpointer user_data)
+{
+  (void) category;
+  (void) level;
+  (void) file;
+  (void) function;
+  (void) line;
+  (void) message;
+  (void) user_data;
+
+  if (object && GST_IS_OBJECT (object)) {
+    GST_OBJECT_LOCK (object);
+    (void) GST_OBJECT_NAME (object);
+    GST_OBJECT_UNLOCK (object);
+  }
 }
 
 /**
@@ -981,6 +1085,267 @@ TEST (testMqttSrc, messageWhileNotSubscribed_n)
   EXPECT_EQ (_freed_topics (), 1U);
 
   _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief The topic mqttsrc subscribes with survives a sub-topic replaced during the call
+ */
+TEST (testMqttSrc, subTopicReplacedDuringSubscribe)
+{
+  src_fixture_s fixture;
+  std::string subscribed;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "topic_aaaaaaaaaaaa", "video/x-raw"));
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.async_connect = TRUE;
+  g_mutex_unlock (&g_mock.lock);
+
+  _hold_arm (HOLD_SUBSCRIBE);
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PLAYING),
+      GST_STATE_CHANGE_FAILURE);
+  ASSERT_TRUE (_hold_wait_entered ());
+
+  g_object_set (fixture.src, "sub-topic", "topic_bbbbbbbbbbbb", NULL);
+  _hold_release ();
+
+  ASSERT_TRUE (_wait_for_subscribe ());
+  g_mutex_lock (&g_mock.lock);
+  subscribed = g_mock.last_sub_topic;
+  g_mutex_unlock (&g_mock.lock);
+
+  EXPECT_STREQ (subscribed.c_str (), "topic_aaaaaaaaaaaa");
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief The client id and the host mqttsrc starts with survive a replacement during the call
+ */
+TEST (testMqttSrc, clientIdReplacedDuringStart)
+{
+  src_fixture_s fixture;
+  std::string client_id;
+  std::string server_uri;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_object_set (fixture.src, "client-id", "client_aaaaaaaaaaaa", "host",
+      "host_aaaaaaaaaaaa", "port", "1111", NULL);
+
+  _hold_arm (HOLD_CREATE);
+  std::thread starter (gst_element_set_state, fixture.pipeline, GST_STATE_PLAYING);
+  ASSERT_TRUE (_hold_wait_entered ());
+
+  g_object_set (fixture.src, "client-id", "client_bbbbbbbbbbbb", "host",
+      "host_bbbbbbbbbbbb", "port", "2222", NULL);
+  _hold_release ();
+  starter.join ();
+
+  g_mutex_lock (&g_mock.lock);
+  client_id = g_mock.last_client_id;
+  server_uri = g_mock.last_server_uri;
+  g_mutex_unlock (&g_mock.lock);
+
+  EXPECT_STREQ (client_id.c_str (), "client_aaaaaaaaaaaa");
+  EXPECT_STREQ (server_uri.c_str (), "host_aaaaaaaaaaaa:1111");
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief The string properties can be read and replaced while the element streams
+ */
+TEST (testMqttSrc, propertiesReplacedWhileStreaming)
+{
+  src_fixture_s fixture;
+  GstMQTTMessageHdr hdr = {};
+  guint i;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+  g_object_set (fixture.src, "debug", TRUE, NULL);
+
+  /**
+   * The element logs the topic on its streaming thread and on the paho thread.
+   * The default log function reads the object's name under its lock, so a log
+   * call made while the object lock is held deadlocks rather than merely
+   * printing; this log function does the same. It stays installed once the
+   * case is over: removing a log function orphans the list node that GStreamer
+   * keeps, which a memory checker then reports as a leak of this file.
+   */
+  gst_debug_add_log_function (_path_log_func, NULL, NULL);
+  gst_debug_set_threshold_for_name (GST_MQTT_ELEM_NAME_SRC, GST_LEVEL_DEBUG);
+
+  _set_header_timestamps (fixture.src, &hdr);
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 512;
+
+  for (i = 0; i < 64; ++i) {
+    gchar *topic = g_strdup_printf ("topic_%04u_padding_padding", i);
+    gchar *readback = NULL;
+
+    g_object_set (fixture.src, "sub-topic", topic, "client-id", topic, "host",
+        topic, "port", topic, NULL);
+    g_object_get (fixture.src, "sub-topic", &readback, NULL);
+    EXPECT_TRUE (readback != NULL);
+    g_free (readback);
+    g_free (topic);
+
+    EXPECT_TRUE (_deliver (_new_message (&hdr, 512)));
+  }
+
+  EXPECT_TRUE (_fixture_wait_buffers (&fixture, 1));
+
+  gst_debug_set_threshold_for_name (GST_MQTT_ELEM_NAME_SRC, GST_LEVEL_NONE);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief The topic mqttsrc unsubscribes with is the one the property held
+ */
+TEST (testMqttSrc, unsubscribeFailure_n)
+{
+  src_fixture_s fixture;
+  std::string unsubscribed;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.fail_unsubscribe = TRUE;
+  g_mutex_unlock (&g_mock.lock);
+
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+
+  g_mutex_lock (&g_mock.lock);
+  unsubscribed = g_mock.last_unsub_topic;
+  g_mutex_unlock (&g_mock.lock);
+
+  EXPECT_STREQ (unsubscribed.c_str (), "test_topic");
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc refuses to play again when it cannot reconnect to the broker
+ */
+TEST (testMqttSrc, reconnectFailure_n)
+{
+  src_fixture_s fixture;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.fail_reconnect = TRUE;
+  g_mutex_unlock (&g_mock.lock);
+  _drop_connection ();
+
+  EXPECT_EQ (gst_element_set_state (fixture.pipeline, GST_STATE_PLAYING),
+      GST_STATE_CHANGE_FAILURE);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc fails to start when the client cannot be created
+ */
+TEST (testMqttSrc, startFailure_n)
+{
+  src_fixture_s fixture;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.fail_create = TRUE;
+  g_mutex_unlock (&g_mock.lock);
+
+  EXPECT_EQ (gst_element_set_state (fixture.pipeline, GST_STATE_PLAYING),
+      GST_STATE_CHANGE_FAILURE);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc fails to start when it cannot connect to the broker
+ */
+TEST (testMqttSrc, connectFailure_n)
+{
+  src_fixture_s fixture;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.fail_connect = TRUE;
+  g_mutex_unlock (&g_mock.lock);
+
+  EXPECT_EQ (gst_element_set_state (fixture.pipeline, GST_STATE_PLAYING),
+      GST_STATE_CHANGE_FAILURE);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc drops a message that carries no timestamp it can use
+ */
+TEST (testMqttSrc, messageFromThePastDropped_n)
+{
+  src_fixture_s fixture;
+  GstMQTTMessageHdr hdr = {};
+  MQTTAsync_message *msg;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+  g_object_set (fixture.src, "debug", TRUE, NULL);
+
+  _set_header_timestamps (fixture.src, &hdr);
+  hdr.sent_time_epoch = 0;
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 512;
+  msg = _new_message (&hdr, 512);
+
+  EXPECT_TRUE (_deliver (msg));
+  g_usleep (SETTLE_TIME_US);
+  EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief The string properties read back what was set into them
+ */
+TEST (testMqttSrc, getSetStringProperties)
+{
+  GstElement *elm = gst_element_factory_make ("mqttsrc", NULL);
+  gchar *value = NULL;
+
+  ASSERT_TRUE (elm != NULL);
+
+  g_object_set (elm, "sub-topic", "a_topic", "client-id", "an_id", "host",
+      "a_host", "port", "1234", NULL);
+
+  g_object_get (elm, "sub-topic", &value, NULL);
+  EXPECT_STREQ (value, "a_topic");
+  g_free (value);
+
+  g_object_get (elm, "client-id", &value, NULL);
+  EXPECT_STREQ (value, "an_id");
+  g_free (value);
+
+  g_object_get (elm, "host", &value, NULL);
+  EXPECT_STREQ (value, "a_host");
+  g_free (value);
+
+  g_object_get (elm, "port", &value, NULL);
+  EXPECT_STREQ (value, "1234");
+  g_free (value);
+
+  gst_object_unref (elm);
 }
 
 /**
