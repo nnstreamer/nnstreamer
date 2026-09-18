@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include <mutex>
+#include <queue>
 
 enum _constants {
   TENSOR_RANK_LIMIT = 4,
@@ -95,6 +96,8 @@ class NCSDKTensorFilterTestHelper
   void setFailStage (const fail_stage_t stage);
   /** @brief Get the NCSDK stage at which the mock reports failure */
   fail_stage_t getFailStage ();
+  /** @brief Get how many times a FIFO has been destroyed since init () */
+  guint getNumFifoDestroy ();
 
   /* Mock methods that simulate NCSDK2 APIs */
   /* Mock Global APIs */
@@ -143,10 +146,10 @@ class NCSDKTensorFilterTestHelper
       void *data, unsigned int *dataLength);
   /** @brief Mock of ncFifoDestroy (); always returns NC_OK */
   ncStatus_t ncFifoDestroy (struct ncFifoHandle_t **fifoHandle);
-  /** @brief Mock of ncFifoWriteElem (); drops the given input tensor */
+  /** @brief Mock of ncFifoWriteElem (); queues the tag the input tensor opens with */
   ncStatus_t ncFifoWriteElem (struct ncFifoHandle_t *fifoHandle,
       const void *inputTensor, unsigned int *inputTensorLength, void *userParam);
-  /** @brief Mock of ncFifoReadElem (); leaves the output buffer untouched */
+  /** @brief Mock of ncFifoReadElem (); returns the oldest queued tag */
   ncStatus_t ncFifoReadElem (struct ncFifoHandle_t *fifoHandle,
       void *outputData, unsigned int *outputDataLen, void **userParam);
   /** @brief Mock of ncFifoRemoveElem (); fails at the matching fail stage */
@@ -172,6 +175,10 @@ class NCSDKTensorFilterTestHelper
   uint32_t mLenGraphBuf;
   ncsdk_ver_t mVer;
   fail_stage_t mFailStage;
+  /* The tags in flight, so that a result can be traced back to its input */
+  std::queue<uint32_t> mFifoIn;
+  std::queue<uint32_t> mFifoOut;
+  guint mNumFifoDestroy;
   gchar *mModelPath;
   model_t mModel;
 };

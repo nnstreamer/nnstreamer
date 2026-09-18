@@ -303,7 +303,11 @@ struct _GstTensorFilterFramework
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[in] input The array of input tensors. Allocated and filled by tensor_filter/main
        * @param[out] output The array of output tensors. Allocated by tensor_filter/main and to be filled by invoke_NN. If allocate_in_invoke is TRUE, sub-plugin should allocate the memory block for output tensor. (data in GstTensorMemory)
-       * @return 0 if OK. non-zero if error.
+       * @return 0 if OK. Negative to fail the buffer, which makes tensor_filter
+       *         post an 'invoke-failure' application message and stop the flow;
+       *         positive to drop it. Neither unloads the sub-plugin: private_data
+       *         must stay valid for the next call to any callback. Release it in
+       *         close(), never here.
        */
 
       int (*getInputDimension) (const GstTensorFilterProperties * prop,
@@ -407,7 +411,11 @@ struct _GstTensorFilterFramework
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[in] input The array of input tensors. Allocated and filled by tensor_filter/main
        * @param[out] output The array of output tensors. Allocated by tensor_filter/main and to be filled by invoke. If allocate_in_invoke is TRUE, sub-plugin should allocate the memory block for output tensor. (data in GstTensorMemory)
-       * @return 0 if OK. non-zero if error.
+       * @return 0 if OK. Negative to fail the buffer, which makes tensor_filter
+       *         post an 'invoke-failure' application message and stop the flow;
+       *         positive to drop it. Neither unloads the sub-plugin: private_data
+       *         must stay valid for the next call to any callback. Release it in
+       *         close(), never here.
        */
 
       int (*getFrameworkInfo) (const GstTensorFilterFramework * self,

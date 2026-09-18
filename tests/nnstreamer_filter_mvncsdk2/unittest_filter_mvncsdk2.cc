@@ -185,7 +185,187 @@ TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (9, fail_stage_t::FAIL_FIFO_CREATE_OUTPUT);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (10, fail_stage_t::FAIL_FIFO_ALLOC_INPUT);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (11, fail_stage_t::FAIL_FIFO_ALLOC_OUTPUT);
 
-/** @todo: Failure in invoke () incurs assertion so that the whole tests would be stopped. */
+#define MVNCSDK2_IN_CAPS_STR                                           \
+  "other/tensors,format=static,num_tensors=1,framerate=(fraction)0/1," \
+  "dimensions=(string)3:224:224:1,types=(string)float32"
+
+#define MVNCSDK2_IN_BUF_SIZE                                             \
+  (GOOGLE_LENET_IN_DIM_C * GOOGLE_LENET_IN_DIM_W * GOOGLE_LENET_IN_DIM_H \
+      * GOOGLE_LENET_IN_DIM_N * sizeof (float))
+
+/**
+ * @brief Build a harness around a tensor_filter bound to the mocked device.
+ * @return The harness, or NULL if the description cannot be parsed.
+ */
+static GstHarness *
+_mvncsdk2_harness_new (void)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstHarness *h;
+  gchar *desc;
+  gchar *test_model;
+
+  if (root_path == NULL) {
+    root_path = "..";
+  }
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "google_lenet_ncsdk_caffe_1.graph", NULL);
+  desc = g_strdup_printf ("tensor_filter framework=movidius-ncsdk2 model=\"%s\"", test_model);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+  g_free (test_model);
+
+  if (h != NULL) {
+    gst_harness_set_src_caps_str (h, MVNCSDK2_IN_CAPS_STR);
+  }
+
+  return h;
+}
+
+/**
+ * @brief Push one input tensor opening with @a tag into the given harness.
+ * @details The mocked device carries the tag through to the result, so a test
+ *          can tell which input a result belongs to.
+ */
+static GstFlowReturn
+_mvncsdk2_push (GstHarness *h, guint32 tag)
+{
+  GstBuffer *buf = gst_harness_create_buffer (h, MVNCSDK2_IN_BUF_SIZE);
+  GstMapInfo map;
+
+  if (!gst_buffer_map (buf, &map, GST_MAP_WRITE)) {
+    ADD_FAILURE () << "Failed to map the input buffer";
+    gst_buffer_unref (buf);
+    return GST_FLOW_ERROR;
+  }
+  memset (map.data, 0, map.size);
+  memcpy (map.data, &tag, sizeof (tag));
+  gst_buffer_unmap (buf, &map);
+
+  return gst_harness_push (h, buf);
+}
+
+/**
+ * @brief Take the tag out of the oldest result the harness holds.
+ * @return The tag, or 0 if there is no result to take.
+ */
+static guint32
+_mvncsdk2_pull (GstHarness *h)
+{
+  GstBuffer *buf;
+  GstMapInfo map;
+  guint32 tag = 0;
+
+  if (gst_harness_buffers_in_queue (h) == 0) {
+    ADD_FAILURE () << "No result to pull";
+    return 0;
+  }
+
+  buf = gst_harness_pull (h);
+  if (gst_buffer_map (buf, &map, GST_MAP_READ)) {
+    memcpy (&tag, map.data, sizeof (tag));
+    gst_buffer_unmap (buf, &map);
+  } else {
+    ADD_FAILURE () << "Failed to map the result buffer";
+  }
+  gst_buffer_unref (buf);
+
+  return tag;
+}
+
+/**
+ * @brief Check that the sub-plugin survives a failure in invoke () and then
+ *        refuses to run rather than return a result of the wrong input.
+ * @details The framework keeps fw_opened set when invoke () returns -1, so the
+ *          sub-plugin has to keep its private data and the device handles in
+ *          it; closing them here used to leave the private data NULL and the
+ *          next buffer dereferenced it. It must not carry on inferring either:
+ *          the failure may have left an element in either FIFO, and a later
+ *          result could then belong to an earlier frame.
+ */
+static void
+_mvncsdk2_run_invoke_failure (fail_stage_t stage)
+{
+  GstHarness *h;
+
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  h = _mvncsdk2_harness_new ();
+  if (h == NULL) {
+    /* Leaving the mock initialized would take the following cases down too. */
+    ADD_FAILURE () << "Failed to parse the tensor_filter description";
+    NCSDKTensorFilterTestHelper::getInstance ().release ();
+    return;
+  }
+
+  EXPECT_EQ (_mvncsdk2_push (h, 1), GST_FLOW_OK);
+  EXPECT_EQ (_mvncsdk2_pull (h), 1U);
+
+  NCSDKTensorFilterTestHelper::getInstance ().setFailStage (stage);
+  EXPECT_EQ (_mvncsdk2_push (h, 2), GST_FLOW_ERROR);
+
+  /* The framework still holds this instance, so its handles have to be alive. */
+  EXPECT_EQ (NCSDKTensorFilterTestHelper::getInstance ().getNumFifoDestroy (), 0U);
+
+  NCSDKTensorFilterTestHelper::getInstance ().setFailStage (fail_stage_t::NONE);
+  EXPECT_EQ (_mvncsdk2_push (h, 3), GST_FLOW_ERROR);
+  if (gst_harness_buffers_in_queue (h) != 0) {
+    ADD_FAILURE () << "The refused inference still produced a result, tagged "
+                   << _mvncsdk2_pull (h) << " (input 3 was given)";
+  }
+
+  gst_harness_teardown (h);
+
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
+}
+
+/**
+ * @brief Testing that a result belongs to the input it was inferred from
+ * @details This is what the refusal above protects. Without it the case below
+ *          would see the tag of an earlier frame here.
+ */
+TEST (pipelineMvncsdk2Filter, invokeResultTag)
+{
+  GstHarness *h;
+  guint32 tag;
+
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  h = _mvncsdk2_harness_new ();
+  if (h == NULL) {
+    ADD_FAILURE () << "Failed to parse the tensor_filter description";
+    NCSDKTensorFilterTestHelper::getInstance ().release ();
+    return;
+  }
+
+  for (tag = 1; tag <= 3; tag++) {
+    EXPECT_EQ (_mvncsdk2_push (h, tag), GST_FLOW_OK);
+    EXPECT_EQ (_mvncsdk2_pull (h), tag);
+  }
+
+  gst_harness_teardown (h);
+
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
+}
+
+/** @brief Testing an invoke () failure while writing the input FIFO */
+TEST (pipelineMvncsdk2Filter, invokeFailure0_n)
+{
+  _mvncsdk2_run_invoke_failure (fail_stage_t::FAIL_FIFO_WRT_ELEM);
+}
+
+/** @brief Testing an invoke () failure while queueing the inference */
+TEST (pipelineMvncsdk2Filter, invokeFailure1_n)
+{
+  _mvncsdk2_run_invoke_failure (fail_stage_t::FAIL_GRAPH_Q_INFER);
+}
+
+/** @brief Testing an invoke () failure while reading the output FIFO */
+TEST (pipelineMvncsdk2Filter, invokeFailure2_n)
+{
+  _mvncsdk2_run_invoke_failure (fail_stage_t::FAIL_FIFO_RD_ELEM);
+}
 
 /**
  * @brief Main function for unit test.
