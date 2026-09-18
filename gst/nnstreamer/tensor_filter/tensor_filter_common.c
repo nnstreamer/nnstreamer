@@ -94,6 +94,7 @@ static void gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo
  */
 G_LOCK_DEFINE_STATIC (shared_model_table);
 static GHashTable *shared_model_table = NULL;
+static guint shared_model_table_users = 0;
 
 /**
  * @brief Initialize the tensors layout.
@@ -1014,6 +1015,56 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
 }
 
 /**
+ * @brief Register an instance as a user of the shared model table.
+ * @details The table is created on demand by the first instance that is given
+ *          a shared model key.
+ */
+static void
+gst_tensor_filter_shared_model_table_ref (void)
+{
+  G_LOCK (shared_model_table);
+  if (!shared_model_table) {
+    shared_model_table =
+        g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+  }
+  shared_model_table_users++;
+  G_UNLOCK (shared_model_table);
+}
+
+/**
+ * @brief Destroy the shared model table once nothing refers to it any more.
+ * @details A table that still has entries is left alone: they are owned by the
+ *          sub-plugin instances that inserted them, which release them with
+ *          nnstreamer_filter_shared_model_remove().
+ * @note The caller should hold the lock of the shared model table.
+ */
+static void
+gst_tensor_filter_shared_model_table_prune (void)
+{
+  if (shared_model_table && shared_model_table_users == 0
+      && g_hash_table_size (shared_model_table) == 0) {
+    g_hash_table_destroy (shared_model_table);
+    shared_model_table = NULL;
+  }
+}
+
+/**
+ * @brief Unregister an instance from the shared model table.
+ * @details The table is process-global, so it is destroyed only after the last
+ *          instance holding a shared model key is gone.
+ */
+static void
+gst_tensor_filter_shared_model_table_unref (void)
+{
+  G_LOCK (shared_model_table);
+  if (shared_model_table_users > 0)
+    shared_model_table_users--;
+
+  gst_tensor_filter_shared_model_table_prune ();
+  G_UNLOCK (shared_model_table);
+}
+
+/**
  * @brief Free the properties for tensor-filter.
  */
 void
@@ -1026,7 +1077,12 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
   g_free_const (prop->fwname);
   g_free_const (prop->accl_str);
   g_free (prop->hw_list);
-  g_free (prop->shared_tensor_filter_key);
+
+  if (prop->shared_tensor_filter_key) {
+    g_free (prop->shared_tensor_filter_key);
+    prop->shared_tensor_filter_key = NULL;
+    gst_tensor_filter_shared_model_table_unref ();
+  }
 
   g_free_const (prop->custom_properties);
   g_strfreev_const (prop->model_files);
@@ -1049,22 +1105,6 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
       g_free (latency);
     g_queue_free (queue);
   }
-
-  G_LOCK (shared_model_table);
-  if (shared_model_table) {
-    GstTensorFilterSharedModelRepresentation *rep;
-    GList *value = g_hash_table_get_values (shared_model_table);
-
-    while (value) {
-      rep = (GstTensorFilterSharedModelRepresentation *) value->data;
-      g_list_free (rep->referred_list);
-      value = g_list_next (value);
-    }
-
-    g_hash_table_destroy (shared_model_table);
-    shared_model_table = NULL;
-  }
-  G_UNLOCK (shared_model_table);
 }
 
 /**
@@ -1879,15 +1919,16 @@ static gint
 _gtfc_setprop_SHARED_TENSOR_FILTER_KEY (GstTensorFilterProperties * prop,
     const GValue * value)
 {
-  g_free (prop->shared_tensor_filter_key);
-  prop->shared_tensor_filter_key = g_value_dup_string (value);
+  gchar *old_key = prop->shared_tensor_filter_key;
 
-  G_LOCK (shared_model_table);
-  if (!shared_model_table) {
-    shared_model_table =
-        g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+  prop->shared_tensor_filter_key = g_value_dup_string (value);
+  if (prop->shared_tensor_filter_key)
+    gst_tensor_filter_shared_model_table_ref ();
+
+  if (old_key) {
+    g_free (old_key);
+    gst_tensor_filter_shared_model_table_unref ();
   }
-  G_UNLOCK (shared_model_table);
 
   return 0;
 }
@@ -3183,6 +3224,7 @@ nnstreamer_filter_shared_model_remove (void *instance, const char *key,
     if (free_callback)
       free_callback (model_rep->shared_interpreter);
     g_hash_table_remove (shared_model_table, key);
+    gst_tensor_filter_shared_model_table_prune ();
   }
 
 done:
