@@ -301,6 +301,14 @@ if gtest_dep.found()
 
       test('unittest_mqtt_w_helper', unittest_mqtt_w_helper, timeout: 180, env: testenv)
 
+      unittest_mqtt_src = executable('unittest_mqtt_src',
+          join_paths('gstreamer_mqtt', 'unittest_mqtt_src.cc'),
+          dependencies: [gstmqtt_dep, nnstreamer_unittest_deps],
+          install: get_option('install-test'),
+          install_dir: unittest_install_dir)
+
+      test('unittest_mqtt_src', unittest_mqtt_src, timeout: 120, env: testenv)
+
       unittest_mqtt = executable('unittest_mqtt',
           join_paths('gstreamer_mqtt', 'unittest_mqtt.cc'),
           dependencies: [nnstreamer_unittest_deps],
