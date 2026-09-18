@@ -140,6 +140,21 @@ expect_series() {
 }
 
 ##
+# @brief Assert that the build never drops nnstreamer-openvino.install.
+#        While it stays, dh_install aborts a legacy build whose openvino
+#        filter is missing, which debian-package-check.sh relies on instead
+#        of checking for the package itself. The nnfw line is the positive
+#        half: it shows the recipe that removes .install files was read.
+check_openvino_install_kept() {
+  expand "24.04" override_dh_auto_build || return
+
+  expect_match "${EXPANDED}" 'rm debian/nnstreamer-nnfw.install' yes \
+    "override_dh_auto_build: the conditional .install removals are visible"
+  expect_match "${EXPANDED}" 'nnstreamer-openvino.install' no \
+    "override_dh_auto_build: nnstreamer-openvino.install is never removed"
+}
+
+##
 # @brief Assert that nocheck reaches the test override, and only nocheck does.
 check_nocheck() {
   local with without
@@ -222,6 +237,8 @@ main() {
   expect_series "26.04" committed false
   expect_series "26.10" committed false
   expect_series ""      legacy    true
+
+  check_openvino_install_kept
 
   echo "Checking DEB_BUILD_OPTIONS=nocheck"
   check_nocheck
