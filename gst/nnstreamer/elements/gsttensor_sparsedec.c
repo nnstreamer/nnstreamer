@@ -326,6 +326,7 @@ gst_tensor_sparse_dec_sink_event (GstPad * pad, GstObject * parent,
       silent_debug_caps (self, caps, "caps");
 
       /* set in_config */
+      gst_tensors_config_free (&self->in_config);
       if (!gst_tensors_config_from_caps (&self->in_config, caps, TRUE)) {
         nns_loge ("Failed to configure the input, invalid caps.");
         gst_event_unref (event);
@@ -333,6 +334,7 @@ gst_tensor_sparse_dec_sink_event (GstPad * pad, GstObject * parent,
       }
 
       /* set out_config as srcpad's peer */
+      gst_tensors_config_free (&self->out_config);
       if (gst_tensors_config_from_peer (self->srcpad, &self->out_config, NULL)) {
         self->out_config.rate_n = self->in_config.rate_n;
         self->out_config.rate_d = self->in_config.rate_d;
