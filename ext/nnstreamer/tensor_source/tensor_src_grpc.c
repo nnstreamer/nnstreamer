@@ -292,6 +292,19 @@ _grpc_callback (void *obj, void *data)
 }
 
 /**
+ * @brief stop and release the gRPC instance, if any.
+ */
+static void
+grpc_release_instance (grpc_private * grpc)
+{
+  if (grpc->instance) {
+    grpc_stop (grpc->instance);
+    grpc_destroy (grpc->instance);
+    grpc->instance = NULL;
+  }
+}
+
+/**
  * @brief initialize grpc config.
  */
 static void
@@ -339,6 +352,8 @@ gst_tensor_src_grpc_finalize (GObject * object)
   GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (object);
   grpc_private *grpc = GET_GRPC_PRIVATE (self);
 
+  grpc_release_instance (grpc);
+
   g_free (grpc->config.host);
   g_free (grpc);
   g_clear_pointer (&self->queue, gst_object_unref);
@@ -355,27 +370,27 @@ gst_tensor_src_grpc_start (GstBaseSrc * src)
 {
   GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (src);
   grpc_private *grpc = GET_GRPC_PRIVATE (self);
-  gboolean ret;
 
-  if (grpc->instance)
-    grpc_destroy (grpc->instance);
+  grpc_release_instance (grpc);
 
   grpc->instance = grpc_new (&grpc->config);
   if (!grpc->instance)
     return FALSE;
 
-  ret = grpc_start (grpc->instance);
-  if (ret) {
-    GST_OBJECT_FLAG_SET (self, GST_TENSOR_SRC_GRPC_STARTED);
-
-    if (grpc->config.is_server) {
-      gint port = grpc_get_listening_port (grpc->instance);
-      if (port > 0)
-        g_object_set (self, "port", port, NULL);
-    }
+  if (!grpc_start (grpc->instance)) {
+    grpc_release_instance (grpc);
+    return FALSE;
   }
 
-  return ret;
+  GST_OBJECT_FLAG_SET (self, GST_TENSOR_SRC_GRPC_STARTED);
+
+  if (grpc->config.is_server) {
+    gint port = grpc_get_listening_port (grpc->instance);
+    if (port > 0)
+      g_object_set (self, "port", port, NULL);
+  }
+
+  return TRUE;
 }
 
 /**
@@ -387,14 +402,10 @@ gst_tensor_src_grpc_stop (GstBaseSrc * src)
   GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (src);
   grpc_private *grpc = GET_GRPC_PRIVATE (self);
 
-  if (!GST_OBJECT_FLAG_IS_SET (self, GST_TENSOR_SRC_GRPC_STARTED))
-    return TRUE;
+  if (GST_OBJECT_FLAG_IS_SET (self, GST_TENSOR_SRC_GRPC_STARTED))
+    _send_eos_event (self);
 
-  _send_eos_event (self);
-
-  if (grpc->instance)
-    grpc_destroy (grpc->instance);
-  grpc->instance = NULL;
+  grpc_release_instance (grpc);
 
   GST_OBJECT_FLAG_UNSET (self, GST_TENSOR_SRC_GRPC_STARTED);
 
