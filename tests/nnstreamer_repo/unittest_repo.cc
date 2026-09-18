@@ -13,6 +13,7 @@
 #include <string.h>
 #include <unittest_util.h>
 #include "../gst/nnstreamer/elements/gsttensor_repo.h"
+#include "../gst/nnstreamer/elements/gsttensor_reposrc.h"
 
 /**
  * @brief Caps used to push/pull a single 4-byte uint8 tensor through the repo.
@@ -809,6 +810,189 @@ TEST (tensorRepo, setBufferAfterEos_n)
   gst_buffer_unref (buf);
   gst_caps_unref (caps);
   EXPECT_TRUE (gst_tensor_repo_remove_repodata (slot));
+}
+
+/**
+ * @brief Number of tensors a stream carries to reach GstTensorsInfo::extra.
+ */
+#define EXTRA_NUM_TENSORS ((guint) (NNS_TENSOR_MEMORY_MAX + 4))
+
+/**
+ * @brief Query the caps of tensor_reposrc repeatedly with more tensors than
+ *        NNS_TENSOR_MEMORY_MAX, which reparses the configuration every time.
+ */
+TEST (tensorRepoSrc, extraTensorsCapsQuery)
+{
+  GstElement *reposrc;
+  GstPad *srcpad;
+  GstCaps *caps;
+  guint i;
+
+  reposrc = gst_element_factory_make ("tensor_reposrc", NULL);
+  ASSERT_NE (reposrc, nullptr);
+
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  g_object_set (reposrc, "caps", caps, NULL);
+  gst_caps_unref (caps);
+
+  srcpad = gst_element_get_static_pad (reposrc, "src");
+  ASSERT_NE (srcpad, nullptr);
+
+  for (i = 0; i < 3; i++) {
+    GstStructure *structure;
+    gint num_tensors = 0;
+
+    caps = gst_pad_query_caps (srcpad, NULL);
+    ASSERT_NE (caps, nullptr);
+    ASSERT_EQ (gst_caps_get_size (caps), 1U);
+
+    structure = gst_caps_get_structure (caps, 0);
+    EXPECT_TRUE (gst_structure_get_int (structure, "num_tensors", &num_tensors));
+    EXPECT_EQ (num_tensors, (gint) EXTRA_NUM_TENSORS);
+    gst_caps_unref (caps);
+  }
+
+  EXPECT_EQ (GST_TENSOR_REPOSRC (reposrc)->config.info.num_tensors, EXTRA_NUM_TENSORS);
+  EXPECT_NE (GST_TENSOR_REPOSRC (reposrc)->config.info.extra, nullptr);
+
+  /* the filtered query intersects the filter with the caps of the element */
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  gst_caps_take (&caps, gst_pad_query_caps (srcpad, caps));
+  ASSERT_NE (caps, nullptr);
+  EXPECT_TRUE (gst_caps_is_fixed (caps));
+  EXPECT_EQ (GST_TENSOR_REPOSRC (reposrc)->config.info.num_tensors, EXTRA_NUM_TENSORS);
+  gst_caps_unref (caps);
+
+  gst_object_unref (srcpad);
+  gst_object_unref (reposrc);
+}
+
+/**
+ * @brief Query the caps of tensor_reposrc which has no caps of its own, where
+ *        the filter of the query describes the stream.
+ */
+TEST (tensorRepoSrc, extraTensorsFilteredCapsQuery)
+{
+  GstElement *reposrc;
+  GstPad *srcpad;
+  GstCaps *caps;
+  GstStructure *structure;
+  gint num_tensors = 0;
+
+  reposrc = gst_element_factory_make ("tensor_reposrc", NULL);
+  ASSERT_NE (reposrc, nullptr);
+
+  srcpad = gst_element_get_static_pad (reposrc, "src");
+  ASSERT_NE (srcpad, nullptr);
+
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  gst_caps_take (&caps, gst_pad_query_caps (srcpad, caps));
+  ASSERT_NE (caps, nullptr);
+  ASSERT_EQ (gst_caps_get_size (caps), 1U);
+
+  structure = gst_caps_get_structure (caps, 0);
+  EXPECT_TRUE (gst_structure_get_int (structure, "num_tensors", &num_tensors));
+  EXPECT_EQ (num_tensors, (gint) EXTRA_NUM_TENSORS);
+  EXPECT_EQ (GST_TENSOR_REPOSRC (reposrc)->config.info.num_tensors, EXTRA_NUM_TENSORS);
+  gst_caps_unref (caps);
+
+  gst_object_unref (srcpad);
+  gst_object_unref (reposrc);
+}
+
+/**
+ * @brief Query the caps of tensor_reposrc which cannot describe a tensor stream.
+ */
+TEST (tensorRepoSrc, extraTensorsCapsQuery_n)
+{
+  GstElement *reposrc;
+  GstPad *srcpad;
+  GstCaps *caps;
+
+  reposrc = gst_element_factory_make ("tensor_reposrc", NULL);
+  ASSERT_NE (reposrc, nullptr);
+
+  srcpad = gst_element_get_static_pad (reposrc, "src");
+  ASSERT_NE (srcpad, nullptr);
+
+  /* neither the element nor the query describes a single tensor stream */
+  caps = gst_pad_query_caps (srcpad, NULL);
+  ASSERT_NE (caps, nullptr);
+  EXPECT_TRUE (gst_caps_is_any (caps));
+  EXPECT_EQ (GST_TENSOR_REPOSRC (reposrc)->config.info.num_tensors, 0U);
+  gst_caps_unref (caps);
+
+  caps = gst_caps_from_string ("video/x-raw,format=RGB,width=4,height=4");
+  g_object_set (reposrc, "caps", caps, NULL);
+  gst_caps_unref (caps);
+
+  caps = gst_pad_query_caps (srcpad, NULL);
+  ASSERT_NE (caps, nullptr);
+  EXPECT_TRUE (gst_caps_is_any (caps));
+  EXPECT_EQ (GST_TENSOR_REPOSRC (reposrc)->config.info.num_tensors, 0U);
+  gst_caps_unref (caps);
+
+  gst_object_unref (srcpad);
+  gst_object_unref (reposrc);
+}
+
+/**
+ * @brief Number of tensors the buffer tensor_reposrc generated carried.
+ */
+static guint dummy_num_tensors = 0;
+
+/**
+ * @brief Record the number of tensors of the buffer tensor_sink received.
+ */
+static void
+record_num_tensors (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  (void) element;
+  (void) user_data;
+
+  dummy_num_tensors = gst_tensor_buffer_get_count (buffer);
+}
+
+/**
+ * @brief Let tensor_reposrc generate the buffer it starts a stream of more
+ *        tensors than NNS_TENSOR_MEMORY_MAX with.
+ */
+TEST (tensorRepoSrc, extraTensorsDummyBuffer)
+{
+  const guint slot = 1100;
+  guint received = 0;
+  GstElement *pipeline, *reposrc, *sink;
+  GstCaps *caps;
+
+  dummy_num_tensors = 0;
+  gst_tensor_repo_init ();
+
+  pipeline = gst_parse_launch ("tensor_reposrc name=srcx ! tensor_sink name=sinkx", NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  reposrc = gst_bin_get_by_name (GST_BIN (pipeline), "srcx");
+  ASSERT_NE (reposrc, nullptr);
+
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  g_object_set (reposrc, "caps", caps, "slot-index", slot, NULL);
+  gst_caps_unref (caps);
+  gst_object_unref (reposrc);
+
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink, nullptr);
+  g_signal_connect (sink, "new-data", G_CALLBACK (record_num_tensors), NULL);
+  g_signal_connect (sink, "new-data", G_CALLBACK (count_output), &received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&received, 1U, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_EQ (dummy_num_tensors, EXTRA_NUM_TENSORS);
+
+  /* the element waits for a buffer of the slot, let it reach the end instead */
+  gst_tensor_repo_set_eos (slot);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (sink);
+  gst_object_unref (pipeline);
 }
 
 /**

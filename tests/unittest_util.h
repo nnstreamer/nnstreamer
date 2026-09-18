@@ -109,6 +109,36 @@ count_output (GstElement * element, GstBuffer * buffer, gpointer user_data)
 }
 
 /**
+ * @brief Build fixed other/tensors caps carrying the given number of tensors.
+ * @param num the number of 4-byte uint8 tensors the caps declare
+ * @param num_described the number of tensors the dimensions and the types list;
+ *        a value below num builds caps that no element can configure
+ * @return the caps, which the caller should unref
+ */
+static inline GstCaps *
+caps_with_tensors (guint num, guint num_described)
+{
+  GString *dimensions = g_string_new (NULL);
+  GString *types = g_string_new (NULL);
+  GstCaps *caps;
+  guint i;
+
+  for (i = 0; i < num_described; i++) {
+    g_string_append_printf (dimensions, "%s4:1:1:1", (i > 0) ? "," : "");
+    g_string_append_printf (types, "%suint8", (i > 0) ? "," : "");
+  }
+
+  caps = gst_caps_new_simple ("other/tensors", "format", G_TYPE_STRING, "static",
+      "num_tensors", G_TYPE_INT, (gint) num, "dimensions", G_TYPE_STRING,
+      dimensions->str, "types", G_TYPE_STRING, types->str, "framerate",
+      GST_TYPE_FRACTION, 0, 1, NULL);
+
+  g_string_free (dimensions, TRUE);
+  g_string_free (types, TRUE);
+  return caps;
+}
+
+/**
  * @brief Replaces string.
  * This function deallocates the input source string.
  * @param[in] source The input string. This will be freed when returning the replaced string.
