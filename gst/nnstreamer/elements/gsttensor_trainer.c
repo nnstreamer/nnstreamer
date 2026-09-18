@@ -721,6 +721,8 @@ gst_tensor_trainer_push_input (GstTensorTrainer * trainer, GstBuffer * inbuf,
     in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
     if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       GST_ERROR_OBJECT (trainer, "Could not map in_mem[%u] GstMemory", i);
+      gst_memory_unref (in_mem[i]);
+      in_mem[i] = NULL;
       goto error;
     }
 
