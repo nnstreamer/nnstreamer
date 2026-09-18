@@ -313,6 +313,7 @@ _mvncsdk2_invoke (const GstTensorFilterProperties * prop, void **private_data,
   guint32 buf_size;
 
   g_return_val_if_fail (prop->input_configured, -1);
+  g_return_val_if_fail (pdata != NULL, -1);
   if (prop->input_meta.num_tensors != NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED) {
     ml_loge ("The number of input tensor should be one: "
         "The MVNCSDK API supports single tensor input and output only");
@@ -349,13 +350,18 @@ _mvncsdk2_invoke (const GstTensorFilterProperties * prop, void **private_data,
 
 err_destroy:
   /**
-   * When this invoke callback is returned with -1, the whole pipeline is
-   * immediately terminated by g_assert() without any unref() or free()
-   * invocations. Until we fix this issue, the invoke callback calls the close()
-   * itself before returning.
+   * Leave the device, graph and FIFO handles to close (), which the framework
+   * calls when it unloads this sub-plugin. Releasing them here would leave
+   * fw_opened set with a NULL private data, and the next invoke () or
+   * getInputDimension () would dereference it.
+   *
+   * @todo The FIFOs are left as the failure found them. A failure after
+   * ncFifoWriteElem () leaves the written element in the input FIFO, and one in
+   * ncFifoReadElem () leaves the result in the output FIFO, so every later
+   * inference would silently return the one before it. NCSDK2 offers no
+   * supported way to drop either: ncFifoRemoveElem () is declared but
+   * unimplemented.
    */
-  _mvncsdk2_close (prop, private_data);
-
   g_printerr ("Failed to call the invoke callback for the tensor_filter"
       "framework, %s", prop->fwname);
 
@@ -373,9 +379,12 @@ _mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   mvncsdk2_data *pdata = *private_data;
-  struct ncTensorDescriptor_t *nc_input_desc = &(pdata->tensor_desc_input);
+  struct ncTensorDescriptor_t *nc_input_desc;
   GstTensorInfo *nns_input_tensor_info;
   UNUSED (prop);
+
+  g_return_val_if_fail (pdata != NULL, -1);
+  nc_input_desc = &(pdata->tensor_desc_input);
 
   /** MVNCSDK only supports one tensor at a time */
   info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
@@ -408,9 +417,12 @@ _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   mvncsdk2_data *pdata = *private_data;
-  struct ncTensorDescriptor_t *nc_output_desc = &(pdata->tensor_desc_output);
+  struct ncTensorDescriptor_t *nc_output_desc;
   GstTensorInfo *nns_output_info;
   UNUSED (prop);
+
+  g_return_val_if_fail (pdata != NULL, -1);
+  nc_output_desc = &(pdata->tensor_desc_output);
 
   /** MVNCSDK only supports one tensor at a time */
   info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;

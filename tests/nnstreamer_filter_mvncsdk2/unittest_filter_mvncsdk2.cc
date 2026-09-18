@@ -185,7 +185,105 @@ TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (9, fail_stage_t::FAIL_FIFO_CREATE_OUTPUT);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (10, fail_stage_t::FAIL_FIFO_ALLOC_INPUT);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (11, fail_stage_t::FAIL_FIFO_ALLOC_OUTPUT);
 
-/** @todo: Failure in invoke () incurs assertion so that the whole tests would be stopped. */
+#define MVNCSDK2_IN_CAPS_STR                                           \
+  "other/tensors,format=static,num_tensors=1,framerate=(fraction)0/1," \
+  "dimensions=(string)3:224:224:1,types=(string)float32"
+
+#define MVNCSDK2_IN_BUF_SIZE                                             \
+  (GOOGLE_LENET_IN_DIM_C * GOOGLE_LENET_IN_DIM_W * GOOGLE_LENET_IN_DIM_H \
+      * GOOGLE_LENET_IN_DIM_N * sizeof (float))
+
+/**
+ * @brief Build a harness around a tensor_filter bound to the mocked device.
+ * @return The harness, or NULL if the description cannot be parsed.
+ */
+static GstHarness *
+_mvncsdk2_harness_new (void)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstHarness *h;
+  gchar *desc;
+  gchar *test_model;
+
+  if (root_path == NULL) {
+    root_path = "..";
+  }
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "google_lenet_ncsdk_caffe_1.graph", NULL);
+  desc = g_strdup_printf ("tensor_filter framework=movidius-ncsdk2 model=\"%s\"", test_model);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+  g_free (test_model);
+
+  if (h != NULL) {
+    gst_harness_set_src_caps_str (h, MVNCSDK2_IN_CAPS_STR);
+  }
+
+  return h;
+}
+
+/**
+ * @brief Push a single input tensor into the given harness.
+ */
+static GstFlowReturn
+_mvncsdk2_push (GstHarness *h)
+{
+  return gst_harness_push (h, gst_harness_create_buffer (h, MVNCSDK2_IN_BUF_SIZE));
+}
+
+/**
+ * @brief Check that the sub-plugin survives a failure in invoke ()
+ * @details The framework keeps fw_opened set when invoke () returns -1, so the
+ *          sub-plugin has to keep its private data and the device handles in
+ *          it. Closing them here used to leave the private data NULL, and the
+ *          next buffer dereferenced it.
+ */
+static void
+_mvncsdk2_run_invoke_failure (fail_stage_t stage)
+{
+  GstHarness *h;
+
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  h = _mvncsdk2_harness_new ();
+  if (h == NULL) {
+    /* Leaving the mock initialized would take the following cases down too. */
+    ADD_FAILURE () << "Failed to parse the tensor_filter description";
+    NCSDKTensorFilterTestHelper::getInstance ().release ();
+    return;
+  }
+
+  EXPECT_EQ (_mvncsdk2_push (h), GST_FLOW_OK);
+
+  NCSDKTensorFilterTestHelper::getInstance ().setFailStage (stage);
+  EXPECT_EQ (_mvncsdk2_push (h), GST_FLOW_ERROR);
+
+  NCSDKTensorFilterTestHelper::getInstance ().setFailStage (fail_stage_t::NONE);
+  EXPECT_EQ (_mvncsdk2_push (h), GST_FLOW_OK);
+
+  gst_harness_teardown (h);
+
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
+}
+
+/** @brief Testing an invoke () failure while writing the input FIFO */
+TEST (pipelineMvncsdk2Filter, invokeFailure0_n)
+{
+  _mvncsdk2_run_invoke_failure (fail_stage_t::FAIL_FIFO_WRT_ELEM);
+}
+
+/** @brief Testing an invoke () failure while queueing the inference */
+TEST (pipelineMvncsdk2Filter, invokeFailure1_n)
+{
+  _mvncsdk2_run_invoke_failure (fail_stage_t::FAIL_GRAPH_Q_INFER);
+}
+
+/** @brief Testing an invoke () failure while reading the output FIFO */
+TEST (pipelineMvncsdk2Filter, invokeFailure2_n)
+{
+  _mvncsdk2_run_invoke_failure (fail_stage_t::FAIL_FIFO_RD_ELEM);
+}
 
 /**
  * @brief Main function for unit test.
