@@ -808,31 +808,34 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
   gint mqtt_rc;
   guint8 *msg_pub;
   gchar *topic;
+  gint64 end_time;
 
-  while ((cur_state =
-          g_atomic_int_get (&self->mqtt_sink_state)) != MQTT_CONNECTED) {
-    gint64 end_time = g_get_monotonic_time ();
-    mqtt_sink_state_t _state;
+  /**
+   * SINK_INITIALIZING is the only state that can still become
+   * MQTT_CONNECTED: start () has waited for the connection, and nothing
+   * reconnects once it is gone. So wait for that one state, holding the
+   * lock the callbacks broadcast with while the state is read, and for at
+   * most one 'pub-wait-timeout'. Every other state is the answer for this
+   * buffer.
+   */
+  end_time = g_get_monotonic_time ();
+  end_time += (self->mqtt_pub_wait_timeout * G_TIME_SPAN_SECOND);
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  while (g_atomic_int_get (&self->mqtt_sink_state) == SINK_INITIALIZING) {
+    if (!g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
+            end_time))
+      break;
+  }
+  g_mutex_unlock (&self->mqtt_sink_mutex);
 
-    end_time += (self->mqtt_pub_wait_timeout * G_TIME_SPAN_SECOND);
-    g_mutex_lock (&self->mqtt_sink_mutex);
-    g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
-        end_time);
-    g_mutex_unlock (&self->mqtt_sink_mutex);
-
-    _state = g_atomic_int_get (&self->mqtt_sink_state);
-    switch (_state) {
-      case MQTT_CONNECT_FAILURE:
-      case MQTT_DISCONNECTED:
-      case MQTT_CONNECTION_LOST:
-      case SINK_RENDER_ERROR:
-        ret = GST_FLOW_ERROR;
-        break;
-      case SINK_RENDER_EOS:
-        ret = GST_FLOW_EOS;
-        break;
-      default:
-        continue;
+  cur_state = g_atomic_int_get (&self->mqtt_sink_state);
+  if (cur_state != MQTT_CONNECTED) {
+    if (cur_state == SINK_RENDER_EOS) {
+      ret = GST_FLOW_EOS;
+    } else {
+      g_printerr ("%s: Cannot publish a buffer: the connection to the broker "
+          "is not up (state: %d)\n", TAG_ERR_MQTTSINK, cur_state);
+      ret = GST_FLOW_ERROR;
     }
     goto ret_with;
   }
