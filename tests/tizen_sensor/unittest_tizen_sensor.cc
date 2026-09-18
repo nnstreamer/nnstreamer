@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <gst/base/gstbasesrc.h>
 #include <gst/gst.h>
 #include <tensor_typedef.h>
 #include <unittest_util.h>
@@ -413,6 +414,48 @@ TEST (tizensensorAsSource, virtualSensorCreate07_n)
 }
 
 /**
+ * @brief Test pipeline creation with a sensor type of no tensor spec (negative)
+ */
+TEST (tizensensorAsSource, virtualSensorCreate08_n)
+{
+  GstElement *pipe;
+  gchar *pipeline;
+
+  /* The default type, SENSOR_ALL, has no tensor spec to be configured with. */
+  pipeline = g_strdup_printf ("tensor_src_tizensensor ! tensor_sink");
+  pipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_TRUE (pipe != NULL);
+
+  EXPECT_EQ (gst_element_set_state (pipe, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+
+  gst_element_set_state (pipe, GST_STATE_NULL);
+  gst_object_unref (pipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test pipeline creation with a sequence out of range (negative)
+ */
+TEST (tizensensorAsSource, virtualSensorCreate09_n)
+{
+  GstElement *pipe;
+  gchar *pipeline;
+  int listeners = dummy_count_listeners ();
+
+  /* The dummy sensor framework provides 3 sensors of each type. */
+  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_LIGHT sequence=5 ! tensor_sink");
+  pipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_TRUE (pipe != NULL);
+
+  EXPECT_EQ (gst_element_set_state (pipe, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (dummy_count_listeners (), listeners);
+
+  gst_element_set_state (pipe, GST_STATE_NULL);
+  gst_object_unref (pipe);
+  g_free (pipeline);
+}
+
+/**
  * @brief Test for tizen sensor get property
  */
 TEST (tizensensorAsSource, getProperty1)
@@ -565,6 +608,132 @@ TEST (tizensensorAsSource, getProperty3_n)
     g_clear_error (&err);
   }
   EXPECT_EQ (status, 0);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Call the fixate vfunc of the element with an extra reference held.
+ * @param[in] element The tensor_src_tizensensor element.
+ * @param[in] caps_str The caps handed to the fixate vfunc.
+ * @param[out] refcount The reference count of the given caps after the call.
+ * @return The caps returned by the fixate vfunc. The caller owns it.
+ */
+static GstCaps *
+fixate_caps_of (GstElement *element, const gchar *caps_str, gint *refcount)
+{
+  GstBaseSrcClass *klass = GST_BASE_SRC_GET_CLASS (element);
+  GstCaps *caps, *fixated;
+
+  caps = gst_caps_from_string (caps_str);
+  /* Keep a reference of our own; the vfunc consumes the one we hand over. */
+  gst_caps_ref (caps);
+
+  fixated = klass->fixate (GST_BASE_SRC (element), caps);
+
+  *refcount = GST_MINI_OBJECT_REFCOUNT_VALUE (caps);
+  gst_caps_unref (caps);
+
+  return fixated;
+}
+
+/**
+ * @brief Test if the fixate vfunc consumes the caps it takes the ownership of.
+ */
+TEST (tizensensorAsSource, fixateCaps10)
+{
+  GstElement *element;
+  GstCaps *fixated;
+  gint refcount = 0;
+
+  element = gst_element_factory_make ("tensor_src_tizensensor", "srcx");
+  ASSERT_TRUE (element != NULL);
+
+  fixated = fixate_caps_of (element, "other/tensor", &refcount);
+
+  EXPECT_EQ (refcount, 1);
+  ASSERT_TRUE (fixated != NULL);
+  EXPECT_TRUE (gst_caps_is_fixed (fixated));
+
+  gst_caps_unref (fixated);
+  gst_object_unref (element);
+}
+
+/**
+ * @brief Test the fixate vfunc with caps that the element cannot produce (negative)
+ */
+TEST (tizensensorAsSource, fixateCaps11_n)
+{
+  GstElement *element;
+  GstCaps *fixated;
+  gint refcount = 0;
+
+  element = gst_element_factory_make ("tensor_src_tizensensor", "srcx");
+  ASSERT_TRUE (element != NULL);
+
+  fixated = fixate_caps_of (element, "video/x-raw,format=(string)RGB", &refcount);
+
+  EXPECT_EQ (refcount, 1);
+  ASSERT_TRUE (fixated != NULL);
+
+  gst_caps_unref (fixated);
+  gst_object_unref (element);
+}
+
+/**
+ * @brief Test if the sensor listener is released when the pipeline is stopped.
+ */
+TEST (tizensensorAsSource, listenerRelease12)
+{
+  GstElement *pipe;
+  gchar *pipeline;
+  sensor_event_s value;
+  sensor_h sensor;
+  int listeners = dummy_count_listeners ();
+
+  ASSERT_EQ (sensor_get_default_sensor (SENSOR_LIGHT, &sensor), 0);
+  value.accuracy = 1;
+  value.timestamp = 0U;
+  value.value_count = 1;
+  value.values[0] = 0.01;
+  ASSERT_EQ (dummy_publish (sensor, &value), 0);
+
+  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_LIGHT sequence=0 ! fakesink");
+  pipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_TRUE (pipe != NULL);
+
+  EXPECT_EQ (setPipelineStateSync (pipe, GST_STATE_PLAYING, TEST_TIME_OUT_TIZEN_SENSOR_MS), 0);
+  EXPECT_EQ (dummy_count_listeners (), listeners + 1);
+
+  gst_element_set_state (pipe, GST_STATE_NULL);
+  EXPECT_EQ (dummy_count_listeners (), listeners);
+
+  gst_object_unref (pipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test if a listener is released when the interval cannot be set (negative)
+ */
+TEST (tizensensorAsSource, listenerRelease13_n)
+{
+  GstElement *pipe;
+  gchar *pipeline;
+  int listeners = dummy_count_listeners ();
+
+  pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_LIGHT sequence=0 ! fakesink");
+  pipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_TRUE (pipe != NULL);
+
+  dummy_fail_set_interval (100);
+  EXPECT_EQ (gst_element_set_state (pipe, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  dummy_fail_set_interval (0);
+
+  EXPECT_EQ (dummy_count_listeners (), listeners);
+
+  gst_element_set_state (pipe, GST_STATE_NULL);
+  EXPECT_EQ (dummy_count_listeners (), listeners);
+
+  gst_object_unref (pipe);
   g_free (pipeline);
 }
 

@@ -628,6 +628,8 @@ _ts_configure_handle (GstTensorSrcTIZENSENSOR * self)
   ret = sensor_listener_set_interval (self->listener, self->interval_ms);
   if (ret != SENSOR_ERROR_NONE) {
     nns_loge ("Cannot set the sensor interval");
+    sensor_destroy_listener (self->listener);
+    self->listener = NULL;
     return ret;
   }
 
@@ -1031,6 +1033,9 @@ gst_tensor_src_tizensensor_get_caps (GstBaseSrc * src, GstCaps * filter)
 
 /**
  * @brief fixate the caps when needed during negotiation
+ * @param[in] src The gst base src
+ * @param[in] caps The caps to be fixated. This takes the ownership of it.
+ * @return The fixated caps. The caller owns it.
  */
 static GstCaps *
 gst_tensor_src_tizensensor_fixate (GstBaseSrc * src, GstCaps * caps)
@@ -1048,6 +1053,11 @@ gst_tensor_src_tizensensor_fixate (GstBaseSrc * src, GstCaps * caps)
   gst_caps_unref (cap_tensor);
 
   _UNLOCK (self);
+
+  if (retval == NULL)
+    return GST_BASE_SRC_CLASS (parent_class)->fixate (src, caps);
+
+  gst_caps_unref (caps);
   return gst_caps_fixate (retval);
 }
 
