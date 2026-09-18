@@ -667,11 +667,14 @@ gst_tensor_trainer_check_chain_conditions (GstTensorTrainer * trainer,
  */
 static gsize
 gst_tensor_trainer_convert_meta (GstTensorTrainer * trainer,
-    GstTensorMetaInfo * meta, GstTensorInfo * info, void *data)
+    GstTensorMetaInfo * meta, GstTensorInfo * info, void *data, gsize size)
 {
   gsize header_size = 0;
 
-  if (!gst_tensor_meta_info_parse_header (meta, data)) {
+  gst_tensor_meta_info_init (meta);
+
+  if (size < gst_tensor_meta_info_get_header_size (meta) ||
+      !gst_tensor_meta_info_parse_header (meta, data)) {
     GST_ERROR_OBJECT (trainer, "Invalid Flexible tensors");
     return 0;
   }
@@ -724,7 +727,7 @@ gst_tensor_trainer_push_input (GstTensorTrainer * trainer, GstBuffer * inbuf,
     if (in_flexible) {
       info = gst_tensors_info_get_nth_info (&trainer->prop.input_meta, i);
       header_size = gst_tensor_trainer_convert_meta (trainer,
-          &in_meta[i], info, in_info[i].data);
+          &in_meta[i], info, in_info[i].data, in_info[i].size);
       if (header_size == 0)
         goto error;
     }
