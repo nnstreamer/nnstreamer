@@ -32,6 +32,8 @@ class event_mock_subplugin : public nnstreamer::tensor_filter_subplugin
   static int event_ret;
   static guint num_events[RESUME + 1];
   static tensors_layout last_layout;
+  static void *last_data;
+  static GstTensorFilterFrameworkEventData last_event;
 
   /** @brief mandatory method */
   tensor_filter_subplugin &getEmptyInstance () override
@@ -73,15 +75,19 @@ class event_mock_subplugin : public nnstreamer::tensor_filter_subplugin
     return -ENOENT;
   }
 
-  /** @brief record the event and the layouts it was given */
+  /** @brief record the event and read the data it was given */
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data) override
   {
     EXPECT_LT ((guint) ops, G_N_ELEMENTS (num_events));
     if ((guint) ops < G_N_ELEMENTS (num_events))
       num_events[ops]++;
 
-    if (ops == SET_INPUT_PROP || ops == SET_OUTPUT_PROP)
+    if (ops == SET_INPUT_PROP || ops == SET_OUTPUT_PROP) {
       memcpy (last_layout, data.layout, sizeof (last_layout));
+    } else {
+      last_data = data.data;
+      memcpy (&last_event, &data, sizeof (last_event));
+    }
 
     return event_ret;
   }
@@ -105,6 +111,31 @@ event_mock_subplugin *event_mock_subplugin::registered = nullptr;
 int event_mock_subplugin::event_ret = 0;
 guint event_mock_subplugin::num_events[RESUME + 1];
 tensors_layout event_mock_subplugin::last_layout;
+void *event_mock_subplugin::last_data = nullptr;
+GstTensorFilterFrameworkEventData event_mock_subplugin::last_event;
+
+/**
+ * @brief Fill the recorded event data with non-zero bytes.
+ * @details A handler that does not overwrite it, or one that overwrites only
+ *          the first member of the union, leaves this pattern behind.
+ */
+static void
+_dirty_event_record (void)
+{
+  memset (&event_mock_subplugin::last_event, 0xA5, sizeof (event_mock_subplugin::last_event));
+}
+
+/**
+ * @brief Tell whether every byte of the recorded event data is zero.
+ */
+static gboolean
+_event_record_is_zeroed (void)
+{
+  GstTensorFilterFrameworkEventData zeroed;
+
+  memset (&zeroed, 0, sizeof (zeroed));
+  return memcmp (&event_mock_subplugin::last_event, &zeroed, sizeof (zeroed)) == 0;
+}
 
 /**
  * @brief Fill a large part of the stack with non-zero bytes.
@@ -134,6 +165,8 @@ class testFilterEvent : public ::testing::Test
     event_mock_subplugin::event_ret = 0;
     memset (event_mock_subplugin::num_events, 0, sizeof (event_mock_subplugin::num_events));
     memset (event_mock_subplugin::last_layout, 0, sizeof (event_mock_subplugin::last_layout));
+    event_mock_subplugin::last_data = &priv;
+    _dirty_event_record ();
     event_mock_subplugin::init ();
 
     gst_tensor_filter_common_init_property (&priv);
@@ -235,6 +268,93 @@ TEST_F (testFilterEvent, setLayoutRefused_n)
   EXPECT_EQ (event_mock_subplugin::num_events[SET_INPUT_PROP], 1U);
   for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++)
     EXPECT_EQ (priv.prop.input_layout[i], _NNS_LAYOUT_NHWC) << "entry " << i;
+}
+
+/**
+ * @brief A C++ sub-plugin can read the event data of SUSPEND and RESUME.
+ */
+TEST_F (testFilterEvent, suspendResume)
+{
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+
+  EXPECT_EQ (event_mock_subplugin::num_events[SUSPEND], 1U);
+  EXPECT_TRUE (event_mock_subplugin::last_data == nullptr);
+  EXPECT_TRUE (_event_record_is_zeroed ());
+  EXPECT_TRUE (priv.prop.fw_opened);
+  EXPECT_TRUE (priv.is_suspended);
+
+  event_mock_subplugin::last_data = &priv;
+  _dirty_event_record ();
+  EXPECT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_EQ (event_mock_subplugin::num_events[RESUME], 1U);
+  EXPECT_TRUE (event_mock_subplugin::last_data == nullptr);
+  EXPECT_TRUE (_event_record_is_zeroed ());
+  EXPECT_FALSE (priv.is_suspended);
+}
+
+/**
+ * @brief A C++ sub-plugin not supporting SUSPEND is closed instead.
+ */
+TEST_F (testFilterEvent, suspendUnsupported_n)
+{
+  event_mock_subplugin::event_ret = -ENOENT;
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+
+  EXPECT_EQ (event_mock_subplugin::num_events[SUSPEND], 1U);
+  EXPECT_FALSE (priv.prop.fw_opened);
+  EXPECT_FALSE (priv.is_suspended);
+}
+
+/**
+ * @brief A C++ sub-plugin failing RESUME stays suspended.
+ */
+TEST_F (testFilterEvent, resumeFail_n)
+{
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+  ASSERT_TRUE (priv.is_suspended);
+
+  event_mock_subplugin::event_ret = -EINVAL;
+  EXPECT_FALSE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_EQ (event_mock_subplugin::num_events[RESUME], 1U);
+  EXPECT_TRUE (priv.prop.fw_opened);
+  EXPECT_TRUE (priv.is_suspended);
+}
+
+/**
+ * @brief Setting is-updatable asks a C++ sub-plugin with no event data.
+ */
+TEST_F (testFilterEvent, isUpdatable)
+{
+  GValue value = G_VALUE_INIT;
+
+  g_value_init (&value, G_TYPE_BOOLEAN);
+  g_value_set_boolean (&value, TRUE);
+  EXPECT_TRUE (gst_tensor_filter_common_set_property (&priv, PROP_IS_UPDATABLE, &value, NULL));
+  g_value_unset (&value);
+
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 1U);
+  EXPECT_TRUE (event_mock_subplugin::last_data == nullptr);
+  EXPECT_TRUE (_event_record_is_zeroed ());
+  EXPECT_TRUE (priv.is_updatable);
+}
+
+/**
+ * @brief A C++ sub-plugin not supporting RELOAD_MODEL is not updatable.
+ */
+TEST_F (testFilterEvent, isUpdatableUnsupported_n)
+{
+  GValue value = G_VALUE_INIT;
+
+  event_mock_subplugin::event_ret = -ENOENT;
+  g_value_init (&value, G_TYPE_BOOLEAN);
+  g_value_set_boolean (&value, TRUE);
+  EXPECT_TRUE (gst_tensor_filter_common_set_property (&priv, PROP_IS_UPDATABLE, &value, NULL));
+  g_value_unset (&value);
+
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 1U);
+  EXPECT_FALSE (priv.is_updatable);
 }
 
 /**
