@@ -153,9 +153,6 @@ edgetpu_subplugin::edgetpu_subplugin ()
 void
 edgetpu_subplugin::cleanup ()
 {
-  if (empty_model)
-    return; /* Nothing to do if it is an empty model */
-
   if (model_interpreter) {
     model_interpreter = nullptr; /* delete unique_ptr */
   }
@@ -220,7 +217,7 @@ edgetpu_subplugin::parse_custom_prop (const char *custom_prop)
 
   const std::string cprop (custom_prop);
   const std::string key ("device_type");
-  const std::size_t max_vec_len = 2;
+  const std::size_t num_tokens = 2;
   std::vector<std::string> vec;
   std::stringstream cprop_ss;
   std::string token;
@@ -231,11 +228,11 @@ edgetpu_subplugin::parse_custom_prop (const char *custom_prop)
 
   while (std::getline (cprop_ss, token, ':')) {
     vec.push_back (token);
-    if (vec.size () > max_vec_len)
+    if (vec.size () > num_tokens)
       break;
   }
 
-  if (edgetpu_subplugin::str_tolower (vec[0]) != key)
+  if (vec.size () < num_tokens || edgetpu_subplugin::str_tolower (vec[0]) != key)
     return edgetpu_subplugin_device_type::DEFAULT;
 
   std::string val = edgetpu_subplugin::str_tolower (vec[1]);
@@ -399,7 +396,7 @@ edgetpu_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output
       ifs.read (buf.data (), compiled_model_id.size ());
       ifs.close ();
 
-      if (compiled_model_id == std::string (buf.data ())) {
+      if (compiled_model_id == std::string (buf.data (), buf.size ())) {
         /** The given model is a compiled model */
         nns_loge ("A compiled model by edgetpu-compiler has been given, but this extension might be statically linked with TensorFlow Lite v%s which does not support the model.",
             tflite_ver);
@@ -463,6 +460,7 @@ edgetpu_subplugin::BuildEdgeTpuInterpreter (const tflite::FlatBufferModel &model
   std::unique_ptr<tflite::Interpreter> interpreter;
   if (tflite::InterpreterBuilder (model, resolver) (&interpreter) != kTfLiteOk) {
     nns_loge ("Failed to build interpreter.");
+    return nullptr;
   }
 
   if (dev_type != edgetpu_subplugin_device_type::DUMMY)
