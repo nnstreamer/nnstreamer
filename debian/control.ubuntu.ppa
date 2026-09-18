@@ -91,7 +91,7 @@ Description: NNStreamer Edge TPU support
 Package: nnstreamer-openvino
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer-single, openvino, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-single, openvino, openvino-cpu-mkldnn [amd64], ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer OpenVino support
  This package allows nnstreamer to support OpenVino.
 
