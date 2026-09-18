@@ -36,6 +36,7 @@ G_BEGIN_DECLS
 
 typedef struct _GstMqttSink GstMqttSink;
 typedef struct _GstMqttSinkClass GstMqttSinkClass;
+typedef struct _GstMqttNtpServers GstMqttNtpServers;
 
 /**
  * @brief A type definition to indicate the state of this element
@@ -76,10 +77,8 @@ struct _GstMqttSink {
   gboolean debug;
   gint mqtt_qos;
   gboolean mqtt_ntp_sync;
-  guint mqtt_ntp_num_srvs;
   gchar *mqtt_ntp_srvs;
-  gchar **mqtt_ntp_hnames;
-  guint16 *mqtt_ntp_ports;
+  GstMqttNtpServers *mqtt_ntp_servers;
   gboolean is_connected;
 
   mqtt_get_unix_epoch get_epoch_func;
