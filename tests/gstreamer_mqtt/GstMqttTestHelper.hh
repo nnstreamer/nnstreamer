@@ -16,6 +16,7 @@
 #include <glib.h>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 /**
@@ -171,13 +172,22 @@ class GstMqttTestHelper
   }
 
   /**
-   * @brief Record a call to MQTTAsync_send () (count, payload length, and a copy of the payload)
+   * @brief Getter for the registered MQTTAsync_deliveryComplete callback
    */
-  void recordSend (const void *payload, int payloadlen)
+  MQTTAsync_deliveryComplete *getCbDeliveryComplete ()
+  {
+    return this->dc;
+  }
+
+  /**
+   * @brief Record a call to MQTTAsync_send () (count, topic, payload length, and a copy of the payload)
+   */
+  void recordSend (const char *topic, const void *payload, int payloadlen)
   {
     const guint8 *bytes = static_cast<const guint8 *> (payload);
 
     this->send_count++;
+    this->last_topic.assign (topic ? topic : "");
     this->last_payloadlen = payloadlen;
     this->last_payload.assign (bytes, bytes + payloadlen);
   }
@@ -188,6 +198,7 @@ class GstMqttTestHelper
   void resetSendRecord ()
   {
     this->send_count = 0;
+    this->last_topic.clear ();
     this->last_payloadlen = 0;
     this->last_payload.clear ();
   }
@@ -198,6 +209,48 @@ class GstMqttTestHelper
   int getSendCount ()
   {
     return this->send_count;
+  }
+
+  /**
+   * @brief Record a call to MQTTAsync_create () (server URI and client id)
+   */
+  void recordCreate (const char *server_uri, const char *client_id)
+  {
+    this->last_server_uri.assign (server_uri ? server_uri : "");
+    this->last_client_id.assign (client_id ? client_id : "");
+  }
+
+  /**
+   * @brief Reset the record of MQTTAsync_create () calls
+   */
+  void resetCreateRecord ()
+  {
+    this->last_server_uri.clear ();
+    this->last_client_id.clear ();
+  }
+
+  /**
+   * @brief Getter for the server URI given to the most recent MQTTAsync_create () call
+   */
+  const std::string &getLastServerUri ()
+  {
+    return this->last_server_uri;
+  }
+
+  /**
+   * @brief Getter for the client id given to the most recent MQTTAsync_create () call
+   */
+  const std::string &getLastClientId ()
+  {
+    return this->last_client_id;
+  }
+
+  /**
+   * @brief Getter for the topic given to the most recent MQTTAsync_send () call
+   */
+  const std::string &getLastTopic ()
+  {
+    return this->last_topic;
   }
 
   /**
@@ -246,7 +299,11 @@ class GstMqttTestHelper
   bool fail_unsubscribe;
   bool is_connected;
 
+  std::string last_server_uri;
+  std::string last_client_id;
+
   int send_count;
+  std::string last_topic;
   int last_payloadlen;
   std::vector<guint8> last_payload;
 };

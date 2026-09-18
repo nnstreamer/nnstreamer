@@ -161,6 +161,7 @@ static void gst_mqtt_sink_set_mqtt_ntp_srvs (GstMqttSink * self,
 static GstMqttNtpServers *gst_mqtt_ntp_servers_new (const gchar * pairs);
 static void gst_mqtt_ntp_servers_unref (GstMqttNtpServers * srvs);
 static int64_t gst_mqtt_sink_get_epoch (GstMqttSink * self);
+static gchar *gst_mqtt_sink_dup_pub_topic (GstMqttSink * self);
 
 static void cb_mqtt_on_connect (void *context,
     MQTTAsync_successData * response);
@@ -422,16 +423,24 @@ gst_mqtt_sink_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, gst_mqtt_sink_get_debug (self));
       break;
     case PROP_MQTT_CLIENT_ID:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_client_id (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_HOST_ADDRESS:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_host_address (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_HOST_PORT:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_host_port (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_PUB_TOPIC:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_pub_topic (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_PUB_WAIT_TIMEOUT:
       g_value_set_ulong (value, gst_mqtt_sink_get_pub_wait_timeout (self));
@@ -568,22 +577,28 @@ static gboolean
 gst_mqtt_sink_start (GstBaseSink * basesink)
 {
   GstMqttSink *self = GST_MQTT_SINK (basesink);
-  gchar *haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
-      self->mqtt_host_port);
+  gchar *client_id;
+  gchar *haddr;
   int ret;
   gint64 end_time;
+
+  GST_OBJECT_LOCK (self);
+  haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
+      self->mqtt_host_port);
 
   if (!g_strcmp0 (DEFAULT_MQTT_CLIENT_ID, self->mqtt_client_id)) {
     g_free (self->mqtt_client_id);
     self->mqtt_client_id = g_strdup_printf (DEFAULT_MQTT_CLIENT_ID_FORMAT,
         g_get_host_name (), getpid (), sink_client_id++);
   }
+  client_id = g_strdup (self->mqtt_client_id);
 
   if (!g_strcmp0 (DEFAULT_MQTT_PUB_TOPIC, self->mqtt_topic)) {
     g_free (self->mqtt_topic);
     self->mqtt_topic = g_strdup_printf (DEFAULT_MQTT_PUB_TOPIC_FORMAT,
         self->mqtt_client_id);
   }
+  GST_OBJECT_UNLOCK (self);
 
   /**
    * @todo Support other persistence mechanisms
@@ -593,9 +608,10 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
    *    MQTTCLIENT_PERSISTENCE_USER: An application-specific persistence
    *                                 mechanism
    */
-  ret = MQTTAsync_create (&self->mqtt_client_handle, haddr,
-      self->mqtt_client_id, MQTTCLIENT_PERSISTENCE_NONE, NULL);
+  ret = MQTTAsync_create (&self->mqtt_client_handle, haddr, client_id,
+      MQTTCLIENT_PERSISTENCE_NONE, NULL);
   g_free (haddr);
+  g_free (client_id);
   if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
 
@@ -718,18 +734,20 @@ _put_timestamp_to_msg_buf_hdr (GstMqttSink * self, GstBuffer * gst_buf,
 
   if (self->debug) {
     GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
+    gchar *topic = gst_mqtt_sink_dup_pub_topic (self);
     GstClock *clock;
 
     clock = gst_element_get_clock (GST_ELEMENT (self));
 
     GST_DEBUG_OBJECT (self,
         "%s now %" GST_TIME_FORMAT " ts %" GST_TIME_FORMAT " sent %"
-        GST_TIME_FORMAT, self->mqtt_topic,
+        GST_TIME_FORMAT, topic,
         GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
         GST_TIME_ARGS (hdr->pts),
         GST_TIME_ARGS (hdr->sent_time_epoch - hdr->base_time_epoch));
 
     gst_object_unref (clock);
+    g_free (topic);
   }
 }
 
@@ -773,6 +791,7 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
   GstMapInfo in_buf_map;
   gint mqtt_rc;
   guint8 *msg_pub;
+  gchar *topic;
 
   while ((cur_state =
           g_atomic_int_get (&self->mqtt_sink_state)) != MQTT_CONNECTED) {
@@ -869,9 +888,11 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
 
   memcpy (&msg_pub[sizeof (self->mqtt_msg_hdr)], in_buf_map.data,
       in_buf_map.size);
-  mqtt_rc = MQTTAsync_send (self->mqtt_client_handle, self->mqtt_topic,
+  topic = gst_mqtt_sink_dup_pub_topic (self);
+  mqtt_rc = MQTTAsync_send (self->mqtt_client_handle, topic,
       GST_MQTT_LEN_MSG_HDR + in_buf_map.size, self->mqtt_msg_buf,
       self->mqtt_qos, 1, &self->mqtt_respn_opts);
+  g_free (topic);
   if (mqtt_rc != MQTTASYNC_SUCCESS) {
     ret = GST_FLOW_ERROR;
   }
@@ -1000,8 +1021,15 @@ gst_mqtt_sink_get_client_id (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_client_id (GstMqttSink * self, const gchar * id)
 {
-  g_free (self->mqtt_client_id);
-  self->mqtt_client_id = g_strdup (id);
+  gchar *new_id = g_strdup (id);
+  gchar *old_id;
+
+  GST_OBJECT_LOCK (self);
+  old_id = self->mqtt_client_id;
+  self->mqtt_client_id = new_id;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_id);
 }
 
 /**
@@ -1019,11 +1047,18 @@ gst_mqtt_sink_get_host_address (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_host_address (GstMqttSink * self, const gchar * addr)
 {
+  gchar *new_addr = g_strdup (addr);
+  gchar *old_addr;
+
   /**
    * @todo Handle the case where the addr is changed at runtime
    */
-  g_free (self->mqtt_host_address);
-  self->mqtt_host_address = g_strdup (addr);
+  GST_OBJECT_LOCK (self);
+  old_addr = self->mqtt_host_address;
+  self->mqtt_host_address = new_addr;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_addr);
 }
 
 /**
@@ -1041,8 +1076,15 @@ gst_mqtt_sink_get_host_port (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_host_port (GstMqttSink * self, const gchar * port)
 {
-  g_free (self->mqtt_host_port);
-  self->mqtt_host_port = g_strdup (port);
+  gchar *new_port = g_strdup (port);
+  gchar *old_port;
+
+  GST_OBJECT_LOCK (self);
+  old_port = self->mqtt_host_port;
+  self->mqtt_host_port = new_port;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_port);
 }
 
 /**
@@ -1060,8 +1102,31 @@ gst_mqtt_sink_get_pub_topic (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_pub_topic (GstMqttSink * self, const gchar * topic)
 {
-  g_free (self->mqtt_topic);
-  self->mqtt_topic = g_strdup (topic);
+  gchar *new_topic = g_strdup (topic);
+  gchar *old_topic;
+
+  GST_OBJECT_LOCK (self);
+  old_topic = self->mqtt_topic;
+  self->mqtt_topic = new_topic;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_topic);
+}
+
+/**
+ * @brief Copy the 'pub-topic' property for a thread other than the one that sets it
+ * @return a new string to be released with g_free ()
+ */
+static gchar *
+gst_mqtt_sink_dup_pub_topic (GstMqttSink * self)
+{
+  gchar *topic;
+
+  GST_OBJECT_LOCK (self);
+  topic = g_strdup (self->mqtt_topic);
+  GST_OBJECT_UNLOCK (self);
+
+  return topic;
 }
 
 /**
@@ -1393,10 +1458,11 @@ static void
 cb_mqtt_on_delivery_complete (void *context, MQTTAsync_token token)
 {
   GstMqttSink *self = (GstMqttSink *) context;
+  gchar *topic = gst_mqtt_sink_dup_pub_topic (self);
 
   GST_DEBUG_OBJECT (self,
-      "%s: the message with token(%d) has been delivered.", self->mqtt_topic,
-      token);
+      "%s: the message with token(%d) has been delivered.", topic, token);
+  g_free (topic);
 }
 
 /**
