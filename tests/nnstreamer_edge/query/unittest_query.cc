@@ -148,6 +148,7 @@ TEST (tensorQuery, serverProperties2_n)
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
@@ -204,6 +205,7 @@ TEST (tensorQuery, clientAlone_n)
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
