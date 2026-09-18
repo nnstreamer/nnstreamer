@@ -1732,7 +1732,7 @@ _gtfc_setprop_LAYOUT (GstTensorFilterPrivate * priv,
     } else if (GST_TF_FW_V1 (priv->fw)) {
       GstTensorFilterFrameworkEventData data;
 
-      data.info = NULL;
+      memset (&data, 0, sizeof (data));
       num_layouts = gst_tensors_parse_layouts_string (data.layout,
           g_value_get_string (value));
 
