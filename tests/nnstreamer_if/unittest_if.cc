@@ -1403,6 +1403,153 @@ TEST (tensorIfAppsrc, customCallbackFailure_n)
 }
 
 /**
+ * @brief Number of tensors a stream carries to reach GstTensorsInfo::extra.
+ */
+#define EXTRA_NUM_TENSORS ((guint) (NNS_TENSOR_MEMORY_MAX + 4))
+
+/**
+ * @brief Start a standalone tensor_if and hand out its sink pad.
+ * @param tensor_if the element to start, filled in by this function
+ * @return the sink pad of the element, which the caller should unref
+ */
+static GstPad *
+_start_tensor_if (GstElement **tensor_if)
+{
+  GstElement *element;
+  GstPad *sinkpad;
+
+  element = gst_element_factory_make ("tensor_if", NULL);
+  if (element == NULL)
+    return NULL;
+
+  g_object_set (element, "compared-value", TIFCV_A_VALUE,
+      "compared-value-option", "0:0:0:0,0", "supplied-value", "0", "operator",
+      TIFOP_GE, "then", TIFB_PASSTHROUGH, "else", TIFB_SKIP, NULL);
+
+  gst_element_set_state (element, GST_STATE_PLAYING);
+  sinkpad = gst_element_get_static_pad (element, "sink");
+  gst_pad_send_event (sinkpad, gst_event_new_stream_start ("tensorif-extra"));
+
+  *tensor_if = element;
+  return sinkpad;
+}
+
+/**
+ * @brief Build a buffer of uint8 tensors, each holding 4 zeroed elements.
+ * @param info the tensors info describing the tensors of the buffer
+ * @return the buffer, which the caller should unref
+ */
+static GstBuffer *
+_buffer_with_tensors (GstTensorsInfo *info)
+{
+  GstBuffer *buffer = gst_buffer_new ();
+  guint i;
+
+  for (i = 0; i < info->num_tensors; i++) {
+    GstTensorInfo *_info = gst_tensors_info_get_nth_info (info, i);
+    GstMemory *mem = gst_allocator_alloc (NULL, gst_tensor_info_get_size (_info), NULL);
+    GstMapInfo map;
+
+    EXPECT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+    memset (map.data, 0, map.size);
+    gst_memory_unmap (mem, &map);
+
+    EXPECT_TRUE (gst_tensor_buffer_append_memory (buffer, mem, _info));
+  }
+
+  return buffer;
+}
+
+/**
+ * @brief Renegotiate a stream of more tensors than NNS_TENSOR_MEMORY_MAX, which
+ *        reparses the input configuration of tensor_if.
+ */
+TEST (tensorIfExtraTensors, capsRenegotiation)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  GstCaps *caps;
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  gst_caps_unref (caps);
+
+  EXPECT_EQ (GST_TENSOR_IF (tensor_if)->in_config.info.num_tensors, EXTRA_NUM_TENSORS);
+  EXPECT_NE (GST_TENSOR_IF (tensor_if)->in_config.info.extra, nullptr);
+
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS + 1, EXTRA_NUM_TENSORS + 1);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  gst_caps_unref (caps);
+
+  EXPECT_EQ (GST_TENSOR_IF (tensor_if)->in_config.info.num_tensors, EXTRA_NUM_TENSORS + 1);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+}
+
+/**
+ * @brief Negotiate a stream whose tensors are not all described.
+ */
+TEST (tensorIfExtraTensors, capsRenegotiation_n)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  GstCaps *caps;
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS - 1);
+  EXPECT_FALSE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  gst_caps_unref (caps);
+
+  EXPECT_EQ (GST_TENSOR_IF (tensor_if)->in_config.info.num_tensors, 0U);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+}
+
+/**
+ * @brief Pass a buffer of more tensors than NNS_TENSOR_MEMORY_MAX through,
+ * which fills the output configuration of tensor_if with extra tensors.
+ */
+TEST (tensorIfExtraTensors, passthroughBuffer)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  GstCaps *caps;
+  GstBuffer *buffer;
+  GstSegment segment;
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  gst_caps_unref (caps);
+
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_segment (&segment)));
+
+  buffer = _buffer_with_tensors (&GST_TENSOR_IF (tensor_if)->in_config.info);
+  ASSERT_EQ (gst_tensor_buffer_get_count (buffer), EXTRA_NUM_TENSORS);
+
+  /* the then-pad is created by the chain and has no peer to push to */
+  EXPECT_EQ (gst_pad_chain (sinkpad, buffer), GST_FLOW_NOT_LINKED);
+  EXPECT_EQ (GST_TENSOR_IF (tensor_if)->out_config[0].info.num_tensors, EXTRA_NUM_TENSORS);
+  EXPECT_NE (GST_TENSOR_IF (tensor_if)->out_config[0].info.extra, nullptr);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+}
+
+/**
  * @brief Main GTest
  */
 int

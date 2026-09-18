@@ -318,6 +318,10 @@ gst_tensor_if_dispose (GObject * object)
   tensor_if->custom.data = NULL;
   tensor_if->custom_configured = FALSE;
 
+  gst_tensors_config_free (&tensor_if->in_config);
+  gst_tensors_config_free (&tensor_if->out_config[0]);
+  gst_tensors_config_free (&tensor_if->out_config[1]);
+
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
@@ -694,6 +698,7 @@ gst_tensor_if_event (GstPad * pad, GstObject * parent, GstEvent * event)
       GstCaps *caps;
 
       gst_event_parse_caps (event, &caps);
+      gst_tensors_config_free (&tensor_if->in_config);
       if (!gst_tensors_config_from_caps (&tensor_if->in_config, caps, TRUE)) {
         GST_ERROR_OBJECT (tensor_if, "Failed to parse caps.\n");
         gst_event_unref (event);
