@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <gst/check/gstharness.h>
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api_trainer.h>
 #include <unittest_util.h>
@@ -804,6 +805,83 @@ TEST_F (TensorTrainerFakeFw, finalizeJoinsDummyThread)
   EXPECT_TRUE (fake_stat.config_matched);
 
   g_free (config_path);
+}
+
+/**
+ * @brief Create a harness around a playing tensor_trainer with the fake sub-plugin.
+ */
+static GstHarness *
+make_fake_trainer_harness (void)
+{
+  GstHarness *h;
+  GstElement *trainer = make_fake_trainer ();
+
+  if (!trainer)
+    return NULL;
+
+  h = gst_harness_new_with_element (trainer, "sink", "src");
+  gst_object_unref (trainer);
+
+  return h;
+}
+
+/**
+ * @brief Build static caps with @a num uint8 tensors of one element each.
+ */
+static gchar *
+make_static_caps_string (guint num, gint rate_n)
+{
+  GString *caps = g_string_new (NULL);
+  guint i;
+
+  g_string_append_printf (caps,
+      "other/tensors,format=static,num_tensors=%u,framerate=%d/1,dimensions=(string)\"",
+      num, rate_n);
+  for (i = 0; i < num; i++)
+    g_string_append (caps, i == 0 ? "1:1:1:1" : ".1:1:1:1");
+  g_string_append (caps, "\",types=(string)\"");
+  for (i = 0; i < num; i++)
+    g_string_append (caps, i == 0 ? "uint8" : ",uint8");
+  g_string_append (caps, "\"");
+
+  return g_string_free (caps, FALSE);
+}
+
+/**
+ * @brief Renegotiating caps with more than 16 tensors frees the previous config.
+ *
+ * Each GstTensorsInfo with more than 16 tensors owns a heap block for the
+ * extra tensors. The copy in the trainer properties, the negotiated input
+ * config and the last copy at finalize must all be released; the leak
+ * gate of the valgrind CI job is what fails if one is dropped.
+ */
+TEST_F (TensorTrainerFakeFw, renegotiateManyTensors)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  GstCaps *caps;
+  GstStructure *s;
+  gchar *caps_str;
+  gint rate_n = 0, rate_d = 0;
+
+  ASSERT_NE (h, nullptr);
+
+  caps_str = make_static_caps_string (17, 10);
+  gst_harness_set_src_caps_str (h, caps_str);
+  g_free (caps_str);
+
+  caps_str = make_static_caps_string (18, 30);
+  gst_harness_set_src_caps_str (h, caps_str);
+  g_free (caps_str);
+
+  caps = gst_pad_get_current_caps (GST_PAD_PEER (h->sinkpad));
+  ASSERT_NE (caps, nullptr);
+  s = gst_caps_get_structure (caps, 0);
+  EXPECT_TRUE (gst_structure_get_fraction (s, "framerate", &rate_n, &rate_d));
+  EXPECT_EQ (rate_n, 30);
+  EXPECT_EQ (rate_d, 1);
+  gst_caps_unref (caps);
+
+  gst_harness_teardown (h);
 }
 
 /**
