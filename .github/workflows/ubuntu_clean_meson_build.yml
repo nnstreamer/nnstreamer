@@ -142,7 +142,13 @@ jobs:
         # install-test only marks what gets installed; it builds and tests
         # nothing extra. On x86, the last step installs the tree to run SSAT
         # from it.
-        meson setup build/ -Darmnn-support=enabled -Dinstall-test=true
+        #
+        # mqtt-support is spelled out because the jammy paho-mqtt-c package
+        # ships no pkg-config file: under auto detection the feature turns
+        # itself off, and the MQTT unit tests then never reach the memory
+        # checker this job runs. Enabled, meson falls back to a hard-coded
+        # paho configuration, and a missing library fails the job instead.
+        meson setup build/ -Darmnn-support=enabled -Dmqtt-support=enabled -Dinstall-test=true
 
         # This job installs the newest meson from PyPI, so it configures
         # happily with a construct that the meson on a target distro does not

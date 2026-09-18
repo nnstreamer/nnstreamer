@@ -17,13 +17,90 @@
 #include <MQTTAsync.h>
 #include <unittest_util.h>
 
+#include <atomic>
 #include <future>
+#include <string>
+#include <thread>
 
 #include "GstMqttTestHelper.hh"
 #include "mqttcommon.h"
+#include "mqttsink.h"
 
 std::unique_ptr<GstMqttTestHelper> GstMqttTestHelper::mInstance;
 std::once_flag GstMqttTestHelper::mOnceFlag;
+
+/** The calls a test can hold open on another thread while it changes a property */
+enum call_hold_site { HOLD_NONE, HOLD_CREATE, HOLD_EPOCH, HOLD_SEND };
+
+static GMutex call_hold_lock;
+static GCond call_hold_cond;
+static call_hold_site call_hold_armed = HOLD_NONE;
+static bool call_hold_entered = false;
+static bool call_hold_released = false;
+
+/**
+ * @brief Keep the calling thread inside the call at @a site until released, if a test armed it
+ */
+static void
+_hold_call (call_hold_site site)
+{
+  g_mutex_lock (&call_hold_lock);
+  if (call_hold_armed == site) {
+    call_hold_armed = HOLD_NONE;
+    call_hold_entered = true;
+    g_cond_broadcast (&call_hold_cond);
+    while (!call_hold_released)
+      g_cond_wait (&call_hold_cond, &call_hold_lock);
+  }
+  g_mutex_unlock (&call_hold_lock);
+}
+
+/**
+ * @brief Arm @a site so that its next call waits for _release_call_hold ()
+ */
+static void
+_arm_call_hold (call_hold_site site)
+{
+  g_mutex_lock (&call_hold_lock);
+  call_hold_armed = site;
+  call_hold_entered = false;
+  call_hold_released = false;
+  g_mutex_unlock (&call_hold_lock);
+}
+
+/**
+ * @brief Wait until a call is held open at the armed site
+ * @return false if no call arrived within 10 seconds
+ */
+static bool
+_wait_call_hold (void)
+{
+  gint64 deadline = g_get_monotonic_time () + 10 * G_TIME_SPAN_SECOND;
+  bool entered;
+
+  g_mutex_lock (&call_hold_lock);
+  while (!call_hold_entered) {
+    if (!g_cond_wait_until (&call_hold_cond, &call_hold_lock, deadline))
+      break;
+  }
+  entered = call_hold_entered;
+  g_mutex_unlock (&call_hold_lock);
+
+  return entered;
+}
+
+/**
+ * @brief Let the call held open by _hold_call () continue
+ */
+static void
+_release_call_hold (void)
+{
+  g_mutex_lock (&call_hold_lock);
+  call_hold_armed = HOLD_NONE;
+  call_hold_released = true;
+  g_cond_broadcast (&call_hold_cond);
+  g_mutex_unlock (&call_hold_lock);
+}
 
 /**
  * @brief A mock function for MQTTAsync_create() in paho-mqtt-c
@@ -32,6 +109,9 @@ int
 MQTTAsync_create (MQTTAsync *handle, const char *serverURI,
     const char *clientId, int persistence_type, void *persistence_context)
 {
+  _hold_call (HOLD_CREATE);
+  GstMqttTestHelper::getInstance ().recordCreate (serverURI, clientId);
+
   return MQTTASYNC_SUCCESS;
 }
 
@@ -70,13 +150,15 @@ int
 MQTTAsync_send (MQTTAsync handle, const char *destinationName, int payloadlen,
     const void *payload, int qos, int retained, MQTTAsync_responseOptions *response)
 {
+  MQTTAsync_successData data;
+  MQTTAsync_failureData failure_data;
   void *ctx = GstMqttTestHelper::getInstance ().getContext ();
   std::future<void> ret;
-  MQTTAsync_successData data;
+
+  _hold_call (HOLD_SEND);
+  GstMqttTestHelper::getInstance ().recordSend (destinationName, payload, payloadlen);
 
   if (GstMqttTestHelper::getInstance ().getFailSend ()) {
-    MQTTAsync_failureData failure_data;
-
     failure_data.code = -1;
     failure_data.message = "";
     ret = std::async (std::launch::async, response->onFailure, ctx, &failure_data);
@@ -103,9 +185,10 @@ MQTTAsync_isConnected (MQTTAsync handle)
 int
 MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *options)
 {
+  MQTTAsync_successData data;
+  MQTTAsync_failureData fdata;
   void *ctx;
   std::future<void> ret;
-  MQTTAsync_successData data;
 
   if (!options)
     return MQTTASYNC_SUCCESS;
@@ -113,8 +196,6 @@ MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *optio
   ctx = options->context;
   GstMqttTestHelper::getInstance ().setIsConnected (false);
   if (GstMqttTestHelper::getInstance ().getFailDisconnect ()) {
-    MQTTAsync_failureData fdata;
-
     fdata.code = -1;
     fdata.message = "";
     ret = std::async (std::launch::async, options->onFailure, ctx, &fdata);
@@ -144,12 +225,11 @@ MQTTAsync_subscribe (MQTTAsync handle, const char *topic, int qos,
     MQTTAsync_responseOptions *response)
 {
   MQTTAsync_successData data;
+  MQTTAsync_failureData fdata;
   std::future<void> ret;
   void *ctx = response->context;
 
   if (GstMqttTestHelper::getInstance ().getFailSubscribe ()) {
-    MQTTAsync_failureData fdata;
-
     fdata.code = -1;
     fdata.message = "";
     ret = std::async (std::launch::async, response->onFailure, ctx, &fdata);
@@ -166,13 +246,12 @@ MQTTAsync_subscribe (MQTTAsync handle, const char *topic, int qos,
 int
 MQTTAsync_unsubscribe (MQTTAsync handle, const char *topic, MQTTAsync_responseOptions *response)
 {
-  void *ctx = response->context;
   MQTTAsync_successData data;
+  MQTTAsync_failureData fdata;
+  void *ctx = response->context;
   std::future<void> ret;
 
   if (GstMqttTestHelper::getInstance ().getFailUnsubscribe ()) {
-    MQTTAsync_failureData fdata;
-
     fdata.code = -1;
     fdata.message = "";
     ret = std::async (std::launch::async, response->onFailure, ctx, &fdata);
@@ -554,6 +633,1135 @@ TEST (testMqttSinkWithHelper, sinkPush3_n)
 }
 
 /**
+ * @brief Test mqttsink with max-buffer-size fitting every pushed buffer (E4 static buffer reuse)
+ */
+TEST (testMqttSinkWithHelper, sinkPushMaxBufferSizeSmaller)
+{
+  const gsize sizes[] = { 256, 16, 128, 256 };
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  guint i;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", 256UL, NULL);
+
+  for (i = 0; i < G_N_ELEMENTS (sizes); ++i) {
+    GstBuffer *in_buf = gst_harness_create_buffer (h, sizes[i]);
+    guint8 pattern = (guint8) (0x10 * (i + 1));
+    GstMapInfo map;
+    gsize j;
+
+    ASSERT_TRUE (gst_buffer_map (in_buf, &map, GST_MAP_WRITE));
+    for (j = 0; j < map.size; ++j)
+      map.data[j] = (guint8) (pattern + j);
+    gst_buffer_unmap (in_buf, &map);
+
+    ret = gst_harness_push (h, in_buf);
+    EXPECT_EQ (ret, GST_FLOW_OK);
+    EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), (int) (i + 1));
+    EXPECT_EQ ((gsize) GstMqttTestHelper::getInstance ().getLastPayloadLen (),
+        GST_MQTT_LEN_MSG_HDR + sizes[i]);
+
+    {
+      const std::vector<guint8> &payload
+          = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+      ASSERT_EQ (payload.size (), (size_t) (GST_MQTT_LEN_MSG_HDR + sizes[i]));
+      for (j = 0; j < sizes[i]; ++j)
+        EXPECT_EQ (payload[GST_MQTT_LEN_MSG_HDR + j], (guint8) (pattern + j));
+    }
+  }
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test stop () returning as soon as the disconnect callback has run
+ */
+TEST (testMqttSinkWithHelper, stopReturnsWhenDisconnected)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstStateChangeReturn state_ret;
+  gint64 elapsed_ms;
+  gint64 started;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+
+  started = g_get_monotonic_time ();
+  state_ret = gst_element_set_state (h->element, GST_STATE_NULL);
+  elapsed_ms = (g_get_monotonic_time () - started) / 1000;
+
+  EXPECT_EQ (state_ret, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_LT (elapsed_ms, 2500) << "stop () waited " << elapsed_ms
+                               << " ms for a disconnect it had already been told about";
+
+  gst_harness_teardown (h);
+}
+
+/** Tells a bounded wait that the pusher thread has come back out of render () */
+static std::atomic<bool> push_finished (false);
+
+/**
+ * @brief Push one buffer and report that the push has returned
+ */
+static void
+_push_one_buffer_watched (GstHarness *h, GstFlowReturn *ret)
+{
+  *ret = gst_harness_push (h, gst_harness_create_buffer (h, 4));
+  push_finished = true;
+}
+
+/**
+ * @brief Wait for the pusher thread, aborting the binary if render () never returns
+ */
+static void
+_wait_push_or_abort (const gchar *what)
+{
+  for (int waited = 0; !push_finished.load (); waited++) {
+    if (waited >= 30000)
+      g_error ("%s did not return within 30 s: a deadlock in mqttsink?", what);
+    g_usleep (1000);
+  }
+}
+
+/**
+ * @brief Test render () seeing a connection that came up while it was taking the lock
+ */
+TEST (testMqttSinkWithHelper, renderWakesOnConnectedState)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn push_ret = GST_FLOW_ERROR;
+  GstMqttSink *self;
+  gint64 elapsed_ms;
+  gint64 started;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  self = GST_MQTT_SINK (h->element);
+  /** Long enough that taking the wait cannot be mistaken for anything else */
+  g_object_set (h->element, "pub-wait-timeout", (gulong) 10, NULL);
+
+  /**
+   * Hold the lock the callbacks broadcast with, so that render () reaches it
+   * only after the connected state has been set and the broadcast is over:
+   * the wakeup it would wait for has already been sent to nobody.
+   */
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  g_atomic_int_set (&self->mqtt_sink_state, SINK_INITIALIZING);
+
+  push_finished = false;
+  std::thread pusher (_push_one_buffer_watched, h, &push_ret);
+  g_usleep (200 * 1000);
+
+  started = g_get_monotonic_time ();
+  g_atomic_int_set (&self->mqtt_sink_state, MQTT_CONNECTED);
+  g_cond_broadcast (&self->mqtt_sink_gcond);
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+
+  _wait_push_or_abort ("a push whose connection came up");
+  pusher.join ();
+  elapsed_ms = (g_get_monotonic_time () - started) / 1000;
+
+  EXPECT_EQ (push_ret, GST_FLOW_OK);
+  EXPECT_LT (elapsed_ms, 3000) << "render () waited " << elapsed_ms
+                               << " ms for a connection it had already been told about";
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test render () reporting the end of the stream instead of publishing
+ */
+TEST (testMqttSinkWithHelper, renderReportsEndOfStream)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstMqttSink *self;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  self = GST_MQTT_SINK (h->element);
+  g_atomic_int_set (&self->mqtt_sink_state, SINK_RENDER_EOS);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_EOS);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 0);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test render () giving up instead of waiting forever for a connection that never comes up
+ */
+TEST (testMqttSinkWithHelper, renderGivesUpWhenNotConnected_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn push_ret = GST_FLOW_OK;
+  GstMqttSink *self;
+  gint64 elapsed_ms;
+  gint64 started;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  self = GST_MQTT_SINK (h->element);
+  g_object_set (h->element, "pub-wait-timeout", (gulong) 1, NULL);
+  g_atomic_int_set (&self->mqtt_sink_state, SINK_INITIALIZING);
+
+  push_finished = false;
+  started = g_get_monotonic_time ();
+  std::thread pusher (_push_one_buffer_watched, h, &push_ret);
+
+  _wait_push_or_abort ("a push whose connection never comes up");
+  pusher.join ();
+  elapsed_ms = (g_get_monotonic_time () - started) / 1000;
+
+  EXPECT_EQ (push_ret, GST_FLOW_ERROR);
+  EXPECT_GE (elapsed_ms, 900) << "render () gave up after " << elapsed_ms
+                              << " ms, before the 'pub-wait-timeout' it was given";
+  EXPECT_LT (elapsed_ms, 10000)
+      << "render () waited " << elapsed_ms
+      << " ms, more than the one 'pub-wait-timeout' it was given";
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test the header mqttsink prepends to a message: memory sizes, caps, timestamps and send time
+ */
+TEST (testMqttSinkWithHelper, sinkPushMessageHeader)
+{
+  const gsize sizes[] = { 24, 40 };
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstMQTTMessageHdr hdr;
+  GstBuffer *in_buf;
+  GstFlowReturn ret;
+  gint64 before, after;
+  gsize j, offset;
+  guint i;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  gst_harness_set_src_caps_str (h, "application/octet-stream");
+
+  in_buf = gst_buffer_new ();
+  for (i = 0; i < G_N_ELEMENTS (sizes); ++i) {
+    GstMemory *mem = gst_allocator_alloc (NULL, sizes[i], NULL);
+    GstMapInfo map;
+
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+    memset (map.data, 0xA0 + i, map.size);
+    gst_memory_unmap (mem, &map);
+    gst_buffer_append_memory (in_buf, mem);
+  }
+  GST_BUFFER_PTS (in_buf) = GST_SECOND;
+  GST_BUFFER_DTS (in_buf) = 900 * GST_MSECOND;
+  GST_BUFFER_DURATION (in_buf) = 33 * GST_MSECOND;
+
+  before = g_get_real_time ();
+  ret = gst_harness_push (h, in_buf);
+  after = g_get_real_time ();
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  {
+    const std::vector<guint8> &payload
+        = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+    ASSERT_EQ (payload.size (), (size_t) (GST_MQTT_LEN_MSG_HDR + sizes[0] + sizes[1]));
+    memcpy (&hdr, payload.data (), GST_MQTT_LEN_MSG_HDR);
+
+    EXPECT_EQ (hdr.num_mems, 2U);
+    EXPECT_EQ (hdr.size_mems[0], sizes[0]);
+    EXPECT_EQ (hdr.size_mems[1], sizes[1]);
+    EXPECT_STREQ (hdr.gst_caps_str, "application/octet-stream");
+    EXPECT_EQ (hdr.pts, (GstClockTime) GST_SECOND);
+    EXPECT_EQ (hdr.dts, (GstClockTime) (900 * GST_MSECOND));
+    EXPECT_EQ (hdr.duration, (GstClockTime) (33 * GST_MSECOND));
+    EXPECT_GE (hdr.sent_time_epoch, before * GST_US_TO_NS_MULTIPLIER);
+    EXPECT_LE (hdr.sent_time_epoch, after * GST_US_TO_NS_MULTIPLIER);
+
+    offset = GST_MQTT_LEN_MSG_HDR;
+    for (i = 0; i < G_N_ELEMENTS (sizes); ++i) {
+      gsize mismatches = 0;
+
+      for (j = 0; j < sizes[i]; ++j) {
+        if (payload[offset + j] != (guint8) (0xA0 + i))
+          mismatches++;
+      }
+      EXPECT_EQ (mismatches, 0U) << "memory " << i;
+      offset += sizes[i];
+    }
+  }
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink refusing buffers larger than the allocated static message buffer (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushMaxBufferSizeLarger_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  GstBuffer *in_buf;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", 64UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 64);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  in_buf = gst_harness_create_buffer (h, 65);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  in_buf = gst_harness_create_buffer (h, 1024 * 1024);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  in_buf = gst_harness_create_buffer (h, 32);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 2);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink refusing a first buffer already larger than max-buffer-size (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushFirstBufferTooLarge_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  GstBuffer *in_buf;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", 16UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 17);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 0);
+
+  in_buf = gst_harness_create_buffer (h, 16);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink not growing an already allocated static message buffer at runtime (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushMaxBufferSizeRaised_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  GstBuffer *in_buf;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", 64UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 64);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  g_object_set (h->element, "max-buffer-size", 4096UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 1024);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 1);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink refusing a buffer when max-buffer-size + header length wraps around (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushMaxBufferSizeWraps_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  GstBuffer *in_buf;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "max-buffer-size", G_MAXULONG - 511UL, NULL);
+
+  in_buf = gst_harness_create_buffer (h, 16);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), 0);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink's dynamic (default) message buffer re-allocating for both smaller and larger buffers (E4)
+ */
+TEST (testMqttSinkWithHelper, sinkPushDynamicBufferSize)
+{
+  const gsize sizes[] = { 16, 4096, 8, 4096 };
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+  guint i;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  for (i = 0; i < G_N_ELEMENTS (sizes); ++i) {
+    GstBuffer *in_buf = gst_harness_create_buffer (h, sizes[i]);
+    guint8 pattern = (guint8) (0x20 + i);
+    GstMapInfo map;
+    gsize j;
+
+    ASSERT_TRUE (gst_buffer_map (in_buf, &map, GST_MAP_WRITE));
+    for (j = 0; j < map.size; ++j)
+      map.data[j] = (guint8) (pattern + j);
+    gst_buffer_unmap (in_buf, &map);
+
+    ret = gst_harness_push (h, in_buf);
+    EXPECT_EQ (ret, GST_FLOW_OK);
+    EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), (int) (i + 1));
+    EXPECT_EQ ((gsize) GstMqttTestHelper::getInstance ().getLastPayloadLen (),
+        GST_MQTT_LEN_MSG_HDR + sizes[i]);
+
+    {
+      const std::vector<guint8> &payload
+          = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+      ASSERT_EQ (payload.size (), (size_t) (GST_MQTT_LEN_MSG_HDR + sizes[i]));
+      for (j = 0; j < sizes[i]; ++j)
+        EXPECT_EQ (payload[GST_MQTT_LEN_MSG_HDR + j], (guint8) (pattern + j));
+    }
+  }
+
+  gst_harness_teardown (h);
+}
+
+/** The NTP host names/ports most recently handed to _capture_epoch_func () */
+static guint32 captured_ntp_hnum = 0;
+static std::vector<std::string> captured_ntp_hnames;
+static std::vector<guint16> captured_ntp_hports;
+static bool captured_ntp_terminated = false;
+
+/**
+ * @brief A get_epoch_func replacement that records the NTP server list mqttsink hands to it
+ */
+static int64_t
+_capture_epoch_func (uint32_t hnum, char **hnames, uint16_t *hports)
+{
+  uint32_t i;
+
+  captured_ntp_hnum = hnum;
+  captured_ntp_hnames.clear ();
+  captured_ntp_hports.clear ();
+  for (i = 0; i < hnum; ++i) {
+    captured_ntp_hnames.push_back (std::string (hnames[i]));
+    captured_ntp_hports.push_back (hports[i]);
+  }
+  captured_ntp_terminated = (hnames == NULL) || (hnames[hnum] == NULL);
+
+  return g_get_real_time ();
+}
+
+/**
+ * @brief Test mqttsink's ntp-srvs property parsing a well-formed list of host:port pairs (E5)
+ */
+TEST (testMqttSink, ntpSrvsParse)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstMqttSink *sink;
+  GstBuffer *in_buf;
+  GstFlowReturn ret;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "ntp-srvs", "a.example:123,b.example:456", NULL);
+
+  sink = GST_MQTT_SINK (h->element);
+  sink->get_epoch_func = _capture_epoch_func;
+
+  in_buf = gst_harness_create_buffer (h, 4);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+
+  ASSERT_EQ (captured_ntp_hnum, 2U);
+  EXPECT_STREQ (captured_ntp_hnames[0].c_str (), "a.example");
+  EXPECT_STREQ (captured_ntp_hnames[1].c_str (), "b.example");
+  EXPECT_EQ (captured_ntp_hports[0], 123);
+  EXPECT_EQ (captured_ntp_hports[1], 456);
+  EXPECT_TRUE (captured_ntp_terminated);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink's ntp-srvs property replacing a previously set server list (E5, the old
+ *        vector is released via g_strfreev (); a leak there is only visible to a leak checker)
+ */
+TEST (testMqttSink, ntpSrvsReplace)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstMqttSink *sink;
+  GstBuffer *in_buf;
+  GstFlowReturn ret;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "ntp-srvs", "a:1,b:2,c:3", NULL);
+  g_object_set (h->element, "ntp-srvs", "d:4", NULL);
+
+  sink = GST_MQTT_SINK (h->element);
+  sink->get_epoch_func = _capture_epoch_func;
+
+  in_buf = gst_harness_create_buffer (h, 4);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+
+  ASSERT_EQ (captured_ntp_hnum, 1U);
+  EXPECT_STREQ (captured_ntp_hnames[0].c_str (), "d");
+  EXPECT_EQ (captured_ntp_hports[0], 4);
+  EXPECT_TRUE (captured_ntp_terminated);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A helper to set ntp-srvs on a running mqttsink, push a buffer, and check the servers parsed out of it
+ */
+static void
+_check_ntp_srvs (GstHarness *h, const gchar *pairs,
+    const std::vector<std::string> &exp_names, const std::vector<guint16> &exp_ports)
+{
+  const gchar *label = pairs ? pairs : "(null)";
+  GstBuffer *in_buf;
+  GstFlowReturn ret;
+  gchar *sprop = NULL;
+  guint i;
+
+  g_object_set (h->element, "ntp-srvs", pairs, NULL);
+  g_object_get (h->element, "ntp-srvs", &sprop, NULL);
+  EXPECT_STREQ (sprop, pairs);
+  g_free (sprop);
+
+  captured_ntp_hnum = G_MAXUINT32;
+  in_buf = gst_harness_create_buffer (h, 4);
+  ret = gst_harness_push (h, in_buf);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+
+  ASSERT_EQ (captured_ntp_hnum, (guint32) exp_names.size ()) << label;
+  for (i = 0; i < captured_ntp_hnum; ++i) {
+    EXPECT_STREQ (captured_ntp_hnames[i].c_str (), exp_names[i].c_str ()) << label;
+    EXPECT_EQ (captured_ntp_hports[i], exp_ports[i]) << label;
+  }
+  EXPECT_TRUE (captured_ntp_terminated) << label;
+}
+
+/**
+ * @brief Test mqttsink's ntp-srvs parser surviving pairs without a colon, empty entries, and an empty or NULL list
+ */
+TEST (testMqttSink, ntpSrvsMalformedPairs_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+  GST_MQTT_SINK (h->element)->get_epoch_func = _capture_epoch_func;
+
+  _check_ntp_srvs (h, "h:0,h:65536,h:abc,ok:7", { "ok" }, { 7 });
+  _check_ntp_srvs (h, "nocolon", {}, {});
+  _check_ntp_srvs (h, "a:1,,b:2", { "a", "b" }, { 1, 2 });
+  _check_ntp_srvs (h, "a:1,", { "a" }, { 1 });
+  _check_ntp_srvs (h, ",c:3", { "c" }, { 3 });
+  _check_ntp_srvs (h, ":", {}, {});
+  _check_ntp_srvs (h, "d:4,e", { "d" }, { 4 });
+  _check_ntp_srvs (h, "", {}, {});
+  _check_ntp_srvs (h, "f:6", { "f" }, { 6 });
+  _check_ntp_srvs (h, NULL, {}, {});
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A get_epoch_func replacement that can be held open at HOLD_EPOCH, then records the list
+ */
+static int64_t
+_holding_epoch_func (uint32_t hnum, char **hnames, uint16_t *hports)
+{
+  _hold_call (HOLD_EPOCH);
+  return _capture_epoch_func (hnum, hnames, hports);
+}
+
+/**
+ * @brief Push one buffer into the harness, for a test that holds render () open on another thread
+ */
+static void
+_push_one_buffer (GstHarness *h, GstFlowReturn *ret)
+{
+  *ret = gst_harness_push (h, gst_harness_create_buffer (h, 4));
+}
+
+/**
+ * @brief Set an element to PLAYING, for a test that holds the state change open on another thread
+ */
+static void
+_set_playing (GstElement *element, GstStateChangeReturn *ret)
+{
+  *ret = gst_element_set_state (element, GST_STATE_PLAYING);
+}
+
+/**
+ * @brief Test replacing ntp-srvs while render () is inside get_epoch_func () with the previous list
+ */
+TEST (testMqttSink, ntpSrvsReplacedDuringRender)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn push_ret = GST_FLOW_ERROR;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "ntp-srvs", "first.example.org:123,second.example.org:456", NULL);
+  GST_MQTT_SINK (h->element)->get_epoch_func = _holding_epoch_func;
+  _arm_call_hold (HOLD_EPOCH);
+
+  std::thread pusher (_push_one_buffer, h, &push_ret);
+
+  EXPECT_TRUE (_wait_call_hold ());
+  g_object_set (h->element, "ntp-srvs", "third.example.org:789", NULL);
+  _release_call_hold ();
+  pusher.join ();
+
+  EXPECT_EQ (push_ret, GST_FLOW_OK);
+  ASSERT_EQ (captured_ntp_hnum, 2U);
+  EXPECT_STREQ (captured_ntp_hnames[0].c_str (), "first.example.org");
+  EXPECT_STREQ (captured_ntp_hnames[1].c_str (), "second.example.org");
+  EXPECT_EQ (captured_ntp_hports[0], 123);
+  EXPECT_EQ (captured_ntp_hports[1], 456);
+  EXPECT_TRUE (captured_ntp_terminated);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  ASSERT_EQ (captured_ntp_hnum, 1U);
+  EXPECT_STREQ (captured_ntp_hnames[0].c_str (), "third.example.org");
+  EXPECT_EQ (captured_ntp_hports[0], 789);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test replacing ntp-srvs while the PAUSED to PLAYING change is inside get_epoch_func () with the previous list
+ */
+TEST (testMqttSink, ntpSrvsReplacedDuringStateChange)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstStateChangeReturn state_ret = GST_STATE_CHANGE_FAILURE;
+  GstClock *clock;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "async", FALSE, "ntp-srvs",
+      "first.example.org:123,second.example.org:456", NULL);
+  clock = gst_system_clock_obtain ();
+  gst_element_set_clock (h->element, clock);
+  gst_object_unref (clock);
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+
+  GST_MQTT_SINK (h->element)->get_epoch_func = _holding_epoch_func;
+  _arm_call_hold (HOLD_EPOCH);
+
+  std::thread changer (_set_playing, h->element, &state_ret);
+
+  EXPECT_TRUE (_wait_call_hold ());
+  g_object_set (h->element, "ntp-srvs", "third.example.org:789", NULL);
+  _release_call_hold ();
+  changer.join ();
+
+  EXPECT_EQ (state_ret, GST_STATE_CHANGE_SUCCESS);
+  ASSERT_EQ (captured_ntp_hnum, 2U);
+  EXPECT_STREQ (captured_ntp_hnames[0].c_str (), "first.example.org");
+  EXPECT_STREQ (captured_ntp_hnames[1].c_str (), "second.example.org");
+  EXPECT_EQ (captured_ntp_hports[0], 123);
+  EXPECT_EQ (captured_ntp_hports[1], 456);
+  EXPECT_TRUE (captured_ntp_terminated);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test replacing pub-topic while render () is inside MQTTAsync_send () with the previous topic
+ */
+TEST (testMqttSinkWithHelper, pubTopicReplacedDuringSend)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn push_ret = GST_FLOW_ERROR;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "pub-topic", "first/topic/published/here", NULL);
+  _arm_call_hold (HOLD_SEND);
+
+  std::thread pusher (_push_one_buffer, h, &push_ret);
+
+  EXPECT_TRUE (_wait_call_hold ());
+  g_object_set (h->element, "pub-topic", "later/topic/published/here", NULL);
+  _release_call_hold ();
+  pusher.join ();
+
+  EXPECT_EQ (push_ret, GST_FLOW_OK);
+  EXPECT_STREQ (GstMqttTestHelper::getInstance ().getLastTopic ().c_str (),
+      "first/topic/published/here");
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_STREQ (GstMqttTestHelper::getInstance ().getLastTopic ().c_str (),
+      "later/topic/published/here");
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Set an element to READY, for a test that holds start () open on another thread
+ */
+static void
+_set_ready (GstElement *element, GstStateChangeReturn *ret)
+{
+  *ret = gst_element_set_state (element, GST_STATE_READY);
+}
+
+/**
+ * @brief Test replacing client-id and host while start () is inside MQTTAsync_create () with the previous values
+ */
+TEST (testMqttSinkWithHelper, clientIdReplacedDuringStart)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", NULL);
+  GstStateChangeReturn state_ret = GST_STATE_CHANGE_FAILURE;
+
+  ASSERT_TRUE (sink != NULL);
+  gst_object_ref_sink (sink);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetCreateRecord ();
+
+  g_object_set (sink, "client-id", "first-client-identifier-in-use", "host",
+      "first.broker.example.org", NULL);
+  _arm_call_hold (HOLD_CREATE);
+
+  std::thread starter (_set_ready, sink, &state_ret);
+
+  EXPECT_TRUE (_wait_call_hold ());
+  g_object_set (sink, "client-id", "later-client-identifier-in-use", "host",
+      "later.broker.example.org", NULL);
+  _release_call_hold ();
+  starter.join ();
+
+  EXPECT_EQ (state_ret, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_STREQ (GstMqttTestHelper::getInstance ().getLastClientId ().c_str (),
+      "first-client-identifier-in-use");
+  EXPECT_STREQ (GstMqttTestHelper::getInstance ().getLastServerUri ().c_str (),
+      "first.broker.example.org:1883");
+
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (sink);
+}
+
+/** What _capture_mqttsink_log () saw: the delivery message and how many mqttsink messages it formatted */
+static GMutex log_capture_lock;
+static std::string log_capture_delivery;
+static gint log_capture_count = 0;
+
+/**
+ * @brief A GstLogFunction that formats mqttsink's messages the way the default
+ * logger does, object path included, without printing them
+ */
+static void
+_capture_mqttsink_log (GstDebugCategory *category, GstDebugLevel level,
+    const gchar *file, const gchar *function, gint line, GObject *object,
+    GstDebugMessage *message, gpointer user_data)
+{
+  const gchar *text;
+  gchar *path = NULL;
+
+  if (g_strcmp0 (gst_debug_category_get_name (category), GST_MQTT_ELEM_NAME_SINK) != 0)
+    return;
+
+  if (object && GST_IS_OBJECT (object))
+    path = gst_object_get_path_string (GST_OBJECT (object));
+  text = gst_debug_message_get (message);
+
+  g_mutex_lock (&log_capture_lock);
+  log_capture_count++;
+  if (text && strstr (text, "has been delivered"))
+    log_capture_delivery.assign (text);
+  g_mutex_unlock (&log_capture_lock);
+
+  g_free (path);
+}
+
+/**
+ * @brief Send mqttsink's debug messages to _capture_mqttsink_log () instead of the default printer
+ * @return the number of default log functions removed, to be passed to _stop_log_capture ()
+ */
+static guint
+_start_log_capture (void)
+{
+  guint removed;
+
+  g_mutex_lock (&log_capture_lock);
+  log_capture_delivery.clear ();
+  log_capture_count = 0;
+  g_mutex_unlock (&log_capture_lock);
+
+  removed = gst_debug_remove_log_function (gst_debug_log_default);
+  gst_debug_add_log_function (_capture_mqttsink_log, NULL, NULL);
+  gst_debug_set_threshold_for_name (GST_MQTT_ELEM_NAME_SINK, GST_LEVEL_DEBUG);
+
+  return removed;
+}
+
+/**
+ * @brief Undo _start_log_capture ()
+ */
+static void
+_stop_log_capture (guint removed)
+{
+  gst_debug_unset_threshold_for_name (GST_MQTT_ELEM_NAME_SINK);
+  gst_debug_remove_log_function (_capture_mqttsink_log);
+  if (removed)
+    gst_debug_add_log_function (gst_debug_log_default, NULL, NULL);
+}
+
+/** Set by a helper thread when its work has returned, so a test can bound the wait */
+static GMutex work_done_lock;
+static GCond work_done_cond;
+static bool work_done = false;
+
+/**
+ * @brief Mark the helper thread's work as returned
+ */
+static void
+_mark_work_done (void)
+{
+  g_mutex_lock (&work_done_lock);
+  work_done = true;
+  g_cond_broadcast (&work_done_cond);
+  g_mutex_unlock (&work_done_lock);
+}
+
+/**
+ * @brief Wait for _mark_work_done (); abort the test binary if the work does not return in time (a deadlock)
+ */
+static void
+_wait_work_done_or_abort (gint seconds, const gchar *what)
+{
+  gint64 deadline = g_get_monotonic_time () + seconds * G_TIME_SPAN_SECOND;
+
+  g_mutex_lock (&work_done_lock);
+  while (!work_done) {
+    if (!g_cond_wait_until (&work_done_cond, &work_done_lock, deadline))
+      break;
+  }
+  if (!work_done)
+    g_error ("%s did not return within %d s: a deadlock in mqttsink?", what, seconds);
+  work_done = false;
+  g_mutex_unlock (&work_done_lock);
+}
+
+/** How many buffers _push_buffers () has pushed so far */
+static std::atomic<int> push_progress (0);
+
+/**
+ * @brief Wait for the pushing thread, aborting only once it has pushed nothing for @a stall_seconds
+ */
+static void
+_wait_pushes_or_abort (gint stall_seconds)
+{
+  gint last = push_progress.load ();
+
+  g_mutex_lock (&work_done_lock);
+  while (!work_done) {
+    gint64 deadline = g_get_monotonic_time () + stall_seconds * G_TIME_SPAN_SECOND;
+
+    if (!g_cond_wait_until (&work_done_cond, &work_done_lock, deadline)) {
+      gint now = push_progress.load ();
+
+      if (now == last)
+        g_error ("the streaming thread pushed nothing for %d s: a deadlock in mqttsink?",
+            stall_seconds);
+      last = now;
+    }
+  }
+  work_done = false;
+  g_mutex_unlock (&work_done_lock);
+}
+
+/**
+ * @brief Call the delivery-complete callback the way paho does, then mark the work done
+ */
+static void
+_call_delivery_complete (MQTTAsync_deliveryComplete *dc, void *context, MQTTAsync_token token)
+{
+  dc (context, token);
+  _mark_work_done ();
+}
+
+/**
+ * @brief Test the delivery-complete callback logs the current pub-topic and returns
+ */
+TEST (testMqttSinkWithHelper, deliveryCompleteLogsTopic)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  MQTTAsync_deliveryComplete *dc;
+  guint removed;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "pub-topic", "delivered/topic/name", NULL);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+
+  dc = GstMqttTestHelper::getInstance ().getCbDeliveryComplete ();
+  ASSERT_TRUE (dc != NULL);
+
+  removed = _start_log_capture ();
+  std::thread caller (_call_delivery_complete, dc,
+      GstMqttTestHelper::getInstance ().getContext (), 7);
+  _wait_work_done_or_abort (30, "the delivery-complete callback");
+  caller.join ();
+  _stop_log_capture (removed);
+
+#ifndef GST_DISABLE_GST_DEBUG
+  EXPECT_NE (log_capture_delivery.find ("delivered/topic/name"), std::string::npos)
+      << log_capture_delivery;
+  EXPECT_NE (log_capture_delivery.find ("token(7)"), std::string::npos) << log_capture_delivery;
+#endif
+
+  gst_harness_teardown (h);
+}
+
+/** Stops _churn_string_properties (), counts its rounds, and reports its exit */
+static std::atomic<bool> churn_stop (false);
+static std::atomic<int> churn_rounds (0);
+static std::atomic<bool> churn_finished (false);
+
+/**
+ * @brief Keep replacing and reading every string property of @a sink, and
+ * calling its delivery-complete callback, until churn_stop is set
+ */
+static void
+_churn_string_properties (GstElement *sink, MQTTAsync_deliveryComplete *dc, void *context)
+{
+  int i = 0;
+
+  while (!churn_stop.load ()) {
+    gchar *topic = g_strdup_printf ("churn/topic/%d", i);
+    gchar *srvs = g_strdup_printf (
+        "h%d.example.org:%d,other.example.org:123", i, 1 + i % 1000);
+    gchar *id = g_strdup_printf ("churn-client-%d", i);
+    gchar *t = NULL, *n = NULL, *c = NULL, *a = NULL, *p = NULL;
+
+    g_object_set (sink, "pub-topic", topic, "ntp-srvs", srvs, "client-id", id,
+        "host", "churn.example.org", "port", "1883", NULL);
+    g_object_get (sink, "pub-topic", &t, "ntp-srvs", &n, "client-id", &c,
+        "host", &a, "port", &p, NULL);
+    if (dc)
+      dc (context, i);
+
+    g_free (topic);
+    g_free (srvs);
+    g_free (id);
+    g_free (t);
+    g_free (n);
+    g_free (c);
+    g_free (a);
+    g_free (p);
+    i++;
+    churn_rounds++;
+    g_thread_yield ();
+  }
+
+  churn_finished = true;
+}
+
+/**
+ * @brief Push @a count buffers into the harness, count the ones that did not return GST_FLOW_OK, then mark the work done
+ */
+static void
+_push_buffers (GstHarness *h, int count, std::atomic<int> *failures)
+{
+  int i;
+
+  for (i = 0; i < count; i++) {
+    if (gst_harness_push (h, gst_harness_create_buffer (h, 64)) != GST_FLOW_OK)
+      (*failures)++;
+    push_progress++;
+  }
+  _mark_work_done ();
+}
+
+/**
+ * @brief Test streaming while another thread keeps replacing the string properties, with mqttsink's debug logs formatted
+ */
+TEST (testMqttSinkWithHelper, propertiesReplacedWhileStreaming)
+{
+  const int count = 400;
+  GstHarness *h = gst_harness_new ("mqttsink");
+  std::atomic<int> failures (0);
+  guint removed;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "debug", TRUE, NULL);
+  GST_MQTT_SINK (h->element)->get_epoch_func = _capture_epoch_func;
+  removed = _start_log_capture ();
+
+  churn_stop = false;
+  churn_rounds = 0;
+  churn_finished = false;
+  std::thread churner (_churn_string_properties, h->element,
+      GstMqttTestHelper::getInstance ().getCbDeliveryComplete (),
+      GstMqttTestHelper::getInstance ().getContext ());
+  for (int waited = 0; churn_rounds.load () == 0; waited++) {
+    if (waited >= 30000)
+      g_error ("the property churn did not finish a round within 30 s: a deadlock in mqttsink?");
+    g_usleep (1000);
+  }
+
+  push_progress = 0;
+  std::thread pusher (_push_buffers, h, count, &failures);
+  _wait_pushes_or_abort (30);
+  pusher.join ();
+
+  churn_stop = true;
+  for (int waited = 0; !churn_finished.load (); waited++) {
+    if (waited >= 30000)
+      g_error ("the property churn did not stop within 30 s: a deadlock in mqttsink?");
+    g_usleep (1000);
+  }
+  churner.join ();
+  _stop_log_capture (removed);
+
+  EXPECT_EQ (failures.load (), 0);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getSendCount (), count);
+  EXPECT_GT (churn_rounds.load (), 1);
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getLastTopic ().rfind ("churn/topic/", 0), 0U)
+      << GstMqttTestHelper::getInstance ().getLastTopic ();
+  EXPECT_EQ (captured_ntp_hnum, 2U);
+  EXPECT_TRUE (captured_ntp_terminated);
+#ifndef GST_DISABLE_GST_DEBUG
+  EXPECT_GT (log_capture_count, count);
+#endif
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink's default pub-topic surviving a stop/start cycle without a double free (E5)
+ */
+TEST (testMqttSink, defaultPubTopic)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstStateChangeReturn sret;
+  gchar *client_id = NULL;
+  gchar *expected;
+  gchar *topic1 = NULL;
+  gchar *topic2 = NULL;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+
+  g_object_get (h->element, "client-id", &client_id, NULL);
+  g_object_get (h->element, "pub-topic", &topic1, NULL);
+  expected = g_strdup_printf ("%s/topic", client_id);
+  EXPECT_STREQ (topic1, expected);
+
+  sret = gst_element_set_state (h->element, GST_STATE_NULL);
+  EXPECT_NE (sret, GST_STATE_CHANGE_FAILURE);
+  sret = gst_element_set_state (h->element, GST_STATE_PLAYING);
+  EXPECT_NE (sret, GST_STATE_CHANGE_FAILURE);
+  gst_element_get_state (h->element, NULL, NULL, GST_CLOCK_TIME_NONE);
+
+  g_object_get (h->element, "pub-topic", &topic2, NULL);
+  EXPECT_STREQ (topic2, expected);
+
+  g_free (client_id);
+  g_free (expected);
+  g_free (topic1);
+  g_free (topic2);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink keeping a pub-topic set before start instead of generating the default one
+ */
+TEST (testMqttSink, userPubTopicKept)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", NULL);
+  GstHarness *h;
+  gchar *topic = NULL;
+
+  ASSERT_TRUE (sink != NULL);
+  gst_object_ref_sink (sink);
+  g_object_set (sink, "pub-topic", "mytopic", NULL);
+
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  h = gst_harness_new_with_element (sink, "sink", NULL);
+  gst_object_unref (sink);
+  ASSERT_TRUE (h != NULL);
+
+  g_object_get (h->element, "pub-topic", &topic, NULL);
+  EXPECT_STREQ (topic, "mytopic");
+  g_free (topic);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief A helper function for the generation of a dummy MQTT message
  */
 static void
@@ -749,6 +1957,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   EXPECT_EQ (cur_state, GST_STATE_PLAYING);
 
   /** Changing caps while the pipeline is in the GST_STATE_PLAYING state */
+  g_free (caps_str);
   caps_str = g_strdup ("video/x-raw,width=320,height=160,format=YUY2");
   memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CAPS_STR);
   memcpy (hdr.gst_caps_str, caps_str,

@@ -88,6 +88,18 @@ static const gchar DEFAULT_MQTT_PUB_TOPIC[] = "$client-id/topic";
 static const gchar DEFAULT_MQTT_PUB_TOPIC_FORMAT[] = "%s/topic";
 static const gchar DEFAULT_MQTT_NTP_SERVERS[] = "pool.ntp.org:123";
 
+/**
+ * @brief The NTP servers parsed from ntp-srvs, shared by reference so that
+ *        replacing them cannot free a list get_epoch_func () is reading.
+ */
+struct _GstMqttNtpServers
+{
+  gint ref_count;
+  guint num;
+  gchar **hnames;
+  guint16 *ports;
+};
+
 /** Function prototype declarations */
 static void
 gst_mqtt_sink_set_property (GObject * object, guint prop_id,
@@ -146,6 +158,10 @@ static void gst_mqtt_sink_set_mqtt_ntp_sync (GstMqttSink * self,
 static gchar *gst_mqtt_sink_get_mqtt_ntp_srvs (GstMqttSink * self);
 static void gst_mqtt_sink_set_mqtt_ntp_srvs (GstMqttSink * self,
     const gchar * pairs);
+static GstMqttNtpServers *gst_mqtt_ntp_servers_new (const gchar * pairs);
+static void gst_mqtt_ntp_servers_unref (GstMqttNtpServers * srvs);
+static int64_t gst_mqtt_sink_get_epoch (GstMqttSink * self);
+static gchar *gst_mqtt_sink_dup_pub_topic (GstMqttSink * self);
 
 static void cb_mqtt_on_connect (void *context,
     MQTTAsync_successData * response);
@@ -212,9 +228,7 @@ gst_mqtt_sink_init (GstMqttSink * self)
   self->mqtt_qos = DEFAULT_MQTT_QOS;
   self->mqtt_ntp_sync = DEFAULT_MQTT_NTP_SYNC;
   self->mqtt_ntp_srvs = g_strdup (DEFAULT_MQTT_NTP_SERVERS);
-  self->mqtt_ntp_hnames = NULL;
-  self->mqtt_ntp_ports = NULL;
-  self->mqtt_ntp_num_srvs = 0;
+  self->mqtt_ntp_servers = NULL;
   self->get_epoch_func = default_mqtt_get_unix_epoch;
   self->is_connected = FALSE;
 
@@ -268,7 +282,9 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
   g_object_class_install_property (gobject_class, PROP_MQTT_NTP_SRVS,
       g_param_spec_string ("ntp-srvs", "NTP Server Host Name and Port Pairs",
           "NTP Servers' HOST_NAME:PORT pairs to use (valid only if ntp-sync is true)\n"
-          "\t\t\tUse ',' to separate each pair if there are more pairs than one",
+          "\t\t\tUse ',' to separate each pair if there are more pairs than one\n"
+          "\t\t\tAn empty or unset value clears the list, and the NTP helper then "
+          "uses its own default server",
           DEFAULT_MQTT_NTP_SERVERS,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -407,16 +423,24 @@ gst_mqtt_sink_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, gst_mqtt_sink_get_debug (self));
       break;
     case PROP_MQTT_CLIENT_ID:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_client_id (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_HOST_ADDRESS:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_host_address (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_HOST_PORT:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_host_port (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_PUB_TOPIC:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_pub_topic (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_PUB_WAIT_TIMEOUT:
       g_value_set_ulong (value, gst_mqtt_sink_get_pub_wait_timeout (self));
@@ -440,7 +464,9 @@ gst_mqtt_sink_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, gst_mqtt_sink_get_mqtt_ntp_sync (self));
       break;
     case PROP_MQTT_NTP_SRVS:
+      GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_mqtt_ntp_srvs (self));
+      GST_OBJECT_UNLOCK (self);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -473,11 +499,8 @@ gst_mqtt_sink_class_finalize (GObject * object)
   gst_caps_replace (&self->in_caps, NULL);
   g_free (self->mqtt_ntp_srvs);
   self->mqtt_ntp_srvs = NULL;
-  self->mqtt_ntp_num_srvs = 0;
-  g_strfreev (self->mqtt_ntp_hnames);
-  self->mqtt_ntp_hnames = NULL;
-  g_free (self->mqtt_ntp_ports);
-  self->mqtt_ntp_ports = NULL;
+  gst_mqtt_ntp_servers_unref (self->mqtt_ntp_servers);
+  self->mqtt_ntp_servers = NULL;
 
   if (self->err)
     g_error_free (self->err);
@@ -522,8 +545,7 @@ gst_mqtt_sink_change_state (GstElement * element, GstStateChange transition)
       gst_object_unref (elem_clock);
       diff = GST_CLOCK_DIFF (base_time, cur_time);
       self->base_time_epoch =
-          self->get_epoch_func (self->mqtt_ntp_num_srvs, self->mqtt_ntp_hnames,
-          self->mqtt_ntp_ports) * GST_US_TO_NS_MULTIPLIER - diff;
+          gst_mqtt_sink_get_epoch (self) * GST_US_TO_NS_MULTIPLIER - diff;
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
       break;
     default:
@@ -555,21 +577,28 @@ static gboolean
 gst_mqtt_sink_start (GstBaseSink * basesink)
 {
   GstMqttSink *self = GST_MQTT_SINK (basesink);
-  gchar *haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
-      self->mqtt_host_port);
+  gchar *client_id;
+  gchar *haddr;
   int ret;
   gint64 end_time;
+
+  GST_OBJECT_LOCK (self);
+  haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
+      self->mqtt_host_port);
 
   if (!g_strcmp0 (DEFAULT_MQTT_CLIENT_ID, self->mqtt_client_id)) {
     g_free (self->mqtt_client_id);
     self->mqtt_client_id = g_strdup_printf (DEFAULT_MQTT_CLIENT_ID_FORMAT,
         g_get_host_name (), getpid (), sink_client_id++);
   }
+  client_id = g_strdup (self->mqtt_client_id);
 
   if (!g_strcmp0 (DEFAULT_MQTT_PUB_TOPIC, self->mqtt_topic)) {
+    g_free (self->mqtt_topic);
     self->mqtt_topic = g_strdup_printf (DEFAULT_MQTT_PUB_TOPIC_FORMAT,
         self->mqtt_client_id);
   }
+  GST_OBJECT_UNLOCK (self);
 
   /**
    * @todo Support other persistence mechanisms
@@ -579,9 +608,10 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
    *    MQTTCLIENT_PERSISTENCE_USER: An application-specific persistence
    *                                 mechanism
    */
-  ret = MQTTAsync_create (&self->mqtt_client_handle, haddr,
-      self->mqtt_client_id, MQTTCLIENT_PERSISTENCE_NONE, NULL);
+  ret = MQTTAsync_create (&self->mqtt_client_handle, haddr, client_id,
+      MQTTCLIENT_PERSISTENCE_NONE, NULL);
   g_free (haddr);
+  g_free (client_id);
   if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
 
@@ -618,6 +648,16 @@ error:
 }
 
 /**
+ * @brief Whether the state says the disconnect this element asked for is over
+ */
+static inline gboolean
+_mqtt_sink_disconnected (mqtt_sink_state_t state)
+{
+  return ((state == MQTT_DISCONNECTED) || (state == MQTT_DISCONNECT_FAILED) ||
+      (state == SINK_RENDER_EOS) || (state == SINK_RENDER_ERROR));
+}
+
+/**
  * @brief Stop mqttsink, called when state changed ready to null
  */
 static gboolean
@@ -640,14 +680,20 @@ gst_mqtt_sink_stop (GstBaseSink * basesink)
     MQTTAsync_disconnect (self->mqtt_client_handle, &disconn_opts);
     g_mutex_lock (&self->mqtt_sink_mutex);
     self->is_connected = FALSE;
-    g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
-        end_time);
+    /**
+     * The callback sets the state before it broadcasts, and it may have run
+     * before this thread took the lock, so wait on the state rather than on
+     * the signal alone.
+     */
+    while (!_mqtt_sink_disconnected (g_atomic_int_get (&self->mqtt_sink_state))) {
+      if (!g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
+              end_time))
+        break;
+    }
     g_mutex_unlock (&self->mqtt_sink_mutex);
     cur_state = g_atomic_int_get (&self->mqtt_sink_state);
 
-    if ((cur_state == MQTT_DISCONNECTED) ||
-        (cur_state == MQTT_DISCONNECT_FAILED) ||
-        (cur_state == SINK_RENDER_EOS) || (cur_state == SINK_RENDER_ERROR))
+    if (_mqtt_sink_disconnected (cur_state))
       break;
   }
   MQTTAsync_destroy (&self->mqtt_client_handle);
@@ -690,8 +736,8 @@ _put_timestamp_to_msg_buf_hdr (GstMqttSink * self, GstBuffer * gst_buf,
     GstMQTTMessageHdr * hdr)
 {
   hdr->base_time_epoch = self->base_time_epoch;
-  hdr->sent_time_epoch = self->get_epoch_func (self->mqtt_ntp_num_srvs,
-      self->mqtt_ntp_hnames, self->mqtt_ntp_ports) * GST_US_TO_NS_MULTIPLIER;
+  hdr->sent_time_epoch = gst_mqtt_sink_get_epoch (self) *
+      GST_US_TO_NS_MULTIPLIER;
 
   hdr->duration = GST_BUFFER_DURATION_IS_VALID (gst_buf) ?
       GST_BUFFER_DURATION (gst_buf) : GST_CLOCK_TIME_NONE;
@@ -704,18 +750,20 @@ _put_timestamp_to_msg_buf_hdr (GstMqttSink * self, GstBuffer * gst_buf,
 
   if (self->debug) {
     GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
+    gchar *topic = gst_mqtt_sink_dup_pub_topic (self);
     GstClock *clock;
 
     clock = gst_element_get_clock (GST_ELEMENT (self));
 
     GST_DEBUG_OBJECT (self,
         "%s now %" GST_TIME_FORMAT " ts %" GST_TIME_FORMAT " sent %"
-        GST_TIME_FORMAT, self->mqtt_topic,
+        GST_TIME_FORMAT, topic,
         GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
         GST_TIME_ARGS (hdr->pts),
         GST_TIME_ARGS (hdr->sent_time_epoch - hdr->base_time_epoch));
 
     gst_object_unref (clock);
+    g_free (topic);
   }
 }
 
@@ -759,31 +807,35 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
   GstMapInfo in_buf_map;
   gint mqtt_rc;
   guint8 *msg_pub;
+  gchar *topic;
+  gint64 end_time;
 
-  while ((cur_state =
-          g_atomic_int_get (&self->mqtt_sink_state)) != MQTT_CONNECTED) {
-    gint64 end_time = g_get_monotonic_time ();
-    mqtt_sink_state_t _state;
+  /**
+   * SINK_INITIALIZING is the only state that can still become
+   * MQTT_CONNECTED: start () has waited for the connection, and nothing
+   * reconnects once it is gone. So wait for that one state, holding the
+   * lock the callbacks broadcast with while the state is read, and for at
+   * most one 'pub-wait-timeout'. Every other state is the answer for this
+   * buffer.
+   */
+  end_time = g_get_monotonic_time ();
+  end_time += (self->mqtt_pub_wait_timeout * G_TIME_SPAN_SECOND);
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  while (g_atomic_int_get (&self->mqtt_sink_state) == SINK_INITIALIZING) {
+    if (!g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
+            end_time))
+      break;
+  }
+  g_mutex_unlock (&self->mqtt_sink_mutex);
 
-    end_time += (self->mqtt_pub_wait_timeout * G_TIME_SPAN_SECOND);
-    g_mutex_lock (&self->mqtt_sink_mutex);
-    g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
-        end_time);
-    g_mutex_unlock (&self->mqtt_sink_mutex);
-
-    _state = g_atomic_int_get (&self->mqtt_sink_state);
-    switch (_state) {
-      case MQTT_CONNECT_FAILURE:
-      case MQTT_DISCONNECTED:
-      case MQTT_CONNECTION_LOST:
-      case SINK_RENDER_ERROR:
-        ret = GST_FLOW_ERROR;
-        break;
-      case SINK_RENDER_EOS:
-        ret = GST_FLOW_EOS;
-        break;
-      default:
-        continue;
+  cur_state = g_atomic_int_get (&self->mqtt_sink_state);
+  if (cur_state != MQTT_CONNECTED) {
+    if (cur_state == SINK_RENDER_EOS) {
+      ret = GST_FLOW_EOS;
+    } else {
+      g_printerr ("%s: Cannot publish a buffer: the connection to the broker "
+          "is not up (state: %d)\n", TAG_ERR_MQTTSINK, cur_state);
+      ret = GST_FLOW_ERROR;
     }
     goto ret_with;
   }
@@ -810,13 +862,6 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
     if (self->max_msg_buf_size == 0) {
       self->mqtt_msg_buf_size = in_buf_size + GST_MQTT_LEN_MSG_HDR;
     } else {
-      if (self->max_msg_buf_size < in_buf_size) {
-        g_printerr ("%s: The given size for a message buffer is too small: "
-            "given (%" G_GSIZE_FORMAT " bytes) vs. incoming (%" G_GSIZE_FORMAT
-            " bytes)\n", TAG_ERR_MQTTSINK, self->max_msg_buf_size, in_buf_size);
-        ret = GST_FLOW_ERROR;
-        goto ret_with;
-      }
       self->mqtt_msg_buf_size = self->max_msg_buf_size + GST_MQTT_LEN_MSG_HDR;
       self->is_static_sized_buf = TRUE;
     }
@@ -832,6 +877,15 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
   msg_pub = self->mqtt_msg_buf;
   if (!msg_pub) {
     self->mqtt_msg_buf_size = 0;
+    ret = GST_FLOW_ERROR;
+    goto ret_with;
+  }
+
+  if (self->mqtt_msg_buf_size < in_buf_size + GST_MQTT_LEN_MSG_HDR) {
+    g_printerr ("%s: The given size for a message buffer is too small: "
+        "given (%" G_GSIZE_FORMAT " bytes) vs. incoming (%" G_GSIZE_FORMAT
+        " bytes)\n", TAG_ERR_MQTTSINK,
+        self->mqtt_msg_buf_size - GST_MQTT_LEN_MSG_HDR, in_buf_size);
     ret = GST_FLOW_ERROR;
     goto ret_with;
   }
@@ -853,9 +907,11 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
 
   memcpy (&msg_pub[sizeof (self->mqtt_msg_hdr)], in_buf_map.data,
       in_buf_map.size);
-  mqtt_rc = MQTTAsync_send (self->mqtt_client_handle, self->mqtt_topic,
+  topic = gst_mqtt_sink_dup_pub_topic (self);
+  mqtt_rc = MQTTAsync_send (self->mqtt_client_handle, topic,
       GST_MQTT_LEN_MSG_HDR + in_buf_map.size, self->mqtt_msg_buf,
       self->mqtt_qos, 1, &self->mqtt_respn_opts);
+  g_free (topic);
   if (mqtt_rc != MQTTASYNC_SUCCESS) {
     ret = GST_FLOW_ERROR;
   }
@@ -984,8 +1040,15 @@ gst_mqtt_sink_get_client_id (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_client_id (GstMqttSink * self, const gchar * id)
 {
-  g_free (self->mqtt_client_id);
-  self->mqtt_client_id = g_strdup (id);
+  gchar *new_id = g_strdup (id);
+  gchar *old_id;
+
+  GST_OBJECT_LOCK (self);
+  old_id = self->mqtt_client_id;
+  self->mqtt_client_id = new_id;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_id);
 }
 
 /**
@@ -1003,11 +1066,18 @@ gst_mqtt_sink_get_host_address (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_host_address (GstMqttSink * self, const gchar * addr)
 {
+  gchar *new_addr = g_strdup (addr);
+  gchar *old_addr;
+
   /**
    * @todo Handle the case where the addr is changed at runtime
    */
-  g_free (self->mqtt_host_address);
-  self->mqtt_host_address = g_strdup (addr);
+  GST_OBJECT_LOCK (self);
+  old_addr = self->mqtt_host_address;
+  self->mqtt_host_address = new_addr;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_addr);
 }
 
 /**
@@ -1025,8 +1095,15 @@ gst_mqtt_sink_get_host_port (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_host_port (GstMqttSink * self, const gchar * port)
 {
-  g_free (self->mqtt_host_port);
-  self->mqtt_host_port = g_strdup (port);
+  gchar *new_port = g_strdup (port);
+  gchar *old_port;
+
+  GST_OBJECT_LOCK (self);
+  old_port = self->mqtt_host_port;
+  self->mqtt_host_port = new_port;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_port);
 }
 
 /**
@@ -1044,8 +1121,31 @@ gst_mqtt_sink_get_pub_topic (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_pub_topic (GstMqttSink * self, const gchar * topic)
 {
-  g_free (self->mqtt_topic);
-  self->mqtt_topic = g_strdup (topic);
+  gchar *new_topic = g_strdup (topic);
+  gchar *old_topic;
+
+  GST_OBJECT_LOCK (self);
+  old_topic = self->mqtt_topic;
+  self->mqtt_topic = new_topic;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_topic);
+}
+
+/**
+ * @brief Copy the 'pub-topic' property for a thread other than the one that sets it
+ * @return a new string to be released with g_free ()
+ */
+static gchar *
+gst_mqtt_sink_dup_pub_topic (GstMqttSink * self)
+{
+  gchar *topic;
+
+  GST_OBJECT_LOCK (self);
+  topic = g_strdup (self->mqtt_topic);
+  GST_OBJECT_UNLOCK (self);
+
+  return topic;
 }
 
 /**
@@ -1193,68 +1293,109 @@ gst_mqtt_sink_get_mqtt_ntp_srvs (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_mqtt_ntp_srvs (GstMqttSink * self, const gchar * pairs)
 {
-  gchar **pair_arrs = NULL;
-  guint hnum = 0;
-  gchar *pair;
-  guint i, j;
+  GstMqttNtpServers *srvs;
+  GstMqttNtpServers *old_srvs;
+  gchar *old_pairs;
 
-  if (g_strcmp0 (self->mqtt_ntp_srvs, pairs) == 0)
+  srvs = gst_mqtt_ntp_servers_new (pairs);
+  if (!srvs)
     return;
 
-  g_free (self->mqtt_ntp_srvs);
+  GST_OBJECT_LOCK (self);
+  old_pairs = self->mqtt_ntp_srvs;
+  old_srvs = self->mqtt_ntp_servers;
   self->mqtt_ntp_srvs = g_strdup (pairs);
+  self->mqtt_ntp_servers = srvs;
+  GST_OBJECT_UNLOCK (self);
 
-  pair_arrs = g_strsplit (pairs, ",", -1);
-  if (pair_arrs == NULL)
-    return;
+  g_free (old_pairs);
+  gst_mqtt_ntp_servers_unref (old_srvs);
+}
 
+/**
+ * @brief Parse HOST_NAME:PORT pairs into a new NTP server list, dropping a
+ *        pair that has no valid port.
+ * @return the list holding one reference, or NULL if memory runs out
+ */
+static GstMqttNtpServers *
+gst_mqtt_ntp_servers_new (const gchar * pairs)
+{
+  GstMqttNtpServers *srvs;
+  gchar **pair_arrs;
+  guint hnum;
+  guint i;
+
+  srvs = g_try_new0 (GstMqttNtpServers, 1);
+  if (!srvs)
+    return NULL;
+
+  srvs->ref_count = 1;
+  pair_arrs = g_strsplit (pairs ? pairs : "", ",", -1);
   hnum = g_strv_length (pair_arrs);
-  if (hnum == 0)
-    goto err_free_pair_arrs;
+  srvs->hnames = g_try_new0 (gchar *, hnum + 1);
+  srvs->ports = g_try_new0 (guint16, hnum + 1);
+  if (!srvs->hnames || !srvs->ports) {
+    g_strfreev (pair_arrs);
+    gst_mqtt_ntp_servers_unref (srvs);
+    return NULL;
+  }
 
-  g_free (self->mqtt_ntp_hnames);
-  self->mqtt_ntp_hnames = g_try_malloc0 ((hnum + 1) * sizeof (gchar *));
-  if (!self->mqtt_ntp_hnames)
-    goto err_free_pair_arrs;
+  for (i = 0; i < hnum; i++) {
+    gchar **hname_port = g_strsplit (pair_arrs[i], ":", 2);
+    gulong port_ul = 0;
 
-  g_free (self->mqtt_ntp_ports);
-  self->mqtt_ntp_ports = g_try_malloc0 (hnum * sizeof (guint16));
-  if (!self->mqtt_ntp_ports)
-    goto err_free_mqtt_ntp_hnames;
-
-  self->mqtt_ntp_num_srvs = hnum;
-  for (i = 0, j = 0; i < hnum; i++) {
-    gchar **hname_port;
-    gchar *hname;
-    gchar *eport;
-    gulong port_ul;
-
-    pair = pair_arrs[i];
-    hname_port = g_strsplit (pair, ":", 2);
-    hname = hname_port[0];
-    port_ul = strtoul (hname_port[1], &eport, 10);
-    if ((port_ul == 0) || (port_ul > UINT16_MAX)) {
-      self->mqtt_ntp_num_srvs--;
-    } else {
-      self->mqtt_ntp_hnames[j] = g_strdup (hname);
-      self->mqtt_ntp_ports[j] = (uint16_t) port_ul;
-      ++j;
+    if (g_strv_length (hname_port) == 2)
+      port_ul = strtoul (hname_port[1], NULL, 10);
+    if ((port_ul != 0) && (port_ul <= UINT16_MAX)) {
+      srvs->hnames[srvs->num] = g_strdup (hname_port[0]);
+      srvs->ports[srvs->num] = (guint16) port_ul;
+      srvs->num++;
     }
 
     g_strfreev (hname_port);
   }
 
   g_strfreev (pair_arrs);
-  return;
+  return srvs;
+}
 
-err_free_mqtt_ntp_hnames:
-  g_strfreev (self->mqtt_ntp_hnames);
-  self->mqtt_ntp_hnames = NULL;
+/**
+ * @brief Drop a reference to an NTP server list, freeing it with the last one
+ */
+static void
+gst_mqtt_ntp_servers_unref (GstMqttNtpServers * srvs)
+{
+  if (!srvs || !g_atomic_int_dec_and_test (&srvs->ref_count))
+    return;
 
-err_free_pair_arrs:
-  g_strfreev (pair_arrs);
+  g_strfreev (srvs->hnames);
+  g_free (srvs->ports);
+  g_free (srvs);
+}
 
-  return;
+/**
+ * @brief Get the Unix epoch from get_epoch_func () while holding a reference
+ *        to the NTP server list it reads
+ */
+static int64_t
+gst_mqtt_sink_get_epoch (GstMqttSink * self)
+{
+  GstMqttNtpServers *srvs;
+  int64_t epoch;
+
+  GST_OBJECT_LOCK (self);
+  srvs = self->mqtt_ntp_servers;
+  if (srvs)
+    g_atomic_int_inc (&srvs->ref_count);
+  GST_OBJECT_UNLOCK (self);
+
+  if (!srvs)
+    return self->get_epoch_func (0, NULL, NULL);
+
+  epoch = self->get_epoch_func (srvs->num, srvs->hnames, srvs->ports);
+  gst_mqtt_ntp_servers_unref (srvs);
+
+  return epoch;
 }
 
 /** Callback function definitions */
@@ -1336,10 +1477,11 @@ static void
 cb_mqtt_on_delivery_complete (void *context, MQTTAsync_token token)
 {
   GstMqttSink *self = (GstMqttSink *) context;
+  gchar *topic = gst_mqtt_sink_dup_pub_topic (self);
 
   GST_DEBUG_OBJECT (self,
-      "%s: the message with token(%d) has been delivered.", self->mqtt_topic,
-      token);
+      "%s: the message with token(%d) has been delivered.", topic, token);
+  g_free (topic);
 }
 
 /**
