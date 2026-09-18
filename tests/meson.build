@@ -209,6 +209,16 @@ if gtest_dep.found()
 
     test('unittest_demux', unittest_demux, env: testenv)
 
+    # Run unittest_merge
+    unittest_merge = executable('unittest_merge',
+      join_paths('nnstreamer_merge', 'unittest_merge.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_merge', unittest_merge, timeout: 240, env: testenv)
+
     # Run unittest_repo
     unittest_repo = executable('unittest_repo',
       join_paths('nnstreamer_repo', 'unittest_repo.cc'),
