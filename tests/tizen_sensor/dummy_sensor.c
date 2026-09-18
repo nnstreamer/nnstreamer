@@ -19,6 +19,9 @@
 
 static void init_timestamps (void) __attribute__((constructor));
 
+static int live_listeners = 0;
+static int fail_set_interval = 0;
+
 static sensor_s sensors[][3] = {
   /* 0 = SENSOR_ACCELEROMETER */
   {{.type = SENSOR_ACCELEROMETER,.id = 0,.listeners = NULL, .last_recorded =
@@ -152,6 +155,7 @@ sensor_create_listener (sensor_h sensor, sensor_listener_h * listener)
   table = ptr->listening->listeners;
 
   g_hash_table_add (table, ptr);
+  live_listeners++;
 
   *listener = ptr;
   return 0;
@@ -180,6 +184,9 @@ sensor_destroy_listener (sensor_listener_h listener)
 
   if (!g_hash_table_remove (table, l))
     return -EINVAL;
+
+  live_listeners--;
+  g_free (l);
 
   return 0;
 }
@@ -222,6 +229,11 @@ sensor_listener_set_interval (sensor_listener_h listener,
   sensor_listener_s *ptr = listener;
   if (NULL == listener)
     return -EINVAL;
+
+  if (fail_set_interval > 0) {
+    fail_set_interval--;
+    return SENSOR_ERROR_OPERATION_FAILED;
+  }
 
   ptr->interval_ms = interval_ms;
   return SENSOR_ERROR_NONE;
@@ -275,6 +287,24 @@ dummy_publish (sensor_h sensor, sensor_event_s * value)
   }
 
   return 0;
+}
+
+/**
+ * @brief Dummy Tizen Sensor: inject sensor_listener_set_interval() failures.
+ */
+void
+dummy_fail_set_interval (int count)
+{
+  fail_set_interval = count;
+}
+
+/**
+ * @brief Dummy Tizen Sensor: count the listeners that are not destroyed yet.
+ */
+int
+dummy_count_listeners (void)
+{
+  return live_listeners;
 }
 
 /**

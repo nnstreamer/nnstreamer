@@ -196,6 +196,21 @@ sensor_listener_read_data_list (sensor_listener_h listener, sensor_event_s ** ev
 extern int
 dummy_publish (sensor_h sensor, sensor_event_s * value);
 
+
+/* test control */
+/**
+ * @brief Make the next @a count sensor_listener_set_interval() calls fail.
+ * @param[in] count The number of calls to fail. 0 disables the injection.
+ */
+extern void
+dummy_fail_set_interval (int count);
+
+/**
+ * @brief Get the number of listeners created and not destroyed yet.
+ */
+extern int
+dummy_count_listeners (void);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
