@@ -125,7 +125,9 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
   flexbuffers::Builder fbb;
   gboolean is_flexible;
   GstTensorMetaInfo meta;
-  GstTensorInfo *_info;
+  GstTensorInfo flex_info;
+  const GstTensorInfo *_info, *_shape;
+  gboolean broken_header = FALSE;
 
   UNUSED (pdata);
 
@@ -137,33 +139,52 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
   is_flexible = gst_tensors_config_is_flexible (config);
 
   num_tensors = config->info.num_tensors;
+  if (num_tensors == 0 || num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+    ml_loge ("The config passed to tensor_decoder::flexbuf declares %u tensors, and between 1 and %s are allowed.",
+        num_tensors, NNS_TENSOR_SIZE_LIMIT_STR);
+    return GST_FLOW_ERROR;
+  }
+
   fbb.Map ([&] () {
     fbb.UInt ("num_tensors", num_tensors);
     fbb.Int ("rate_n", config->rate_n);
     fbb.Int ("rate_d", config->rate_d);
     fbb.Int ("format", config->info.format);
     for (i = 0; i < num_tensors; i++) {
-      gchar *tensor_key = g_strdup_printf ("tensor_%d", i);
+      gchar *tensor_key;
       gchar *tensor_name = NULL;
 
-      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i);
+      _shape = _info
+          = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i);
 
       if (is_flexible) {
-        gst_tensor_meta_info_parse_header (&meta, input[i].data);
-        gst_tensor_meta_info_convert (&meta, _info);
+        gst_tensor_meta_info_init (&meta);
+
+        /* parse_header () reads a whole header of the default version before validating it */
+        if (input[i].size < gst_tensor_meta_info_get_header_size (&meta)
+            || !gst_tensor_meta_info_parse_header (&meta, input[i].data)
+            || !gst_tensor_meta_info_convert (&meta, &flex_info)) {
+          ml_loge ("Failed to parse the meta header of the %u'th tensor in tensor_decoder::flexbuf.",
+              i);
+          broken_header = TRUE;
+          break;
+        }
+
+        _shape = &flex_info;
       }
 
+      tensor_key = g_strdup_printf ("tensor_%d", i);
       if (_info->name == NULL) {
         tensor_name = g_strdup ("");
       } else {
         tensor_name = g_strdup (_info->name);
       }
-      tensor_type type = _info->type;
+      tensor_type type = _shape->type;
 
       fbb.Vector (tensor_key, [&] () {
         fbb += tensor_name;
         fbb += type;
-        fbb.Vector (_info->dimension, NNS_TENSOR_RANK_LIMIT);
+        fbb.Vector (_shape->dimension, NNS_TENSOR_RANK_LIMIT);
         fbb.Blob (input[i].data, input[i].size);
       });
       g_free (tensor_key);
@@ -171,6 +192,10 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
     }
   });
   fbb.Finish ();
+
+  if (broken_header)
+    return GST_FLOW_ERROR;
+
   flex_size = fbb.GetSize ();
 
   need_alloc = (gst_buffer_get_size (outbuf) == 0);
