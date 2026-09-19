@@ -526,6 +526,267 @@ TEST (testConverterSerialized, roundTripFlexible)
 }
 
 /**
+ * @brief Positive: decoding a flexible stream leaves the caller's config alone.
+ * @details The tensor shape of a flexible stream comes from the meta header
+ *          of each memory. The decoder reads it into its own info instead of
+ *          overwriting the negotiated config it is handed.
+ */
+TEST (testConverterSerialized, decodeFlexibleKeepsConfig)
+{
+  for (const auto &mode : available_modes ()) {
+    const GstTensorDecoderDef *dec = nnstreamer_decoder_find (mode.c_str ());
+    ASSERT_TRUE (dec) << mode;
+
+    std::vector<guint8> bytes
+        = build_flexible_bytes (_NNS_UINT8, "4:1:1:1", { 1, 2, 3, 4 });
+    GstTensorsConfig config;
+    GstTensorMemory input;
+    GstBuffer *out_buf = gst_buffer_new ();
+
+    gst_tensors_config_init (&config);
+    config.rate_n = 0;
+    config.rate_d = 1;
+    config.info.num_tensors = 1;
+    config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    config.info.info[0].name = g_strdup ("t0");
+
+    input.size = bytes.size ();
+    input.data = dup_bytes (bytes.data (), bytes.size ());
+
+    EXPECT_EQ (GST_FLOW_OK, dec->decode (NULL, &config, &input, out_buf)) << mode;
+
+    EXPECT_STREQ ("t0", config.info.info[0].name) << mode;
+    EXPECT_EQ (config.info.info[0].type, _NNS_END) << mode;
+    EXPECT_EQ (config.info.info[0].dimension[0], 0U) << mode;
+
+    g_free (input.data);
+    gst_buffer_unref (out_buf);
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief Negative: a flexible tensor shorter than the meta header is refused by the decoder.
+ */
+TEST (testConverterSerialized, decodeFlexibleHeaderTooShort_n)
+{
+  for (const auto &mode : available_modes ()) {
+    const GstTensorDecoderDef *dec = nnstreamer_decoder_find (mode.c_str ());
+    ASSERT_TRUE (dec) << mode;
+
+    std::vector<guint8> bytes
+        = build_flexible_bytes (_NNS_UINT8, "4:1:1:1", { 1, 2, 3, 4 });
+    GstTensorsConfig config;
+    GstTensorMemory input;
+    GstBuffer *out_buf = gst_buffer_new ();
+
+    bytes.resize (meta_header_size () - 1U);
+
+    gst_tensors_config_init (&config);
+    config.rate_n = 0;
+    config.rate_d = 1;
+    config.info.num_tensors = 1;
+    config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+    input.size = bytes.size ();
+    input.data = dup_bytes (bytes.data (), bytes.size ());
+
+    EXPECT_EQ (GST_FLOW_ERROR, dec->decode (NULL, &config, &input, out_buf)) << mode;
+
+    g_free (input.data);
+    gst_buffer_unref (out_buf);
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief Negative: a flexible tensor without a valid meta header is refused by the decoder.
+ */
+TEST (testConverterSerialized, decodeFlexibleBrokenHeader_n)
+{
+  for (const auto &mode : available_modes ()) {
+    const GstTensorDecoderDef *dec = nnstreamer_decoder_find (mode.c_str ());
+    ASSERT_TRUE (dec) << mode;
+
+    std::vector<guint8> bytes (meta_header_size () + 4U, 0);
+    GstTensorsConfig config;
+    GstTensorMemory input;
+    GstBuffer *out_buf = gst_buffer_new ();
+
+    gst_tensors_config_init (&config);
+    config.rate_n = 0;
+    config.rate_d = 1;
+    config.info.num_tensors = 1;
+    config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+    input.size = bytes.size ();
+    input.data = dup_bytes (bytes.data (), bytes.size ());
+
+    EXPECT_EQ (GST_FLOW_ERROR, dec->decode (NULL, &config, &input, out_buf)) << mode;
+
+    g_free (input.data);
+    gst_buffer_unref (out_buf);
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief Positive: the decoders fill a buffer that already carries memory.
+ * @details tensor_decoder hands the subplugin an empty buffer, but decode ()
+ *          also has to serialize into one that a caller has already sized.
+ */
+TEST (testConverterSerialized, decodeIntoAllocatedBuffer)
+{
+  const gsize reserved = 4096U;
+
+  for (const auto &mode : available_modes ()) {
+    const GstTensorDecoderDef *dec = nnstreamer_decoder_find (mode.c_str ());
+    const NNStreamerExternalConverter *conv = nnstreamer_converter_find (mode.c_str ());
+    ASSERT_TRUE (dec) << mode;
+    ASSERT_TRUE (conv) << mode;
+
+    GstTensorsConfig config, check_config;
+    GstTensorMemory input;
+    GstBuffer *out_buf = gst_buffer_new_allocate (NULL, reserved, NULL);
+    GstBuffer *conv_buf;
+    GstMemory *mem;
+    GstMapInfo map_info;
+    guint8 payload[4] = { 1, 2, 3, 4 };
+
+    gst_buffer_memset (out_buf, 0, 0, reserved);
+    gst_buffer_set_size (out_buf, 4);
+
+    gst_tensors_config_init (&config);
+    gst_tensors_config_init (&check_config);
+    config.rate_n = 0;
+    config.rate_d = 1;
+    config.info.num_tensors = 1;
+    config.info.format = _NNS_TENSOR_FORMAT_STATIC;
+    config.info.info[0].type = _NNS_UINT8;
+    gst_tensor_parse_dimension ("4:1:1:1", config.info.info[0].dimension);
+
+    input.size = sizeof (payload);
+    input.data = dup_bytes (payload, sizeof (payload));
+
+    EXPECT_EQ (GST_FLOW_OK, dec->decode (NULL, &config, &input, out_buf)) << mode;
+
+    conv_buf = conv->convert (out_buf, &check_config, NULL);
+    ASSERT_TRUE (conv_buf != NULL) << mode;
+    ASSERT_EQ (check_config.info.num_tensors, 1U) << mode;
+    mem = gst_buffer_peek_memory (conv_buf, 0);
+    ASSERT_TRUE (gst_memory_map (mem, &map_info, GST_MAP_READ)) << mode;
+    ASSERT_EQ (map_info.size, sizeof (payload)) << mode;
+    EXPECT_EQ (0, memcmp (map_info.data, payload, sizeof (payload))) << mode;
+    gst_memory_unmap (mem, &map_info);
+
+    g_free (input.data);
+    gst_buffer_unref (conv_buf);
+    gst_buffer_unref (out_buf);
+    gst_tensors_config_free (&check_config);
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief Positive: the decoders answer the caps query and hold no private data.
+ */
+TEST (testConverterSerialized, decodeSubpluginCallbacks)
+{
+  for (const auto &mode : available_modes ()) {
+    const GstTensorDecoderDef *dec = nnstreamer_decoder_find (mode.c_str ());
+    ASSERT_TRUE (dec) << mode;
+
+    GstTensorsConfig config;
+    GstCaps *caps;
+    void *pdata = &config;
+
+    EXPECT_TRUE (dec->init (&pdata)) << mode;
+    EXPECT_TRUE (pdata == NULL) << mode;
+    EXPECT_TRUE (dec->setOption (&pdata, 0, "unused")) << mode;
+
+    gst_tensors_config_init (&config);
+    config.rate_n = 5;
+    config.rate_d = 1;
+    config.info.num_tensors = 1;
+    config.info.format = _NNS_TENSOR_FORMAT_STATIC;
+
+    caps = dec->getOutCaps (&pdata, &config);
+    ASSERT_TRUE (caps != NULL) << mode;
+    EXPECT_EQ (gst_caps_get_size (caps), 1U) << mode;
+    gst_caps_unref (caps);
+
+    dec->exit (&pdata);
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief Negative: a NULL parameter is refused by the decoders instead of dereferenced.
+ */
+TEST (testConverterSerialized, decodeNullParam_n)
+{
+  for (const auto &mode : available_modes ()) {
+    const GstTensorDecoderDef *dec = nnstreamer_decoder_find (mode.c_str ());
+    ASSERT_TRUE (dec) << mode;
+
+    GstTensorsConfig config;
+    GstTensorMemory input;
+    GstBuffer *out_buf = gst_buffer_new ();
+    guint8 payload[4] = { 1, 2, 3, 4 };
+
+    gst_tensors_config_init (&config);
+    config.info.num_tensors = 1;
+    config.info.format = _NNS_TENSOR_FORMAT_STATIC;
+    config.info.info[0].type = _NNS_UINT8;
+    gst_tensor_parse_dimension ("4:1:1:1", config.info.info[0].dimension);
+    input.size = sizeof (payload);
+    input.data = payload;
+
+    EXPECT_EQ (GST_FLOW_ERROR, dec->decode (NULL, NULL, &input, out_buf)) << mode;
+    EXPECT_EQ (GST_FLOW_ERROR, dec->decode (NULL, &config, NULL, out_buf)) << mode;
+    EXPECT_EQ (GST_FLOW_ERROR, dec->decode (NULL, &config, &input, NULL)) << mode;
+
+    gst_buffer_unref (out_buf);
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief Negative: the decoders refuse a config with an unusable tensor count.
+ * @details An out-of-range count would walk gst_tensors_info_get_nth_info ()
+ *          past the tensor it can address, which answers with NULL.
+ */
+TEST (testConverterSerialized, decodeTensorCountOutOfRange_n)
+{
+  guint8 payload[4] = { 1, 2, 3, 4 };
+
+  for (const auto &mode : available_modes ()) {
+    const GstTensorDecoderDef *dec = nnstreamer_decoder_find (mode.c_str ());
+    ASSERT_TRUE (dec) << mode;
+
+    for (guint num : { 0U, (guint) NNS_TENSOR_SIZE_LIMIT + 1U }) {
+      GstTensorsConfig config;
+      GstTensorMemory input;
+      GstBuffer *out_buf = gst_buffer_new ();
+
+      gst_tensors_config_init (&config);
+      config.info.num_tensors = num;
+      config.info.format = _NNS_TENSOR_FORMAT_STATIC;
+      config.info.info[0].type = _NNS_UINT8;
+      gst_tensor_parse_dimension ("4:1:1:1", config.info.info[0].dimension);
+      input.size = sizeof (payload);
+      input.data = payload;
+
+      EXPECT_EQ (GST_FLOW_ERROR, dec->decode (NULL, &config, &input, out_buf))
+          << mode << " " << num;
+
+      gst_buffer_unref (out_buf);
+      gst_tensors_config_free (&config);
+    }
+  }
+}
+
+/**
  * @brief Negative: a static tensor whose carried data size does not match type * dimension.
  */
 TEST (testConverterSerialized, dataSizeMismatch_n)
