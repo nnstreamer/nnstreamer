@@ -277,14 +277,7 @@ custom_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
 static void
 custom_close (const GstTensorFilterProperties * prop, void **private_data)
 {
-  internal_data *ptr = *private_data;
-
-  g_return_if_fail (ptr != NULL);
-
-  if (ptr->methods->exitfunc)
-    ptr->methods->exitfunc (ptr->customFW_private_data, prop);
-  g_free (ptr);
-  *private_data = NULL;
+  custom_unloadlib (prop, private_data, TRUE);
 }
 
 /**

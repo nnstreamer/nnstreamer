@@ -2034,6 +2034,36 @@ TEST (tensorFilterCustomOpenFail, closeWithoutExit)
 }
 
 /**
+ * @brief Close a custom filter library and check that the loaded module is released.
+ * @details close() has to undo the g_module_open() of open(). Without that, the library
+ *          stays mapped for the life of the process and every open/close cycle leaves
+ *          another reference behind.
+ */
+TEST (tensorFilterCustomOpenFail, closeUnloadsModule)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom");
+  GstTensorFilterProperties prop;
+  const gchar *models[2];
+  void *data = NULL;
+  g_autofree gchar *path = _b3_model_path ("ok");
+
+  ASSERT_TRUE (sp != nullptr);
+  ASSERT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS));
+
+  models[0] = path;
+  models[1] = NULL;
+  _b3_set_prop (&prop, models);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_TRUE (_b3_is_loaded (path));
+
+  sp->close (&prop, &data);
+  EXPECT_TRUE (data == nullptr);
+  EXPECT_TRUE (_b3_is_loaded (path) == FALSE)
+      << "close left the library loaded: the reference open took was not released";
+}
+
+/**
  * @brief Open a file that is not a loadable library.
  */
 TEST (tensorFilterCustomOpenFail, notALibrary_n)
