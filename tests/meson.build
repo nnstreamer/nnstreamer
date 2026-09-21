@@ -512,8 +512,15 @@ if gtest_dep.found()
       unittest_grpc_deps += [grpc_support_deps, flatbuf_dep]
     endif
 
+    # the element headers are needed to check what the elements hold
+    unittest_grpc_inc = include_directories(
+      join_paths('..', 'ext', 'nnstreamer', 'extra'),
+      join_paths('..', 'ext', 'nnstreamer', 'tensor_sink'),
+      join_paths('..', 'ext', 'nnstreamer', 'tensor_source'))
+
     unittest_grpc = executable('unittest_grpc',
       unittest_grpc_src,
+      include_directories: unittest_grpc_inc,
       dependencies: unittest_grpc_deps,
       install: get_option('install-test'),
       install_dir: unittest_install_dir

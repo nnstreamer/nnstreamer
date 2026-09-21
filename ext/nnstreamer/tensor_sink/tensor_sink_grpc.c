@@ -195,6 +195,19 @@ gst_tensor_sink_grpc_class_init (GstTensorSinkGRPCClass * klass)
 }
 
 /**
+ * @brief stop and release the gRPC instance, if any.
+ */
+static void
+_grpc_release_instance (grpc_private * grpc)
+{
+  if (grpc->instance) {
+    grpc_stop (grpc->instance);
+    grpc_destroy (grpc->instance);
+    grpc->instance = NULL;
+  }
+}
+
+/**
  * @brief initialize grpc config.
  */
 static void
@@ -237,6 +250,8 @@ gst_tensor_sink_grpc_finalize (GObject * gobject)
 {
   GstTensorSinkGRPC *self = GST_TENSOR_SINK_GRPC (gobject);
   grpc_private *grpc = GET_GRPC_PRIVATE (self);
+
+  _grpc_release_instance (grpc);
 
   g_free (grpc->config.host);
   g_free (grpc);
@@ -330,27 +345,27 @@ gst_tensor_sink_grpc_start (GstBaseSink * sink)
 {
   GstTensorSinkGRPC *self = GST_TENSOR_SINK_GRPC (sink);
   grpc_private *grpc = GET_GRPC_PRIVATE (self);
-  gboolean ret;
 
   if (GST_OBJECT_FLAG_IS_SET (self, GST_TENSOR_SINK_GRPC_STARTED))
     return TRUE;
 
-  if (grpc->instance)
-    grpc_destroy (grpc->instance);
+  _grpc_release_instance (grpc);
 
   grpc->instance = grpc_new (&grpc->config);
   if (!grpc->instance)
     return FALSE;
 
-  ret = grpc_start (grpc->instance);
-  if (ret) {
-    GST_OBJECT_FLAG_SET (self, GST_TENSOR_SINK_GRPC_STARTED);
+  if (!grpc_start (grpc->instance)) {
+    _grpc_release_instance (grpc);
+    return FALSE;
+  }
 
-    if (grpc->config.is_server) {
-      gint port = grpc_get_listening_port (grpc->instance);
-      if (port > 0)
-        g_object_set (self, "port", port, NULL);
-    }
+  GST_OBJECT_FLAG_SET (self, GST_TENSOR_SINK_GRPC_STARTED);
+
+  if (grpc->config.is_server) {
+    gint port = grpc_get_listening_port (grpc->instance);
+    if (port > 0)
+      g_object_set (self, "port", port, NULL);
   }
 
   return TRUE;
@@ -365,12 +380,7 @@ gst_tensor_sink_grpc_stop (GstBaseSink * sink)
   GstTensorSinkGRPC *self = GST_TENSOR_SINK_GRPC (sink);
   grpc_private *grpc = GET_GRPC_PRIVATE (self);
 
-  if (!GST_OBJECT_FLAG_IS_SET (self, GST_TENSOR_SINK_GRPC_STARTED))
-    return TRUE;
-
-  if (grpc->instance)
-    grpc_destroy (grpc->instance);
-  grpc->instance = NULL;
+  _grpc_release_instance (grpc);
 
   GST_OBJECT_FLAG_UNSET (self, GST_TENSOR_SINK_GRPC_STARTED);
 

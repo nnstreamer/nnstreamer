@@ -36,6 +36,12 @@ G_BEGIN_DECLS
 typedef struct _GstTensorSinkGRPC GstTensorSinkGRPC;
 typedef struct _GstTensorSinkGRPCClass GstTensorSinkGRPCClass;
 
+/**
+ * @brief Element flags of tensor_sink_grpc.
+ *
+ * GstBaseSink declares no flag of its own, so the first bit a sink subclass may
+ * take is GST_ELEMENT_FLAG_LAST.
+ */
 typedef enum {
   GST_TENSOR_SINK_GRPC_CONFIGURED = (GST_ELEMENT_FLAG_LAST << 0),
   GST_TENSOR_SINK_GRPC_STARTED = (GST_ELEMENT_FLAG_LAST << 1),
