@@ -131,6 +131,15 @@ if gtest_dep.found()
     )
     test('unittest_decoder_pose', unittest_decoder_pose, env: testenv)
 
+    # RUN unittest_decoder_direct_video
+    unittest_decoder_direct_video = executable('unittest_decoder_direct_video',
+      join_paths('nnstreamer_decoder', 'unittest_decoder_direct_video.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+    test('unittest_decoder_direct_video', unittest_decoder_direct_video, env: testenv)
+
     # RUN unittest_decoder_image_segment
     unittest_decoder_image_segment = executable('unittest_decoder_image_segment',
       join_paths('nnstreamer_decoder_image_segment', 'unittest_decoder_image_segment.cc'),
