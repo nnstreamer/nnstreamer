@@ -74,8 +74,15 @@ require_ubuntu_make() {
 #        broken file cannot leave the assertions below matching nothing.
 # @param $1 value for UBUNTU_VERSION_ID, may be empty
 # @param $2 target to expand
+# @param $3 value for DEB_HOST_ARCH, optional; the environment decides without it
 expand() {
-  if ! EXPANDED=$(make -f "${RULES}" -C "${REPO_ROOT}" -n "$2" "UBUNTU_VERSION_ID=$1" 2>&1); then
+  local args=("UBUNTU_VERSION_ID=$1")
+
+  if [ "$#" -ge 3 ]; then
+    args+=("DEB_HOST_ARCH=$3")
+  fi
+
+  if ! EXPANDED=$(make -f "${RULES}" -C "${REPO_ROOT}" -n "$2" "${args[@]}" 2>&1); then
     echo "::error::  FAIL make could not expand $2 at UBUNTU_VERSION_ID=${1:-<empty>}:"
     echo "${EXPANDED}"
     failed=1
@@ -220,6 +227,56 @@ check_links_files() {
 }
 
 ##
+# @brief Assert where the unit tests of the openvino sub-plugin are run, and
+#        that every case the gate names is still there to run. gtest answers a
+#        filter that matches nothing with "0 tests ran" and an exit status of
+#        0, so a renamed case would shrink the gate without saying so.
+check_openvino_tests() {
+  local legacy other names name source found=0
+
+  source="${REPO_ROOT}/tests/nnstreamer_filter_openvino/unittest_openvino.cc"
+
+  # What nocheck does to this target is check_nocheck's to say; here it would
+  # only empty the recipe and fail the first assertion for the wrong reason.
+  DEB_BUILD_OPTIONS="" expand "24.04" override_dh_auto_test amd64 || return
+  legacy=${EXPANDED}
+
+  expect_match "${legacy}" 'run_unittests_binaries.sh ./tests/nnstreamer_filter_openvino' \
+    yes "24.04 amd64: the openvino unit tests are run"
+
+  # The suite expects openvino-cpu-mkldnn, which the PPA ships for amd64 only,
+  # and a series that still carries openvino at all.
+  DEB_BUILD_OPTIONS="" expand "24.04" override_dh_auto_test arm64 || return
+  other=${EXPANDED}
+  expect_match "${other}" 'nnstreamer_filter_openvino' no \
+    "24.04 arm64: the openvino unit tests are left alone"
+
+  DEB_BUILD_OPTIONS="" expand "26.04" override_dh_auto_test amd64 || return
+  other=${EXPANDED}
+  expect_match "${other}" 'nnstreamer_filter_openvino' no \
+    "26.04: the openvino unit tests are left alone"
+
+  if [ ! -f "${source}" ]; then
+    report 1 "${source} not found, so the gated cases cannot be checked"
+    return
+  fi
+
+  names=$(echo "${legacy}" | tr ' ' '\n' | sed -n 's/^GTEST_FILTER=//p' | tr ':' '\n')
+  for name in ${names}; do
+    found=1
+    if grep -q "TEST (${name%%.*}, ${name#*.})" "${source}"; then
+      report 0 "${name} is a case of the suite"
+    else
+      report 1 "${name} is named by the gate but is not a case of the suite"
+    fi
+  done
+
+  if [ "${found}" -eq 0 ]; then
+    report 1 "the openvino gate names no case, so it would run none of them"
+  fi
+}
+
+##
 # @brief Run every check and exit with the verdict.
 main() {
   require_ubuntu_make
@@ -246,6 +303,9 @@ main() {
   echo "Checking the python module link"
   check_python3_link
   check_links_files
+
+  echo "Checking the openvino unit tests"
+  check_openvino_tests
 
   if [ "${failed}" -ne 0 ]; then
     echo "::error::test_debian_rules_series.sh has failed."

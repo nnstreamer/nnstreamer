@@ -47,6 +47,17 @@ UBUNTU_LEGACY_PPA := yes
 ENABLE_OPENVINO := true
 endif
 endif
+# The cases of the openvino sub-plugin that override_dh_auto_test runs; see the
+# comment there for why it is a list rather than the whole suite.
+OPENVINO_TESTS := tensorFilterOpenvino.openAndClose3_n
+OPENVINO_TESTS := $(OPENVINO_TESTS):tensorFilterOpenvino.openAndClose4_n
+OPENVINO_TESTS := $(OPENVINO_TESTS):tensorFilterOpenvino.getTensorNames0
+OPENVINO_TESTS := $(OPENVINO_TESTS):tensorFilterOpenvino.getTensorDescs0
+OPENVINO_TESTS := $(OPENVINO_TESTS):tensorFilterOpenvino.getBlobName0
+OPENVINO_TESTS := $(OPENVINO_TESTS):tensorFilterOpenvino.getBlobName0_n
+OPENVINO_TESTS := $(OPENVINO_TESTS):tensorFilterOpenvino.invoke0_n
+OPENVINO_TESTS := $(OPENVINO_TESTS):tensorFilterOpenvino.invoke1_n
+
 ifeq ($(DEB_BUILD_ARCH_CPU), arm)
 FLOAT16 := -Denable-float16=true
 endif
@@ -93,6 +104,20 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 ifeq ($(DEB_HOST_ARCH), amd64)
 	if [ -f './tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw' ]; then ./packaging/run_unittests_binaries.sh ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw; fi
+# The list is the cases that came with the openvino memory-safety fixes, less
+# the one that runs an inference: the Inference Engine unloads its CPU plugin
+# while a worker thread of its own is still running, and that takes the process
+# down often enough on a loaded machine to make a required job flaky. Every
+# case the suite had before is left as it was, none is removed or disabled, and
+# a hand-run still covers all of them.
+#
+# The block is amd64 because part of the suite expects openvino-cpu-mkldnn,
+# which the PPA ships for amd64 only; running here asserts nothing about an
+# arm64 build that no job exercises. test_debian_rules_series.sh pins where
+# this runs, where it does not, and that every case named below still exists.
+ifeq ($(ENABLE_OPENVINO), true)
+	GTEST_FILTER=$(OPENVINO_TESTS) ./packaging/run_unittests_binaries.sh ./tests/nnstreamer_filter_openvino
+endif
 endif
 	cd tests && ssat -n -p=1 && cd ..
 else
