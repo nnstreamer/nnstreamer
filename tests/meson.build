@@ -502,7 +502,7 @@ if gtest_dep.found()
   # gRPC unittest
   if grpc_support_is_available
     unittest_grpc_src = [join_paths('nnstreamer_grpc', 'unittest_grpc.cc')]
-    unittest_grpc_deps = [nnstreamer_unittest_deps]
+    unittest_grpc_deps = [nnstreamer_unittest_deps, gmodule_dep]
     if protobuf_support_is_available
       unittest_grpc_src += grpc_pb_gen_src
       unittest_grpc_deps += [grpc_support_deps, protobuf_util_dep]

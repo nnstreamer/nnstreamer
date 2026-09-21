@@ -403,6 +403,10 @@ class AsyncCallDataServer : public AsyncCallData
   std::unique_ptr<ServerAsyncReader<Empty, Tensors>> reader_;
 };
 
+/** @brief Client calls alive, and calls freed before their queue was drained */
+static gint client_calls_live = 0;
+static gint client_calls_unfinished = 0;
+
 /** @brief Internal derived class for client */
 class AsyncCallDataClient : public AsyncCallData
 {
@@ -411,9 +415,36 @@ class AsyncCallDataClient : public AsyncCallData
   AsyncCallDataClient (AsyncServiceImplProtobuf *service,
       TensorService::Stub *stub, CompletionQueue *cq)
       : AsyncCallData (service), stub_ (stub), cq_ (cq), writer_ (nullptr),
-        reader_ (nullptr)
+        reader_ (nullptr), done_ (false), drained_ (false)
   {
+    g_atomic_int_inc (&client_calls_live);
     RunState ();
+  }
+
+  /** @brief Destructor of AsyncCallDataClient */
+  ~AsyncCallDataClient ()
+  {
+    if (!drained_)
+      g_atomic_int_inc (&client_calls_unfinished);
+    g_atomic_int_add (&client_calls_live, -1);
+  }
+
+  /** @brief tell that the completion queue of this call has been drained */
+  void markDrained ()
+  {
+    drained_ = true;
+  }
+
+  /** @brief tell whether the last batch of this call has completed */
+  bool isDone ()
+  {
+    return done_;
+  }
+
+  /** @brief cancel the call so that its pending batch completes */
+  void cancel ()
+  {
+    ctx_.TryCancel ();
   }
 
   /** @brief implemented RunState () of AsyncCallDataClient */
@@ -425,6 +456,9 @@ class AsyncCallDataClient : public AsyncCallData
           service_->parse_tensors (rpc_tensors_);
         state_ = FINISH;
       } else {
+        /* nothing was read or written; no batch is outstanding */
+        state_ = DESTROY;
+        done_ = true;
         return;
       }
     }
@@ -454,14 +488,15 @@ class AsyncCallDataClient : public AsyncCallData
         }
       }
     } else if (state_ == FINISH) {
-      Status status;
-
+      /* the completion queue fills status_ when the batch below completes */
       if (reader_.get () != nullptr)
-        reader_->Finish (&status, this);
+        reader_->Finish (&status_, this);
       if (writer_.get () != nullptr)
-        writer_->Finish (&status, this);
+        writer_->Finish (&status_, this);
 
-      delete this;
+      state_ = DESTROY;
+    } else {
+      done_ = true;
     }
   }
 
@@ -472,6 +507,10 @@ class AsyncCallDataClient : public AsyncCallData
 
   std::unique_ptr<ClientAsyncWriter<Tensors>> writer_;
   std::unique_ptr<ClientAsyncReader<Tensors>> reader_;
+
+  Status status_;
+  bool done_;
+  bool drained_;
 };
 
 /** @brief gRPC client thread */
@@ -506,29 +545,44 @@ void
 AsyncServiceImplProtobuf::_client_thread ()
 {
   CompletionQueue cq;
+  void *tag;
+  bool ok;
 
   /* spawn a new instance to serve new clients */
-  new AsyncCallDataClient (this, client_stub_.get (), &cq);
+  AsyncCallDataClient *call = new AsyncCallDataClient (this, client_stub_.get (), &cq);
 
   /* until the stop is called */
-  while (!stop_) {
-    void *tag;
-    bool ok;
-
+  while (!stop_ && !call->isDone ()) {
     /* 10 msec deadline to wait the next event */
     gpr_timespec deadline = gpr_time_add (
         gpr_now (GPR_CLOCK_MONOTONIC), gpr_time_from_millis (10, GPR_TIMESPAN));
 
-    switch (cq.AsyncNext (&tag, &ok, deadline)) {
-      case CompletionQueue::GOT_EVENT:
-        static_cast<AsyncCallDataClient *> (tag)->RunState (ok);
-        if (ok == false)
-          return;
-        break;
-      default:
-        break;
-    }
+    if (cq.AsyncNext (&tag, &ok, deadline) == CompletionQueue::GOT_EVENT)
+      static_cast<AsyncCallDataClient *> (tag)->RunState (ok);
   }
+
+  /* the queue and the call data outlive every batch they are given to */
+  call->cancel ();
+  cq.Shutdown ();
+  while (cq.Next (&tag, &ok))
+    ;
+
+  call->markDrained ();
+  delete call;
+}
+
+/**
+ * @brief Report the client calls of this sub-plugin, for the unit tests.
+ * @param[out] live the calls that are still allocated
+ * @param[out] unfinished the calls that were freed before their queue was drained
+ */
+extern "C" void
+nnstreamer_grpc_get_client_call_stats (gint *live, gint *unfinished)
+{
+  if (live)
+    *live = g_atomic_int_get (&client_calls_live);
+  if (unfinished)
+    *unfinished = g_atomic_int_get (&client_calls_unfinished);
 }
 
 /** @brief create gRPC/Protobuf instance */
