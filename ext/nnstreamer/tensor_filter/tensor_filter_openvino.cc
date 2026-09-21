@@ -147,6 +147,37 @@ TensorFilterOpenvino::isAcclDevSupported (std::vector<std::string> &devsVector, 
 }
 
 /**
+ * @brief Resolve the name to be used as the key of an Inference Engine blob map
+ * @param modelNames the tensor names declared by the given model
+ * @param info the tensor info configured for this instance
+ * @param nth the index of the tensor
+ * @param[out] name the resolved name
+ * @return true if a name is resolved, false if there is none to use
+ *
+ * A name given by the user has the priority. The framework, however, keeps the
+ * tensor info of the user intact when it is compatible with the model, and the
+ * comparison it uses ignores the names. A user who configures the dimensions
+ * and the types only, therefore, leaves the names unset, in which case the
+ * names of the model are the ones to use.
+ */
+bool
+TensorFilterOpenvino::getBlobName (const std::vector<std::string> &modelNames,
+    const GstTensorInfo *info, guint nth, std::string &name)
+{
+  if (info->name != NULL) {
+    name = info->name;
+    return true;
+  }
+
+  if (nth >= modelNames.size ())
+    return false;
+
+  name = modelNames[nth];
+
+  return true;
+}
+
+/**
  * @brief Get a path where the model file in XML format is located
  * @return a std::string of the path
  */
@@ -174,6 +205,8 @@ TensorFilterOpenvino::getPathModelBin ()
  */
 TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelXml, std::string pathModelBin)
 {
+  guint i = 0;
+
   this->_pathModelXml = pathModelXml;
   this->_pathModelBin = pathModelBin;
   (this->_networkReaderCNN).ReadNetwork (this->_pathModelXml);
@@ -181,6 +214,24 @@ TensorFilterOpenvino::TensorFilterOpenvino (std::string pathModelXml, std::strin
   this->_networkCNN = (this->_networkReaderCNN).getNetwork ();
   this->_inputsDataMap = (this->_networkCNN).getInputsInfo ();
   this->_outputsDataMap = (this->_networkCNN).getOutputsInfo ();
+
+  /** The names and the descriptors of the tensors are what the model tells,
+   *  and invoke () needs them whether the dimension callbacks run or not. */
+  for (auto &eachInput : this->_inputsDataMap) {
+    if (i >= NNS_TENSOR_SIZE_LIMIT)
+      break;
+    this->_inputTensorNames.push_back (eachInput.second->name ());
+    this->_inputTensorDescs[i++] = eachInput.second->getTensorDesc ();
+  }
+
+  i = 0;
+  for (auto &eachOutput : this->_outputsDataMap) {
+    if (i >= NNS_TENSOR_SIZE_LIMIT)
+      break;
+    this->_outputTensorNames.push_back (eachOutput.second->getName ());
+    this->_outputTensorDescs[i++] = eachOutput.second->getTensorDesc ();
+  }
+
   this->_isLoaded = false;
   this->_hw = ACCL_NONE;
 }
@@ -417,7 +468,13 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties *prop,
 
   num_tensors = (prop->input_meta).num_tensors;
   for (i = 0; i < num_tensors; ++i) {
+    std::string name;
+
     info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->input_meta, i);
+    if (!getBlobName (this->_inputTensorNames, info, i, name)) {
+      ml_loge ("Failed to get the name of the input tensor: %u", i);
+      return RetEInval;
+    }
 
     InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
         this->_inputTensorDescs[i], &(input[i]), info->type);
@@ -425,21 +482,27 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties *prop,
       ml_loge ("Failed to create a blob for the input tensor: %u", i);
       return RetEInval;
     }
-    inBlobMap.insert (make_pair (std::string (info->name), blob));
+    inBlobMap.insert (make_pair (name, blob));
   }
   this->_inferRequest.SetInput (inBlobMap);
 
   num_tensors = (prop->output_meta).num_tensors;
   for (i = 0; i < num_tensors; ++i) {
+    std::string name;
+
     info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->output_meta, i);
+    if (!getBlobName (this->_outputTensorNames, info, i, name)) {
+      ml_loge ("Failed to get the name of the output tensor: %u", i);
+      return RetEInval;
+    }
 
     InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
         this->_outputTensorDescs[i], &(output[i]), info->type);
-    outBlobMap.insert (make_pair (std::string (info->name), blob));
     if (blob == nullptr) {
       ml_loge ("Failed to create a blob for the output tensor: %u", i);
       return RetEInval;
     }
+    outBlobMap.insert (make_pair (name, blob));
   }
   this->_inferRequest.SetOutput (outBlobMap);
 
