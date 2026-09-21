@@ -120,12 +120,15 @@ typedef void (*NNS_custom_destroy_notify) (void *data);
 /**
  * @brief Custom Filter Class
  *
- * Note that every function pointer is MANDATORY!
+ * Note that every function pointer is MANDATORY unless its own description
+ * says otherwise. A custom filter is refused unless it provides initfunc,
+ * exactly one of invoke and allocate_invoke, and either setInputDim alone or
+ * both getInputDim and getOutputDim.
  */
 struct _NNStreamer_custom_class
 {
   NNS_custom_init_func initfunc; /**< called before any other callbacks from tensor_filter_custom.c */
-  NNS_custom_exit_func exitfunc; /**< will not call other callbacks after this call */
+  NNS_custom_exit_func exitfunc; /**< will not call other callbacks after this call. a filter whose initfunc allocates nothing may omit it. */
   NNS_custom_get_input_dimension getInputDim; /**< a custom filter is required to provide input tensor dimension unless setInputdim is defined. */
   NNS_custom_get_output_dimension getOutputDim; /**< a custom filter is required to provide output tensor dimension unless setInputDim is defined. */
   NNS_custom_set_input_dimension setInputDim; /**< without getI/O-Dim, this allows framework to set input dimension and get output dimension from the custom filter according to the input dimension */
