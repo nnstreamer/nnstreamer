@@ -527,8 +527,9 @@ ov_open (const GstTensorFilterProperties *prop, void **private_data)
   std::string model_path_bin;
   guint num_models_xml = 0;
   guint num_models_bin = 0;
-  TensorFilterOpenvino *tfOv;
+  TensorFilterOpenvino *tfOv = nullptr;
   accl_hw accelerator;
+  int ret;
 
   accelerator = parse_accl_hw (prop->accl_str, openvino_accl_support, NULL, NULL);
 #ifndef __OPENVINO_CPU_EXT__
@@ -604,10 +605,25 @@ ov_open (const GstTensorFilterProperties *prop, void **private_data)
     tfOv = nullptr;
   }
 
-  tfOv = new TensorFilterOpenvino (model_path_xml, model_path_bin);
+  try {
+    tfOv = new TensorFilterOpenvino (model_path_xml, model_path_bin);
+    ret = tfOv->loadModel (accelerator);
+  } catch (const std::exception &e) {
+    /** tfOv is still a nullptr if the constructor is the one that threw */
+    ml_loge ("Failed to open the given model: %s", e.what ());
+    ret = TensorFilterOpenvino::RetEInval;
+  }
+
+  if (ret != TensorFilterOpenvino::RetSuccess) {
+    delete tfOv;
+    *private_data = NULL;
+
+    return ret;
+  }
+
   *private_data = tfOv;
 
-  return tfOv->loadModel (accelerator);
+  return ret;
 }
 
 /**

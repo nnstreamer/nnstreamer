@@ -612,6 +612,115 @@ TEST (tensorFilterOpenvino, openAndClose2_n)
 }
 
 /**
+ * @brief A negative test case checking that a failed open leaves no private data
+ *
+ * The framework does not call the close callback for an open that has failed,
+ * so the sub-plugin is the one that has to release what it has allocated.
+ */
+TEST (tensorFilterOpenvino, openAndClose3_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  gchar *test_model;
+  gint ret;
+
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  const gchar *model_files[] = {
+    test_model,
+    NULL,
+  };
+
+  /* prepare properties */
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+  /* No Movidius device is attached to the machine running this test */
+  prop->accl_str = "true:npu.movidius";
+
+  ret = fw->open (prop, &private_data);
+  EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
+  EXPECT_TRUE (private_data == NULL);
+
+  /** Closing is what the framework skips for an open that has failed, so the
+   *  failed path is left alone and valgrind still sees what it leaks. */
+  if (ret == TensorFilterOpenvino::RetSuccess)
+    fw->close (prop, &private_data);
+
+  g_free (prop);
+  g_free (test_model);
+}
+
+/**
+ * @brief A negative test case for the open callback with an unreadable model
+ *
+ * Reading the model is what throws here, and an exception that leaves a C
+ * callback of the framework terminates the process instead of failing the open.
+ */
+TEST (tensorFilterOpenvino, openAndClose4_n)
+{
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  gchar *tmp_dir;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  gint ret = TensorFilterOpenvino::RetSuccess;
+
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
+  tmp_dir = g_dir_make_tmp ("nnstreamer_openvino_XXXXXX", NULL);
+  ASSERT_TRUE (tmp_dir != NULL);
+  test_model_xml = g_build_filename (tmp_dir, "invalid.xml", NULL);
+  test_model_bin = g_build_filename (tmp_dir, "invalid.bin", NULL);
+  ASSERT_TRUE (g_file_set_contents (test_model_xml, "not a model at all", -1, NULL));
+  ASSERT_TRUE (g_file_set_contents (test_model_bin, "", 0, NULL));
+
+  const gchar *model_files[] = {
+    test_model_xml,
+    test_model_bin,
+  };
+
+  /* prepare properties */
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 2;
+  prop->accl_str = "true:npu.movidius";
+
+  /** Nothing the Inference Engine throws may leave the callback, and catching
+   *  it here is also what leaves the rest of the case to run */
+  EXPECT_NO_THROW (ret = fw->open (prop, &private_data));
+  EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
+  EXPECT_TRUE (private_data == NULL);
+
+  g_free (prop);
+  g_remove (test_model_xml);
+  g_remove (test_model_bin);
+  g_rmdir (tmp_dir);
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+  g_free (tmp_dir);
+}
+
+/**
  * @brief Test cases for getInputTensorDim and getOutputTensorDim callbacks
  */
 TEST (tensorFilterOpenvino, getTensorDim0)
