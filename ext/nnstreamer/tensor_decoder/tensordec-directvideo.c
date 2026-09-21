@@ -291,12 +291,23 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
   return gst_caps_simplify (caps);
 }
 
-/** @brief get video output buffer size */
-static size_t
-_get_video_xraw_bufsize (const tensor_dim dim, gsize data_size)
+/**
+ * @brief get video output buffer size
+ * @return FALSE if the dimension gives no video frame, or a row or a frame too large to address
+ */
+static gboolean
+_get_video_xraw_bufsize (const tensor_dim dim, gsize data_size, gsize * size)
 {
+  gsize row;
+
+  /* The size of a row is kept within 32 bits, as dv_decode () computes it. */
+  if (!g_size_checked_mul (&row, dim[0], dim[1]) || row > G_MAXINT32)
+    return FALSE;
+
   /* dim[0] is bpp and there is zeropadding only when dim[0]%4 > 0 */
-  return (size_t) ((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2] * data_size;
+  row = (row + 3) / 4 * 4;
+  return g_size_checked_mul (size, row, dim[2]) &&
+      g_size_checked_mul (size, *size, data_size) && *size > 0;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -313,8 +324,9 @@ dv_getTransformSize (void **pdata, const GstTensorsConfig * config,
   UNUSED (size);
   UNUSED (othercaps);
 
-  if (direction == GST_PAD_SINK)
-    transform_size = _get_video_xraw_bufsize (dim, data_size);
+  if (direction == GST_PAD_SINK &&
+      !_get_video_xraw_bufsize (dim, data_size, &transform_size))
+    transform_size = 0;
 
   return transform_size;
 }
@@ -330,10 +342,23 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   const uint32_t *dim = &(config->info.info[0].dimension[0]);
   gsize data_size = gst_tensor_get_element_size (config->info.info[0].type);
 
-  size_t size = _get_video_xraw_bufsize (dim, data_size);
+  gsize size;
   UNUSED (pdata);
 
   g_assert (outbuf);
+  /* The frame in the tensor is not larger than size, so it does not wrap. */
+  if (!_get_video_xraw_bufsize (dim, data_size, &size) ||
+      input->size != (gsize) dim[0] * dim[1] * dim[2] * data_size) {
+    ml_loge
+        ("tensor_decoder::direct_video decodes a tensor of a single video frame, which is channel %u x width %u x height %u x %"
+        G_GSIZE_FORMAT
+        " byte(s) with the given dimension, but the incoming tensor is %"
+        G_GSIZE_FORMAT
+        " bytes. Note that it supports neither a tensor of rank 2 or lower nor a tensor with multiple frames.",
+        dim[0], dim[1], dim[2], data_size, input->size);
+    return GST_FLOW_ERROR;
+  }
+
   if (gst_buffer_get_size (outbuf) > 0 && gst_buffer_get_size (outbuf) != size) {
     gst_buffer_set_size (outbuf, size);
   }
