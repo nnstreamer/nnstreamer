@@ -383,7 +383,7 @@ if gtest_dep.found()
 
     unittest_filter_custom = executable('unittest_filter_custom',
       join_paths('nnstreamer_filter_custom', 'unittest_filter_custom.cc'),
-      dependencies: [nnstreamer_unittest_deps],
+      dependencies: [nnstreamer_unittest_deps, libdl_dep],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )

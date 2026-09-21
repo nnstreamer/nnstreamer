@@ -8,10 +8,15 @@
  */
 
 #include <gtest/gtest.h>
+#include <dlfcn.h>
+#include <errno.h>
 #include <glib/gstdio.h>
+#include <gmodule.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
+#include <nnstreamer_conf.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 #include <stdlib.h>
@@ -1786,6 +1791,422 @@ TEST (tensorFilterOutputCombination, invalidDynamicInfo_n)
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
 
   _out_combi_teardown (h);
+}
+
+/**
+ * @brief Path of a file the test build has put under its 'tests' directory.
+ */
+static gchar *
+_b3_build_path (const gchar *subdir, const gchar *file_name)
+{
+  const gchar *build_root = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  g_autofree gchar *fallback = NULL;
+
+  if (build_root == NULL) {
+    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+    fallback = g_build_filename (root_path ? root_path : "..", "build", NULL);
+    build_root = fallback;
+  }
+
+  if (subdir)
+    return g_build_filename (build_root, "tests", subdir, file_name, NULL);
+
+  return g_build_filename (build_root, "tests", file_name, NULL);
+}
+
+/**
+ * @brief Path of a custom filter library built for the open-failure cases.
+ */
+static gchar *
+_b3_model_path (const gchar *variant)
+{
+  g_autofree gchar *lib_name = g_strdup_printf (
+      "libnnscustom_open_fail_%s%s", variant, NNSTREAMER_SO_FILE_EXTENSION);
+
+  return _b3_build_path ("nnstreamer_example", lib_name);
+}
+
+/**
+ * @brief Fill the properties the custom sub-plugin reads for a single model file.
+ */
+static void
+_b3_set_prop (GstTensorFilterProperties *prop, const gchar **models)
+{
+  memset (prop, 0, sizeof (GstTensorFilterProperties));
+  prop->fwname = "custom";
+  prop->model_files = models;
+  prop->num_models = models[0] ? 1 : 0;
+}
+
+/**
+ * @brief Hold a reference to a custom filter library and its call counters.
+ */
+typedef struct {
+  GModule *module;
+  guint *init_count;
+  guint *exit_count;
+} b3_lib_counters;
+
+/**
+ * @brief Keep the library loaded while a test reads the counters it exports.
+ * @details Each variant names its counters after itself: a custom filter is loaded
+ *          into the global symbol scope, where equally named symbols of the variants
+ *          would interpose each other and make the counts depend on the test order.
+ */
+static gboolean
+_b3_counters_open (b3_lib_counters *counters, const gchar *path, const gchar *variant)
+{
+  g_autofree gchar *init_name
+      = g_strdup_printf ("nnscustom_open_fail_init_count_%s", variant);
+  g_autofree gchar *exit_name
+      = g_strdup_printf ("nnscustom_open_fail_exit_count_%s", variant);
+  gpointer init_sym, exit_sym;
+
+  counters->module = g_module_open (path, (GModuleFlags) 0);
+  if (!counters->module)
+    return FALSE;
+
+  if (!g_module_symbol (counters->module, init_name, &init_sym)
+      || !g_module_symbol (counters->module, exit_name, &exit_sym)) {
+    g_module_close (counters->module);
+    return FALSE;
+  }
+
+  counters->init_count = (guint *) init_sym;
+  counters->exit_count = (guint *) exit_sym;
+  return TRUE;
+}
+
+/**
+ * @brief Release the reference taken by _b3_counters_open().
+ */
+static void
+_b3_counters_close (b3_lib_counters *counters)
+{
+  g_module_close (counters->module);
+}
+
+/**
+ * @brief Check whether a library is loaded, without loading it.
+ * @details This answers for the process, not for one caller: it reports the
+ * library as loaded while anything else still holds a reference to it.
+ */
+static gboolean
+_b3_is_loaded (const gchar *path)
+{
+  void *handle = dlopen (path, RTLD_LAZY | RTLD_NOLOAD);
+
+  if (handle == NULL)
+    return FALSE;
+
+  dlclose (handle);
+  return TRUE;
+}
+
+/**
+ * @brief Open a custom filter library that the sub-plugin must refuse after loading it.
+ * @details The sub-plugin has to undo what it has done so far: the handle is left
+ *          empty and whatever initfunc returned is released by exitfunc (#4920 B3).
+ */
+static void
+_b3_expect_refused_open (const gchar *variant, gboolean expect_init)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom");
+  GstTensorFilterProperties prop;
+  b3_lib_counters counters;
+  const gchar *models[2];
+  guint init_before, exit_before;
+  void *data = NULL;
+  g_autofree gchar *path = _b3_model_path (variant);
+
+  ASSERT_TRUE (sp != nullptr);
+  ASSERT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS));
+  ASSERT_TRUE (_b3_counters_open (&counters, path, variant));
+
+  init_before = *counters.init_count;
+  exit_before = *counters.exit_count;
+
+  models[0] = path;
+  models[1] = NULL;
+  _b3_set_prop (&prop, models);
+
+  EXPECT_EQ (sp->open (&prop, &data), -EINVAL);
+  EXPECT_TRUE (data == nullptr);
+  EXPECT_EQ (*counters.init_count - init_before, expect_init ? 1U : 0U);
+  EXPECT_EQ (*counters.exit_count - exit_before, expect_init ? 1U : 0U);
+
+  _b3_counters_close (&counters);
+
+  /**
+   * The counters cannot tell whether the module itself has been closed, because
+   * the reference above keeps the library loaded. Repeat the refused open with
+   * no reference of our own: the library is then left loaded if, and only if,
+   * the sub-plugin has not closed the module.
+   */
+  data = NULL;
+
+  EXPECT_EQ (sp->open (&prop, &data), -EINVAL);
+  EXPECT_TRUE (data == nullptr);
+  EXPECT_TRUE (_b3_is_loaded (path) == FALSE)
+      << "the refused open left " << variant
+      << " loaded: the sub-plugin did not close the module, or the loader was told "
+         "to keep every module resident";
+}
+
+/**
+ * @brief Open a custom filter library with no initfunc.
+ */
+TEST (tensorFilterCustomOpenFail, missingInit_n)
+{
+  _b3_expect_refused_open ("no_init", FALSE);
+}
+
+/**
+ * @brief Open a custom filter library with no input/output dimension callback.
+ */
+TEST (tensorFilterCustomOpenFail, missingDimension_n)
+{
+  _b3_expect_refused_open ("no_dim", TRUE);
+}
+
+/**
+ * @brief Open a custom filter library with no invoke callback.
+ */
+TEST (tensorFilterCustomOpenFail, missingInvoke_n)
+{
+  _b3_expect_refused_open ("no_invoke", TRUE);
+}
+
+/**
+ * @brief Open a custom filter library that does not exist.
+ */
+TEST (tensorFilterCustomOpenFail, invalidPath_n)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom");
+  GstTensorFilterProperties prop;
+  const gchar *models[2];
+  void *data = NULL;
+  g_autofree gchar *path = _b3_model_path ("not_built");
+
+  ASSERT_TRUE (sp != nullptr);
+
+  models[0] = path;
+  models[1] = NULL;
+  _b3_set_prop (&prop, models);
+
+  EXPECT_EQ (sp->open (&prop, &data), -EINVAL);
+  EXPECT_TRUE (data == nullptr);
+}
+
+/**
+ * @brief Open a custom filter library that gives both invoke callbacks.
+ */
+TEST (tensorFilterCustomOpenFail, bothInvoke_n)
+{
+  _b3_expect_refused_open ("both_invoke", TRUE);
+}
+
+/**
+ * @brief Close a custom filter library that has no exitfunc.
+ * @details exitfunc is not one of the callbacks the sub-plugin requires, so a
+ * library without it is opened and has to be closed without calling it.
+ */
+TEST (tensorFilterCustomOpenFail, closeWithoutExit)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom");
+  GstTensorFilterProperties prop;
+  const gchar *models[2];
+  void *data = NULL;
+  g_autofree gchar *path = _b3_model_path ("no_exit");
+
+  ASSERT_TRUE (sp != nullptr);
+  ASSERT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS));
+
+  models[0] = path;
+  models[1] = NULL;
+  _b3_set_prop (&prop, models);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  sp->close (&prop, &data);
+  EXPECT_TRUE (data == nullptr);
+}
+
+/**
+ * @brief Open a file that is not a loadable library.
+ */
+TEST (tensorFilterCustomOpenFail, notALibrary_n)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorFilterProperties prop;
+  const gchar *models[2];
+  void *data = NULL;
+  g_autofree gchar *path = NULL;
+
+  ASSERT_TRUE (sp != nullptr);
+
+  if (root_path == NULL)
+    root_path = "..";
+
+  path = g_build_filename (root_path, "tests", "test_models", "labels", "labels.txt", NULL);
+  ASSERT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS));
+
+  models[0] = path;
+  models[1] = NULL;
+  _b3_set_prop (&prop, models);
+
+  EXPECT_EQ (sp->open (&prop, &data), -EINVAL);
+  EXPECT_TRUE (data == nullptr);
+}
+
+/**
+ * @brief Open a library that is not a custom filter.
+ */
+TEST (tensorFilterCustomOpenFail, missingSymbol_n)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom");
+  GstTensorFilterProperties prop;
+  const gchar *models[2];
+  void *data = NULL;
+  g_autofree gchar *lib_name = g_strdup_printf (
+      "libnnstreamer_unittest_util%s", NNSTREAMER_SO_FILE_EXTENSION);
+  g_autofree gchar *path = _b3_build_path (NULL, lib_name);
+
+  ASSERT_TRUE (sp != nullptr);
+  ASSERT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS));
+
+  models[0] = path;
+  models[1] = NULL;
+  _b3_set_prop (&prop, models);
+
+  EXPECT_EQ (sp->open (&prop, &data), -EINVAL);
+  EXPECT_TRUE (data == nullptr);
+}
+
+/**
+ * @brief Open the custom sub-plugin without a model file.
+ */
+TEST (tensorFilterCustomOpenFail, noModel_n)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom");
+  GstTensorFilterProperties prop;
+  const gchar *models[2] = { NULL, NULL };
+  void *data = NULL;
+
+  ASSERT_TRUE (sp != nullptr);
+
+  _b3_set_prop (&prop, models);
+
+  EXPECT_EQ (sp->open (&prop, &data), -EINVAL);
+  EXPECT_TRUE (data == nullptr);
+}
+
+/**
+ * @brief Open a handle that is already open.
+ */
+TEST (tensorFilterCustomOpenFail, alreadyOpened_n)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom");
+  GstTensorFilterProperties prop;
+  const gchar *models[2];
+  void *data = NULL;
+  g_autofree gchar *path = _b3_model_path ("ok");
+
+  ASSERT_TRUE (sp != nullptr);
+  ASSERT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS));
+
+  models[0] = path;
+  models[1] = NULL;
+  _b3_set_prop (&prop, models);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_EQ (sp->open (&prop, &data), -EINVAL);
+
+  sp->close (&prop, &data);
+  EXPECT_TRUE (data == nullptr);
+}
+
+/**
+ * @brief Open a working custom filter library with the handle a refused open has left behind.
+ */
+TEST (tensorFilterCustomOpenFail, reopenAfterFailure)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom");
+  const gchar *variants[] = { "no_init", "no_dim", "no_invoke" };
+  GstTensorFilterProperties prop;
+  const gchar *models[2];
+  void *data = NULL;
+  g_autofree gchar *good_path = _b3_model_path ("ok");
+
+  ASSERT_TRUE (sp != nullptr);
+  ASSERT_TRUE (g_file_test (good_path, G_FILE_TEST_EXISTS));
+
+  models[1] = NULL;
+
+  for (guint i = 0; i < G_N_ELEMENTS (variants); i++) {
+    g_autofree gchar *path = _b3_model_path (variants[i]);
+
+    ASSERT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS));
+
+    models[0] = path;
+    _b3_set_prop (&prop, models);
+    ASSERT_EQ (sp->open (&prop, &data), -EINVAL);
+
+    models[0] = good_path;
+    _b3_set_prop (&prop, models);
+    EXPECT_EQ (sp->open (&prop, &data), 0);
+    EXPECT_TRUE (data != nullptr);
+
+    sp->close (&prop, &data);
+    EXPECT_TRUE (data == nullptr);
+  }
+}
+
+/**
+ * @brief Run a pipeline with a custom filter library that has no invoke callback.
+ * @details This uses a library of its own: the pipeline releases the sub-plugin when
+ *          its own threads tear it down, so a test case that watches the very same
+ *          library would depend on when that happens.
+ */
+TEST (tensorFilterCustomOpenFail, pipelineMissingInvoke_n)
+{
+  GstElement *gstpipe;
+  GError *err = NULL;
+  gchar *pipeline;
+  b3_lib_counters counters;
+  guint init_before, exit_before;
+  g_autofree gchar *path = _b3_model_path ("pipeline");
+
+  ASSERT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS));
+  ASSERT_TRUE (_b3_counters_open (&counters, path, "pipeline"));
+  init_before = *counters.init_count;
+  exit_before = *counters.exit_count;
+
+  pipeline = g_strdup_printf ("videotestsrc num-buffers=3 ! videoconvert ! "
+                              "video/x-raw,width=16,height=16,format=RGB,framerate=10/1 ! "
+                              "tensor_converter ! tensor_filter framework=custom model=%s ! "
+                              "tensor_sink sync=false",
+      path);
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (err == nullptr);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  /* The pipeline keeps retrying the refused open until it is stopped. */
+  setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+
+  EXPECT_GE (*counters.init_count - init_before, 1U)
+      << "the pipeline did not reach the custom filter, so it failed for another reason";
+  EXPECT_EQ (*counters.exit_count - exit_before, *counters.init_count - init_before)
+      << "an open the pipeline retried did not release what initfunc returned";
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  _b3_counters_close (&counters);
 }
 
 /**

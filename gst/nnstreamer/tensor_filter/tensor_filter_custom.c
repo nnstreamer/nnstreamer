@@ -57,6 +57,31 @@ struct _internal_data
 typedef struct _internal_data internal_data;
 
 /**
+ * @brief Release what custom_loadlib() has set up, including the loaded library.
+ * @param prop The properties of parent object
+ * @param[in,out] private_data The handle to release, set to NULL on return
+ * @param run_exit TRUE if initfunc has been called, to let exitfunc release its result.
+ * @note The methods may not be looked up yet, so do not assume they are there.
+ */
+static void
+custom_unloadlib (const GstTensorFilterProperties * prop, void **private_data,
+    gboolean run_exit)
+{
+  internal_data *ptr = *private_data;
+
+  g_return_if_fail (ptr != NULL);
+
+  /* Hand out the empty handle first: the callbacks go away with the module. */
+  *private_data = NULL;
+
+  if (run_exit && ptr->methods && ptr->methods->exitfunc)
+    ptr->methods->exitfunc (ptr->customFW_private_data, prop);
+
+  g_module_close (ptr->module);
+  g_free (ptr);
+}
+
+/**
  * @brief Load the custom library. Will skip loading if it's already loaded.
  * @return 0 if successfully loaded. 1 if skipped (already loaded). -1 if error
  */
@@ -103,9 +128,7 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
 
   if (!g_module_symbol (ptr->module, "NNStreamer_custom", &custom_cls)) {
     ml_loge ("tensor_filter_custom:loadlib error: %s\n", g_module_error ());
-    g_module_close (ptr->module);
-    g_free (ptr);
-    *private_data = NULL;
+    custom_unloadlib (prop, private_data, FALSE);
     return -EINVAL;
   }
 
@@ -114,6 +137,7 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
   if (NULL == ptr->methods->initfunc) {
     ml_loge ("tensor_filter_custom (%s) requires a valid 'initfunc'.",
         prop->model_files[0]);
+    custom_unloadlib (prop, private_data, FALSE);
     return -EINVAL;
   }
 
@@ -128,6 +152,7 @@ custom_loadlib (const GstTensorFilterProperties * prop, void **private_data)
   ml_loge
       ("tensor_filter_custom (%s) requires input/output dimension callbacks.",
       prop->model_files[0]);
+  custom_unloadlib (prop, private_data, TRUE);
   return -EINVAL;
 }
 
@@ -153,6 +178,7 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
   ml_loge
       ("An invoke callback is not given or both invoke functions are given. Cannot load %s.\n",
       prop->model_files[0]);
+  custom_unloadlib (prop, private_data, TRUE);
   return -EINVAL;
 }
 
@@ -255,7 +281,8 @@ custom_close (const GstTensorFilterProperties * prop, void **private_data)
 
   g_return_if_fail (ptr != NULL);
 
-  ptr->methods->exitfunc (ptr->customFW_private_data, prop);
+  if (ptr->methods->exitfunc)
+    ptr->methods->exitfunc (ptr->customFW_private_data, prop);
   g_free (ptr);
   *private_data = NULL;
 }

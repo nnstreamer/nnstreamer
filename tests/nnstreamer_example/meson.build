@@ -100,6 +100,25 @@ library('nnscustom_framecounter',
   install_dir: customfilter_install_dir
 )
 
+# These custom filters are used in unittest_filter_custom. 'pipeline' repeats what
+# 'no_invoke' does on purpose: a test case that runs a pipeline needs a library of its
+# own, because the pipeline releases the sub-plugin on its own threads.
+foreach variant : [['ok', []],
+    ['no_init', ['-DNNSCUSTOM_OPEN_FAIL_NO_INIT']],
+    ['no_dim', ['-DNNSCUSTOM_OPEN_FAIL_NO_DIM']],
+    ['no_invoke', ['-DNNSCUSTOM_OPEN_FAIL_NO_INVOKE']],
+    ['both_invoke', ['-DNNSCUSTOM_OPEN_FAIL_BOTH_INVOKE']],
+    ['no_exit', ['-DNNSCUSTOM_OPEN_FAIL_NO_EXIT']],
+    ['pipeline', ['-DNNSCUSTOM_OPEN_FAIL_NO_INVOKE']]]
+  library('nnscustom_open_fail_' + variant[0],
+    join_paths('custom_example_open_fail', 'nnscustom_open_fail.c'),
+    c_args: variant[1] + ['-DNNSCUSTOM_OPEN_FAIL_VARIANT=' + variant[0]],
+    dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+    install: get_option('install-test'),
+    install_dir: customfilter_install_dir
+  )
+endforeach
+
 if tensorrt_support_is_available
   library('nnstreamer_customfilter_tensorrt_reshape',
     join_paths('custom_example_tensorrt', 'nnstreamer_customfilter_example_tensorrt_reshape.cc'),
