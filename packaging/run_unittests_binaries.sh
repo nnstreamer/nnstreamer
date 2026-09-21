@@ -51,6 +51,15 @@ while (( "$#" )); do
   esac
 done
 
+# A run that never returns takes its caller's whole budget with it, and the
+# caller then has no verdict at all. UNITTEST_TIMEOUT bounds each binary, in
+# seconds; unset, nothing changes for the callers that have not asked for
+# one. The signal is KILL on purpose: on TERM valgrind still writes its heap
+# and error summaries, which reads to check_valgrind_log.sh as a run that
+# finished and had nothing to report.
+TIMEOUT_CMD=""
+[ -n "${UNITTEST_TIMEOUT}" ] && TIMEOUT_CMD="timeout -s KILL ${UNITTEST_TIMEOUT}"
+
 [[ -z "$input" ]] && echo "$this_script: target should be given" && exit 1
 export NNSTREAMER_SOURCE_ROOT_PATH=$(pwd)
 pushd build
@@ -82,9 +91,9 @@ run_entry() {
   fi
 
   if [[ "$VALGRIND" == "valgrind" ]]; then
-    valgrind -v --suppressions=../tools/debugging/valgrind_suppression --track-origins=yes --tool=memcheck --num-callers=200 --leak-check=full ${entry} --gtest_output="xml:${entry##*/}.xml"
+    ${TIMEOUT_CMD} valgrind -v --suppressions=../tools/debugging/valgrind_suppression --track-origins=yes --tool=memcheck --num-callers=200 --leak-check=full ${entry} --gtest_output="xml:${entry##*/}.xml"
   else
-    ${entry} --gtest_output="xml:${entry##*/}.xml"
+    ${TIMEOUT_CMD} ${entry} --gtest_output="xml:${entry##*/}.xml"
   fi
 
   retval=$?

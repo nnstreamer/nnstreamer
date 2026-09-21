@@ -250,9 +250,14 @@ jobs:
     # forked to exec something else - the plugin scanner - would otherwise open a
     # log of its own and leave it without a summary, which reads as a run that
     # never finished.
+    #
+    # The step runs in a little over two minutes - 103 to 137 s over ten
+    # measured runs - and every stall of it seen so far has been total, so
+    # the budget is what a stall costs rather than what the work needs.
+    # Ten minutes is four times the slowest run and a third of the price.
     - name: SSAT run with Valgrind on decoder-bounding-box
       if: env.rebuild == '1'
-      timeout-minutes: 30
+      timeout-minutes: 10
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && export VALGRIND_OPTS="--leak-check=full --num-callers=200 --child-silent-after-fork=yes --log-file=`pwd`/valgrind-ssat.%p.log" && pushd tests/nnstreamer_decoder_boundingbox && G_SLICE=always-malloc G_DEBUG=gc-friendly ssat -n -p=1 --enable-valgrind --valgrind-suppression ../../tools/debugging/valgrind_suppression --summary summary.txt -cn _n && popd && bash ./tools/debugging/check_valgrind_log.sh --require-output valgrind-ssat.*.log; fi
     - name: SSAT run on filter-litert
       if: env.rebuild == '1'
@@ -336,6 +341,13 @@ jobs:
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.invalidModel_n"
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.zeroTokenGenerationSync_p"
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.zeroTokenGenerationAsync_p"
+        # A binary that stops coming back would otherwise take this step's
+        # whole budget and leave no verdict at all. Bounded, it costs its
+        # own run and the checker names it as a run that never finished.
+        # Twelve minutes sits above the slowest binary measured here - 461 s
+        # for unittest_mqtt_w_helper, 277 s for unittest_filter_litert - and
+        # below what the slowest whole pass leaves of the 30 above.
+        export UNITTEST_TIMEOUT=720
         GTEST_FILTER="-${skip_cases}" ./packaging/run_unittests_binaries.sh --valgrind --recursive --skip unittest_filter_llamacpp ./tests/ 2>&1 | tee valgrind-tests.log
         GTEST_FILTER="${llamacpp_cases}" ./packaging/run_unittests_binaries.sh --valgrind ./tests/unittest_filter_llamacpp 2>&1 | tee valgrind-llamacpp.log
         checked=0
