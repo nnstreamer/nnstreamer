@@ -44,6 +44,7 @@
 #include "config.h"
 #endif
 
+#include <errno.h>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
 
@@ -372,12 +373,14 @@ gst_tensor_rate_set_property (GObject * object, guint prop_id,
         goto done;
       }
 
+      errno = 0;
       rate_n = (gint) g_ascii_strtoll (strv[0], NULL, 10);
       if (errno == ERANGE || rate_n < 0) {
         ml_loge ("Invalid frame rate numerator in 'framerate'");
         goto done;
       }
 
+      errno = 0;
       rate_d = (gint) g_ascii_strtoll (strv[1], NULL, 10);
       if (errno == ERANGE || rate_d <= 0) {
         ml_loge ("Invalid frame rate denominator in 'framerate'");

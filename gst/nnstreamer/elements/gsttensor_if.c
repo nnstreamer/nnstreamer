@@ -68,6 +68,7 @@
 #include <config.h>
 #endif
 
+#include <errno.h>
 #include <nnstreamer_log.h>
 #include <string.h>
 
@@ -341,6 +342,7 @@ gst_tensor_if_set_property_glist (const GValue * value, GList ** prop_list,
   *prop_list = NULL;
 
   for (i = 0; i < num; i++) {
+    errno = 0;
     val = g_ascii_strtoll (strv[i], NULL, 10);
     if (errno == ERANGE) {
       ml_loge ("Overflow occurred during converting %s to a gint64 value",
@@ -386,6 +388,7 @@ gst_tensor_if_set_property_cv_option (const GValue * value, GList ** prop_list)
       *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (0));
     }
 
+    errno = 0;
     val = g_ascii_strtoll (strv[1], NULL, 10);
     if (errno == ERANGE) {
       ml_loge ("Overflow occurred during converting %s to a gint64 value",
