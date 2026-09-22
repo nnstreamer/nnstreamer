@@ -3305,20 +3305,35 @@ done:
  * @param[in] interpreter The new interpreter to replace.
  * @param[in] replace_callback The callback function to replace with new interpreter.
  * @param[in] free_callback The callback function to destroy the old interpreter.
- * @note The old interpreter is destroyed even if `replace_callback` does not take the new one.
- *       The caller should verify every instance can take the new interpreter before calling this.
- *       Such a check cannot be conclusive while it runs outside this lock: whatever it compares
- *       may change before the callbacks run. Closing that gap needs the callback to report the
- *       refusal so that `free_callback` can be skipped.
+ * @deprecated Use nnstreamer_filter_shared_model_replace_checked() instead.
+ *       `replace_callback` returns nothing here, so an instance that cannot take the new
+ *       interpreter has no way to say so and this function destroys the old interpreter
+ *       anyway. The refusing instance is then left pointing at released memory and touches
+ *       it on its next invoke. Verifying the instances before the call does not close that
+ *       window, because such a check runs outside the lock this function takes and whatever
+ *       it compares may change before the callbacks run.
+ * @note The first call to this function in a process prints a deprecation warning to stderr.
  */
 void
 nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     void *new_interpreter, void (*replace_callback) (void *, void *),
     void (*free_callback) (void *))
 {
+  static gint warned = 0;
   GstTensorFilterSharedModelRepresentation *model_rep;
   GList *itr;
   UNUSED (instance);
+
+  if (g_atomic_int_compare_and_exchange (&warned, 0, 1)) {
+    /* stderr, because the log channel is dlog on Tizen */
+    g_printerr ("*** nnstreamer: nnstreamer_filter_shared_model_replace() is "
+        "deprecated. It destroys the old interpreter even when replace_callback "
+        "refuses the new one, which leaves the refusing instance with a released "
+        "interpreter. Use nnstreamer_filter_shared_model_replace_checked() "
+        "instead. ***\n");
+    ml_logw ("nnstreamer_filter_shared_model_replace() is deprecated, "
+        "use nnstreamer_filter_shared_model_replace_checked() instead.");
+  }
 
   if (!key) {
     ml_loge ("The key should NOT be NULL!");
@@ -3345,6 +3360,101 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
 
 done:
   G_UNLOCK (shared_model_table);
+}
+
+/* extern functions for shared model representation */
+/**
+ * @brief Helper to reload interpreter for instances that has shared key, letting an instance refuse the new interpreter.
+ *        `replace_callback` is called iterating instances in referred list and reports whether the instance took the new interpreter.
+ * @param[in] instance The instance that is sharing the model representation. It is unused; it is kept for symmetry with the other shared model helpers.
+ * @param[in] key The key to find the shared model.
+ * @param[in] new_interpreter The new interpreter to replace.
+ * @param[in] replace_callback The callback function to replace with new interpreter. It returns 0 to take the given interpreter and a non-zero value to refuse it.
+ * @param[in] free_callback The callback function to destroy the old interpreter.
+ * @return 0 if every instance took the new interpreter, a negative errno otherwise.
+ * @retval 0 Every instance took the new interpreter. The old one is destroyed with `free_callback` and the shared model table now holds the new one.
+ * @retval -EINVAL An argument is invalid, or an instance refused the new interpreter. Every instance that had taken it is given the old one back, nothing is destroyed and the table is unchanged. The caller still owns the new interpreter and should destroy it.
+ * @retval -EPERM The shared model representation is not available.
+ * @retval -ENOENT No instance shares the given key.
+ * @retval -EEXIST @a new_interpreter is the interpreter the key already shares. Nothing is destroyed and the table is unchanged. The interpreter belongs to the table, not to the caller, so the caller must NOT destroy it.
+ * @retval -EBUSY An instance refused the new interpreter and an instance that had taken it then refused the old one back. The instances are left split between the two interpreters, so the caller must keep both alive: leaking one is preferable to the use-after-free that releasing either would cause. The caller is also left describing a model that only some of its instances run, since the ones that took @a new_interpreter keep it.
+ * @note -EINVAL, -EPERM and -ENOENT all leave the table as it was and @a new_interpreter with
+ *       the caller, so a caller that only decides whether to destroy it may treat them alike.
+ *       0, -EEXIST and -EBUSY each mean the caller must not destroy it.
+ * @note The callbacks run while the shared model table is locked, so no instance can join or
+ *       leave the key in between. Nothing else is locked, so an instance may still change the
+ *       interpreter it is being handed from another thread; that is what -EBUSY reports.
+ * @warning The lock this function takes is not recursive. Neither callback may call back into
+ *          the shared model helpers, directly or from a destructor they run. A callback that
+ *          locks both the interpreter its instance holds and the one it is handed takes them
+ *          in one order while the new interpreter is offered and in the opposite order while
+ *          the old one is handed back; that is safe only because this lock serialises the two.
+ */
+int
+nnstreamer_filter_shared_model_replace_checked (void *instance, const char *key,
+    void *new_interpreter, int (*replace_callback) (void *, void *),
+    void (*free_callback) (void *))
+{
+  GstTensorFilterSharedModelRepresentation *model_rep;
+  void *old_interpreter;
+  GList *itr, *refused = NULL;
+  int ret = 0;
+  UNUSED (instance);
+
+  if (!key || !new_interpreter || !replace_callback || !free_callback) {
+    ml_loge ("The key, the interpreter and the callbacks should NOT be NULL!");
+    return -EINVAL;
+  }
+
+  G_LOCK (shared_model_table);
+  if (!shared_model_table) {
+    ml_loge ("The shared model representation is not supported properly!");
+    ret = -EPERM;
+    goto done;
+  }
+
+  model_rep = g_hash_table_lookup (shared_model_table, key);
+  if (!model_rep) {
+    ml_logi ("There is no value of the key: %s", key);
+    ret = -ENOENT;
+    goto done;
+  }
+
+  old_interpreter = model_rep->shared_interpreter;
+  if (old_interpreter == new_interpreter) {
+    ml_loge ("The key %s already shares the given interpreter!", key);
+    ret = -EEXIST;
+    goto done;
+  }
+  for (itr = model_rep->referred_list; itr; itr = itr->next) {
+    if (replace_callback (itr->data, new_interpreter) != 0) {
+      refused = itr;
+      break;
+    }
+  }
+
+  if (!refused) {
+    free_callback (old_interpreter);
+    model_rep->shared_interpreter = new_interpreter;
+    goto done;
+  }
+
+  ret = -EINVAL;
+  ml_loge ("An instance of the sharing key %s refused the new interpreter, "
+      "rolling the other instances back.", key);
+
+  /* a callback locking both interpreters sees them in the reverse order of the pass above */
+  for (itr = model_rep->referred_list; itr != refused; itr = itr->next) {
+    if (replace_callback (itr->data, old_interpreter) != 0) {
+      ret = -EBUSY;
+      ml_loge ("An instance of the sharing key %s refused the old interpreter "
+          "as well. Both interpreters are left in use.", key);
+    }
+  }
+
+done:
+  G_UNLOCK (shared_model_table);
+  return ret;
 }
 
 /**
