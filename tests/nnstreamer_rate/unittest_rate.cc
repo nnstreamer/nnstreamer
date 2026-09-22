@@ -8,6 +8,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <errno.h>
 #include <glib.h>
 #include <unittest_util.h>
 
@@ -311,6 +312,54 @@ TEST_F (NNSRateTest, setPropertyInvalidFramerate_n)
   g_free (framerate);
 
   g_object_set (rate, "framerate", "10/0", NULL);
+  g_object_get (rate, "framerate", &framerate, NULL);
+  EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE.c_str ());
+  g_free (framerate);
+
+  g_object_set (rate, "framerate", "-1/1", NULL);
+  g_object_get (rate, "framerate", &framerate, NULL);
+  EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE.c_str ());
+  g_free (framerate);
+}
+
+/**
+ * @brief Test tensor_rate accepts a valid framerate when errno is left at ERANGE
+ */
+TEST_F (NNSRateTest, setPropertyStaleErrno)
+{
+  g_autofree gchar *framerate = nullptr;
+
+  ASSERT_TRUE (setupPipeline ());
+
+  GstElement *rate = getRateElem ();
+  ASSERT_TRUE (rate != NULL);
+
+  errno = ERANGE;
+  g_object_set (rate, "framerate", "15/1", NULL);
+  g_object_get (rate, "framerate", &framerate, NULL);
+  EXPECT_STREQ ("15/1", framerate);
+}
+
+/**
+ * @brief Test tensor_rate refuses a framerate the parser cannot represent (negative)
+ */
+TEST_F (NNSRateTest, setPropertyFramerateOverflow_n)
+{
+  gchar *framerate;
+
+  ASSERT_TRUE (setupPipeline ());
+
+  GstElement *rate = getRateElem ();
+  ASSERT_TRUE (rate != NULL);
+
+  errno = 0;
+  g_object_set (rate, "framerate", "99999999999999999999/1", NULL);
+  g_object_get (rate, "framerate", &framerate, NULL);
+  EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE.c_str ());
+  g_free (framerate);
+
+  errno = 0;
+  g_object_set (rate, "framerate", "1/99999999999999999999", NULL);
   g_object_get (rate, "framerate", &framerate, NULL);
   EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE.c_str ());
   g_free (framerate);
