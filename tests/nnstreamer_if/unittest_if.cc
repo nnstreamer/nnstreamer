@@ -8,6 +8,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <errno.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/app/gstappsrc.h>
@@ -305,6 +306,124 @@ static void
 _count_glib_critical (const gchar *, GLogLevelFlags, const gchar *, gpointer)
 {
   glib_critical_cnt++;
+}
+
+static guint overflow_log_cnt = 0;
+
+/**
+ * @brief Log handler counting the overflow reports of the option parsers
+ */
+static void
+_count_overflow_log (const gchar *, GLogLevelFlags, const gchar *message, gpointer)
+{
+  if (message && g_strrstr (message, "Overflow occurred"))
+    overflow_log_cnt++;
+}
+
+/**
+ * @brief Set the option properties of @a tif and count the overflow reports.
+ */
+static guint
+_set_options_with_errno (GstElement *tif, const gchar *cv_option, const gchar *option, int err)
+{
+  GLogFunc prev_handler;
+
+  overflow_log_cnt = 0;
+  prev_handler = g_log_set_default_handler (_count_overflow_log, NULL);
+
+  errno = err;
+  g_object_set (tif, "then-option", option, NULL);
+  errno = err;
+  g_object_set (tif, "else-option", option, NULL);
+  errno = err;
+  g_object_set (tif, "compared-value-option", cv_option, NULL);
+
+  g_log_set_default_handler (prev_handler, NULL);
+
+  return overflow_log_cnt;
+}
+
+/**
+ * @brief Whether ml_loge () reaches the log domain the handler above hooks.
+ * @details ml_loge () is g_critical () in a Linux distro build, but dlog on
+ *          Tizen and logcat on Android, where the handler counts nothing. The
+ *          decision is made at compile time on purpose: asking the parser under
+ *          test would let a future loss of the overflow report skip the cases
+ *          below instead of failing them.
+ */
+#if defined(__TIZEN__) || defined(__ANDROID__)
+#define ML_LOGE_REACHES_GLIB 0
+#else
+#define ML_LOGE_REACHES_GLIB 1
+#endif
+
+/**
+ * @brief Test that the option parsers of tensor_if ignore a stale errno
+ */
+TEST (tensorIfProp, optionStaleErrno)
+{
+#if !ML_LOGE_REACHES_GLIB
+  GTEST_SKIP () << "ml_loge () does not reach the GLib log domain here";
+#endif
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  gchar *str_val = NULL;
+
+  ASSERT_NE (tif, nullptr);
+
+  EXPECT_EQ (0U, _set_options_with_errno (tif, "1:2:1:1,1", "0,1", ERANGE));
+
+  g_object_get (tif, "then-option", &str_val, NULL);
+  EXPECT_STREQ ("0,1", str_val);
+  g_free (str_val);
+
+  g_object_get (tif, "else-option", &str_val, NULL);
+  EXPECT_STREQ ("0,1", str_val);
+  g_free (str_val);
+
+  g_object_get (tif, "compared-value-option", &str_val, NULL);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal ("1:2:1:1,1", str_val));
+  g_free (str_val);
+
+  gst_object_unref (tif);
+}
+
+/**
+ * @brief Test that the option parsers of tensor_if still report a real overflow (negative)
+ */
+TEST (tensorIfProp, optionOverflow_n)
+{
+#if !ML_LOGE_REACHES_GLIB
+  GTEST_SKIP () << "ml_loge () does not reach the GLib log domain here";
+#endif
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+
+  ASSERT_NE (tif, nullptr);
+
+  EXPECT_EQ (3U, _set_options_with_errno (tif, "1:2:1:1,99999999999999999999",
+                     "99999999999999999999", 0));
+
+  gst_object_unref (tif);
+}
+
+/**
+ * @brief Test that tensor_if keeps a compared-value option it refuses (negative)
+ */
+TEST (tensorIfProp, optionTooManyFields_n)
+{
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  gchar *str_val = NULL;
+
+  ASSERT_NE (tif, nullptr);
+
+  g_object_set (tif, "compared-value-option", "1:2:1:1,1", NULL);
+  /* it should be in the form of 'IDX_DIM0: ... :INDEX_DIM_LAST,nth-tensor' */
+  g_object_set (tif, "compared-value-option", "1:2,3,4", NULL);
+
+  g_object_get (tif, "compared-value-option", &str_val, NULL);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal ("1:2:1:1,1", str_val));
+  g_free (str_val);
+
+  gst_object_unref (tif);
 }
 
 /**
