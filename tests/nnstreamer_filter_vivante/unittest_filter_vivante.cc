@@ -293,6 +293,35 @@ TEST_F (NNStreamerFilterVivanteTest, getDimensionMaxRank)
 }
 
 /**
+ * @brief Keep a model that overstates its rank inside the dimension array
+ * @details
+ * The attributes of a tensor hold VSI_NN_MAX_DIM_NUM sizes, so a rank above
+ * that describes sizes the model does not have. For the input and the output
+ * tensors alike, the sub-plugin takes only the dimensions the tensor can hold
+ * and leaves the rest of the array at 1, rather than copying whatever follows
+ * the size array.
+ */
+TEST_F (NNStreamerFilterVivanteTest, getDimensionOverstatedRank_n)
+{
+  GstTensorsInfo info;
+
+  mock_ovxlib_set_tensor_rank (VSI_NN_MAX_DIM_NUM);
+  mock_ovxlib_set_tensor_rank_overflow (VSI_NN_MAX_DIM_NUM + 4U);
+  gst_tensors_info_init (&info);
+  ASSERT_EQ (sp->open (&prop, &private_data), 0);
+
+  EXPECT_EQ (sp->getInputDimension (&prop, &private_data, &info), 0);
+  ExpectMockDimension (&info, 0);
+  gst_tensors_info_free (&info);
+
+  EXPECT_EQ (sp->getOutputDimension (&prop, &private_data, &info), 0);
+  ExpectMockDimension (&info, 0);
+  gst_tensors_info_free (&info);
+
+  sp->close (&prop, &private_data);
+}
+
+/**
  * @brief Convert the half precision type, which nnstreamer may not support
  */
 TEST_F (NNStreamerFilterVivanteTest, getDimensionTypeFloat16)
@@ -469,6 +498,19 @@ TEST_F (NNStreamerFilterVivanteTest, invokeFail_n)
 }
 
 /**
+ * @brief Release the tensor names of the model when the filter is closed
+ */
+TEST_F (NNStreamerFilterVivanteTest, closeReleasesTensorName)
+{
+  mock_ovxlib_set_tensor_num (3U, 2U);
+  ASSERT_EQ (sp->open (&prop, &private_data), 0);
+
+  freed_tensor_name = 0;
+  sp->close (&prop, &private_data);
+  EXPECT_EQ (freed_tensor_name, 5U);
+}
+
+/**
  * @brief Refuse a model library that cannot be loaded
  */
 TEST_F (NNStreamerFilterVivanteTest, openUnknownLibrary_n)
@@ -476,6 +518,7 @@ TEST_F (NNStreamerFilterVivanteTest, openUnknownLibrary_n)
   SetFilterProperty (MOCK_MODEL_NB, "there_is_no_such_library.so");
 
   EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
 }
 
 /**
@@ -486,6 +529,157 @@ TEST_F (NNStreamerFilterVivanteTest, openIncompleteLibrary_n)
   SetFilterProperty (MOCK_MODEL_NB, MOCK_VIVANTE_MODEL_PARTIAL_PATH);
 
   EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+}
+
+/**
+ * @brief Refuse a model whose network binary cannot be loaded
+ */
+TEST_F (NNStreamerFilterVivanteTest, openBrokenNetwork_n)
+{
+  mock_ovxlib_set_create_fail (1);
+
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 0);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+}
+
+/**
+ * @brief Refuse a model whose input tensor cannot be read
+ */
+TEST_F (NNStreamerFilterVivanteTest, openBrokenInputTensor_n)
+{
+  mock_ovxlib_set_tensor_num (2U, 2U);
+  mock_ovxlib_set_get_tensor_fail (1);
+
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 0);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+}
+
+/**
+ * @brief Refuse a model whose output tensor cannot be read
+ */
+TEST_F (NNStreamerFilterVivanteTest, openBrokenOutputTensor_n)
+{
+  mock_ovxlib_set_tensor_num (2U, 2U);
+  mock_ovxlib_set_get_tensor_fail (3);
+
+  freed_tensor_name = 0;
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 0);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+  /* Two inputs and the first output were named before the second failed. */
+  EXPECT_EQ (freed_tensor_name, 3U);
+}
+
+/**
+ * @brief Report every tensor of a model of more tensors than a buffer holds
+ */
+TEST_F (NNStreamerFilterVivanteTest, openManyTensors)
+{
+  const guint num = NNS_TENSOR_MEMORY_MAX + 1U;
+  GstTensorsInfo info;
+  guint i;
+
+  mock_ovxlib_set_tensor_num (num, num);
+  gst_tensors_info_init (&info);
+  ASSERT_EQ (sp->open (&prop, &private_data), 0);
+
+  EXPECT_EQ (sp->getInputDimension (&prop, &private_data, &info), 0);
+  EXPECT_EQ (info.num_tensors, num);
+  for (i = 0; i < num; i++)
+    ExpectMockDimension (&info, i);
+  gst_tensors_info_free (&info);
+
+  EXPECT_EQ (sp->getOutputDimension (&prop, &private_data, &info), 0);
+  EXPECT_EQ (info.num_tensors, num);
+  for (i = 0; i < num; i++)
+    ExpectMockDimension (&info, i);
+  gst_tensors_info_free (&info);
+
+  sp->close (&prop, &private_data);
+}
+
+/**
+ * @brief Accept a model of as many tensors as nnstreamer can describe
+ */
+TEST_F (NNStreamerFilterVivanteTest, openMaxTensors)
+{
+  const guint num = NNS_TENSOR_SIZE_LIMIT;
+  GstTensorsInfo info;
+
+  mock_ovxlib_set_tensor_num (num, num);
+  gst_tensors_info_init (&info);
+  ASSERT_EQ (sp->open (&prop, &private_data), 0);
+
+  EXPECT_EQ (sp->getInputDimension (&prop, &private_data, &info), 0);
+  EXPECT_EQ (info.num_tensors, num);
+  ExpectMockDimension (&info, num - 1U);
+  EXPECT_TRUE (gst_tensors_info_validate (&info));
+  gst_tensors_info_free (&info);
+
+  EXPECT_EQ (sp->getOutputDimension (&prop, &private_data, &info), 0);
+  EXPECT_EQ (info.num_tensors, num);
+  ExpectMockDimension (&info, num - 1U);
+  EXPECT_TRUE (gst_tensors_info_validate (&info));
+  gst_tensors_info_free (&info);
+
+  sp->close (&prop, &private_data);
+}
+
+/**
+ * @brief Refuse a model that reports no input tensor
+ */
+TEST_F (NNStreamerFilterVivanteTest, openNoInputTensor_n)
+{
+  mock_ovxlib_set_tensor_num (0U, 1U);
+
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+}
+
+/**
+ * @brief Refuse a model that reports no output tensor
+ */
+TEST_F (NNStreamerFilterVivanteTest, openNoOutputTensor_n)
+{
+  mock_ovxlib_set_tensor_num (1U, 0U);
+
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+}
+
+/**
+ * @brief Refuse a model of more tensors than nnstreamer can describe
+ */
+TEST_F (NNStreamerFilterVivanteTest, openTooManyTensors_n)
+{
+  mock_ovxlib_set_tensor_num (NNS_TENSOR_SIZE_LIMIT + 1U, 1U);
+
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 0);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+}
+
+/**
+ * @brief Refuse a model of more output tensors than nnstreamer can describe
+ */
+TEST_F (NNStreamerFilterVivanteTest, openTooManyOutputTensors_n)
+{
+  mock_ovxlib_set_tensor_num (1U, NNS_TENSOR_SIZE_LIMIT + 1U);
+
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 0);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
 }
 
 /**
@@ -506,6 +700,15 @@ TEST_F (NNStreamerFilterVivanteTest, reopenWithoutLibrary_n)
 
   SetFilterProperty (MOCK_MODEL_NB, MOCK_VIVANTE_MODEL_PATH);
   sp->close (&prop, &private_data);
+}
+
+/**
+ * @brief Tolerate a close of a filter that holds no model
+ */
+TEST_F (NNStreamerFilterVivanteTest, closeWithoutOpen_n)
+{
+  sp->close (&prop, &private_data);
+  EXPECT_EQ (private_data, nullptr);
 }
 
 /**

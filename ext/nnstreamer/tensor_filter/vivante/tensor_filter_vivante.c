@@ -44,12 +44,10 @@
  *
  * 2. Packaging, Build & run test, and Custom property
  * 2.1. Distribution: Tizen packaging
- * ubuntu$ git clone https://github.sec.samsung.net/AIP/vivante-nnstreamer-filter.git
  * ubuntu$ time gbs -c .TAOS-CI/.gbs.conf build -A armv7l --clean --include-all
  *
- * 2.2. Development: Build and run source code on real target
- * You may run the below script to build and run on the real target boards manually.
- * target# ./tests/nnstreamer_filter_vivante/build_run.sh
+ * 2.2. Development: Unit test against a mock of the SDK
+ * ubuntu$ meson test -C build unittest_filter_vivante
  *
  * 2.3 Custom properties for Vivante subplugin
  * CP = Exp,CP | Exp | NULL
@@ -75,6 +73,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
 #include <dlfcn.h>
@@ -104,6 +103,9 @@
 #define call(name, err, ...) ( (pdata->name) ? \
     pdata->name (__VA_ARGS__) : \
     err)
+
+/** The dimensions of a tensor of the SDK have to fit in a GstTensorInfo. */
+G_STATIC_ASSERT (VSI_NN_MAX_DIM_NUM <= NNS_TENSOR_RANK_LIMIT);
 
 void init_filter_vivante (void) __attribute__ ((constructor));
 void fini_filter_vivante (void) __attribute__ ((destructor));
@@ -267,6 +269,9 @@ convert_tensortype (unsigned tensor_type)
  * @brief Open the vivante tensor filter
  * @note
  * 1. Read multi files (e.g., inception_v3.nb and libinception_v3.so)
+ * 2. Once anything has been taken for the model, a failure releases all of it
+ *    and leaves private_data NULL. A refusal that happens before that, such as
+ *    a model path that is not given, keeps an already opened model as it is.
  */
 static int
 vivante_open (const GstTensorFilterProperties * prop, void **private_data)
@@ -281,25 +286,22 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
   if (*private_data == NULL)
     return -ENOMEM;
 
+  gst_tensors_info_init (&pdata->input_tensor);
+  gst_tensors_info_init (&pdata->output_tensor);
+
   pdata->model_path = g_strdup (prop->model_files[0]);
   pdata->so_path = g_strdup (prop->model_files[1]);
 
   ret = parseCustomProperty (prop->custom_properties, &pdata->postProcess);
-  if (ret < 0) {
-    g_free (pdata->model_path);
-    g_free (pdata->so_path);
-    g_free (pdata);
-    return ret;
-  }
+  if (ret < 0)
+    goto error;
 
   /** Create the neural network with .nb (a network binary of Vivante) */
   pdata->handle = dlopen (pdata->so_path, RTLD_NOW);
   if (!pdata->handle) {
     printf ("vivante_open: dlopen cannot load the shared library (.so).\n");
-    g_free (pdata->model_path);
-    g_free (pdata->so_path);
-    g_free (pdata);
-    return -EINVAL;
+    ret = -EINVAL;
+    goto error;
   }
 
   vivante_api_fetch_dlsym (pdata, result_vsi_nn_CopyDataToTensor,
@@ -317,7 +319,11 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
   vivante_api_fetch_dlsym (pdata, result_vnn_CreateNeuralNetwork,
       "vnn_CreateNeuralNetwork", error_dlsym);
   pdata->graph = call (result_vnn_CreateNeuralNetwork, NULL, pdata->model_path);
-
+  if (!pdata->graph) {
+    printf ("vivante_open: cannot create the neural network.\n");
+    ret = -EINVAL;
+    goto error;
+  }
 #if EVAL_MODE
   vivante_api_fetch_dlsym (pdata, result_vnn_PostProcessNeuralNetwork,
       "vnn_PostProcessNeuralNetwork", error_dlsym);
@@ -329,11 +335,14 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
       "vsi_nn_DumpGraphNodeOutputs", error_dlsym);
 #endif
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wimplicit-function-declaration"
-#pragma GCC diagnostic ignored "-Wnested-externs"
-  gst_tensors_info_init (&pdata->input_tensor);
-  gst_tensors_info_init (&pdata->output_tensor);
+  if (pdata->graph->input.num < 1 || pdata->graph->output.num < 1 ||
+      pdata->graph->input.num > NNS_TENSOR_SIZE_LIMIT ||
+      pdata->graph->output.num > NNS_TENSOR_SIZE_LIMIT) {
+    printf ("vivante_open: the model has an unusable number of tensors; "
+        "nnstreamer takes 1 to %d of them.\n", NNS_TENSOR_SIZE_LIMIT);
+    ret = -EINVAL;
+    goto error;
+  }
 
   /** Note that we must use vsi_nn_GetTensor() to get a meta data
    * (e.g., input tensor and output tensor).
@@ -348,65 +357,78 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
 #endif
 
   /** Get the meta data from the input tensor. */
+  pdata->input_tensor.num_tensors = pdata->graph->input.num;
   for (i = 0; i < pdata->graph->input.num; i++) {
+    GstTensorInfo *info =
+        gst_tensors_info_get_nth_info (&pdata->input_tensor, i);
     vsi_nn_tensor_t *i_tensor = vsi_nn_GetTensor (pdata->graph,
         pdata->graph->input.tensors[i]);
-    if (i_tensor == NULL)
-      return -1;
-
+    if (i_tensor == NULL) {
+      ret = -EINVAL;
+      goto error;
+    }
 #if DEBUG_MODE
     printf ("[DEBUG] input_dim_num[%d]:%d\n", i, i_tensor->attr.dim_num);
 #endif
-    for (j = 0; j < i_tensor->attr.dim_num; ++j) {
+    for (j = 0; j < MIN (i_tensor->attr.dim_num, VSI_NN_MAX_DIM_NUM); ++j) {
       /** dimension structure: channel, width, height, number */
-      pdata->input_tensor.info[i].dimension[j] = i_tensor->attr.size[j];
+      info->dimension[j] = i_tensor->attr.size[j];
     }
     for (k = j; k < NNS_TENSOR_RANK_LIMIT; ++k) {
-      pdata->input_tensor.info[i].dimension[k] = 1;
+      info->dimension[k] = 1;
     }
 
     /** Get an input data type: VSI_NN_TYPE_UINT8 (u8) in case of inceptionv3 */
-    pdata->input_tensor.info[i].type =
-        convert_tensortype (i_tensor->attr.dtype.vx_type);
-    asprintf (&pdata->input_tensor.info[i].name, "%i",
-        pdata->graph->input.tensors[i]);
-                                         /** dummy name */
-    pdata->input_tensor.num_tensors = pdata->graph->input.num; /** number of tensors */
+    info->type = convert_tensortype (i_tensor->attr.dtype.vx_type);
+    /** dummy name */
+    info->name = g_strdup_printf ("%u",
+        (unsigned int) pdata->graph->input.tensors[i]);
   }
 
   /** Get the meta data from the output tensor. */
+  pdata->output_tensor.num_tensors = pdata->graph->output.num;
   for (i = 0; i < pdata->graph->output.num; i++) {
-    vsi_nn_tensor_t *o_tensor = NULL;
-    o_tensor = vsi_nn_GetTensor (pdata->graph, pdata->graph->output.tensors[i]);
-    if (o_tensor == NULL)
-      return -1;
-
+    GstTensorInfo *info =
+        gst_tensors_info_get_nth_info (&pdata->output_tensor, i);
+    vsi_nn_tensor_t *o_tensor = vsi_nn_GetTensor (pdata->graph,
+        pdata->graph->output.tensors[i]);
+    if (o_tensor == NULL) {
+      ret = -EINVAL;
+      goto error;
+    }
 #if DEBUG_MODE
     printf ("[DEBUG] output_dim_num[%d]:%d\n", i, o_tensor->attr.dim_num);
 #endif
-    for (j = 0; j < o_tensor->attr.dim_num; ++j) {
+    for (j = 0; j < MIN (o_tensor->attr.dim_num, VSI_NN_MAX_DIM_NUM); ++j) {
       /** dimension structure: channel, width, height, number */
-      pdata->output_tensor.info[i].dimension[j] = o_tensor->attr.size[j];
+      info->dimension[j] = o_tensor->attr.size[j];
     }
     for (k = j; k < NNS_TENSOR_RANK_LIMIT; ++k) {
-      pdata->output_tensor.info[i].dimension[k] = 1;
+      info->dimension[k] = 1;
     }
 
     /** Get an output data type: VSI_NN_TYPE_FLOAT16 (f16) in case of inceptionv3 */
-    pdata->output_tensor.info[i].type =
-        convert_tensortype (o_tensor->attr.dtype.vx_type);
-    asprintf (&pdata->output_tensor.info[i].name, "%i",
-        pdata->graph->output.tensors[i]);
-                                          /** dummy name */
-    pdata->output_tensor.num_tensors = pdata->graph->output.num; /** number of tensors */
+    info->type = convert_tensortype (o_tensor->attr.dtype.vx_type);
+    /** dummy name */
+    info->name = g_strdup_printf ("%u",
+        (unsigned int) pdata->graph->output.tensors[i]);
   }
 
-#pragma GCC diagnostic pop
   return ret;
 error_dlsym:
-  dlclose (pdata->handle);
-  pdata->handle = NULL;
-  return -EINVAL;
+  ret = -EINVAL;
+error:
+  if (pdata->graph)
+    call (result_vnn_ReleaseNeuralNetwork, NULL, pdata->graph);
+  if (pdata->handle)
+    dlclose (pdata->handle);
+  gst_tensors_info_free (&pdata->input_tensor);
+  gst_tensors_info_free (&pdata->output_tensor);
+  g_free (pdata->model_path);
+  g_free (pdata->so_path);
+  g_free (pdata);
+  *private_data = NULL;
+  return ret;
 }
 
 /**
@@ -420,9 +442,16 @@ vivante_close (const GstTensorFilterProperties * prop, void **private_data)
   vivante_pdata *pdata = *private_data;
 
   UNUSED (prop);
+  if (pdata == NULL)
+    return;
+
   call (result_vnn_ReleaseNeuralNetwork, NULL, pdata->graph);
 
-  dlclose (pdata->handle);
+  if (pdata->handle)
+    dlclose (pdata->handle);
+
+  gst_tensors_info_free (&pdata->input_tensor);
+  gst_tensors_info_free (&pdata->output_tensor);
 
   g_free (pdata->model_path);
   pdata->model_path = NULL;
@@ -553,11 +582,7 @@ vivante_getInputDim (const GstTensorFilterProperties * prop,
   if (!pdata)
     return -1;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wimplicit-function-declaration"
-#pragma GCC diagnostic ignored "-Wnested-externs"
   gst_tensors_info_copy (info, &pdata->input_tensor);
-#pragma GCC diagnostic pop
   return 0;
 }
 
@@ -577,11 +602,7 @@ vivante_getOutputDim (const GstTensorFilterProperties * prop,
   if (!pdata)
     return -1;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wimplicit-function-declaration"
-#pragma GCC diagnostic ignored "-Wnested-externs"
   gst_tensors_info_copy (info, &pdata->output_tensor);
-#pragma GCC diagnostic pop
 
   return 0;
 }
