@@ -32,7 +32,7 @@ permissions:
 jobs:
   build:
     name: Tizen app build test
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
     - uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
 
     - name: prepare GBS
       run: |
-        echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_22.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
+        echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_24.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
         sudo apt-get update
         sudo apt-get install -y gbs
         cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
