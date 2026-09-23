@@ -143,6 +143,10 @@ snpe_subplugin::cleanup ()
     model_path = nullptr;
   }
 
+  /* The tensors info is filled in before the model is marked as opened. */
+  gst_tensors_info_free (std::addressof (inputInfo));
+  gst_tensors_info_free (std::addressof (outputInfo));
+
   if (empty_model)
     return;
 
@@ -154,9 +158,6 @@ snpe_subplugin::cleanup ()
     snpe.reset ();
     snpe = nullptr;
   }
-
-  gst_tensors_info_free (std::addressof (inputInfo));
-  gst_tensors_info_free (std::addressof (outputInfo));
 
   runtime_list.clear ();
   input_tensors.clear ();
@@ -517,7 +518,6 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     /* Configure inputs */
     for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
       size_t fsize = input_tensors[i].get ()->getSize ();
-
       switch (input_data_type) {
         case _NNS_FLOAT32:
           {
@@ -542,6 +542,7 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
       zdl::DlSystem::ITensor *output_tensor
           = output_tensor_map.getTensor (output_tensor_names_list.at (i));
+
       switch (output_data_type) {
         case _NNS_FLOAT32:
           {

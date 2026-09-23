@@ -346,3 +346,37 @@ TEST (nnstreamerFilterSnpeMockV1, userBufferResizableWithoutMaxDim11_n)
   g_remove (model_file);
   g_free (model_file);
 }
+
+/**
+ * @brief Negative case: a resizable model without the max dim option.
+ *
+ * Regression test of item F5 of issue #4920: setTensorProp() threw after it had
+ * copied a tensor name into the tensors information, and cleanup() left that
+ * copy behind because the model was not marked as opened yet. The ledger of
+ * the mock sees that copy, because it takes a name off its books when
+ * gst_tensors_info_free() releases it.
+ */
+TEST (nnstreamerFilterSnpeMockV1, resizableWithoutMaxDim12_n)
+{
+  if (!snpe_mock_ledger_available ())
+    GTEST_SKIP () << "the allocation ledger needs the --wrap option of the linker";
+
+  void *data = NULL;
+  GstTensorFilterProperties prop;
+  gchar *model_file = _MockMakeModelFile ("nns_snpe_mock_resizable_XXXXXX.dlc");
+  ASSERT_TRUE (model_file != NULL);
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  ASSERT_TRUE (sp != nullptr);
+  _MockSetProp (&prop, model_files, NULL);
+
+  snpe_mock_reset ();
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_EQ (snpe_mock_ledger_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+
+  sp->close (&prop, &data);
+  g_remove (model_file);
+  g_free (model_file);
+}
