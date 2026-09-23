@@ -515,9 +515,24 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 
     snpe->execute (input_buffer_map, output_buffer_map);
   } else {
+    const size_t in_element_size = gst_tensor_get_element_size (input_data_type);
+
+    if (in_element_size == 0)
+      throw std::runtime_error ("Got invalid input data type");
+
     /* Configure inputs */
     for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
       size_t fsize = input_tensors[i].get ()->getSize ();
+      const size_t in_max_elements = input[i].size / in_element_size;
+
+      if (fsize > in_max_elements) {
+        throw std::runtime_error (
+            "The model takes " + std::to_string (fsize)
+            + " elements for the input tensor " + input_tensor_names_list.at (i)
+            + ", which is more than the " + std::to_string (in_max_elements)
+            + " elements of input memory. Check the MaxResizableDim option.");
+      }
+
       switch (input_data_type) {
         case _NNS_FLOAT32:
           {
@@ -539,9 +554,30 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     output_tensor_map.clear ();
     snpe->execute (input_tensor_map, output_tensor_map);
 
+    const size_t out_element_size = gst_tensor_get_element_size (output_data_type);
+
+    if (out_element_size == 0)
+      throw std::runtime_error ("Got invalid output data type");
+
     for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
       zdl::DlSystem::ITensor *output_tensor
           = output_tensor_map.getTensor (output_tensor_names_list.at (i));
+
+      if (!output_tensor) {
+        throw std::runtime_error (std::string ("The model produced no output tensor named ")
+                                  + output_tensor_names_list.at (i));
+      }
+
+      const size_t num_elements = output_tensor->getSize ();
+      const size_t max_elements = output[i].size / out_element_size;
+
+      if (num_elements > max_elements) {
+        throw std::runtime_error (
+            "The model returned " + std::to_string (num_elements)
+            + " elements for the output tensor " + output_tensor_names_list.at (i)
+            + ", which does not fit in " + std::to_string (max_elements)
+            + " elements of output memory. Check the MaxResizableDim option.");
+      }
 
       switch (output_data_type) {
         case _NNS_FLOAT32:

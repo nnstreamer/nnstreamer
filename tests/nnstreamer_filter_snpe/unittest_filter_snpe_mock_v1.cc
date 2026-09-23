@@ -380,3 +380,129 @@ TEST (nnstreamerFilterSnpeMockV1, resizableWithoutMaxDim12_n)
   g_remove (model_file);
   g_free (model_file);
 }
+
+/**
+ * @brief Negative case: an output larger than the buffer the caller supplied.
+ *
+ * Regression test of item F5 of issue #4920: the copy of an ITensor output was
+ * bounded by the size of that tensor rather than by the size of the output
+ * memory, so a MaxResizableDim smaller than the real output wrote past it.
+ */
+TEST (nnstreamerFilterSnpeMockV1, resizableOutputTooLarge13_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorFilterProperties prop;
+  GstTensorsInfo in_info, out_info;
+  guint8 *guarded_output;
+  gchar *model_file = _MockMakeModelFile ("nns_snpe_mock_resizable_XXXXXX.dlc");
+  ASSERT_TRUE (model_file != NULL);
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  ASSERT_TRUE (sp != nullptr);
+  _MockSetProp (&prop, model_files, "MaxResizableDim:2");
+
+  snpe_mock_reset ();
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  ASSERT_EQ (sp->getModelInfo (NULL, NULL, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+  ASSERT_EQ (out_info.num_tensors, 1U);
+  ASSERT_EQ (out_info.info[0].dimension[0], 2U);
+
+  input.size = gst_tensor_info_get_size (&in_info.info[0]);
+  output.size = gst_tensor_info_get_size (&out_info.info[0]);
+  input.data = g_malloc0 (input.size);
+  guarded_output = (guint8 *) g_malloc0 (output.size + GUARD_SIZE);
+  memset (guarded_output + output.size, GUARD_BYTE, GUARD_SIZE);
+  output.data = guarded_output;
+
+  /* The emulated runtime writes more elements than MaxResizableDim allows. */
+  EXPECT_NE (sp->invoke (NULL, NULL, data, &input, &output), 0);
+  EXPECT_TRUE (_GuardIsIntact (guarded_output, output.size));
+
+  g_free (input.data);
+  g_free (guarded_output);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  sp->close (&prop, &data);
+  g_remove (model_file);
+  g_free (model_file);
+}
+
+/**
+ * @brief Negative case: an input tensor larger than the memory of the caller.
+ *
+ * Regression test of item F5 of issue #4920, on the input side of the same
+ * copy: the element count came from the tensor of the model while the memory
+ * was sized from the buffer attributes, so a tensor that outgrows them read
+ * past the end of the input memory.
+ */
+TEST (nnstreamerFilterSnpeMockV1, oversizedInput14_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorFilterProperties prop;
+  GstTensorsInfo in_info, out_info;
+  gchar *custom;
+  gchar *model_file = _MockMakeModelFile ("nns_snpe_mock_oversized_XXXXXX.dlc");
+  ASSERT_TRUE (model_file != NULL);
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  ASSERT_TRUE (sp != nullptr);
+  /* Wide enough for the output, so only the input does not fit. */
+  custom = g_strdup_printf ("MaxResizableDim:%d", SNPE_MOCK_RESIZABLE_OUTPUT_ELEMENTS);
+  _MockSetProp (&prop, model_files, custom);
+
+  snpe_mock_reset ();
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  ASSERT_EQ (sp->getModelInfo (NULL, NULL, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+
+  input.size = gst_tensor_info_get_size (&in_info.info[0]);
+  output.size = gst_tensor_info_get_size (&out_info.info[0]);
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc0 (output.size);
+
+  EXPECT_NE (sp->invoke (NULL, NULL, data, &input, &output), 0);
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  sp->close (&prop, &data);
+  g_remove (model_file);
+  g_free (model_file);
+  g_free (custom);
+}
+
+/**
+ * @brief Negative case: a run that produces no output tensor at all.
+ */
+TEST (nnstreamerFilterSnpeMockV1, missingOutputTensor15_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorFilterProperties prop;
+  gchar *model_file = _MockModelPath ();
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  ASSERT_TRUE (sp != nullptr);
+  _MockSetProp (&prop, model_files, NULL);
+
+  snpe_mock_reset ();
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  output.size = input.size = sizeof (float);
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc0 (output.size);
+
+  snpe_mock_set_failure (SNPE_MOCK_FAIL_EXECUTE_NO_OUTPUT);
+  EXPECT_NE (sp->invoke (NULL, NULL, data, &input, &output), 0);
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+  g_free (model_file);
+}
