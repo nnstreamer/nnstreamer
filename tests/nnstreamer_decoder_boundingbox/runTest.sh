@@ -137,6 +137,14 @@ callCompareTest yolov8_result_golden.raw yolov8_two_decoders_result_0.log "8-2 d
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=4:300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "9 yolov10 decoder dim_n" 0 1
 
 ## wrong tensor type
+## Under valgrind this pipeline sometimes never returns, and every stall of
+## the memory-checked run of this suite has been this one case. Left
+## unbounded on purpose: gstTest's timeout terminates, and on TERM valgrind
+## still writes the summaries that make check_valgrind_log.sh read a killed
+## run as a clean one, so a bound here would turn the stall into a green run
+## with nothing to show for it. The step's own budget bounds the cost. The
+## refusal is pinned without a pipeline by
+## tensorDecoderBoundingBox.yoloV10RejectsIntegerInput_n.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=6:300:1 input-type=float32 ! tensor_transform mode=typecast option=int32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 ! fakesink" "9 yolov10 decoder type_n" 0 1
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=6:300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25 option4=320:320 option5=320:320 option6=0 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov10_result_%1d.log" "9 yolov10 decoder" 0 0

@@ -1481,6 +1481,42 @@ TEST (tensorDecoderBoundingBox, sameModeKeepsOptions)
 }
 
 /**
+ * @brief The yolov10 decoder takes float32 tensors and refuses every other type.
+ * @details runTest.sh of this directory drives the same refusal through a
+ *          pipeline, where it races the source task and has hung the
+ *          memory-checked run of the suite; what is being refused needs no
+ *          pipeline to check.
+ */
+TEST (tensorDecoderBoundingBox, yoloV10RejectsIntegerInput_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const dims[] = { "6:300:1" };
+  gchar *labels = getTempFilename ();
+  GstTensorsConfig config;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (labels != NULL);
+  ASSERT_TRUE (g_file_set_contents (labels, "object\n", -1, NULL));
+  ASSERT_TRUE (decoder->init (&pdata));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov10"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "320:320"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "320:320"));
+
+  setFloatConfig (&config, 1, dims);
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+
+  config.info.info[0].type = _NNS_INT32;
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+
+  decoder->exit (&pdata);
+  gst_tensors_config_free (&config);
+  removeTempFile (&labels);
+}
+
+/**
  * @brief Switching option1 to another mode and back restores the options of the mode.
  * @details option1 is writable while the stream runs, so the box properties a
  *          decoder switches away from are kept until the decoder exits: decode ()
