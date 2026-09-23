@@ -629,6 +629,7 @@ TEST_F (testFilterSharedModel, deprecatedReplaceWarnsOnce)
 
   previous = g_set_printerr_handler (_record_printerr);
 
+  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
   nnstreamer_filter_shared_model_replace (&priv1, NULL, &reloaded, _count_replace, _count_free);
   EXPECT_EQ (num_printerr, 1U);
   nnstreamer_filter_shared_model_replace (&priv1, TEST_SHARED_KEY "_unknown",
@@ -637,6 +638,7 @@ TEST_F (testFilterSharedModel, deprecatedReplaceWarnsOnce)
   nnstreamer_filter_shared_model_replace (
       &priv1, TEST_SHARED_KEY, &reloaded, _count_replace, _count_free);
   EXPECT_EQ (num_printerr, 1U);
+  G_GNUC_END_IGNORE_DEPRECATIONS
 
   g_set_printerr_handler (previous);
 

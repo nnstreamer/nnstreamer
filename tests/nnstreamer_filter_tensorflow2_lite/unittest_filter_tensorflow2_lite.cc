@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include <dlfcn.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #ifdef __GLIBC__
@@ -650,6 +651,136 @@ TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, sharedKeyReopen)
   g_free (branch1);
   g_free (branch2);
   g_free (model_file);
+}
+
+/**
+ * @brief A reload of a path that is not a regular file loads nothing at all.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, reloadMissingModel_n)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file, *missing;
+  void *data = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  model_files[0] = model_file;
+  fillProp (&prop, model_files, custom, NULL);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_EQ (get_count ("prepared"), 1);
+
+  missing = g_strdup_printf ("%s.missing", model_file);
+  model_files[0] = missing;
+  EXPECT_NE (sp->reloadModel (&prop, &data), 0);
+  EXPECT_EQ (get_count ("prepared"), 1);
+  EXPECT_EQ (get_count ("freed"), 0);
+
+  model_files[0] = model_file;
+  sp->close (&prop, &data);
+  EXPECT_EQ (get_count ("freed"), 1);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  g_free (missing);
+  g_free (model_file);
+}
+
+/**
+ * @brief A reload of a file that is not a model releases the interpreter that failed to load it.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, reloadUnloadableModel_n)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL, NULL };
+  gchar *model_file, *not_a_model;
+  void *data = NULL;
+  gint fd;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  model_files[0] = model_file;
+  fillProp (&prop, model_files, custom, NULL);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_EQ (get_count ("prepared"), 1);
+
+  not_a_model = NULL;
+  fd = g_file_open_tmp ("nnsb16XXXXXX.tflite", &not_a_model, NULL);
+  ASSERT_GE (fd, 0);
+  g_close (fd, NULL);
+  ASSERT_TRUE (g_file_set_contents (not_a_model, "not a flatbuffer", 16, NULL));
+
+  model_files[0] = not_a_model;
+  EXPECT_NE (sp->reloadModel (&prop, &data), 0);
+  EXPECT_EQ (get_count ("prepared"), 1);
+  EXPECT_EQ (get_count ("freed"), 0);
+
+  model_files[0] = model_file;
+  sp->close (&prop, &data);
+  EXPECT_EQ (get_count ("freed"), 1);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  g_remove (not_a_model);
+  g_free (not_a_model);
+  g_free (model_file);
+}
+
+#define SHARED_UPDATABLE_BRANCH                                                                                       \
+  "appsrc name=src%d ! other/tensors,num_tensors=1,dimensions=3:224:224:1,types=uint8,format=static,framerate=0/1 ! " \
+  "tensor_filter name=filter%d framework=tensorflow2-lite model=\"%s\" custom=\"%s\" is-updatable=true "              \
+  "shared-tensor-filter-key=tflite_lifetime_b16 ! fakesink "
+
+/**
+ * @brief A model the sharing cores cannot take leaves the shared interpreter in use.
+ * @details The cores compare the reloaded model with their own tensors info and
+ *          refuse it, so the reload fails and the old model files stay. Only the
+ *          interpreter nobody took is released.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, sharedKeyRefusedReload_n)
+{
+  GstElement *gstpipe, *filter;
+  gchar *model_file, *model_file2, *pipeline, *readback;
+  gchar *branch1, *branch2;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+  ASSERT_TRUE (_GetModelFilePath (&model_file2, 1));
+  branch1 = g_strdup_printf (SHARED_UPDATABLE_BRANCH, 1, 1, model_file, custom);
+  branch2 = g_strdup_printf (SHARED_UPDATABLE_BRANCH, 2, 2, model_file, custom);
+  pipeline = g_strconcat (branch1, branch2, NULL);
+
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  ASSERT_NE (gst_element_set_state (gstpipe, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  ASSERT_EQ (get_count ("prepared"), 2);
+  ASSERT_EQ (get_count ("freed"), 1);
+
+  filter = gst_bin_get_by_name (GST_BIN (gstpipe), "filter1");
+  ASSERT_TRUE (filter != nullptr);
+
+  /* the tensors info of this model differs, so both cores refuse it */
+  g_object_set (filter, "model", model_file2, NULL);
+
+  EXPECT_EQ (get_count ("prepared"), 3);
+  EXPECT_EQ (get_count ("freed"), 2);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  readback = NULL;
+  g_object_get (filter, "model", &readback, NULL);
+  EXPECT_STREQ (readback, model_file);
+  g_free (readback);
+
+  EXPECT_EQ (gst_element_set_state (gstpipe, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (get_count ("freed"), 3);
+  EXPECT_EQ (get_count ("live"), 0);
+  EXPECT_EQ (get_count ("violations"), 0);
+
+  gst_object_unref (filter);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  g_free (branch1);
+  g_free (branch2);
+  g_free (model_file);
+  g_free (model_file2);
 }
 
 /**
