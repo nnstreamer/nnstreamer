@@ -130,6 +130,58 @@ TEST (nnstreamerFilterSnpeMockV2, missingModelFile03_n)
 }
 
 /**
+ * @brief Positive case: a repeated OutputTensor option leaks no string list.
+ *
+ * Regression test of item F4 of issue #4920: the second OutputTensor option
+ * used to overwrite the handle the first one had created.
+ */
+TEST (nnstreamerFilterSnpeMockV2, customPropRepeatedOutputTensor04)
+{
+  snpe_mock_reset ();
+
+  EXPECT_EQ (_MockOpenClose (TRUE, "OutputTensor:output,OutputTensor:output"), 0);
+  EXPECT_EQ (snpe_mock_live_count (SNPE_MOCK_OBJ_STRING_LIST), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+}
+
+/**
+ * @brief Negative case: an empty output tensor name releases every allocation.
+ *
+ * Regression test of item F4 of issue #4920: the string vectors the option
+ * parser had allocated used to leak when it threw.
+ */
+TEST (nnstreamerFilterSnpeMockV2, customPropEmptyOutputTensorName05_n)
+{
+  if (!snpe_mock_ledger_available ())
+    GTEST_SKIP () << "the allocation ledger needs the --wrap option of the linker";
+
+  snpe_mock_reset ();
+
+  EXPECT_NE (_MockOpenClose (TRUE, "OutputTensor:output;;output"), 0);
+  EXPECT_EQ (snpe_mock_ledger_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+}
+
+/**
+ * @brief Negative case: a failing name append releases every allocation.
+ *
+ * Regression test of item F4 of issue #4920, covering the second throw of the
+ * option parser.
+ */
+TEST (nnstreamerFilterSnpeMockV2, customPropAppendFailure06_n)
+{
+  if (!snpe_mock_ledger_available ())
+    GTEST_SKIP () << "the allocation ledger needs the --wrap option of the linker";
+
+  snpe_mock_reset ();
+  snpe_mock_set_failure (SNPE_MOCK_FAIL_STRING_LIST_APPEND);
+
+  EXPECT_NE (_MockOpenClose (TRUE, "OutputTensor:output"), 0);
+  EXPECT_EQ (snpe_mock_ledger_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+}
+
+/**
  * @brief Positive case: the ledger sees the names an extra array holds.
  *
  * Regression test of the mock itself. The interposer of
