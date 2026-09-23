@@ -14,7 +14,28 @@
 #ifndef __NNS_PLUGIN_API_FILTER_H__
 #define __NNS_PLUGIN_API_FILTER_H__
 
+#include <errno.h>
+
 #include "tensor_typedef.h"
+
+/**
+ * @brief Mark a function deprecated in favour of another one.
+ * @note Define NNS_DISABLE_DEPRECATION_WARNINGS, before including this header
+ *       and for every translation unit that includes it, to keep building a
+ *       sub-plugin that still calls a deprecated function with -Werror. A build
+ *       that defines NNS_DEPRECATED_FOR itself keeps its own definition, since
+ *       this header adds none on top of it, and NNS_DISABLE_DEPRECATION_WARNINGS
+ *       then decides nothing.
+ */
+#ifndef NNS_DEPRECATED_FOR
+#if defined(NNS_DISABLE_DEPRECATION_WARNINGS)
+#define NNS_DEPRECATED_FOR(f)
+#elif defined(__GNUC__) || defined(__clang__)
+#define NNS_DEPRECATED_FOR(f) __attribute__ ((__deprecated__ ("Use " #f " instead")))
+#else
+#define NNS_DEPRECATED_FOR(f)
+#endif
+#endif
 
 /** Macros for accelerator types */
 #define ACCL_NONE_STR "none"
@@ -601,15 +622,51 @@ nnstreamer_filter_shared_model_remove (void *instance, const char *key,
  * @param[in] interpreter The new interpreter to replace.
  * @param[in] replace_callback The callback function to replace with new interpreter.
  * @param[in] free_callback The callback function to destroy the old interpreter.
- * @note The old interpreter is destroyed even if `replace_callback` does not take the new one.
- *       The caller should verify every instance can take the new interpreter before calling this.
- *       Such a check cannot be conclusive while it runs outside this lock: whatever it compares
- *       may change before the callbacks run. Closing that gap needs the callback to report the
- *       refusal so that `free_callback` can be skipped.
+ * @deprecated Use nnstreamer_filter_shared_model_replace_checked() instead.
+ *       `replace_callback` returns nothing here, so an instance that cannot take the new
+ *       interpreter has no way to say so and this function destroys the old interpreter
+ *       anyway. The refusing instance is then left pointing at released memory and touches
+ *       it on its next invoke. Verifying the instances before the call does not close that
+ *       window, because such a check runs outside the lock this function takes and whatever
+ *       it compares may change before the callbacks run.
+ * @note The first call to this function in a process prints a deprecation warning to stderr.
  */
+NNS_DEPRECATED_FOR (nnstreamer_filter_shared_model_replace_checked)
 extern void
 nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     void *new_interpreter, void (*replace_callback) (void *, void *), void (*free_callback) (void*));
+
+/* extern functions for shared model representation */
+/**
+ * @brief Helper to reload interpreter for instances that has shared key, letting an instance refuse the new interpreter.
+ *        `replace_callback` is called iterating instances in referred list and reports whether the instance took the new interpreter.
+ * @param[in] instance The instance that is sharing the model representation. It is unused; it is kept for symmetry with the other shared model helpers.
+ * @param[in] key The key to find the shared model.
+ * @param[in] new_interpreter The new interpreter to replace.
+ * @param[in] replace_callback The callback function to replace with new interpreter. It returns 0 to take the given interpreter and a non-zero value to refuse it.
+ * @param[in] free_callback The callback function to destroy the old interpreter.
+ * @return 0 if every instance took the new interpreter, a negative errno otherwise.
+ * @retval 0 Every instance took the new interpreter. The old one is destroyed with `free_callback` and the shared model table now holds the new one.
+ * @retval -EINVAL An argument is invalid, or an instance refused the new interpreter. Every instance that had taken it is given the old one back, nothing is destroyed and the table is unchanged. The caller still owns the new interpreter and should destroy it.
+ * @retval -EPERM The shared model representation is not available.
+ * @retval -ENOENT No instance shares the given key.
+ * @retval -EEXIST @a new_interpreter is the interpreter the key already shares. Nothing is destroyed and the table is unchanged. The interpreter belongs to the table, not to the caller, so the caller must NOT destroy it.
+ * @retval -EBUSY An instance refused the new interpreter and an instance that had taken it then refused the old one back. The instances are left split between the two interpreters, so the caller must keep both alive: leaking one is preferable to the use-after-free that releasing either would cause. The caller is also left describing a model that only some of its instances run, since the ones that took @a new_interpreter keep it.
+ * @note -EINVAL, -EPERM and -ENOENT all leave the table as it was and @a new_interpreter with
+ *       the caller, so a caller that only decides whether to destroy it may treat them alike.
+ *       0, -EEXIST and -EBUSY each mean the caller must not destroy it.
+ * @note The callbacks run while the shared model table is locked, so no instance can join or
+ *       leave the key in between. Nothing else is locked, so an instance may still change the
+ *       interpreter it is being handed from another thread; that is what -EBUSY reports.
+ * @warning The lock this function takes is not recursive. Neither callback may call back into
+ *          the shared model helpers, directly or from a destructor they run. A callback that
+ *          locks both the interpreter its instance holds and the one it is handed takes them
+ *          in one order while the new interpreter is offered and in the opposite order while
+ *          the old one is handed back; that is safe only because this lock serialises the two.
+ */
+extern int
+nnstreamer_filter_shared_model_replace_checked (void *instance, const char *key,
+    void *new_interpreter, int (*replace_callback) (void *, void *), void (*free_callback) (void*));
 
 /**
  * @brief Dispatches the asynchronously generated output to the registered callback.

@@ -13,6 +13,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/gst.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
@@ -50,6 +51,53 @@ _count_replace (void *instance, void *interpreter)
   last_replaced_interpreter = interpreter;
 }
 
+#define MAX_REPLACE_RECORDS (8)
+
+/**
+ * @brief One call the shared model table made to a replace callback.
+ */
+typedef struct {
+  void *instance;
+  void *interpreter;
+} replace_record_s;
+
+static replace_record_s records[MAX_REPLACE_RECORDS];
+static guint num_records;
+static gint refuse_nth;
+static gint refuse_rollback_nth;
+static guint num_printerr;
+static gchar *last_printerr;
+
+/**
+ * @brief Record a replace request and refuse the calls the test asked to refuse.
+ */
+static int
+_checked_replace (void *instance, void *interpreter)
+{
+  int ret = 0;
+
+  if (num_records < MAX_REPLACE_RECORDS) {
+    records[num_records].instance = instance;
+    records[num_records].interpreter = interpreter;
+  }
+  if ((gint) num_records == refuse_nth || (gint) num_records == refuse_rollback_nth)
+    ret = -EINVAL;
+  num_records++;
+
+  return ret;
+}
+
+/**
+ * @brief Keep what the deprecated helper wrote to stderr instead of printing it.
+ */
+static void
+_record_printerr (const gchar *message)
+{
+  num_printerr++;
+  g_free (last_printerr);
+  last_printerr = g_strdup (message);
+}
+
 /**
  * @brief Test fixture driving the shared model table through two filter instances.
  */
@@ -58,24 +106,60 @@ class testFilterSharedModel : public ::testing::Test
   protected:
   GstTensorFilterPrivate priv1;
   GstTensorFilterPrivate priv2;
+  GstTensorFilterPrivate priv3;
+  gboolean priv3_used;
 
   /** @brief initialize two filter instances sharing the same key */
   void SetUp () override
   {
-    num_freed = num_replaced = 0;
+    num_freed = num_replaced = num_records = num_printerr = 0;
     last_freed = last_replaced_instance = last_replaced_interpreter = nullptr;
+    refuse_nth = refuse_rollback_nth = -1;
+    memset (records, 0, sizeof (records));
+    g_free (last_printerr);
+    last_printerr = nullptr;
 
     gst_tensor_filter_common_init_property (&priv1);
     gst_tensor_filter_common_init_property (&priv2);
     setSharedKey (&priv1, TEST_SHARED_KEY);
     setSharedKey (&priv2, TEST_SHARED_KEY);
+    priv3_used = FALSE;
   }
 
-  /** @brief release the instances that the test itself has not released */
+  /**
+   * @brief Release the instances that the test itself has not released.
+   * @details A case that ends early, on a failed assertion, leaves its
+   *          instances registered under the key; dropping them here keeps the
+   *          process-wide table from carrying them into the cases that follow.
+   *          A case that passed has already dropped its own, and asking again
+   *          would only log that the key is gone.
+   */
   void TearDown () override
   {
+    if (HasFailure ()) {
+      nnstreamer_filter_shared_model_remove (&priv1, TEST_SHARED_KEY, _count_free);
+      nnstreamer_filter_shared_model_remove (&priv2, TEST_SHARED_KEY, _count_free);
+      if (priv3_used)
+        nnstreamer_filter_shared_model_remove (&priv3, TEST_SHARED_KEY, _count_free);
+    }
+
     gst_tensor_filter_common_free_property (&priv1);
     gst_tensor_filter_common_free_property (&priv2);
+    if (priv3_used)
+      gst_tensor_filter_common_free_property (&priv3);
+  }
+
+  /**
+   * @brief Add a third instance sharing the key.
+   * @details TearDown() releases its properties, and drops its registration as
+   *          well when the case ended on a failure, so that an assertion
+   *          failing mid-case cannot leave it in the process-wide table.
+   */
+  void useThirdInstance ()
+  {
+    gst_tensor_filter_common_init_property (&priv3);
+    priv3_used = TRUE;
+    setSharedKey (&priv3, TEST_SHARED_KEY);
   }
 
   /**
@@ -139,12 +223,13 @@ TEST_F (testFilterSharedModel, replaceAfterOtherInstanceFreed)
   gst_tensor_filter_common_free_property (&priv1);
   gst_tensor_filter_common_init_property (&priv1);
 
-  nnstreamer_filter_shared_model_replace (
-      &priv2, TEST_SHARED_KEY, &reloaded, _count_replace, _count_free);
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv2,
+                 TEST_SHARED_KEY, &reloaded, _checked_replace, _count_free),
+      0);
 
-  EXPECT_EQ (num_replaced, 1U);
-  EXPECT_TRUE (last_replaced_instance == &priv2);
-  EXPECT_TRUE (last_replaced_interpreter == &reloaded);
+  EXPECT_EQ (num_records, 1U);
+  EXPECT_TRUE (records[0].instance == &priv2);
+  EXPECT_TRUE (records[0].interpreter == &reloaded);
   EXPECT_EQ (num_freed, 1U);
   EXPECT_TRUE (last_freed == &interpreter);
   EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &reloaded);
@@ -251,24 +336,325 @@ TEST_F (testFilterSharedModel, unknownKey_n)
   EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv1, TEST_SHARED_KEY "_unknown") == NULL);
   EXPECT_FALSE (nnstreamer_filter_shared_model_remove (
       &priv1, TEST_SHARED_KEY "_unknown", _count_free));
-  nnstreamer_filter_shared_model_replace (&priv1, TEST_SHARED_KEY "_unknown",
-      &reloaded, _count_replace, _count_free);
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv1,
+                 TEST_SHARED_KEY "_unknown", &reloaded, _checked_replace, _count_free),
+      -ENOENT);
 
-  EXPECT_EQ (num_replaced, 0U);
+  EXPECT_EQ (num_records, 0U);
   EXPECT_EQ (num_freed, 0U);
 }
 
 /**
- * @brief Replacing with no key changes nothing.
+ * @brief Replacing with no key, no interpreter or no callback changes nothing.
  */
-TEST_F (testFilterSharedModel, replaceNullKey_n)
+TEST_F (testFilterSharedModel, replaceInvalidParam_n)
 {
   int reloaded = 0;
 
-  nnstreamer_filter_shared_model_replace (&priv1, NULL, &reloaded, _count_replace, _count_free);
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (
+                 &priv1, NULL, &reloaded, _checked_replace, _count_free),
+      -EINVAL);
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (
+                 &priv1, TEST_SHARED_KEY, NULL, _checked_replace, _count_free),
+      -EINVAL);
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (
+                 &priv1, TEST_SHARED_KEY, &reloaded, NULL, _count_free),
+      -EINVAL);
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (
+                 &priv1, TEST_SHARED_KEY, &reloaded, _checked_replace, NULL),
+      -EINVAL);
 
-  EXPECT_EQ (num_replaced, 0U);
+  EXPECT_EQ (num_records, 0U);
   EXPECT_EQ (num_freed, 0U);
+}
+
+/**
+ * @brief Replacing without a shared model table changes nothing.
+ */
+TEST_F (testFilterSharedModel, replaceWithoutTable_n)
+{
+  int reloaded = 0;
+
+  gst_tensor_filter_common_free_property (&priv1);
+  gst_tensor_filter_common_init_property (&priv1);
+  gst_tensor_filter_common_free_property (&priv2);
+  gst_tensor_filter_common_init_property (&priv2);
+
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv1,
+                 TEST_SHARED_KEY, &reloaded, _checked_replace, _count_free),
+      -EPERM);
+
+  EXPECT_EQ (num_records, 0U);
+  EXPECT_EQ (num_freed, 0U);
+}
+
+/**
+ * @brief Every instance takes the new interpreter, so the old one is released.
+ */
+TEST_F (testFilterSharedModel, replaceEveryInstance)
+{
+  int interpreter = 0;
+  int reloaded = 0;
+
+  ASSERT_TRUE (nnstreamer_filter_shared_model_insert_and_get (
+                   &priv1, (char *) TEST_SHARED_KEY, &interpreter)
+               == &interpreter);
+  ASSERT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv1,
+                 TEST_SHARED_KEY, &reloaded, _checked_replace, _count_free),
+      0);
+
+  EXPECT_EQ (num_records, 2U);
+  EXPECT_TRUE (records[0].instance == &priv1);
+  EXPECT_TRUE (records[0].interpreter == &reloaded);
+  EXPECT_TRUE (records[1].instance == &priv2);
+  EXPECT_TRUE (records[1].interpreter == &reloaded);
+  EXPECT_EQ (num_freed, 1U);
+  EXPECT_TRUE (last_freed == &interpreter);
+  EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &reloaded);
+
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv1, TEST_SHARED_KEY, _count_free));
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv2, TEST_SHARED_KEY, _count_free));
+  EXPECT_EQ (num_freed, 2U);
+}
+
+/**
+ * @brief The first instance refuses, so nothing is replaced and nothing is released.
+ */
+TEST_F (testFilterSharedModel, replaceRefusedByFirst_n)
+{
+  int interpreter = 0;
+  int reloaded = 0;
+
+  ASSERT_TRUE (nnstreamer_filter_shared_model_insert_and_get (
+                   &priv1, (char *) TEST_SHARED_KEY, &interpreter)
+               == &interpreter);
+  ASSERT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  refuse_nth = 0;
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv1,
+                 TEST_SHARED_KEY, &reloaded, _checked_replace, _count_free),
+      -EINVAL);
+
+  EXPECT_EQ (num_records, 1U);
+  EXPECT_EQ (num_freed, 0U);
+  EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv1, TEST_SHARED_KEY, _count_free));
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv2, TEST_SHARED_KEY, _count_free));
+  EXPECT_EQ (num_freed, 1U);
+  EXPECT_TRUE (last_freed == &interpreter);
+}
+
+/**
+ * @brief A later instance refuses, so the instances that took the new interpreter get the old one back.
+ * @details This is the use-after-free of item B16 of issue 4920: the interpreter
+ *          the refusing instance still points at must stay alive.
+ */
+TEST_F (testFilterSharedModel, replaceRefusedByLast_n)
+{
+  int interpreter = 0;
+  int reloaded = 0;
+
+  ASSERT_TRUE (nnstreamer_filter_shared_model_insert_and_get (
+                   &priv1, (char *) TEST_SHARED_KEY, &interpreter)
+               == &interpreter);
+  ASSERT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  refuse_nth = 1;
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv1,
+                 TEST_SHARED_KEY, &reloaded, _checked_replace, _count_free),
+      -EINVAL);
+
+  EXPECT_EQ (num_records, 3U);
+  EXPECT_TRUE (records[2].instance == &priv1);
+  EXPECT_TRUE (records[2].interpreter == &interpreter);
+  EXPECT_EQ (num_freed, 0U);
+  EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv1, TEST_SHARED_KEY, _count_free));
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv2, TEST_SHARED_KEY, _count_free));
+  EXPECT_EQ (num_freed, 1U);
+  EXPECT_TRUE (last_freed == &interpreter);
+}
+
+/**
+ * @brief An instance refuses the old interpreter back, so both interpreters stay in use.
+ * @details Neither interpreter may be released while an instance points at it,
+ *          so the caller is told to keep both.
+ */
+TEST_F (testFilterSharedModel, replaceRollbackRefused_n)
+{
+  int interpreter = 0;
+  int reloaded = 0;
+
+  ASSERT_TRUE (nnstreamer_filter_shared_model_insert_and_get (
+                   &priv1, (char *) TEST_SHARED_KEY, &interpreter)
+               == &interpreter);
+  ASSERT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  refuse_nth = 1;
+  refuse_rollback_nth = 2;
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv1,
+                 TEST_SHARED_KEY, &reloaded, _checked_replace, _count_free),
+      -EBUSY);
+
+  EXPECT_EQ (num_records, 3U);
+  EXPECT_EQ (num_freed, 0U);
+  EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv1, TEST_SHARED_KEY, _count_free));
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv2, TEST_SHARED_KEY, _count_free));
+  EXPECT_EQ (num_freed, 1U);
+}
+
+/**
+ * @brief Handing over the interpreter that is already shared is refused.
+ * @details Taking it would release the interpreter and then publish the
+ *          released pointer as the shared one. The code differs from the one a
+ *          refusal gives, because this interpreter belongs to the table and the
+ *          caller must not destroy it.
+ */
+TEST_F (testFilterSharedModel, replaceSameInterpreter_n)
+{
+  int interpreter = 0;
+
+  ASSERT_TRUE (nnstreamer_filter_shared_model_insert_and_get (
+                   &priv1, (char *) TEST_SHARED_KEY, &interpreter)
+               == &interpreter);
+
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv1,
+                 TEST_SHARED_KEY, &interpreter, _checked_replace, _count_free),
+      -EEXIST);
+
+  EXPECT_EQ (num_records, 0U);
+  EXPECT_EQ (num_freed, 0U);
+  EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv1, TEST_SHARED_KEY) == &interpreter);
+
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv1, TEST_SHARED_KEY, _count_free));
+  EXPECT_EQ (num_freed, 1U);
+}
+
+/**
+ * @brief Every instance that had taken the new interpreter is given the old one back.
+ * @details Three instances make the rollback more than one step, so that a
+ *          rollback which stops at the first instance is distinguishable.
+ */
+TEST_F (testFilterSharedModel, replaceRollsBackEveryInstance_n)
+{
+  int interpreter = 0;
+  int reloaded = 0;
+
+  useThirdInstance ();
+
+  ASSERT_TRUE (nnstreamer_filter_shared_model_insert_and_get (
+                   &priv1, (char *) TEST_SHARED_KEY, &interpreter)
+               == &interpreter);
+  ASSERT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+  ASSERT_TRUE (nnstreamer_filter_shared_model_get (&priv3, TEST_SHARED_KEY) == &interpreter);
+
+  refuse_nth = 2;
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv1,
+                 TEST_SHARED_KEY, &reloaded, _checked_replace, _count_free),
+      -EINVAL);
+
+  EXPECT_EQ (num_records, 5U);
+  EXPECT_TRUE (records[3].instance == &priv1);
+  EXPECT_TRUE (records[3].interpreter == &interpreter);
+  EXPECT_TRUE (records[4].instance == &priv2);
+  EXPECT_TRUE (records[4].interpreter == &interpreter);
+  EXPECT_EQ (num_freed, 0U);
+  EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv1, TEST_SHARED_KEY, _count_free));
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv2, TEST_SHARED_KEY, _count_free));
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv3, TEST_SHARED_KEY, _count_free));
+  EXPECT_EQ (num_freed, 1U);
+}
+
+/**
+ * @brief An instance refusing the old interpreter back does not stop the rollback.
+ * @details The instances behind the refusing one must still be given the old
+ *          interpreter, so that as few as possible are left on the new one.
+ */
+TEST_F (testFilterSharedModel, replaceRollbackContinuesAfterRefusal_n)
+{
+  int interpreter = 0;
+  int reloaded = 0;
+
+  useThirdInstance ();
+
+  ASSERT_TRUE (nnstreamer_filter_shared_model_insert_and_get (
+                   &priv1, (char *) TEST_SHARED_KEY, &interpreter)
+               == &interpreter);
+  ASSERT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+  ASSERT_TRUE (nnstreamer_filter_shared_model_get (&priv3, TEST_SHARED_KEY) == &interpreter);
+
+  refuse_nth = 2;
+  refuse_rollback_nth = 3;
+  EXPECT_EQ (nnstreamer_filter_shared_model_replace_checked (&priv1,
+                 TEST_SHARED_KEY, &reloaded, _checked_replace, _count_free),
+      -EBUSY);
+
+  EXPECT_EQ (num_records, 5U);
+  EXPECT_TRUE (records[4].instance == &priv2);
+  EXPECT_TRUE (records[4].interpreter == &interpreter);
+  EXPECT_EQ (num_freed, 0U);
+  EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv1, TEST_SHARED_KEY, _count_free));
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv2, TEST_SHARED_KEY, _count_free));
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv3, TEST_SHARED_KEY, _count_free));
+  EXPECT_EQ (num_freed, 1U);
+}
+
+/**
+ * @brief The deprecated helper still replaces, and warns once per process.
+ * @details The warning has to reach stderr, because the log channel is dlog on
+ *          Tizen. This is the only case that calls the deprecated helper, so the
+ *          process-wide once-only warning can be counted here whatever order the
+ *          cases run in; every branch of that helper is driven from here.
+ */
+TEST_F (testFilterSharedModel, deprecatedReplaceWarnsOnce)
+{
+  int interpreter = 0;
+  int reloaded = 0;
+  GPrintFunc previous;
+
+  ASSERT_TRUE (nnstreamer_filter_shared_model_insert_and_get (
+                   &priv1, (char *) TEST_SHARED_KEY, &interpreter)
+               == &interpreter);
+  ASSERT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &interpreter);
+
+  previous = g_set_printerr_handler (_record_printerr);
+
+  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+  nnstreamer_filter_shared_model_replace (&priv1, NULL, &reloaded, _count_replace, _count_free);
+  EXPECT_EQ (num_printerr, 1U);
+  nnstreamer_filter_shared_model_replace (&priv1, TEST_SHARED_KEY "_unknown",
+      &reloaded, _count_replace, _count_free);
+  EXPECT_EQ (num_printerr, 1U);
+  nnstreamer_filter_shared_model_replace (
+      &priv1, TEST_SHARED_KEY, &reloaded, _count_replace, _count_free);
+  EXPECT_EQ (num_printerr, 1U);
+  G_GNUC_END_IGNORE_DEPRECATIONS
+
+  g_set_printerr_handler (previous);
+
+  ASSERT_TRUE (last_printerr != nullptr);
+  EXPECT_TRUE (g_strstr_len (last_printerr, -1, "nnstreamer_filter_shared_model_replace_checked")
+               != NULL);
+  EXPECT_EQ (num_replaced, 2U);
+  EXPECT_TRUE (last_replaced_instance == &priv2);
+  EXPECT_TRUE (last_replaced_interpreter == &reloaded);
+  EXPECT_EQ (num_freed, 1U);
+  EXPECT_TRUE (last_freed == &interpreter);
+  EXPECT_TRUE (nnstreamer_filter_shared_model_get (&priv2, TEST_SHARED_KEY) == &reloaded);
+
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv1, TEST_SHARED_KEY, _count_free));
+  EXPECT_TRUE (nnstreamer_filter_shared_model_remove (&priv2, TEST_SHARED_KEY, _count_free));
+  EXPECT_EQ (num_freed, 2U);
 }
 
 /**
