@@ -265,15 +265,20 @@ gst_tensor_split_retyped_caps (GstCaps * current,
  *          What a pad is linked to is asked before the caps are set: a sticky
  *          caps event is not reported back by gst_pad_set_caps(), and the
  *          question is the one gst_pad_send_event() asks the peer itself
- *          before handing it a caps event.
+ *          before handing it a caps event. Every peer is asked before any pad
+ *          is changed, so a refusal leaves all of them as they were.
  * @param split TensorSplit object
  * @return TRUE if every source pad took its new caps
  */
 static gboolean
 gst_tensor_split_update_src_caps (GstTensorSplit * split)
 {
+  GPtrArray *pads = g_ptr_array_new ();
+  GPtrArray *pads_caps =
+      g_ptr_array_new_with_free_func ((GDestroyNotify) gst_mini_object_unref);
   GSList *walk;
   gboolean ret = TRUE;
+  guint i;
 
   for (walk = split->srcpads; ret && walk; walk = g_slist_next (walk)) {
     GstTensorPad *tensorpad = (GstTensorPad *) walk->data;
@@ -287,19 +292,28 @@ gst_tensor_split_update_src_caps (GstTensorSplit * split)
     }
 
     caps = gst_tensor_split_retyped_caps (current, &split->in_config);
-    if (!gst_caps_is_equal (caps, current)) {
-      ret = gst_pad_peer_query_accept_caps (tensorpad->pad, caps)
-          && gst_pad_set_caps (tensorpad->pad, caps);
-      if (!ret) {
-        GST_WARNING_OBJECT (tensorpad->pad,
-            "Cannot carry %" GST_PTR_FORMAT " of the renegotiated input.",
-            caps);
-      }
+    if (gst_caps_is_equal (caps, current)) {
+      gst_caps_unref (caps);
+    } else if (!gst_pad_peer_query_accept_caps (tensorpad->pad, caps)) {
+      GST_WARNING_OBJECT (tensorpad->pad,
+          "Cannot carry %" GST_PTR_FORMAT " of the renegotiated input.", caps);
+      gst_caps_unref (caps);
+      ret = FALSE;
+    } else {
+      g_ptr_array_add (pads, tensorpad->pad);
+      g_ptr_array_add (pads_caps, caps);
     }
 
-    gst_caps_unref (caps);
     gst_caps_unref (current);
   }
+
+  for (i = 0; ret && i < pads->len; i++) {
+    ret = gst_pad_set_caps (g_ptr_array_index (pads, i),
+        g_ptr_array_index (pads_caps, i));
+  }
+
+  g_ptr_array_free (pads, TRUE);
+  g_ptr_array_free (pads_caps, TRUE);
 
   return ret;
 }

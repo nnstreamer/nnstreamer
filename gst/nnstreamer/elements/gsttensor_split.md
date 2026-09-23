@@ -53,7 +53,7 @@ To change them, stop the pipeline to `READY` or `NULL`, set the properties, and 
 
 Upstream may change the input caps while the stream runs. The segments stay as `tensorseg` describes them, so a new input shape alone leaves the pads as they are, and a new type or framerate is passed on to every source pad before the next buffer. An input the rule no longer fits is refused per buffer with an error.
 
-A pad keeps the media type it was created with, `other/tensors` with `num_tensors=1`. If a pad cannot take its new caps, because what is linked to it is pinned to the old ones, the element fails the negotiation instead of pushing buffers that disagree with the caps.
+A pad keeps the media type it was created with, `other/tensors` with `num_tensors=1`. If a pad cannot take its new caps, because what is linked to it is pinned to the old ones, the element fails the negotiation instead of pushing buffers that disagree with the caps. Every peer is asked before any pad changes, so a refusal leaves all the pads announcing what they did before, and no other peer is reconfigured for a stream that goes no further.
 
 ## Usage Examples
 
