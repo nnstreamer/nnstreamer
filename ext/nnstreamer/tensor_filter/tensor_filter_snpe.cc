@@ -233,6 +233,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       throw std::runtime_error ("Error obtaining buffer attributes");
 
     auto default_type = Snpe_IBufferAttributes_GetEncodingType (bufferAttributesOpt);
+    const char *type_error = nullptr;
 
     /* parse tensor data type with user given element type */
     switch (type) {
@@ -244,7 +245,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
         } else if (default_type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_TF8) {
           info->type = _NNS_UINT8;
         } else {
-          throw std::invalid_argument ("Unsupported data type");
+          type_error = "Unsupported data type";
         }
         break;
       case SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT:
@@ -253,12 +254,16 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       case SNPE_USERBUFFERENCODING_ELEMENTTYPE_TF8:
         info->type = _NNS_UINT8;
         if (default_type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT) {
-          throw std::invalid_argument (
-              "ERROR: Quantization parameters are not present in model. Use TF8 type.");
+          type_error = "ERROR: Quantization parameters are not present in model. Use TF8 type.";
         }
         break;
       default:
-        throw std::invalid_argument ("Unsupported data type");
+        type_error = "Unsupported data type";
+    }
+
+    if (type_error) {
+      Snpe_IBufferAttributes_Delete (bufferAttributesOpt);
+      throw std::invalid_argument (type_error);
     }
 
     /* parse tensor dimension */
@@ -293,6 +298,10 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
           = Snpe_UserBufferEncodingTfN_GetQuantizedStepSize (ubeTfNHandle);
       ube_h = Snpe_UserBufferEncodingTfN_Create (stepEquivalentTo0, quantizedStepSize, 8);
       Snpe_IBufferAttributes_Delete (bufferAttributesOpt);
+      /**
+       * @todo Remove this call and this comment with the fix of issue #5032:
+       * ubeTfNHandle is owned by the attributes deleted above.
+       */
       Snpe_UserBufferEncodingTfN_Delete (ubeTfNHandle);
     } else if (type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT) {
       ube_h = Snpe_UserBufferEncodingFloat_Create ();
