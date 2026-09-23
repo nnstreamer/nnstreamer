@@ -436,6 +436,62 @@ if gtest_dep.found()
     test('unittest_filter_snpe', unittest_filter_snpe, env: testenv)
   endif
 
+  # SNPE sub-plugin unit tests on a mock of the SNPE SDK. The two sub-plugin
+  # sources need the proprietary SDK, which no CI job has, so they are built
+  # here against tests/nnstreamer_filter_snpe/mock instead and exercised by the
+  # cases of unittest_filter_snpe.cc plus the error paths of the mock tests.
+  # They are not installed: the .dlc files they read are installed only when
+  # tensor_filter_ext_enabled holds, which no SNPE build implies.
+  snpe_mock_dir = join_paths('nnstreamer_filter_snpe', 'mock')
+  snpe_subplugin_dir = join_paths('..', 'ext', 'nnstreamer', 'tensor_filter')
+  snpe_mock_common_sources = [
+    join_paths(snpe_mock_dir, 'snpe_mock_common.cc'),
+    join_paths('nnstreamer_filter_snpe', 'unittest_filter_snpe.cc')
+  ]
+
+  # The mock ledger tells a leaked GLib string from a released one by
+  # interposing the allocators the sub-plugins use, which needs the GNU linker.
+  snpe_mock_wrap_args = []
+  foreach snpe_wrapped_symbol : ['g_strsplit', 'g_strjoinv', 'g_strdup', 'g_strfreev', 'g_free', 'gst_tensors_info_free']
+    snpe_mock_wrap_args += '-Wl,--wrap=' + snpe_wrapped_symbol
+  endforeach
+  snpe_mock_ledger_args = []
+  if host_machine.system() != 'linux' or not cxx.has_multi_link_arguments(snpe_mock_wrap_args)
+    snpe_mock_wrap_args = []
+  else
+    snpe_mock_ledger_args = ['-DSNPE_MOCK_LEDGER=1']
+  endif
+
+  unittest_filter_snpe_mock_v2 = executable('unittest_filter_snpe_mock_v2',
+    snpe_mock_common_sources + [
+      join_paths(snpe_mock_dir, 'snpe_mock_v2.cc'),
+      join_paths('nnstreamer_filter_snpe', 'unittest_filter_snpe_mock_v2.cc'),
+      join_paths(snpe_subplugin_dir, 'tensor_filter_snpe.cc')
+    ],
+    dependencies: [nnstreamer_unittest_deps, nnstreamer_single_dep],
+    include_directories: include_directories(join_paths(snpe_mock_dir, 'v2')),
+    cpp_args: ['-USNPE_VERSION_MAJOR', '-DSNPE_VERSION_MAJOR=2'] + snpe_mock_ledger_args,
+    link_args: snpe_mock_wrap_args,
+    install: false
+  )
+
+  test('unittest_filter_snpe_mock_v2', unittest_filter_snpe_mock_v2, env: testenv)
+
+  unittest_filter_snpe_mock_v1 = executable('unittest_filter_snpe_mock_v1',
+    snpe_mock_common_sources + [
+      join_paths(snpe_mock_dir, 'snpe_mock_v1.cc'),
+      join_paths('nnstreamer_filter_snpe', 'unittest_filter_snpe_mock_v1.cc'),
+      join_paths(snpe_subplugin_dir, 'tensor_filter_snpe_v1.cc')
+    ],
+    dependencies: [nnstreamer_unittest_deps, nnstreamer_single_dep],
+    include_directories: include_directories(join_paths(snpe_mock_dir, 'v1')),
+    cpp_args: ['-USNPE_VERSION_MAJOR', '-DSNPE_VERSION_MAJOR=1'] + snpe_mock_ledger_args,
+    link_args: snpe_mock_wrap_args,
+    install: false
+  )
+
+  test('unittest_filter_snpe_mock_v1', unittest_filter_snpe_mock_v1, env: testenv)
+
   # tensorflow2-lite unittest
   if tflite2_support_is_available
     shared_library('nnstreamer_unittest_tflite_lifetime_delegate',
