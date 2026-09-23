@@ -182,6 +182,66 @@ TEST (nnstreamerFilterSnpeMockV2, customPropAppendFailure06_n)
 }
 
 /**
+ * @brief Negative case: asking for a quantized type on a float model.
+ *
+ * Regression test of item F4 of issue #4920: the buffer attributes used to
+ * leak when the requested element type did not match the model.
+ */
+TEST (nnstreamerFilterSnpeMockV2, quantizedTypeOnFloatModel07_n)
+{
+  snpe_mock_reset ();
+
+  EXPECT_NE (_MockOpenClose (TRUE, "InputType:TF8"), 0);
+  EXPECT_EQ (snpe_mock_live_count (SNPE_MOCK_OBJ_BUFFER_ATTRIBUTES), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+}
+
+/**
+ * @brief Create an empty file the mock reads a model description from.
+ * @return the path of the created file, to be released by the caller
+ */
+static gchar *
+_MockMakeModelFile (const gchar *name_template)
+{
+  gchar *path = NULL;
+  gint fd = g_file_open_tmp (name_template, &path, NULL);
+
+  if (fd < 0)
+    return NULL;
+
+  g_close (fd, NULL);
+  return path;
+}
+
+/**
+ * @brief Negative case: a model whose element type has no NNStreamer type.
+ *
+ * Regression test of item F4 of issue #4920, covering the other throw that
+ * leaves the buffer attributes behind.
+ */
+TEST (nnstreamerFilterSnpeMockV2, unsupportedElementType08_n)
+{
+  void *data = NULL;
+  GstTensorFilterProperties prop;
+  gchar *model_file = _MockMakeModelFile ("nns_snpe_mock_badenc_XXXXXX.dlc");
+  ASSERT_TRUE (model_file != NULL);
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  ASSERT_TRUE (sp != nullptr);
+  _MockSetProp (&prop, model_files, NULL);
+
+  snpe_mock_reset ();
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_EQ (snpe_mock_live_count (SNPE_MOCK_OBJ_BUFFER_ATTRIBUTES), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+
+  sp->close (&prop, &data);
+  g_remove (model_file);
+  g_free (model_file);
+}
+
+/**
  * @brief Positive case: the ledger sees the names an extra array holds.
  *
  * Regression test of the mock itself. The interposer of
