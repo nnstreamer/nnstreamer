@@ -25,6 +25,11 @@
 # that argument and exits non-zero. That is what makes "did this one run"
 # observable without a test framework, for the failing entries too.
 #
+# A fourth property joined them with the per-binary bound the Valgrind job
+# asks for: the bound is what keeps a run that never returns from taking that
+# step's whole budget, and nothing in a reading of the script says whether it
+# is still applied.
+#
 # Two of the fixtures fail, which is what makes the fail-fast check independent
 # of the order the file system lists them in: whichever order that is, a loop
 # that stopped at the first failure would leave at least one later entry
@@ -155,6 +160,27 @@ status=$?
     || report 1 "a single passing binary is accepted by path"
 expect_in "${out}" "unittest_alpha.xml" "a single binary given by path is run"
 expect_not_in "${out}" "unittest_gamma.xml" "a single binary given by path runs alone"
+
+# UNITTEST_TIMEOUT bounds each binary for the caller that asks for one. A shim
+# on PATH reports how the runner called timeout, so neither half needs a
+# fixture that hangs. KILL is part of the assertion: on TERM valgrind still
+# writes its summaries and check_valgrind_log.sh reads a stalled run as one
+# that finished with nothing to report.
+tree="${workdir}/bounded"
+make_tree "${tree}"
+mkdir -p "${workdir}/bin"
+printf '#!/bin/sh\necho "timeout-called $*"\nshift 3\nexec "$@"\n' > "${workdir}/bin/timeout"
+chmod +x "${workdir}/bin/timeout"
+
+out=$(cd "${tree}" && PATH="${workdir}/bin:${PATH}" UNITTEST_TIMEOUT=7 \
+    bash "${RUNNER}" ./tests/unittest_alpha 2>&1)
+expect_in "${out}" "timeout-called -s KILL 7" \
+    "UNITTEST_TIMEOUT bounds a run, and kills it rather than asking"
+expect_in "${out}" "unittest_alpha.xml" "a bounded binary is still run"
+
+out=$(cd "${tree}" && PATH="${workdir}/bin:${PATH}" bash "${RUNNER}" ./tests/unittest_alpha 2>&1)
+expect_not_in "${out}" "timeout-called" \
+    "an unset UNITTEST_TIMEOUT leaves the callers that did not ask as they were"
 
 if [ ${failed} -ne 0 ]; then
   echo "run_unittests_binaries.sh self-test failed."
