@@ -546,6 +546,9 @@ if gtest_dep.found()
   # Tensor filter extensions basic test cases
   subdir('nnstreamer_filter_extensions_common')
 
+  # Vivante sub-plugin, built against a mock of its proprietary SDK
+  subdir('nnstreamer_filter_vivante')
+
   # Tizen NNFW runtime
   if nnfw_runtime_support_is_available
     subdir('tizen_nnfw_runtime')
