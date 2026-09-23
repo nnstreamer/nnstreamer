@@ -295,7 +295,7 @@ class TFLiteCore
   /** @brief callback method to delete interpreter for shared model */
   friend void free_interpreter (void *instance);
   /** @brief callback method to replace interpreter for shared model */
-  friend void replace_interpreter (void *instance, void *interpreter);
+  friend int replace_interpreter (void *instance, void *interpreter);
 
   private:
   int num_threads;
@@ -1288,14 +1288,19 @@ TFLiteCore::reloadInterpreter (TFLiteInterpreter *new_interpreter)
 
 /**
  * @brief callback method to replace interpreter for shared model
+ * @return 0 if the core took the given interpreter, a negative errno if it refused it
  */
-void
+int
 replace_interpreter (void *instance, void *interpreter)
 {
   TFLiteCore *core = reinterpret_cast<TFLiteCore *> (instance);
   TFLiteInterpreter *interpreter_new = reinterpret_cast<TFLiteInterpreter *> (interpreter);
-  if (core->reloadInterpreter (interpreter_new) != 0)
+  int ret = core->reloadInterpreter (interpreter_new);
+
+  if (ret != 0)
     nns_loge ("Failed to replace interpreter");
+
+  return ret;
 }
 
 /**
@@ -1318,7 +1323,7 @@ TFLiteCore::reloadModel (const char *_model_path)
   TFLiteInterpreter *interpreter_sub = new TFLiteInterpreter ();
   const char *_ext_delegate_path;
   GHashTable *_ext_delegate_kv;
-  gboolean compatible;
+  int ret = -EINVAL;
 
   interpreter_sub->setModelPath (_model_path);
   interpreter->getExtDelegate (&_ext_delegate_path, &_ext_delegate_kv);
@@ -1346,19 +1351,27 @@ TFLiteCore::reloadModel (const char *_model_path)
   }
 
   if (shared_tensor_filter_key) {
-    /* The helper frees the old interpreter even if a core refuses the new one. */
-    interpreter->lock ();
-    compatible = interpreter->hasSameTensorsInfo (interpreter_sub);
-    interpreter->unlock ();
-
-    if (!compatible) {
-      ml_loge ("The model has unmatched tensors info, the shared model is not reloaded\n");
+    /**
+     * Every core sharing the key compares its own tensors info with the new
+     * interpreter while the shared model table is locked. The old interpreter
+     * survives a refusal, so it is this function that has to release the new one.
+     */
+    ret = nnstreamer_filter_shared_model_replace_checked (this, shared_tensor_filter_key,
+        interpreter_sub, replace_interpreter, free_interpreter);
+    if (ret != 0) {
+      ml_loge ("The shared model of the key %s is not reloaded: %d\n",
+          shared_tensor_filter_key, ret);
+      /**
+       * -EBUSY leaves a core on the new interpreter and -EEXIST means the
+       * interpreter is the shared one already, so neither may be released here.
+       * After -EBUSY the model property is restored to the old path, which the
+       * cores left on the new interpreter no longer run; reporting the failure
+       * is still better than the use-after-free releasing either would cause.
+       */
+      if (ret == -EBUSY || ret == -EEXIST)
+        return ret;
       goto error;
     }
-
-    /* update cores with new interpreter that has shared key */
-    nnstreamer_filter_shared_model_replace (this, shared_tensor_filter_key,
-        interpreter_sub, replace_interpreter, free_interpreter);
   } else {
     if (reloadInterpreter (interpreter_sub) != 0) {
       ml_loge ("Failed replace interpreter\n");
@@ -1371,7 +1384,7 @@ TFLiteCore::reloadModel (const char *_model_path)
 
 error:
   delete interpreter_sub;
-  return -EINVAL;
+  return ret;
 }
 
 /**

@@ -18,6 +18,25 @@
 
 #include "tensor_typedef.h"
 
+/**
+ * @brief Mark a function deprecated in favour of another one.
+ * @note Define NNS_DISABLE_DEPRECATION_WARNINGS, before including this header
+ *       and for every translation unit that includes it, to keep building a
+ *       sub-plugin that still calls a deprecated function with -Werror. A build
+ *       that defines NNS_DEPRECATED_FOR itself keeps its own definition, since
+ *       this header adds none on top of it, and NNS_DISABLE_DEPRECATION_WARNINGS
+ *       then decides nothing.
+ */
+#ifndef NNS_DEPRECATED_FOR
+#if defined(NNS_DISABLE_DEPRECATION_WARNINGS)
+#define NNS_DEPRECATED_FOR(f)
+#elif defined(__GNUC__) || defined(__clang__)
+#define NNS_DEPRECATED_FOR(f) __attribute__ ((__deprecated__ ("Use " #f " instead")))
+#else
+#define NNS_DEPRECATED_FOR(f)
+#endif
+#endif
+
 /** Macros for accelerator types */
 #define ACCL_NONE_STR "none"
 #define ACCL_DEFAULT_STR  "default"
@@ -612,6 +631,7 @@ nnstreamer_filter_shared_model_remove (void *instance, const char *key,
  *       it compares may change before the callbacks run.
  * @note The first call to this function in a process prints a deprecation warning to stderr.
  */
+NNS_DEPRECATED_FOR (nnstreamer_filter_shared_model_replace_checked)
 extern void
 nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     void *new_interpreter, void (*replace_callback) (void *, void *), void (*free_callback) (void*));

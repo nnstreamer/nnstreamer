@@ -172,6 +172,13 @@ Although the given template code supports static input/output tensor dimension (
 
 In order to support this, you need to supply an additional callback, ```setInputDimension``` defined in ```GstTensorFilterFramework``` of ```nnstreamer_plugin_api_filter.h```.
 
+## Sharing a Model Between Filter Instances
+
+When users give several ```tensor_filter``` elements the same ```shared-tensor-filter-key``` property, the subplugin may keep one interpreter for all of them instead of loading the model once per element. ```nnstreamer_plugin_api_filter.h``` offers four helpers for that: ```nnstreamer_filter_shared_model_insert_and_get ()``` registers the first interpreter, ```nnstreamer_filter_shared_model_get ()``` registers a further instance and returns the interpreter it shares, ```nnstreamer_filter_shared_model_remove ()``` drops an instance and releases the interpreter once the last one is gone, and ```nnstreamer_filter_shared_model_replace_checked ()``` hands a reloaded interpreter to every instance sharing the key.
+
+A reload concerns every instance, so ```nnstreamer_filter_shared_model_replace_checked ()``` asks each of them through the ```replace_callback``` you supply, which returns 0 to take the new interpreter and a non-zero value to refuse it, for example when the new model has a different tensors info. If one refuses, the instances that had taken it are given the old interpreter back, nothing is released and the call returns ```-EINVAL```: the new interpreter is still yours to release. Handing over the interpreter the key already shares returns ```-EEXIST```, and that one belongs to the table, so do not release it. The callbacks run while the shared model table is locked, so no instance joins or leaves the key in between, but nothing stops an instance from being renegotiated from another thread meanwhile. When such a renegotiation makes an instance refuse the old interpreter back as well, the instances end up split between the two interpreters and the call returns ```-EBUSY```; keep both interpreters alive in that case, because releasing either leaves an instance reading released memory.
+
+```nnstreamer_filter_shared_model_replace ()``` is the deprecated predecessor. Its ```replace_callback``` returns nothing, so it releases the old interpreter whatever the instances answer. Subplugins still calling it should move to the checked variant.
 
 ## Writing one from scratch
 
