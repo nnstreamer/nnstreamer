@@ -12170,7 +12170,7 @@ TEST (testTensorSplit, finalizeWithoutTensorseg)
       (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _record_critical, NULL);
   tensor_split_logged_critical = FALSE;
-  /* Only the intentional probe may bypass G_DEBUG=fatal-criticals. */
+  /* Only the intentional probe may bypass fatal handling of critical messages. */
   fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log ("GLib", G_LOG_LEVEL_CRITICAL, "tensor_split test: handler self-check");
   g_log_set_always_fatal (fatal_mask);
