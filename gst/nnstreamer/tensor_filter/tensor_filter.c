@@ -1420,6 +1420,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   GstTensorsConfig in_config, out_config;
   GstTensorsInfo in_info, out_info;
   gboolean flexible;
+  gboolean ret = FALSE;
 
   g_return_val_if_fail (incaps != NULL, FALSE);
   priv = &self->priv;
@@ -1557,10 +1558,22 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   }
 
   if (priv->configured) {
-    /** already configured, compare to old. */
+    /** already configured, only the framerate may change. */
     if (!priv->prop.invoke_dynamic) {
-      g_assert (gst_tensors_config_is_equal (&priv->in_config, &in_config));
-      g_assert (gst_tensors_config_is_equal (&priv->out_config, &out_config));
+      if (!gst_tensors_info_is_equal (&priv->in_config.info, &in_config.info)
+          || !gst_tensors_info_is_equal (&priv->out_config.info,
+              &out_config.info)) {
+        gchar *capstr = gst_caps_to_string (incaps);
+        GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+            ("%s:%u The input stream of tensor_filter (%s:%s) cannot be renegotiated to '%s': only the framerate may change once the tensors are configured.",
+                __func__, __LINE__, GST_STR_NULL (prop->fwname),
+                TF_MODELNAME (prop), capstr));
+        g_free (capstr);
+        goto done;
+      }
+
+      priv->in_config.rate_n = priv->out_config.rate_n = in_config.rate_n;
+      priv->in_config.rate_d = priv->out_config.rate_d = in_config.rate_d;
     }
   } else {
     gst_tensors_config_copy (&priv->in_config, &in_config);
@@ -1569,13 +1582,15 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     priv->configured = TRUE;
   }
 
+  ret = TRUE;
+
 done:
   gst_tensors_config_free (&in_config);
   gst_tensors_config_free (&out_config);
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
 
-  return priv->configured;
+  return ret;
 }
 
 /**
@@ -1893,8 +1908,11 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
   UNUSED (othercaps);
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
-  /** Internal Logic Error. Cannot proceed without configured pipeline */
-  g_assert (priv->configured);
+  if (!priv->configured) {
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, TYPE_NOT_FOUND,
+        ("The tensor_filter instance is not configured. The framework may have been replaced after the caps were negotiated."));
+    return FALSE;
+  }
   /**
    * Consider multi-tensors.
    * Set each memory block in transform()
