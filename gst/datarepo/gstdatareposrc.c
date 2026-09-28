@@ -14,7 +14,7 @@
  * |[
  * gst-launch-1.0 datareposrc location=mnist.data json=mnist.json start-sample-index=3 stop-sample-index=202 epochs=5 ! \
  * ! tensor_sink
- * gst-launch-1.0 datareposrc location=image_%02ld.png json=image.json start-sample-index=3 stop-sample-index=9 epochs=2 ! fakesink
+ * gst-launch-1.0 datareposrc location=image_%02d.png json=image.json start-sample-index=3 stop-sample-index=9 epochs=2 ! fakesink
  * gst-launch-1.0 datareposrc location=audiofile json=audio.json ! fakesink
  * gst-launch-1.0 datareposrc location=videofile json=video.json ! fakesink
  * |]
@@ -132,7 +132,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
       g_param_spec_string ("location", "File Location",
           "Location of the file to read that is stored in MLOps Data Repository, "
           "if the files are images, write the index of filename name "
-          "like %04ld or %04lld (e.g., filename%04ld.png)",
+          "like %04d (e.g., filename%04d.png)",
           NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
@@ -1157,6 +1157,8 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
       src->num_samples, src->start_sample_index, src->stop_sample_index);
   GST_INFO_OBJECT (src, "data type: %d", src->data_type);
   if (src->data_type == GST_DATA_REPO_DATA_IMAGE) {
+    if (!gst_data_repo_is_valid_image_location (src->filename))
+      goto invalid_location;
     filename = gst_data_repo_src_get_image_filename (src);
   } else {
     filename = g_strdup (src->filename);
@@ -1217,6 +1219,12 @@ no_filename:
   {
     GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
         ("No file name specified for reading."), (NULL));
+    goto error_exit;
+  }
+invalid_location:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+        ("Invalid image file name pattern \"%s\".", src->filename), (NULL));
     goto error_exit;
   }
 open_failed:

@@ -174,6 +174,7 @@ static void
 gst_data_repo_sink_init (GstDataRepoSink * sink)
 {
   sink->filename = NULL;
+  sink->is_valid_image_location = FALSE;
   sink->fd = 0;
   sink->fd_offset = 0;
   sink->data_type = GST_DATA_REPO_DATA_UNKNOWN;
@@ -233,6 +234,8 @@ gst_data_repo_sink_set_property (GObject * object, guint prop_id,
     case PROP_LOCATION:
       g_free (sink->filename);
       sink->filename = g_value_dup_string (value);
+      sink->is_valid_image_location = sink->filename != NULL
+          && gst_data_repo_is_valid_image_location (sink->filename);
       GST_INFO_OBJECT (sink, "filename: %s", sink->filename);
       break;
     case PROP_JSON:
@@ -434,6 +437,12 @@ gst_data_repo_sink_write_multi_images (GstDataRepoSink * sink,
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
 
+  if (!sink->is_valid_image_location) {
+    GST_ELEMENT_ERROR (sink, RESOURCE, SETTINGS,
+        ("Invalid image file name pattern \"%s\".", sink->filename), (NULL));
+    return GST_FLOW_ERROR;
+  }
+
   if (!gst_buffer_map (buffer, &info, GST_MAP_READ)) {
     GST_ERROR_OBJECT (sink, "Failed to map the incoming buffer.");
     return GST_FLOW_ERROR;
@@ -600,6 +609,8 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
     goto no_filename;
 
   if (sink->data_type == GST_DATA_REPO_DATA_IMAGE) {
+    if (!sink->is_valid_image_location)
+      goto invalid_location;
     return TRUE;
   }
 
@@ -622,6 +633,12 @@ no_filename:
   {
     GST_ELEMENT_ERROR (sink, RESOURCE, NOT_FOUND,
         (("No file name specified for writing.")), (NULL));
+    goto error_exit;
+  }
+invalid_location:
+  {
+    GST_ELEMENT_ERROR (sink, RESOURCE, SETTINGS,
+        ("Invalid image file name pattern \"%s\".", sink->filename), (NULL));
     goto error_exit;
   }
 open_failed:

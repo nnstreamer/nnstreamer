@@ -533,6 +533,248 @@ TEST (datareposink, unsupportedAudioCaps0_n)
 }
 
 /**
+ * @brief Write three png images with the given location and report whether the pipeline reached PLAYING.
+ */
+static gboolean
+write_three_images (const gchar *location)
+{
+  GstElement *pipeline, *sink;
+  GstBus *bus;
+  GMainLoop *loop;
+  gboolean playing;
+
+  pipeline = gst_parse_launch (
+      "videotestsrc num-buffers=3 ! pngenc ! datareposink name=sink json=fmt.json", NULL);
+  if (pipeline == NULL)
+    return FALSE;
+
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  g_object_set (sink, "location", location, NULL);
+  gst_object_unref (sink);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  playing = (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT)
+             == 0);
+  if (playing)
+    g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+  g_remove ("fmt.json");
+
+  return playing;
+}
+
+/**
+ * @brief Test the integer placeholders accepted in the image location
+ */
+TEST (datareposink, writeImageLocationPlaceholders)
+{
+  const struct {
+    const gchar *location;
+    const gchar *names[3];
+  } cases[] = {
+    { "fmt_%d.png", { "fmt_0.png", "fmt_1.png", "fmt_2.png" } },
+    { "fmt_%04d.png", { "fmt_0000.png", "fmt_0001.png", "fmt_0002.png" } },
+    { "fmt_%02ld.png", { "fmt_00.png", "fmt_01.png", "fmt_02.png" } },
+    { "fmt_%03llu.png", { "fmt_000.png", "fmt_001.png", "fmt_002.png" } },
+    { "fmt_%3i.png", { "fmt_  0.png", "fmt_  1.png", "fmt_  2.png" } },
+    { "fmt_%%_%u.png", { "fmt_%_0.png", "fmt_%_1.png", "fmt_%_2.png" } },
+    { "fmt_%#x.png", { "fmt_0.png", "fmt_0x1.png", "fmt_0x2.png" } },
+    { "fmt_%X.png", { "fmt_0.png", "fmt_1.png", "fmt_2.png" } },
+    { "fmt_%o.png", { "fmt_0.png", "fmt_1.png", "fmt_2.png" } },
+    { "fmt_%-3d.png", { "fmt_0  .png", "fmt_1  .png", "fmt_2  .png" } },
+    { "fmt_%+d.png", { "fmt_+0.png", "fmt_+1.png", "fmt_+2.png" } },
+    { "fmt_% d.png", { "fmt_ 0.png", "fmt_ 1.png", "fmt_ 2.png" } },
+    { "fmt_%.3d.png", { "fmt_000.png", "fmt_001.png", "fmt_002.png" } },
+    { "fmt_%5.2d.png", { "fmt_   00.png", "fmt_   01.png", "fmt_   02.png" } },
+    { "fmt_%.003d.png", { "fmt_000.png", "fmt_001.png", "fmt_002.png" } },
+    { "fmt_%.0003u.png", { "fmt_000.png", "fmt_001.png", "fmt_002.png" } },
+    { "fmt_%1$u_%1$u.png", { "fmt_0_0.png", "fmt_1_1.png", "fmt_2_2.png" } },
+    { "fmt_%1$02d_%1$#x.png", { "fmt_00_0.png", "fmt_01_0x1.png", "fmt_02_0x2.png" } },
+    { "fmt_%hd.png", { "fmt_0.png", "fmt_1.png", "fmt_2.png" } },
+    { "fmt_%hhu.png", { "fmt_0.png", "fmt_1.png", "fmt_2.png" } },
+    { "fmt_%zu.png", { "fmt_0.png", "fmt_1.png", "fmt_2.png" } },
+    { "fmt_%1$02d.png", { "fmt_00.png", "fmt_01.png", "fmt_02.png" } },
+  };
+
+  for (const auto &c : cases) {
+    EXPECT_TRUE (write_three_images (c.location)) << c.location;
+
+    for (const auto name : c.names) {
+      EXPECT_TRUE (g_file_test (name, G_FILE_TEST_IS_REGULAR)) << c.location;
+      g_remove (name);
+    }
+  }
+}
+
+/**
+ * @brief Test that a location without a placeholder keeps overwriting one file
+ */
+TEST (datareposink, writeImageLocationConstant)
+{
+  EXPECT_TRUE (write_three_images ("fmt_100%%.png"));
+  EXPECT_TRUE (g_file_test ("fmt_100%.png", G_FILE_TEST_IS_REGULAR));
+  g_remove ("fmt_100%.png");
+}
+
+/**
+ * @brief Test that the image location is never used as a printf format string
+ */
+TEST (datareposink, writeImageLocationInvalid_n)
+{
+  const gchar *locations[] = {
+    "fmt_%s.png",
+    "fmt_%n.png",
+    "fmt_%s%s%s%s%n.png",
+    "fmt_%p.png",
+    "fmt_%c.png",
+    "fmt_%f.png",
+    "fmt_%m.png",
+    "fmt_%*d.png",
+    "fmt_%.*d.png",
+    "fmt_%2$d.png",
+    "fmt_%5-d.png",
+    "fmt_%lllu.png",
+    "fmt_%hhhd.png",
+    "fmt_%hld.png",
+    "fmt_%1000d.png",
+    "fmt_%.1000d.png",
+    "fmt_%.0001000d.png",
+    "fmt_%1$d_%d.png",
+    "fmt_%d_%1$d.png",
+    "fmt_%999999999d.png",
+    "fmt_%d_%d.png",
+    "fmt_%d_%%_%d.png",
+    "fmt_%",
+  };
+
+  for (const auto location : locations)
+    EXPECT_FALSE (write_three_images (location)) << location;
+}
+
+/**
+ * @brief Data for changing the location of datareposink while it writes images.
+ */
+typedef struct {
+  GstElement *sink; /**< datareposink */
+  const gchar *location; /**< location to set before the second image */
+  guint count; /**< number of images seen */
+  gboolean error; /**< an error message was posted */
+  GMainLoop *loop; /**< main loop */
+} LocationChangeData;
+
+/**
+ * @brief Set the new location of datareposink before the second image reaches it.
+ */
+static void
+change_location_cb (GstElement *identity, GstBuffer *buffer, LocationChangeData *data)
+{
+  if (++data->count == 2)
+    g_object_set (data->sink, "location", data->location, NULL);
+}
+
+/**
+ * @brief Record whether the pipeline posted an error, and quit at the end.
+ */
+static gboolean
+location_change_bus_cb (GstBus *bus, GstMessage *message, gpointer user_data)
+{
+  LocationChangeData *data = (LocationChangeData *) user_data;
+
+  switch (GST_MESSAGE_TYPE (message)) {
+    case GST_MESSAGE_ERROR:
+      data->error = TRUE;
+      g_main_loop_quit (data->loop);
+      break;
+    case GST_MESSAGE_EOS:
+      g_main_loop_quit (data->loop);
+      break;
+    default:
+      break;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Write three images with fmt_%d.png, changing the location before the second one.
+ */
+static gboolean
+write_images_changing_location (const gchar *location)
+{
+  LocationChangeData data = { NULL, location, 0, FALSE, NULL };
+  GstElement *pipeline, *identity;
+  GstBus *bus;
+
+  pipeline = gst_parse_launch ("videotestsrc num-buffers=3 ! pngenc ! "
+                               "identity name=id signal-handoffs=true ! "
+                               "datareposink name=sink location=fmt_%d.png json=fmt.json",
+      NULL);
+  if (pipeline == NULL)
+    return FALSE;
+
+  data.sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  identity = gst_bin_get_by_name (GST_BIN (pipeline), "id");
+  g_signal_connect (identity, "handoff", G_CALLBACK (change_location_cb), &data);
+  gst_object_unref (identity);
+
+  data.loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  gst_bus_add_watch (bus, location_change_bus_cb, &data);
+
+  if (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT) == 0)
+    g_main_loop_run (data.loop);
+  else
+    data.error = TRUE;
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_bus_remove_watch (bus);
+  gst_object_unref (bus);
+  gst_object_unref (data.sink);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (data.loop);
+  g_remove ("fmt.json");
+
+  return !data.error;
+}
+
+/**
+ * @brief Test that a valid location set while writing images is used for the next image
+ */
+TEST (datareposink, writeImageLocationChanged)
+{
+  EXPECT_TRUE (write_images_changing_location ("alt_%02d.png"));
+
+  EXPECT_TRUE (g_file_test ("fmt_0.png", G_FILE_TEST_IS_REGULAR));
+  EXPECT_FALSE (g_file_test ("fmt_1.png", G_FILE_TEST_EXISTS));
+  EXPECT_TRUE (g_file_test ("alt_01.png", G_FILE_TEST_IS_REGULAR));
+  EXPECT_TRUE (g_file_test ("alt_02.png", G_FILE_TEST_IS_REGULAR));
+
+  g_remove ("fmt_0.png");
+  g_remove ("alt_01.png");
+  g_remove ("alt_02.png");
+}
+
+/**
+ * @brief Test that an invalid location set while writing images stops the pipeline
+ */
+TEST (datareposink, writeImageLocationChangedInvalid_n)
+{
+  EXPECT_FALSE (write_images_changing_location ("alt_%s%n.png"));
+
+  EXPECT_TRUE (g_file_test ("fmt_0.png", G_FILE_TEST_IS_REGULAR));
+  EXPECT_FALSE (g_file_test ("fmt_1.png", G_FILE_TEST_EXISTS));
+
+  g_remove ("fmt_0.png");
+}
+
+/**
  * @brief Test for writing flexible tensors
  */
 TEST (datareposink, writeFlexibleTensors_n)

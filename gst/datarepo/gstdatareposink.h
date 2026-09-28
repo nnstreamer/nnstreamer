@@ -57,6 +57,7 @@ struct _GstDataRepoSink
 
   /* property */
   gchar *filename;      /**< filename */
+  gboolean is_valid_image_location; /**< filename can be used as the printf format of image files */
   gchar *json_filename; /**< "JSON file path to store the meta information */
 };
 

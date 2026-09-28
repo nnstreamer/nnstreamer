@@ -39,5 +39,11 @@ typedef enum
 GstDataRepoDataType
 gst_data_repo_get_data_type_from_caps (const GstCaps * caps);
 
+/**
+ * @brief Check the location of image files before it is used as a printf format.
+ */
+gboolean
+gst_data_repo_is_valid_image_location (const gchar * location);
+
 G_END_DECLS
 #endif /* __GST_DATA_REPO_H__ */
