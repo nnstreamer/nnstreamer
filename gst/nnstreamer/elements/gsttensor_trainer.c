@@ -323,6 +323,10 @@ gst_tensor_trainer_finalize (GObject * object)
     trainer->dummy_data_thread = NULL;
   }
 
+  if (trainer->fw_created && trainer->fw) {
+    trainer->fw->destroy (trainer->fw, &trainer->prop, &trainer->privateData);
+  }
+
   g_free (trainer->fw_name);
   g_free ((char *) trainer->prop.model_config);
   g_free ((char *) trainer->prop.model_save_path);
@@ -335,10 +339,6 @@ gst_tensor_trainer_finalize (GObject * object)
   g_mutex_clear (&trainer->training_completion_lock);
   g_cond_clear (&trainer->epoch_completion_cond);
   g_mutex_clear (&trainer->epoch_completion_lock);
-
-  if (trainer->fw_created && trainer->fw) {
-    trainer->fw->destroy (trainer->fw, &trainer->prop, &trainer->privateData);
-  }
 
   gst_tensors_info_free (&trainer->prop.input_meta);
 
