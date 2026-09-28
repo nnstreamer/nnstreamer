@@ -1,7 +1,7 @@
 /**
  * @file        unittest_aggregator.cc
  * @date        17 Sep 2026
- * @brief       Unit test for tensor_aggregator buffer ownership
+ * @brief       Unit test for tensor_aggregator buffer ownership and input size
  * @see         https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
@@ -183,10 +183,8 @@ TEST (testTensorAggregatorOwnership, noConcatSharedInput)
   gst_harness_teardown (h);
 }
 
-#ifdef __TIZEN__
 /**
  * @brief A buffer of a wrong size is released when the element refuses it.
- * @note ml_logf aborts on Linux distros, so the refusal returns only on Tizen.
  */
 TEST (testTensorAggregatorOwnership, invalidFrameSize_n)
 {
@@ -207,29 +205,122 @@ TEST (testTensorAggregatorOwnership, invalidFrameSize_n)
 }
 
 /**
- * @brief A frame taken from the adapter is released when the element refuses it.
- * @note ml_logf aborts on Linux distros, so the refusal returns only on Tizen.
+ * @brief Frame bytes of the test input: a 3:4:1:2 int32 tensor.
  */
-TEST (testTensorAggregatorOwnership, invalidFrameSizeAdapter_n)
+#define AGGR_FRAME_SIZE (sizeof (gint) * AGGR_NUM_ELEMENTS / 2)
+
+/**
+ * @brief Push a buffer of @a size bytes, check the element refuses and releases
+ * it, and check the element still aggregates valid input afterwards.
+ */
+static void
+_aggr_test_refused_size (guint frames_in, guint frames_out, gsize size)
 {
   GstHarness *h;
-  GstBuffer *in;
-  gboolean released = FALSE;
+  GstBuffer *in, *out;
+  GstMapInfo map;
+  gsize off, expected;
+  guint i;
 
-  h = _aggr_harness_new (2, 1, TRUE);
+  h = _aggr_harness_new (frames_in, frames_out, FALSE);
 
-  in = _aggr_buffer_new (h, AGGR_NUM_ELEMENTS - 2);
-  gst_mini_object_weak_ref (GST_MINI_OBJECT_CAST (gst_buffer_peek_memory (in, 0)),
-      _aggr_released, &released);
+  if (size > 0U) {
+    in = gst_harness_create_buffer (h, size);
+    gst_buffer_fill (in, 0, aggr_input, MIN (size, sizeof (aggr_input)));
+  } else {
+    in = gst_buffer_new ();
+  }
+  gst_buffer_ref (in);
 
   EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_ERROR);
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (GST_MINI_OBJECT_REFCOUNT_VALUE (in), 1);
+  gst_buffer_unref (in);
 
-  /* The adapter drops what is left on teardown; the refused frame must not outlive it. */
+  /* The refused buffer must leave nothing behind: valid input still aggregates from frame 0. */
+  for (i = 0; i * frames_in < frames_out; i++) {
+    EXPECT_EQ (gst_harness_push (h, _aggr_buffer_new (h, AGGR_NUM_ELEMENTS)), GST_FLOW_OK);
+  }
+  ASSERT_GE (gst_harness_buffers_received (h), 1U);
+
+  out = gst_harness_pull (h);
+  expected = AGGR_FRAME_SIZE * frames_out;
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, expected);
+  if (map.size == expected) {
+    for (off = 0; off < expected; off += sizeof (aggr_input)) {
+      EXPECT_EQ (
+          memcmp (map.data + off, aggr_input, MIN (expected - off, sizeof (aggr_input))), 0);
+    }
+  }
+  gst_buffer_unmap (out, &map);
+  gst_buffer_unref (out);
+
   gst_harness_teardown (h);
-  EXPECT_TRUE (released);
 }
 
+/**
+ * @brief A buffer smaller than frames-in bytes is refused instead of aborting (#4960 G5).
+ */
+TEST (testTensorAggregatorInputSize, smallerThanFramesIn_n)
+{
+  _aggr_test_refused_size (2, 4, 1);
+}
+
+/**
+ * @brief An empty buffer is refused without a critical warning.
+ */
+TEST (testTensorAggregatorInputSize, emptyBuffer_n)
+{
+  _aggr_test_refused_size (2, 4, 0);
+}
+
+/**
+ * @brief A buffer a few bytes larger than the tensor is refused instead of misaligning the frames.
+ */
+TEST (testTensorAggregatorInputSize, largerThanTensor_n)
+{
+  _aggr_test_refused_size (2, 1, sizeof (aggr_input) + 1);
+}
+
+/**
+ * @brief A buffer holding frames-in whole frames short of the tensor is refused.
+ */
+TEST (testTensorAggregatorInputSize, oneFrameShort_n)
+{
+  _aggr_test_refused_size (2, 4, AGGR_FRAME_SIZE);
+}
+
+/**
+ * @brief Valid input aggregates across buffers on the adapter path.
+ */
+TEST (testTensorAggregatorInputSize, validInput)
+{
+  GstHarness *h;
+  GstBuffer *out;
+  GstMapInfo map;
+
+  h = _aggr_harness_new (2, 4, FALSE);
+
+  EXPECT_EQ (gst_harness_push (h, _aggr_buffer_new (h, AGGR_NUM_ELEMENTS)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (gst_harness_push (h, _aggr_buffer_new (h, AGGR_NUM_ELEMENTS)), GST_FLOW_OK);
+  ASSERT_EQ (gst_harness_buffers_received (h), 1U);
+
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, 2 * sizeof (aggr_input));
+  if (map.size == 2 * sizeof (aggr_input)) {
+    EXPECT_EQ (memcmp (map.data, aggr_input, sizeof (aggr_input)), 0);
+    EXPECT_EQ (memcmp (map.data + sizeof (aggr_input), aggr_input, sizeof (aggr_input)), 0);
+  }
+  gst_buffer_unmap (out, &map);
+  gst_buffer_unref (out);
+
+  gst_harness_teardown (h);
+}
+
+#ifdef __TIZEN__
 /**
  * @brief Memory of the allocator below.
  */

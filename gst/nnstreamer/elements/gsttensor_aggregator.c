@@ -841,7 +841,7 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstTensorAggregator *self;
   GstFlowReturn ret = GST_FLOW_OK;
   GstAdapter *adapter;
-  gsize avail, buf_size, frame_size, out_size;
+  gsize avail, buf_size, in_size, frame_size, out_size;
   guint frames_in, frames_out, frames_flush;
   GstClockTime duration;
   UNUSED (pad);
@@ -850,7 +850,13 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   g_assert (self->tensor_configured);
 
   buf_size = gst_buffer_get_size (buf);
-  g_return_val_if_fail (buf_size > 0, GST_FLOW_ERROR);
+  in_size = gst_tensors_info_get_size (&self->in_config.info, 0);
+  if (buf_size != in_size) {
+    GST_ERROR_OBJECT (self, "Invalid input buffer size %" G_GSIZE_FORMAT
+        ", expected %" G_GSIZE_FORMAT, buf_size, in_size);
+    gst_buffer_unref (buf);
+    return GST_FLOW_ERROR;
+  }
 
   frames_in = self->frames_in;
   frames_out = self->frames_out;
@@ -874,7 +880,6 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   gst_adapter_push (adapter, buf);
 
   out_size = frame_size * frames_out;
-  g_assert (out_size > 0);
 
   while ((avail = gst_adapter_available (adapter)) >= out_size &&
       ret == GST_FLOW_OK) {
