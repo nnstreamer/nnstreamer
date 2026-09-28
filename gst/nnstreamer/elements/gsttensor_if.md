@@ -20,11 +20,12 @@ The input and output stream data type is either `other/tensor` or `other/tensors
   * [C][W][H][B],n: used for A_VALUE of the compared-value, for example 0:1:2:3,0 means [0][1][2][3] value of first tensor.
   * nth tensor: used for TENSOR_AVERAGE_VALUE of the compared-value, and specifies which tensor is used.
   * Each element index should be less than the corresponding dimension of the tensor, and the buffer is refused if it is not.
+  * Every index must be written in decimal digits only, without a sign. A value that is not a list of such indices is taken as the name of a CUSTOM callback, so A_VALUE and TENSOR_AVERAGE_VALUE refuse the buffer.
 
 - supplied-value: Specifies the supplied value (SV) from the user.
   * SV
   * SV1, SV2 (used for RANGE operators)
-  * A value with more than two elements is rejected and the previous value is kept.
+  * A value with more than two elements, or with an element that is not a number or does not fit its type, is rejected and the previous value is kept.
 
 - operator: Comparison Operator
   * EQ: Check if CV == SV
@@ -51,6 +52,7 @@ The input and output stream data type is either `other/tensor` or `other/tensors
 
 - then-option: Option for TRUE Action
   * nth tensor: used for TENSORPICK option, for example, `then-option`=0,2 means tensor 0 and tensor 2 are selected as output tensors among the input tensors.
+  * A value with an index that is not written in decimal digits only, without a sign, is rejected and the previous value is kept. An empty value clears the list.
 
 - else: Action if it is FALSE
   * PASSTHROUGH: Does not let you make changes to the buffers. Buffers are pushed straight through.
@@ -59,6 +61,7 @@ The input and output stream data type is either `other/tensor` or `other/tensors
 
 - else-option: Option for FALSE Action
   * nth tensor: used for TENSORPICK option, for example, `else-option`=0,2 means tensor 0 and tensor 2 are selected as output tensors among the input tensors.
+  * A value with an index that is not written in decimal digits only, without a sign, is rejected and the previous value is kept. An empty value clears the list.
 
 ## Usage Examples
 

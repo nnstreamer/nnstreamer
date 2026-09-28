@@ -327,43 +327,80 @@ gst_tensor_if_dispose (GObject * object)
 }
 
 /**
+ * @brief Parse a tensor or dimension index, a whole token in [0, G_MAXINT]
+ */
+static gboolean
+gst_tensor_if_parse_index (gchar * token, gint * index, GError ** error)
+{
+  guint64 val;
+
+  if (!g_ascii_string_to_unsigned (g_strstrip (token), 10, 0, G_MAXINT, &val,
+          error))
+    return FALSE;
+
+  *index = (gint) val;
+  return TRUE;
+}
+
+/**
+ * @brief Parse a list of indices separated by delimiters
+ * @return TRUE and the new list in @a prop_list, FALSE if a token is not an index
+ */
+static gboolean
+gst_tensor_if_parse_index_list (const gchar * param, GList ** prop_list,
+    const gchar * delimiters, GError ** error)
+{
+  gchar **strv = g_strsplit_set (param, delimiters, -1);
+  gint i, index, num = g_strv_length (strv);
+  GList *list = NULL;
+
+  for (i = 0; i < num; i++) {
+    if (!gst_tensor_if_parse_index (strv[i], &index, error)) {
+      g_list_free (list);
+      g_strfreev (strv);
+      return FALSE;
+    }
+    list = g_list_append (list, GINT_TO_POINTER (index));
+  }
+  g_strfreev (strv);
+
+  *prop_list = list;
+  return TRUE;
+}
+
+/**
  * @brief Convert GValue to GList according to delimiters
  */
 static void
 gst_tensor_if_set_property_glist (const GValue * value, GList ** prop_list,
     const gchar * delimiters)
 {
-  gint64 val;
   const gchar *param = g_value_get_string (value);
-  gchar **strv = g_strsplit_set (param, delimiters, -1);
-  gint i, num = g_strv_length (strv);
+  GList *list;
+  GError *error = NULL;
+
+  if (!gst_tensor_if_parse_index_list (param, &list, delimiters, &error)) {
+    ml_loge ("Invalid tensor index in '%s': %s", param, error->message);
+    g_error_free (error);
+    return;
+  }
 
   g_list_free (*prop_list);
-  *prop_list = NULL;
-
-  for (i = 0; i < num; i++) {
-    errno = 0;
-    val = g_ascii_strtoll (strv[i], NULL, 10);
-    if (errno == ERANGE) {
-      ml_loge ("Overflow occurred during converting %s to a gint64 value",
-          strv[i]);
-    }
-    *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
-  }
-  g_strfreev (strv);
+  *prop_list = list;
 }
 
 /**
  * @brief Convert GValue to GList for cv option
+ * @details A value that is not an index list clears the list, since it may be the name of a custom callback.
  */
 static void
 gst_tensor_if_set_property_cv_option (const GValue * value, GList ** prop_list)
 {
-  gint64 val;
-  gint length, i;
+  gint length, i, nth;
   const gchar *param = g_value_get_string (value);
   gchar **strv = g_strsplit_set (param, ",", -1);
-  GValue tmp = G_VALUE_INIT;
+  GList *list = NULL;
+  GError *error = NULL;
 
   length = g_strv_length (strv);
 
@@ -374,30 +411,57 @@ gst_tensor_if_set_property_cv_option (const GValue * value, GList ** prop_list)
     return;
   }
 
-  g_value_init (&tmp, G_TYPE_STRING);
-  g_value_set_string (&tmp, strv[0]);
-
-  gst_tensor_if_set_property_glist (&tmp, prop_list, ":");
+  if (length == 0 || *strv[0] == '\0'
+      || !gst_tensor_if_parse_index_list (strv[0], &list, ":", &error))
+    goto done;
 
   /* A_VALUE */
   if (length == 2) {
-    length = g_list_length (*prop_list);
-
     /* append zero value for undefined dimensions */
-    for (i = length; i < NNS_TENSOR_RANK_LIMIT; i++) {
-      *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (0));
+    for (i = g_list_length (list); i < NNS_TENSOR_RANK_LIMIT; i++) {
+      list = g_list_append (list, GINT_TO_POINTER (0));
     }
 
-    errno = 0;
-    val = g_ascii_strtoll (strv[1], NULL, 10);
-    if (errno == ERANGE) {
-      ml_loge ("Overflow occurred during converting %s to a gint64 value",
-          strv[1]);
+    if (!gst_tensor_if_parse_index (strv[1], &nth, &error)) {
+      g_list_free (list);
+      list = NULL;
+      goto done;
     }
-    *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
+    list = g_list_append (list, GINT_TO_POINTER (nth));
   }
+
+done:
+  if (error) {
+    GST_DEBUG ("'%s' is not an index list: %s", param, error->message);
+    g_error_free (error);
+  }
+  g_list_free (*prop_list);
+  *prop_list = list;
   g_strfreev (strv);
-  g_value_reset (&tmp);
+}
+
+/**
+ * @brief Parse a supplied value, a whole token of the given type
+ */
+static gboolean
+gst_tensor_if_parse_supplied_value (gchar * token, gboolean is_float,
+    tensor_element * data)
+{
+  gchar *endptr = NULL;
+  gint64 val;
+
+  g_strstrip (token);
+
+  if (is_float) {
+    data->_double = g_ascii_strtod (token, &endptr);
+    return (endptr != token && *endptr == '\0' && errno != ERANGE);
+  }
+
+  if (!g_ascii_string_to_signed (token, 10, G_MININT64, G_MAXINT64, &val, NULL))
+    return FALSE;
+
+  data->_int64_t = val;
+  return TRUE;
 }
 
 /**
@@ -411,6 +475,7 @@ gst_tensor_if_set_property_supplied_value (const GValue * value,
   gboolean is_float = FALSE;
   const gchar *param = g_value_get_string (value);
   gchar **strv;
+  tensor_if_sv_s parsed;
 
   if (!param) {
     ml_loge ("Invalid supplied value. The value is NULL.");
@@ -431,18 +496,21 @@ gst_tensor_if_set_property_supplied_value (const GValue * value,
     is_float = TRUE;
   }
 
-  memset (sv->data, 0, sizeof (sv->data));
-  sv->num = num;
+  memset (&parsed, 0, sizeof (parsed));
+  parsed.num = num;
+  parsed.type = is_float ? _NNS_FLOAT64 : _NNS_INT64;
   for (i = 0; i < num; i++) {
-    if (is_float) {
-      sv->type = _NNS_FLOAT64;
-      sv->data[i]._double = g_ascii_strtod (strv[i], NULL);
-    } else {
-      sv->type = _NNS_INT64;
-      sv->data[i]._int64_t = g_ascii_strtoll (strv[i], NULL, 10);
+    if (!gst_tensor_if_parse_supplied_value (strv[i], is_float,
+            &parsed.data[i])) {
+      ml_loge ("Invalid supplied value (%s). '%s' is not a number.", param,
+          strv[i]);
+      g_strfreev (strv);
+      return;
     }
   }
   g_strfreev (strv);
+
+  *sv = parsed;
 }
 
 /**
