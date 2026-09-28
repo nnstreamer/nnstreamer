@@ -559,7 +559,7 @@ TEST (edgeCustom, srcNormal)
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s name=srcx ! "
-                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "other/tensors,num_tensors=1,dimensions=11:1:1:1,types=uint8,format=static,framerate=30/1 ! "
                               "tensor_sink",
       CUSTOM_LIB_PATH);
   gstpipe = gst_parse_launch (pipeline, nullptr);
@@ -588,7 +588,7 @@ TEST (edgeCustom, srcCustomProps)
 
   pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s "
                               "custom-props=\" PEER_ADDRESS : tcp://127.0.0.1:1883 , QUEUE_SIZE:5:OLD\" name=srcx ! "
-                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "other/tensors,num_tensors=1,dimensions=11:1:1:1,types=uint8,format=static,framerate=30/1 ! "
                               "tensor_sink",
       CUSTOM_LIB_PATH);
   gstpipe = gst_parse_launch (pipeline, nullptr);
@@ -625,7 +625,7 @@ TEST (edgeCustom, srcCustomPropsMalformed_n)
 
   pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s "
                               "custom-props=\"foo,,topic:test_topic, : ,c:,:v,\" name=srcx ! "
-                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "other/tensors,num_tensors=1,dimensions=11:1:1:1,types=uint8,format=static,framerate=30/1 ! "
                               "tensor_sink",
       CUSTOM_LIB_PATH);
   gstpipe = gst_parse_launch (pipeline, nullptr);
@@ -653,7 +653,7 @@ TEST (edgeCustom, srcReleasesHandle)
   GstEdgeSrc *src = nullptr;
 
   pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s name=srcx ! "
-                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "other/tensors,num_tensors=1,dimensions=11:1:1:1,types=uint8,format=static,framerate=30/1 ! "
                               "tensor_sink",
       CUSTOM_LIB_PATH);
   gstpipe = gst_parse_launch (pipeline, nullptr);
@@ -737,6 +737,222 @@ TEST (edgeCustom, srcInvalidProp2_n)
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (gstpipe);
   g_free (pipeline);
+}
+
+/**
+ * @brief Count the buffers a fakesink receives.
+ */
+static void
+_count_handoff (GstElement *element, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  g_atomic_int_inc ((gint *) user_data);
+}
+
+/**
+ * @brief Publish a buffer with edgesink and count what edgesrc pushes downstream.
+ * @param sink_caps The caps the publisher sends under.
+ * @param mems The memories of the buffer to publish (transfer full).
+ * @param src_caps The caps edgesrc negotiates with downstream.
+ * @param[out] received The number of buffers the sink after edgesrc received.
+ * @return TRUE if the edgesrc pipeline posted an error.
+ */
+static gboolean
+_publish_to_edgesrc (const gchar *sink_caps, GstMemory **mems, guint num_mems,
+    const gchar *src_caps, guint *received)
+{
+  gchar *pipeline;
+  GstElement *sink_gstpipe, *src_gstpipe, *appsrc, *edge_handle, *sink;
+  GstBuffer *buf;
+  GstBus *bus;
+  GstMessage *msg = nullptr;
+  guint port, i, count = 0;
+
+  port = get_available_port ();
+  pipeline = g_strdup_printf ("appsrc name=appsrc ! %s ! edgesink name=sinkx port=%u async=false",
+      sink_caps, port);
+  sink_gstpipe = gst_parse_launch (pipeline, NULL);
+  g_free (pipeline);
+  EXPECT_NE (sink_gstpipe, nullptr);
+
+  edge_handle = gst_bin_get_by_name (GST_BIN (sink_gstpipe), "sinkx");
+  g_object_get (edge_handle, "port", &port, NULL);
+  gst_object_unref (edge_handle);
+
+  pipeline = g_strdup_printf ("edgesrc dest-port=%u ! %s ! fakesink name=sinkx signal-handoffs=true sync=false async=false",
+      port, src_caps);
+  src_gstpipe = gst_parse_launch (pipeline, NULL);
+  g_free (pipeline);
+  EXPECT_NE (src_gstpipe, nullptr);
+
+  sink = gst_bin_get_by_name (GST_BIN (src_gstpipe), "sinkx");
+  g_signal_connect (sink, "handoff", (GCallback) _count_handoff, &count);
+  gst_object_unref (sink);
+
+  buf = gst_buffer_new ();
+  for (i = 0; i < num_mems; i++)
+    gst_buffer_append_memory (buf, mems[i]);
+
+  EXPECT_EQ (setPipelineStateSync (sink_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      0);
+  EXPECT_EQ (setPipelineStateSync (src_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      0);
+
+  /* Publish until the sink receives the buffer or edgesrc posts an error; edgesink drops data sent before the subscriber is registered. */
+  appsrc = gst_bin_get_by_name (GST_BIN (sink_gstpipe), "appsrc");
+  bus = gst_element_get_bus (src_gstpipe);
+  for (i = 0; i < 30 && !msg && g_atomic_int_get ((gint *) &count) == 0; i++) {
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), gst_buffer_ref (buf)), GST_FLOW_OK);
+    msg = gst_bus_timed_pop_filtered (bus, 100 * GST_MSECOND, GST_MESSAGE_ERROR);
+  }
+  gst_object_unref (bus);
+  gst_object_unref (appsrc);
+  gst_buffer_unref (buf);
+  if (msg)
+    gst_message_unref (msg);
+  *received = (guint) g_atomic_int_get (&count);
+
+  EXPECT_EQ (setPipelineStateSync (src_gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (src_gstpipe);
+  EXPECT_EQ (setPipelineStateSync (sink_gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (sink_gstpipe);
+
+  return (msg != nullptr);
+}
+
+/**
+ * @brief Allocate a zero-filled memory.
+ */
+static GstMemory *
+_alloc_mem (gsize size)
+{
+  gpointer data = g_malloc0 (size);
+
+  return gst_memory_new_wrapped ((GstMemoryFlags) 0, data, size, 0, size, data, g_free);
+}
+
+/**
+ * @brief Allocate a uint8 tensor memory with a tensor-meta header describing @a dim0 bytes of data.
+ * @param extra The number of bytes to add to (or, if negative, cut from) the data described by the header.
+ */
+static GstMemory *
+_alloc_flex_mem (guint dim0, gint extra)
+{
+  GstTensorMetaInfo meta;
+  gsize hsize, size;
+  gpointer data;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = dim0;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  size = hsize + dim0 + extra;
+  data = g_malloc0 (MAX (size, hsize));
+  gst_tensor_meta_info_update_header (&meta, data);
+
+  return gst_memory_new_wrapped ((GstMemoryFlags) 0, data, size, 0, size, data, g_free);
+}
+
+#define EDGE_TEST_CAPS_192 \
+  "other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1"
+#define EDGE_TEST_CAPS_96 \
+  "other/tensor,dimension=(string)3:4:2:1,type=(string)int32,framerate=(fraction)0/1"
+#define EDGE_TEST_CAPS_96_NO_RATE \
+  "other/tensor,dimension=(string)3:4:2:1,type=(string)int32"
+#define EDGE_TEST_CAPS_96X2 \
+  "other/tensors,num_tensors=2,dimensions=(string)3:4:2:1.3:4:2:1,types=(string)int32.int32,framerate=(fraction)0/1"
+#define EDGE_TEST_CAPS_FLEX \
+  "other/tensors,format=flexible,framerate=(fraction)0/1"
+
+/**
+ * @brief edgesrc pushes the published data that matches its caps.
+ */
+TEST (edgeSinkSrc, acceptsMatchingData)
+{
+  GstMemory *mems[1] = { _alloc_mem (192) };
+  guint received = 0;
+
+  EXPECT_FALSE (_publish_to_edgesrc (
+      EDGE_TEST_CAPS_192, mems, 1, EDGE_TEST_CAPS_192, &received));
+  EXPECT_GE (received, 1U);
+}
+
+/**
+ * @brief edgesrc refuses published data whose memory size does not match its caps.
+ */
+TEST (edgeSinkSrc, refusesWrongSize_n)
+{
+  GstMemory *mems[1] = { _alloc_mem (192) };
+  guint received = 0;
+
+  EXPECT_TRUE (_publish_to_edgesrc (EDGE_TEST_CAPS_192, mems, 1, EDGE_TEST_CAPS_96, &received));
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief edgesrc refuses published data whose memory count does not match its caps, even if the total size does.
+ */
+TEST (edgeSinkSrc, refusesWrongCount_n)
+{
+  GstMemory *mems[2] = { _alloc_mem (96), _alloc_mem (96) };
+  guint received = 0;
+
+  EXPECT_TRUE (_publish_to_edgesrc (
+      EDGE_TEST_CAPS_96X2, mems, 2, EDGE_TEST_CAPS_192, &received));
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief edgesrc pushes matching data also when its tensor caps have no framerate.
+ */
+TEST (edgeSinkSrc, acceptsMatchingDataWithoutFramerate)
+{
+  GstMemory *mems[1] = { _alloc_mem (96) };
+  guint received = 0;
+
+  EXPECT_FALSE (_publish_to_edgesrc (
+      EDGE_TEST_CAPS_96, mems, 1, EDGE_TEST_CAPS_96_NO_RATE, &received));
+  EXPECT_GE (received, 1U);
+}
+
+/**
+ * @brief edgesrc refuses wrong-size data also when its tensor caps have no framerate.
+ */
+TEST (edgeSinkSrc, refusesWrongSizeWithoutFramerate_n)
+{
+  GstMemory *mems[1] = { _alloc_mem (192) };
+  guint received = 0;
+
+  EXPECT_TRUE (_publish_to_edgesrc (
+      EDGE_TEST_CAPS_192, mems, 1, EDGE_TEST_CAPS_96_NO_RATE, &received));
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief edgesrc pushes flexible tensors whose header describes the data they carry.
+ */
+TEST (edgeSinkSrc, acceptsFlexibleData)
+{
+  GstMemory *mems[2] = { _alloc_flex_mem (4, 0), _alloc_flex_mem (10, 0) };
+  guint received = 0;
+
+  EXPECT_FALSE (_publish_to_edgesrc (
+      EDGE_TEST_CAPS_FLEX, mems, 2, EDGE_TEST_CAPS_FLEX, &received));
+  EXPECT_GE (received, 1U);
+}
+
+/**
+ * @brief edgesrc refuses flexible tensors shorter than the data their header describes.
+ */
+TEST (edgeSinkSrc, refusesTruncatedFlexibleData_n)
+{
+  GstMemory *mems[2] = { _alloc_flex_mem (4, 0), _alloc_flex_mem (10, -1) };
+  guint received = 0;
+
+  EXPECT_TRUE (_publish_to_edgesrc (
+      EDGE_TEST_CAPS_FLEX, mems, 2, EDGE_TEST_CAPS_FLEX, &received));
+  EXPECT_EQ (received, 0U);
 }
 
 /**

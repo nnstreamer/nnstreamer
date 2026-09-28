@@ -43,3 +43,106 @@ gst_tensor_query_get_connect_type (void)
 
   return protocol;
 }
+
+/**
+ * @brief Get the tensors config to check the data from a remote peer with, from the caps of the receiving pad.
+ * @param[in] caps The current caps of the receiving pad (nullable).
+ * @param[out] config The tensors config. If @a caps describe tensors that cannot be parsed, it describes no tensor, so that every data is refused.
+ * @return TRUE if @a caps are fixed tensor caps and the data should be checked with @a config.
+ * @note The framerate is not required. The caller should free @a config with gst_tensors_config_free().
+ */
+gboolean
+gst_tensor_query_config_from_caps (GstCaps * caps, GstTensorsConfig * config)
+{
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  gst_tensors_config_init (config);
+
+  if (!caps || !gst_caps_is_fixed (caps) ||
+      !gst_structure_is_tensor_stream (gst_caps_get_structure (caps, 0)))
+    return FALSE;
+
+  if (!gst_tensors_config_from_caps (config, caps, FALSE) ||
+      !gst_tensors_info_validate (&config->info)) {
+    gst_tensors_config_free (config);
+    gst_tensors_config_init (config);
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Check the memories of edge data received from a remote peer against the negotiated tensors config.
+ * @param[in] data_h The edge data received from the peer.
+ * @param[in] config The tensors config of the negotiated caps.
+ * @return TRUE if the memories are what @a config describes, FALSE otherwise.
+ * @note For static tensors, the number of memories and the size of each memory should be same as @a config.
+ *       For flexible and sparse tensors, each memory should have a valid header and the data described by the header.
+ */
+gboolean
+gst_tensor_query_validate_edge_data (nns_edge_data_h data_h,
+    GstTensorsConfig * config)
+{
+  GstTensorMetaInfo meta;
+  GstTensorInfo *info;
+  guint i, num_data;
+  void *data;
+  nns_size_t data_len;
+  gsize hsize, expected;
+  gboolean is_static;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  if (nns_edge_data_get_count (data_h, &num_data) != NNS_EDGE_ERROR_NONE)
+    return FALSE;
+
+  is_static = gst_tensors_config_is_static (config);
+  if (is_static && num_data != config->info.num_tensors) {
+    nns_loge
+        ("The edge data has %u memories, but the caps describe %u tensors.",
+        num_data, config->info.num_tensors);
+    return FALSE;
+  }
+
+  if (num_data == 0 || num_data > NNS_TENSOR_SIZE_LIMIT) {
+    nns_loge ("Invalid number of memories in the edge data: %u.", num_data);
+    return FALSE;
+  }
+
+  for (i = 0; i < num_data; i++) {
+    if (nns_edge_data_get (data_h, i, &data, &data_len) != NNS_EDGE_ERROR_NONE)
+      return FALSE;
+
+    if (is_static) {
+      info = gst_tensors_info_get_nth_info (&config->info, i);
+      expected = gst_tensor_info_get_size (info);
+
+      if (data_len != expected) {
+        nns_loge ("The %u-th memory of the edge data has %" G_GSIZE_FORMAT
+            " bytes, but the caps describe %" G_GSIZE_FORMAT " bytes.", i,
+            (gsize) data_len, expected);
+        return FALSE;
+      }
+    } else {
+      gst_tensor_meta_info_init (&meta);
+      hsize = gst_tensor_meta_info_get_header_size (&meta);
+
+      if (data_len < hsize || !gst_tensor_meta_info_parse_header (&meta, data)) {
+        nns_loge ("The %u-th memory of the edge data has no valid header.", i);
+        return FALSE;
+      }
+
+      hsize = gst_tensor_meta_info_get_header_size (&meta);
+      expected = gst_tensor_meta_info_get_data_size (&meta);
+
+      if (data_len < hsize || data_len - hsize < expected) {
+        nns_loge ("The %u-th memory of the edge data has %" G_GSIZE_FORMAT
+            " bytes, too small for its header describing %" G_GSIZE_FORMAT
+            " bytes of data.", i, (gsize) data_len, expected);
+        return FALSE;
+      }
+    }
+  }
+
+  return TRUE;
+}

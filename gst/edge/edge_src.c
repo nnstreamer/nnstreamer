@@ -31,6 +31,7 @@
 #endif
 
 #include "edge_src.h"
+#include "tensor_query/tensor_query_common.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_edgesrc_debug);
 #define GST_CAT_DEFAULT gst_edgesrc_debug
@@ -386,14 +387,14 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
 
   if (NNS_EDGE_CONNECT_TYPE_CUSTOM != self->connect_type) {
     ret = nns_edge_create_handle (NULL, self->connect_type,
-      NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
+        NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
   } else {
     if (!self->custom_lib) {
       nns_loge ("Failed to create custom handle. Custom library is not set.");
       return FALSE;
     }
     ret = nns_edge_custom_create_handle (NULL, self->custom_lib,
-      NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
+        NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
   }
 
   if (NNS_EDGE_ERROR_NONE != ret) {
@@ -503,16 +504,20 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
   if (!caps)
     caps = gst_pad_get_allowed_caps (pad);
 
-  if (caps) {
-    is_tensor = gst_tensors_config_from_caps (&config, caps, TRUE);
+  is_tensor = gst_tensor_query_config_from_caps (caps, &config);
+  if (caps)
     gst_caps_unref (caps);
-  }
 
   max_mems = is_tensor ? NNS_TENSOR_SIZE_LIMIT : gst_buffer_get_max_memory ();
   if (num_data > max_mems) {
     nns_loge
         ("Cannot create new buffer. The edge-data has %u memories, but allowed memories is %u.",
         num_data, max_mems);
+    goto done;
+  }
+
+  if (is_tensor && !gst_tensor_query_validate_edge_data (data_h, &config)) {
+    nns_loge ("The edge data from the publisher does not match the caps.");
     goto done;
   }
 
@@ -529,7 +534,11 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
 
     if (is_tensor) {
       _info = gst_tensors_info_get_nth_info (&config.info, i);
-      gst_tensor_buffer_append_memory (buffer, mem, _info);
+      if (!gst_tensor_buffer_append_memory (buffer, mem, _info)) {
+        gst_buffer_unref (buffer);
+        buffer = NULL;
+        goto done;
+      }
     } else {
       gst_buffer_append_memory (buffer, mem);
     }

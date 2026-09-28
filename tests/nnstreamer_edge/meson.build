@@ -27,7 +27,7 @@ test('unittest_edge', unittest_edge, env: testenv)
 # Run unittest_query
 unittest_query = executable('unittest_query',
   join_paths('query', 'unittest_query.cc'),
-  dependencies: [nnstreamer_unittest_deps],
+  dependencies: [nnstreamer_unittest_deps, nnstreamer_edge_support_deps],
   install: get_option('install-test'),
   install_dir: unittest_install_dir
 )

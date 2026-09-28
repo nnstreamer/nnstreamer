@@ -160,6 +160,9 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
   src->configured = FALSE;
   src->msg_queue = g_async_queue_new ();
   src->playing = FALSE;
+  src->caps = NULL;
+  gst_tensors_config_init (&src->config);
+  src->is_tensor = FALSE;
 
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
   /** set the timestamps on each buffer */
@@ -186,6 +189,8 @@ gst_tensor_query_serversrc_finalize (GObject * object)
   }
 
   g_clear_pointer (&src->msg_queue, g_async_queue_unref);
+  gst_caps_replace (&src->caps, NULL);
+  gst_tensors_config_free (&src->config);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -435,6 +440,7 @@ _gst_tensor_query_serversrc_get_buffer (GstTensorQueryServerSrc * src)
   GstBuffer *buffer = NULL;
   guint i, num_data;
   GstMetaQuery *meta_query;
+  GstCaps *caps;
   int ret;
 
   while (src->playing && !data_h) {
@@ -450,6 +456,22 @@ _gst_tensor_query_serversrc_get_buffer (GstTensorQueryServerSrc * src)
   ret = nns_edge_data_get_count (data_h, &num_data);
   if (ret != NNS_EDGE_ERROR_NONE || num_data == 0) {
     nns_loge ("Failed to get the number of memories of the edge data.");
+    goto done;
+  }
+
+  /* Parse the caps only when they change, not for every message. */
+  caps = gst_pad_get_current_caps (GST_BASE_SRC_PAD (src));
+  if (caps != src->caps) {
+    gst_tensors_config_free (&src->config);
+    src->is_tensor = gst_tensor_query_config_from_caps (caps, &src->config);
+    gst_caps_replace (&src->caps, caps);
+  }
+  if (caps)
+    gst_caps_unref (caps);
+
+  if (src->is_tensor
+      && !gst_tensor_query_validate_edge_data (data_h, &src->config)) {
+    nns_loge ("The edge data from the client does not match the caps.");
     goto done;
   }
 

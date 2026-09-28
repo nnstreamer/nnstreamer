@@ -40,6 +40,18 @@ extern "C" {
 GType
 gst_tensor_query_get_connect_type (void);
 
+/**
+ * @brief Get the tensors config to check the data from a remote peer with, from the caps of the receiving pad.
+ */
+gboolean
+gst_tensor_query_config_from_caps (GstCaps * caps, GstTensorsConfig * config);
+
+/**
+ * @brief Check the memories of edge data received from a remote peer against the negotiated tensors config.
+ */
+gboolean
+gst_tensor_query_validate_edge_data (nns_edge_data_h data_h, GstTensorsConfig * config);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
