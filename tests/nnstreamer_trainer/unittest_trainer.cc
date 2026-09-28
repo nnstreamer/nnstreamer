@@ -587,6 +587,11 @@ static struct {
   gchar expect_config[512]; /**< model-config every push_data() should see */
   gboolean config_matched; /**< whether the last push_data() saw it */
   gint push_ret; /**< what push_data() returns */
+  GstTensorTrainerEventNotifier *notifier; /**< notifier given to start() */
+  gboolean notify_on_destroy; /**< whether destroy() sends a completion event */
+  gint create_ret; /**< what create() returns */
+  gint destroy_calls; /**< number of destroy() calls */
+  gboolean destroy_prop_matched; /**< whether destroy() saw the set properties */
 } fake_stat;
 
 /**
@@ -596,26 +601,60 @@ static int
 fake_trainer_create (const GstTensorTrainerFramework *,
     const GstTensorTrainerProperties *, void **)
 {
-  return 0;
+  return fake_stat.create_ret;
 }
 
 /**
- * @brief Fake sub-plugin callback that destroys nothing.
+ * @brief Compare a property string byte by byte.
+ * @note Reading it here, not in a libc call, makes Valgrind attribute a
+ *       read of a freed property to this repository.
+ */
+static gboolean
+fake_prop_equals (const gchar *prop, const gchar *expected)
+{
+  guint i;
+
+  if (!prop)
+    return FALSE;
+
+  for (i = 0; expected[i]; i++) {
+    if (prop[i] != expected[i])
+      return FALSE;
+  }
+
+  return prop[i] == '\0';
+}
+
+/**
+ * @brief Fake sub-plugin callback checking the properties it is destroyed with.
+ * @note With notify_on_destroy, it sends the completion event a sub-plugin's
+ *       training thread sends while destroy() stops it.
  */
 static int
 fake_trainer_destroy (const GstTensorTrainerFramework *,
-    const GstTensorTrainerProperties *, void **)
+    const GstTensorTrainerProperties *prop, void **)
 {
+  g_atomic_int_inc (&fake_stat.destroy_calls);
+
+  fake_stat.destroy_prop_matched
+      = fake_prop_equals (prop->model_save_path, "c31_model.bin")
+        && fake_prop_equals (prop->model_config, fake_stat.expect_config);
+
+  if (fake_stat.notify_on_destroy && fake_stat.notifier)
+    nnstreamer_trainer_notify_event (
+        fake_stat.notifier, TRAINER_EVENT_TRAINING_COMPLETION, NULL);
+
   return 0;
 }
 
 /**
- * @brief Fake sub-plugin callback that starts nothing.
+ * @brief Fake sub-plugin callback keeping the event notifier.
  */
 static int
 fake_trainer_start (const GstTensorTrainerFramework *,
-    const GstTensorTrainerProperties *, GstTensorTrainerEventNotifier *, void *)
+    const GstTensorTrainerProperties *, GstTensorTrainerEventNotifier *notifier, void *)
 {
+  fake_stat.notifier = notifier;
   return 0;
 }
 
@@ -809,6 +848,57 @@ TEST_F (TensorTrainerFakeFw, finalizeJoinsDummyThread)
   EXPECT_TRUE (fake_stat.config_matched);
 
   g_free (config_path);
+}
+
+/**
+ * @brief Finalizing the element destroys the sub-plugin before releasing its resources.
+ *
+ * destroy() receives the trainer properties, and the sub-plugin's training
+ * thread, which destroy() stops, may still notify the element. Finalize must
+ * call destroy() before it frees the property strings and clears the
+ * completion mutex and cond; otherwise destroy() reads freed strings, which
+ * the comparison below and the Valgrind job report.
+ */
+TEST_F (TensorTrainerFakeFw, finalizeDestroysBeforeFree)
+{
+  GstElement *trainer = make_fake_trainer ();
+  gchar *config_path = get_file_path (model_config);
+
+  ASSERT_NE (trainer, nullptr);
+  ASSERT_LT (strlen (config_path), sizeof (fake_stat.expect_config));
+
+  g_strlcpy (fake_stat.expect_config, config_path, sizeof (fake_stat.expect_config));
+  fake_stat.notify_on_destroy = TRUE;
+
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_NE (fake_stat.notifier, nullptr);
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.destroy_calls), 0);
+
+  gst_object_unref (trainer);
+
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.destroy_calls), 1);
+  EXPECT_TRUE (fake_stat.destroy_prop_matched);
+
+  g_free (config_path);
+}
+
+/**
+ * @brief Finalizing an element whose model creation failed does not destroy it.
+ */
+TEST_F (TensorTrainerFakeFw, finalizeAfterCreateFailure_n)
+{
+  GstElement *trainer = make_fake_trainer ();
+  ASSERT_NE (trainer, nullptr);
+
+  fake_stat.create_ret = -1;
+
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (trainer);
+
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.destroy_calls), 0);
+  EXPECT_EQ (fake_stat.notifier, nullptr);
 }
 
 /**
