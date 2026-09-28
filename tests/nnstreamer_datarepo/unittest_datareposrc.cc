@@ -270,6 +270,106 @@ TEST (datareposrc, readImageFiles)
 }
 
 /**
+ * @brief Read the images written by create_image_test_file() with the given location and return the number of buffers, or -1 if the pipeline could not start.
+ */
+static gint
+read_image_files (const gchar *location)
+{
+  gint buffer_count = 0;
+  GstElement *pipeline, *src, *tensor_sink;
+  GstBus *bus;
+  GMainLoop *loop;
+
+  pipeline = gst_parse_launch ("datareposrc name=src json=img.json "
+                               "start-sample-index=0 stop-sample-index=4 ! "
+                               "pngdec ! tensor_converter ! tensor_sink name=tensor_sink0",
+      NULL);
+  if (pipeline == NULL)
+    return -1;
+
+  src = gst_bin_get_by_name (GST_BIN (pipeline), "src");
+  g_object_set (src, "location", location, NULL);
+  gst_object_unref (src);
+
+  tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
+  g_signal_connect (tensor_sink, "new-data", G_CALLBACK (new_data_cb), &buffer_count);
+  gst_object_unref (tensor_sink);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  if (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT) == 0)
+    g_main_loop_run (loop);
+  else
+    buffer_count = -1;
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  return buffer_count;
+}
+
+/**
+ * @brief Test the integer placeholders accepted in the image location
+ */
+TEST (datareposrc, readImageLocationPlaceholders)
+{
+  const gchar *locations[] = { "img_%02d.png", "img_%02ld.png",
+    "img_%02lld.png", "img_%02u.png", "img_%02i.png", "img_%02x.png",
+    "img_%.2d.png", "img_%.0002d.png", "img_%1$02d.png" };
+  gint i;
+
+  create_image_test_file ();
+
+  for (const auto location : locations)
+    EXPECT_EQ (read_image_files (location), 5) << location;
+
+  /* The index may be repeated through "%1$" conversions. */
+  for (i = 0; i < 5; i++) {
+    g_autofree gchar *filename = g_strdup_printf ("img_%02d.png", i);
+    g_autofree gchar *repeated = g_strdup_printf ("rep_%02d_%d.png", i, i);
+    g_autofree gchar *data = NULL;
+    gsize size;
+
+    ASSERT_TRUE (g_file_get_contents (filename, &data, &size, NULL));
+    ASSERT_TRUE (g_file_set_contents (repeated, data, size, NULL));
+  }
+
+  EXPECT_EQ (read_image_files ("rep_%1$02d_%1$d.png"), 5);
+
+  for (i = 0; i < 5; i++) {
+    g_autofree gchar *filename = g_strdup_printf ("img_%02d.png", i);
+    g_autofree gchar *repeated = g_strdup_printf ("rep_%02d_%d.png", i, i);
+    g_remove (filename);
+    g_remove (repeated);
+  }
+}
+
+/**
+ * @brief Test that the image location is never used as a printf format string
+ */
+TEST (datareposrc, readImageLocationInvalid_n)
+{
+  const gchar *locations[] = { "img_%s.png", "img_%n.png", "img_%s%s%s%s%n.png",
+    "img_%p.png", "img_%02d_%d.png", "img_%", "img_%1000d.png",
+    "img_%.1000d.png", "img_%1$02d_%d.png", "img_%02d_%1$d.png" };
+  gint i;
+
+  create_image_test_file ();
+
+  for (const auto location : locations)
+    EXPECT_EQ (read_image_files (location), -1) << location;
+
+  for (i = 0; i < 5; i++) {
+    g_autofree gchar *filename = g_strdup_printf ("img_%02d.png", i);
+    g_remove (filename);
+  }
+}
+
+/**
  * @brief Test for reading a video raw file
  */
 TEST (datareposrc, readVideoRaw)

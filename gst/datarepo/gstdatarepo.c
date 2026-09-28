@@ -13,6 +13,7 @@
 #include "gstdatarepo.h"
 #include "gstdatareposrc.h"
 #include "gstdatareposink.h"
+#include <string.h>
 
 /**
  * @brief Get data type from caps.
@@ -46,6 +47,62 @@ gst_data_repo_get_data_type_from_caps (const GstCaps * caps)
 
   GST_ERROR ("Could not get a data type from caps.");
   return GST_DATA_REPO_DATA_UNKNOWN;
+}
+
+/**
+ * @brief Check the location of image files before it is used as a printf format.
+ * @param location The file name pattern, formatted with one unsigned int index.
+ * @return TRUE if its d, i, o, u, x or X conversions besides "%%" read only
+ *         the index, either as one conversion or as "%1$" conversions, with
+ *         a width and precision of at most three digits.
+ */
+gboolean
+gst_data_repo_is_valid_image_location (const gchar * location)
+{
+  const gchar *p = location;
+  guint plain = 0, positional = 0;
+  gsize digits;
+
+  g_return_val_if_fail (location != NULL, FALSE);
+
+  while ((p = strchr (p, '%')) != NULL) {
+    p++;
+    if (*p == '%') {
+      p++;
+      continue;
+    }
+
+    if (g_str_has_prefix (p, "1$")) {
+      p += 2;
+      positional++;
+    } else {
+      plain++;
+    }
+    p += strspn (p, "-+ #0'");
+    if ((digits = strspn (p, "0123456789")) > 3)
+      return FALSE;
+    p += digits;
+    if (*p == '.') {
+      p++;
+      p += strspn (p, "0");
+      if ((digits = strspn (p, "0123456789")) > 3)
+        return FALSE;
+      p += digits;
+    }
+
+    /* Wider modifiers are kept for working locations such as "%04ld". */
+    if (g_str_has_prefix (p, "hh") || g_str_has_prefix (p, "ll"))
+      p += 2;
+    else if (*p != '\0' && strchr ("hljzt", *p) != NULL)
+      p++;
+
+    if (*p == '\0' || strchr ("diouxX", *p) == NULL)
+      return FALSE;
+    if (plain > 1 || (plain > 0 && positional > 0))
+      return FALSE;
+  }
+
+  return TRUE;
 }
 
 /**
