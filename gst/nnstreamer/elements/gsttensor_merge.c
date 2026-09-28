@@ -453,19 +453,19 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
  * @brief Looping to generate output buffer for srcpad
  * @param tensor_merge tensor merger
  * @param tensor_buf output buffer for srcpad
- * @param is_eos boolean EOS ( End of Stream )
- * @return TRUE to push buffer to src pad
+ * @return GST_FLOW_OK to push buffer to src pad, GST_FLOW_EOS at end-of-stream,
+ *         GST_FLOW_CUSTOM_SUCCESS if there is nothing to push yet, and
+ *         GST_FLOW_ERROR if a collected buffer does not fit its pad
  */
-static gboolean
+static GstFlowReturn
 gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
-    GstBuffer * tensors_buf, gboolean * is_eos)
+    GstBuffer * tensors_buf)
 {
   if (tensor_merge->need_set_time) {
     if (gst_tensor_time_sync_get_current_time (tensor_merge->collect,
             &tensor_merge->sync, &tensor_merge->current_time, tensors_buf)) {
       /* end-of-stream */
-      *is_eos = TRUE;
-      return FALSE;
+      return GST_FLOW_EOS;
     }
 
     tensor_merge->need_set_time = FALSE;
@@ -473,7 +473,7 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
 
   return gst_tensor_time_sync_buffer_from_collectpad (tensor_merge->collect,
       &tensor_merge->sync, tensor_merge->current_time, tensors_buf,
-      &tensor_merge->tensors_config, is_eos);
+      &tensor_merge->tensors_config);
 }
 
 /**
@@ -755,7 +755,6 @@ gst_tensor_merge_collected (GstCollectPads * pads,
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf, *tensor_buf;
-  gboolean isEOS = FALSE;
 
   GST_DEBUG_OBJECT (tensor_merge, " all pads are collected ");
 
@@ -780,10 +779,15 @@ gst_tensor_merge_collected (GstCollectPads * pads,
     return GST_FLOW_ERROR;
   }
 
-  if (!gst_tensor_merge_collect_buffer (tensor_merge, tensors_buf, &isEOS)) {
-    if (isEOS) {
+  ret = gst_tensor_merge_collect_buffer (tensor_merge, tensors_buf);
+  if (ret != GST_FLOW_OK) {
+    if (ret == GST_FLOW_EOS) {
       gst_pad_push_event (tensor_merge->srcpad, gst_event_new_eos ());
-      ret = GST_FLOW_EOS;
+    } else if (ret == GST_FLOW_ERROR) {
+      GST_ELEMENT_ERROR (tensor_merge, STREAM, FAILED, (NULL),
+          ("A buffer on a sink pad does not fit the tensors of the pad."));
+    } else {
+      ret = GST_FLOW_OK;
     }
 
     goto beach;
