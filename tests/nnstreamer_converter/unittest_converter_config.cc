@@ -1,7 +1,7 @@
 /**
  * @file        unittest_converter_config.cc
  * @date        17 Sep 2026
- * @brief       Unit test for the property and tensors-config ownership of tensor_converter
+ * @brief       Unit test for the property, tensors-config ownership and input size checks of tensor_converter
  * @see         https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
@@ -642,6 +642,225 @@ TEST (tensorConverterConfig, renegotiateExtraTensors)
   EXPECT_STREQ (rate, "20/1");
   g_free (rate);
 
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Attach a new bus to the element of @a h, to collect the errors it posts.
+ */
+static GstBus *
+attach_bus (GstHarness *h)
+{
+  GstBus *bus = gst_bus_new ();
+
+  gst_element_set_bus (h->element, bus);
+  return bus;
+}
+
+/**
+ * @brief Count and drop the error messages posted on @a bus.
+ */
+static guint
+pop_errors (GstBus *bus)
+{
+  GstMessage *msg;
+  guint count = 0;
+
+  while ((msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR)) != NULL) {
+    count++;
+    gst_message_unref (msg);
+  }
+
+  return count;
+}
+
+/**
+ * @brief Detach @a bus from the element of @a h and release it.
+ */
+static void
+detach_bus (GstHarness *h, GstBus *bus)
+{
+  gst_element_set_bus (h->element, NULL);
+  gst_bus_set_flushing (bus, TRUE);
+  gst_object_unref (bus);
+}
+
+/**
+ * @brief Pull a buffer from @a h and check it holds @a size bytes, byte i equal to first + i.
+ */
+static void
+check_pulled_bytes (GstHarness *h, gsize size, guint8 first)
+{
+  GstBuffer *out = gst_harness_try_pull (h);
+  GstMapInfo map;
+  gsize i;
+
+  ASSERT_TRUE (out != NULL);
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, size);
+  for (i = 0; i < map.size; i++)
+    EXPECT_EQ (map.data[i], (guint8) (first + i));
+
+  gst_buffer_unmap (out, &map);
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief An octet buffer of whole frames is converted frame by frame.
+ */
+TEST (tensorConverterConfig, octetWholeFrames)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+
+  set_input_info (h->element, 1, "4");
+  gst_harness_set_src_caps_str (h, OCTET_CAPS);
+
+  EXPECT_EQ (push_octet (h, 4U), GST_FLOW_OK);
+  check_pulled_bytes (h, 4U, 0U);
+
+  EXPECT_EQ (push_octet (h, 8U), GST_FLOW_OK);
+  check_pulled_bytes (h, 4U, 0U);
+  check_pulled_bytes (h, 4U, 4U);
+  EXPECT_EQ (gst_harness_buffers_received (h), 3U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An octet buffer of a partial frame is refused with an error, not an abort.
+ */
+TEST (tensorConverterConfig, octetPartialFrame_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+
+  set_input_info (h->element, 1, "4");
+  gst_harness_set_src_caps_str (h, OCTET_CAPS);
+
+  EXPECT_EQ (push_octet (h, 5U), GST_FLOW_ERROR);
+  EXPECT_EQ (push_octet (h, 3U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (pop_errors (bus), 2U);
+
+  /* the element keeps converting whole frames after a refusal */
+  EXPECT_EQ (push_octet (h, 4U), GST_FLOW_OK);
+  check_pulled_bytes (h, 4U, 0U);
+  EXPECT_EQ (pop_errors (bus), 0U);
+
+  detach_bus (h, bus);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An octet buffer of a partial frame is refused with multiple frames per tensor.
+ */
+TEST (tensorConverterConfig, octetPartialFrameAggregation_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+
+  set_input_info (h->element, 1, "4");
+  g_object_set (h->element, "frames-per-tensor", 2U, NULL);
+  gst_harness_set_src_caps_str (h, OCTET_CAPS);
+
+  EXPECT_EQ (push_octet (h, 6U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (pop_errors (bus), 1U);
+
+  EXPECT_EQ (push_octet (h, 8U), GST_FLOW_OK);
+  check_pulled_bytes (h, 8U, 0U);
+
+  detach_bus (h, bus);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An octet buffer of any size is converted to a flexible tensor.
+ */
+TEST (tensorConverterConfig, octetFlexibleAnySize)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+
+  gst_harness_set_sink_caps_str (h, FLEX_CAPS);
+  gst_harness_set_src_caps_str (h, OCTET_CAPS);
+
+  EXPECT_EQ (push_octet (h, 5U), GST_FLOW_OK);
+  EXPECT_EQ (push_octet (h, 3U), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A video buffer of one frame is converted.
+ */
+TEST (tensorConverterConfig, videoOneFrame)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+
+  gst_harness_set_src_caps_str (
+      h, "video/x-raw,format=GRAY8,width=8,height=2,framerate=(fraction)0/1");
+
+  EXPECT_EQ (push_octet (h, 16U), GST_FLOW_OK);
+  check_pulled_bytes (h, 16U, 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A video buffer smaller than a frame or holding two frames is refused with an error.
+ */
+TEST (tensorConverterConfig, videoFrameSizeMismatch_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+
+  gst_harness_set_src_caps_str (
+      h, "video/x-raw,format=GRAY8,width=8,height=2,framerate=(fraction)0/1");
+
+  EXPECT_EQ (push_octet (h, 15U), GST_FLOW_ERROR);
+  EXPECT_EQ (push_octet (h, 32U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (pop_errors (bus), 2U);
+
+  EXPECT_EQ (push_octet (h, 16U), GST_FLOW_OK);
+  check_pulled_bytes (h, 16U, 0U);
+
+  detach_bus (h, bus);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A padded video buffer smaller than a frame is refused before removing the padding.
+ */
+TEST (tensorConverterConfig, videoPaddedFrameSizeMismatch_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+  GstBuffer *out;
+  GstMapInfo map;
+
+  /* rows of 5 bytes are padded to a stride of 8 bytes */
+  gst_harness_set_src_caps_str (
+      h, "video/x-raw,format=GRAY8,width=5,height=2,framerate=(fraction)0/1");
+
+  EXPECT_EQ (push_octet (h, 10U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (pop_errors (bus), 1U);
+
+  EXPECT_EQ (push_octet (h, 16U), GST_FLOW_OK);
+  out = gst_harness_try_pull (h);
+  ASSERT_TRUE (out != NULL);
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  ASSERT_EQ (map.size, 10U);
+  EXPECT_EQ (map.data[0], 0U);
+  EXPECT_EQ (map.data[4], 4U);
+  EXPECT_EQ (map.data[5], 8U);
+  EXPECT_EQ (map.data[9], 12U);
+  gst_buffer_unmap (out, &map);
+  gst_buffer_unref (out);
+
+  detach_bus (h, bus);
   gst_harness_teardown (h);
 }
 

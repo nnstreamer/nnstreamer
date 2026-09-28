@@ -21,6 +21,7 @@ title: tensor_converter
 - Octet stream: direct conversion of application/octet-stream.
   - Octet stream to static tensor: You should set ```input-type``` and ```input-dim``` to describe tensor(s) information of outgoing buffer.
     If setting multiple tensors, converter will divide incoming buffer and set multiple memory chunks in outgoing buffer.
+    The size of each incoming buffer should be a multiple of the frame size given by these properties; otherwise, converter posts an error and stops the stream.
 
     e.g, converting 10 bytes of octet stream to 2 static tensors:
 
