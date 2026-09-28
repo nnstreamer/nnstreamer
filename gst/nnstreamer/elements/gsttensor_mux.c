@@ -361,19 +361,19 @@ gst_tensor_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
  * @brief Looping to generate output buffer for srcpad
  * @param tensor_mux tensor muxer
  * @param tensors_buf output buffer for srcpad
- * @param is_eos boolean EOS ( End of Stream )
- * @return TRUE to push buffer to src pad
+ * @return GST_FLOW_OK to push buffer to src pad, GST_FLOW_EOS at end-of-stream,
+ *         GST_FLOW_CUSTOM_SUCCESS if there is nothing to push yet, and
+ *         GST_FLOW_ERROR if a collected buffer does not fit its pad
  */
-static gboolean
+static GstFlowReturn
 gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
-    GstBuffer * tensors_buf, gboolean * is_eos)
+    GstBuffer * tensors_buf)
 {
   if (tensor_mux->need_set_time) {
     if (gst_tensor_time_sync_get_current_time (tensor_mux->collect,
             &tensor_mux->sync, &tensor_mux->current_time, tensors_buf)) {
       /* end-of-stream */
-      *is_eos = TRUE;
-      return FALSE;
+      return GST_FLOW_EOS;
     }
 
     tensor_mux->need_set_time = FALSE;
@@ -383,7 +383,7 @@ gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
 
   return gst_tensor_time_sync_buffer_from_collectpad (tensor_mux->collect,
       &tensor_mux->sync, tensor_mux->current_time, tensors_buf,
-      &tensor_mux->tensors_config, is_eos);
+      &tensor_mux->tensors_config);
 }
 
 /**
@@ -487,8 +487,6 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf;
-  gboolean isEOS = FALSE;
-  gboolean buf_collected = FALSE;
 
   GST_DEBUG_OBJECT (tensor_mux, " all pads are collected ");
 
@@ -513,15 +511,18 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
     return GST_FLOW_ERROR;
   }
 
-  buf_collected =
-      gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf, &isEOS);
+  ret = gst_tensor_mux_collect_buffer (tensor_mux, tensors_buf);
 
   gst_tensor_mux_set_waiting (tensor_mux, TRUE);
 
-  if (!buf_collected) {
-    if (isEOS) {
+  if (ret != GST_FLOW_OK) {
+    if (ret == GST_FLOW_EOS) {
       gst_pad_push_event (tensor_mux->srcpad, gst_event_new_eos ());
-      ret = GST_FLOW_EOS;
+    } else if (ret == GST_FLOW_ERROR) {
+      GST_ELEMENT_ERROR (tensor_mux, STREAM, FAILED, (NULL),
+          ("A buffer on a sink pad does not fit the tensors of the pad."));
+    } else {
+      ret = GST_FLOW_OK;
     }
 
     gst_buffer_unref (tensors_buf);

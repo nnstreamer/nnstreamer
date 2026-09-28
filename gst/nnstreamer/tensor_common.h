@@ -169,16 +169,17 @@ gst_tensor_time_sync_flush (GstCollectPads * collect);
 /**
  * @brief  A function call to make tensors from collected pads
  * It decide which buffer is going to be used according to sync option.
- * @return True to push buffer.
+ * @return GST_FLOW_OK to push buffer, GST_FLOW_EOS at end-of-stream (EOS),
+ *         GST_FLOW_CUSTOM_SUCCESS if there is nothing to push yet, and
+ *         GST_FLOW_ERROR if a collected buffer does not fit its pad.
  * @param collect Collect pad.
  * @param sync Synchronization Option (NOSYNC, SLOWEST, BASEPAD, END)
  * @param current_time Current Timestamp
  * @param tensors_buf Generated GstBuffer for Collected Buffer
  * @param configs Configuration Info for Collected Buffer
- * @param is_eos True when EOS (end-of-stream)
  */
-extern gboolean
-gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime current_time, GstBuffer * tensors_buf, GstTensorsConfig * configs, gboolean * is_eos);
+extern GstFlowReturn
+gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime current_time, GstBuffer * tensors_buf, GstTensorsConfig * configs);
 
 /**
  * @brief Configure gst-buffer with tensors information.

@@ -338,12 +338,14 @@ _gst_tensor_time_sync_buffer_update (GstCollectPads * collect,
 /**
  * @brief A function call to make tensors from collected pads.
  * It decide which buffer is going to be used according to sync option.
- * @return True to push buffer.
+ * @return GST_FLOW_OK to push buffer, GST_FLOW_EOS at end-of-stream,
+ *         GST_FLOW_CUSTOM_SUCCESS if there is nothing to push yet, and
+ *         GST_FLOW_ERROR if a collected buffer does not fit its pad.
  */
-gboolean
+GstFlowReturn
 gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     tensor_time_sync_data * sync, GstClockTime current_time,
-    GstBuffer * tensors_buf, GstTensorsConfig * configs, gboolean * is_eos)
+    GstBuffer * tensors_buf, GstTensorsConfig * configs)
 {
   GSList *walk = NULL;
   GstCollectData *data;
@@ -359,12 +361,12 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   guint i, j;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
   tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT];
+  GstFlowReturn ret = GST_FLOW_CUSTOM_SUCCESS;
 
-  g_return_val_if_fail (collect != NULL, FALSE);
-  g_return_val_if_fail (sync != NULL, FALSE);
-  g_return_val_if_fail (tensors_buf != NULL, FALSE);
-  g_return_val_if_fail (configs != NULL, FALSE);
-  g_return_val_if_fail (is_eos != NULL, FALSE);
+  g_return_val_if_fail (collect != NULL, GST_FLOW_ERROR);
+  g_return_val_if_fail (sync != NULL, GST_FLOW_ERROR);
+  g_return_val_if_fail (tensors_buf != NULL, GST_FLOW_ERROR);
+  g_return_val_if_fail (configs != NULL, GST_FLOW_ERROR);
 
   walk = collect->data;
   counting = empty_pad = 0;
@@ -373,7 +375,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     walk = g_slist_nth (walk, sync->data_basepad.sink_id);
     if (walk == NULL) {
       GST_ERROR_OBJECT (collect, "Cannot get GstCollectData from GSList");
-      return FALSE;
+      return GST_FLOW_CUSTOM_SUCCESS;
     }
 
     data = (GstCollectData *) walk->data;
@@ -454,7 +456,6 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
           pad->buffer = gst_buffer_ref (buf);
         } else {
           if (pad->buffer == NULL) {
-            *is_eos = FALSE;
             ml_logd ("Not the all buffers are arrived yet.");
             goto error;
           }
@@ -467,14 +468,34 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     }
 
     if (GST_IS_BUFFER (buf)) {
-      guint32 n_tensor = gst_tensor_buffer_get_count (buf);
-      buf = gst_tensor_buffer_from_config (buf, &in_configs);
+      gboolean is_static = gst_tensors_config_is_static (&in_configs);
+      guint32 n_tensor = 0;
 
-      /** These are internal logic error. If given inputs are incorrect,
-          the negotiation should have been failed before this stage. */
-      if (gst_tensors_config_is_static (&in_configs))
-        g_assert (n_tensor == in_configs.info.num_tensors);
-      g_assert ((counting + n_tensor) <= NNS_TENSOR_SIZE_LIMIT);
+      /* A flexible pad takes as many tensors as the incoming memories. */
+      if (!is_static)
+        n_tensor = gst_tensor_buffer_get_count (buf);
+
+      buf = gst_tensor_buffer_from_config (buf, &in_configs);
+      if (buf == NULL) {
+        nns_loge ("The buffer of %s:%s does not fit its tensors config.",
+            GST_DEBUG_PAD_NAME (data->pad));
+        ret = GST_FLOW_ERROR;
+        goto error;
+      }
+
+      if (is_static)
+        n_tensor = gst_tensor_buffer_get_count (buf);
+
+      if ((is_static && n_tensor != in_configs.info.num_tensors) ||
+          n_tensor > NNS_TENSOR_SIZE_LIMIT - counting) {
+        nns_loge ("The buffer of %s:%s has %u tensors, cannot collect it "
+            "(%u tensors collected, the limit is %d).",
+            GST_DEBUG_PAD_NAME (data->pad), n_tensor, counting,
+            NNS_TENSOR_SIZE_LIMIT);
+        gst_buffer_unref (buf);
+        ret = GST_FLOW_ERROR;
+        goto error;
+      }
 
       if (gst_tensors_config_is_flexible (&in_configs))
         configs->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
@@ -517,7 +538,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
       nns_loge ("Failed to append memory to buffer.");
       gst_tensors_config_free (&in_configs);
-      return FALSE;
+      return GST_FLOW_CUSTOM_SUCCESS;
     }
   }
 
@@ -530,15 +551,16 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   gst_tensors_config_free (&in_configs);
 
   /* check eos */
-  *is_eos = _gst_tensor_time_sync_is_eos (collect, sync, empty_pad);
-  return !(*is_eos);
+  if (_gst_tensor_time_sync_is_eos (collect, sync, empty_pad))
+    return GST_FLOW_EOS;
+  return GST_FLOW_OK;
 
 error:
   for (i = 0; i < counting; i++)
     gst_memory_unref (in_mem[i]);
 
   gst_tensors_config_free (&in_configs);
-  return FALSE;
+  return ret;
 }
 
 /**

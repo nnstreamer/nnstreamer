@@ -9,7 +9,9 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <gst/check/gstharness.h>
 #include <gst/gst.h>
+#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_util.h>
 #include <tensor_common.h>
 #include <unittest_util.h>
@@ -170,6 +172,111 @@ TEST (tensorMergeExtraTensors, mergeExtraSinks_n)
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
   gst_object_unref (sink);
   gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Caps of a static stream of one 4-byte uint8 tensor.
+ */
+#define MERGE_ONE_TENSOR_CAPS                              \
+  "other/tensors,format=static,num_tensors=1,types=uint8," \
+  "dimensions=4:1:1:1,framerate=0/1"
+
+/**
+ * @brief Create a harness on the first sink pad of tensor_merge.
+ * @return the harness, which the caller should free with _merge_harness_teardown()
+ */
+static GstHarness *
+_merge_harness_new (void)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_merge", "sink_0", "src");
+  GstBus *bus = gst_bus_new ();
+
+  /* GST_ELEMENT_ERROR needs a bus to reach the application. */
+  gst_element_set_bus (h->element, bus);
+  gst_object_unref (bus);
+
+  g_object_set (h->element, "mode", "linear", "option", "0", "sync-mode", "nosync", NULL);
+  gst_harness_set_src_caps_str (h, MERGE_ONE_TENSOR_CAPS);
+  return h;
+}
+
+/**
+ * @brief Free a harness made by _merge_harness_new().
+ * @details The messages queued on the bus hold the element, so the bus goes
+ *          first or the element is never freed.
+ */
+static void
+_merge_harness_teardown (GstHarness *h)
+{
+  gst_element_set_bus (h->element, NULL);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Tell whether the element posted an error on its bus.
+ */
+static gboolean
+_element_posted_error (GstElement *element)
+{
+  GstBus *bus = gst_element_get_bus (element);
+  GstMessage *msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  gboolean posted = (msg != NULL);
+
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+  return posted;
+}
+
+/**
+ * @brief A static pad of one tensor takes the tensor split over two memories
+ *        and joins them by the config of the pad.
+ */
+TEST (tensorMergeCollect, staticTwoMemories)
+{
+  const guint8 data[4] = { 1, 2, 3, 4 };
+  GstHarness *h = _merge_harness_new ();
+  GstBuffer *in = gst_buffer_new ();
+  GstBuffer *out;
+
+  gst_buffer_append_memory (in, gst_allocator_alloc (NULL, 2, NULL));
+  gst_buffer_append_memory (in, gst_allocator_alloc (NULL, 2, NULL));
+  EXPECT_EQ (gst_buffer_fill (in, 0, data, sizeof (data)), sizeof (data));
+  GST_BUFFER_PTS (in) = 0;
+
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+  EXPECT_FALSE (_element_posted_error (h->element));
+
+  out = gst_harness_try_pull (h);
+  ASSERT_NE (out, nullptr);
+  EXPECT_EQ (gst_buffer_n_memory (out), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out), 4U);
+  EXPECT_EQ (gst_buffer_memcmp (out, 0, data, sizeof (data)), 0);
+  gst_buffer_unref (out);
+
+  EXPECT_TRUE (gst_harness_push_event (h, gst_event_new_eos ()));
+  _merge_harness_teardown (h);
+}
+
+/**
+ * @brief A static pad of one tensor takes a buffer too short for it:
+ *        tensor_merge refuses it instead of aborting.
+ */
+TEST (tensorMergeCollect, staticShortBuffer_n)
+{
+  GstHarness *h = _merge_harness_new ();
+  GstBuffer *in = gst_buffer_new ();
+
+  gst_buffer_append_memory (in, gst_allocator_alloc (NULL, 1, NULL));
+  gst_buffer_append_memory (in, gst_allocator_alloc (NULL, 1, NULL));
+  gst_buffer_memset (in, 0, 0x2A, 2);
+  GST_BUFFER_PTS (in) = 0;
+
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_ERROR);
+  EXPECT_TRUE (_element_posted_error (h->element));
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  _merge_harness_teardown (h);
 }
 
 /**
