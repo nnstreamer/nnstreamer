@@ -3303,13 +3303,14 @@ TEST (testTensorTransform, pushLongTensor)
 }
 
 /**
- * @brief Build a uint8 flexible tensor memory of the given dimension.
+ * @brief Build a flexible tensor memory of the given type and dimension.
+ * @param type element type the meta header describes
  * @param dim_str dimension the meta header describes
  * @param with_data allocate the data the header describes, not the header alone
  * @param size bytes the memory exposes, 0 for every allocated byte
  */
 static GstMemory *
-_new_flex_memory (const gchar *dim_str, gboolean with_data, gsize size)
+_new_flex_typed_memory (tensor_type type, const gchar *dim_str, gboolean with_data, gsize size)
 {
   GstTensorMetaInfo meta;
   GstTensorInfo info;
@@ -3317,7 +3318,7 @@ _new_flex_memory (const gchar *dim_str, gboolean with_data, gsize size)
   gsize hsize, alloc;
 
   gst_tensor_info_init (&info);
-  info.type = _NNS_UINT8;
+  info.type = type;
   gst_tensor_parse_dimension (dim_str, info.dimension);
   gst_tensor_info_convert_to_meta (&info, &meta);
 
@@ -3331,6 +3332,18 @@ _new_flex_memory (const gchar *dim_str, gboolean with_data, gsize size)
   gst_tensor_meta_info_update_header (&meta, data);
 
   return gst_memory_new_wrapped ((GstMemoryFlags) 0, data, alloc, 0, size, data, g_free);
+}
+
+/**
+ * @brief Build a uint8 flexible tensor memory of the given dimension.
+ * @param dim_str dimension the meta header describes
+ * @param with_data allocate the data the header describes, not the header alone
+ * @param size bytes the memory exposes, 0 for every allocated byte
+ */
+static GstMemory *
+_new_flex_memory (const gchar *dim_str, gboolean with_data, gsize size)
+{
+  return _new_flex_typed_memory (_NNS_UINT8, dim_str, with_data, size);
 }
 
 /**
@@ -3621,6 +3634,321 @@ TEST (testTensorTransform, pushSparseFlexibleTensor_n)
 
   gst_harness_teardown (h);
 }
+
+/**
+ * @brief Open a tensor_transform harness fed with a static tensor.
+ * @param mode transform mode
+ * @param option mode option
+ * @param accel value of the acceleration property
+ * @param type element type of the input tensor
+ * @param dim_str dimension of the input tensor
+ * @param flex_out TRUE to make the harness sink accept flexible tensors only
+ */
+static GstHarness *
+_new_transform_static_harness (tensor_transform_mode mode, const gchar *option,
+    gboolean accel, tensor_type type, const gchar *dim_str, gboolean flex_out)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+
+  h = gst_harness_new ("tensor_transform");
+  if (!h)
+    return NULL;
+
+  g_object_set (h->element, "mode", mode, "option", option, "acceleration", accel, NULL);
+
+  if (flex_out)
+    gst_harness_set_sink_caps_str (h, GST_TENSORS_FLEX_CAP_DEFAULT);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = type;
+  gst_tensor_parse_dimension (dim_str, config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  gst_tensors_config_free (&config);
+
+  return h;
+}
+
+/**
+ * @brief Test for tensor_transform, the modes only moving the elements take
+ *        float16 on every build (item G4 of #4960).
+ */
+TEST (testTensorTransform, float16DataMovingModes)
+{
+  const struct {
+    tensor_transform_mode mode;
+    const gchar *option;
+  } cases[] = {
+    { GTT_DIMCHG, "0:1" },
+    { GTT_TRANSPOSE, "1:0:2:3" },
+  };
+  const guint width = 2U, height = 3U;
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstMapInfo info;
+  guint c, x, y;
+
+  for (c = 0; c < G_N_ELEMENTS (cases); c++) {
+    h = _new_transform_static_harness (
+        cases[c].mode, cases[c].option, FALSE, _NNS_FLOAT16, "2:3:1:1", FALSE);
+    ASSERT_TRUE (h != NULL);
+
+    in_buf = gst_harness_create_buffer (h, width * height * sizeof (uint16_t));
+    ASSERT_TRUE (gst_buffer_map (in_buf, &info, GST_MAP_WRITE));
+    for (x = 0; x < width * height; x++)
+      ((uint16_t *) info.data)[x] = (uint16_t) (0x3C00 + x);
+    gst_buffer_unmap (in_buf, &info);
+
+    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+    out_buf = gst_harness_try_pull (h);
+    ASSERT_TRUE (out_buf != NULL);
+
+    ASSERT_TRUE (gst_buffer_map (out_buf, &info, GST_MAP_READ));
+    ASSERT_EQ (info.size, width * height * sizeof (uint16_t));
+    for (y = 0; y < height; y++) {
+      for (x = 0; x < width; x++) {
+        EXPECT_EQ (((uint16_t *) info.data)[x * height + y],
+            (uint16_t) (0x3C00 + y * width + x));
+      }
+    }
+    gst_buffer_unmap (out_buf, &info);
+    gst_buffer_unref (out_buf);
+
+    gst_harness_teardown (h);
+  }
+}
+
+#ifndef FLOAT16_SUPPORT
+/**
+ * @brief Test for tensor_transform, a float16 tensor converted by a build
+ *        without float16 support (item G4 of #4960). The caps are refused,
+ *        where the conversion used to abort the process.
+ */
+TEST (testTensorTransform, float16InputUnsupported_n)
+{
+  const struct {
+    tensor_transform_mode mode;
+    const gchar *option;
+  } cases[] = {
+    { GTT_TYPECAST, "float32" },
+    { GTT_TYPECAST, "float16" },
+    { GTT_ARITHMETIC, "add:1" },
+    { GTT_ARITHMETIC, "typecast:float32,add:1" },
+    { GTT_ARITHMETIC, "typecast:float32,per-channel:true@0,add:1@0" },
+    { GTT_STAND, "default:float32" },
+    { GTT_CLAMP, "0:1" },
+  };
+  GstHarness *h;
+  guint c, a, f;
+
+  for (c = 0; c < G_N_ELEMENTS (cases); c++) {
+    for (a = 0; a < 2U; a++) {
+      for (f = 0; f < 2U; f++) {
+        h = _new_transform_static_harness (cases[c].mode, cases[c].option,
+            (gboolean) a, _NNS_FLOAT16, "4:2", (gboolean) f);
+        ASSERT_TRUE (h != NULL);
+
+        EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 16U)),
+            GST_FLOW_NOT_NEGOTIATED);
+        EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+        gst_harness_teardown (h);
+      }
+    }
+  }
+}
+
+/**
+ * @brief Test for tensor_transform, a float16 output requested from a build
+ *        without float16 support (item G4 of #4960).
+ */
+TEST (testTensorTransform, float16OutputUnsupported_n)
+{
+  const struct {
+    tensor_transform_mode mode;
+    const gchar *option;
+  } cases[] = {
+    { GTT_TYPECAST, "float16" },
+    { GTT_ARITHMETIC, "typecast:float16,add:1" },
+    { GTT_STAND, "default:float16" },
+  };
+  GstHarness *h;
+  guint c, a, f;
+
+  for (c = 0; c < G_N_ELEMENTS (cases); c++) {
+    for (a = 0; a < 2U; a++) {
+      for (f = 0; f < 2U; f++) {
+        h = _new_transform_static_harness (cases[c].mode, cases[c].option,
+            (gboolean) a, _NNS_UINT8, "4:2", (gboolean) f);
+        ASSERT_TRUE (h != NULL);
+
+        EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 8U)),
+            GST_FLOW_NOT_NEGOTIATED);
+        EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+        gst_harness_teardown (h);
+      }
+    }
+  }
+}
+
+/**
+ * @brief Test for tensor_transform, a flexible tensor whose header says
+ *        float16, on a build without float16 support (item G4 of #4960).
+ */
+TEST (testTensorTransform, float16FlexibleHeaderUnsupported_n)
+{
+  const struct {
+    tensor_transform_mode mode;
+    const gchar *option;
+  } cases[] = {
+    { GTT_TYPECAST, "float32" },
+    { GTT_ARITHMETIC, "add:1" },
+    { GTT_STAND, "dc-average" },
+    { GTT_CLAMP, "0:1" },
+  };
+  GstHarness *h;
+  GstBuffer *buf;
+  GstCaps *caps;
+  guint c, a;
+
+  for (c = 0; c < G_N_ELEMENTS (cases); c++) {
+    for (a = 0; a < 2U; a++) {
+      h = gst_harness_new ("tensor_transform");
+      ASSERT_TRUE (NULL != h);
+
+      g_object_set (h->element, "mode", cases[c].mode, "option",
+          cases[c].option, "acceleration", (gboolean) a, NULL);
+
+      caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+      gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+      gst_harness_set_src_caps (h, caps);
+
+      /* the second memory keeps the buffer from being re-split by the header */
+      buf = gst_buffer_new ();
+      gst_buffer_append_memory (
+          buf, _new_flex_typed_memory (_NNS_FLOAT16, "4:2", TRUE, 0U));
+      gst_buffer_append_memory (
+          buf, _new_flex_typed_memory (_NNS_FLOAT16, "4:2", TRUE, 0U));
+
+      EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+      EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+      gst_harness_teardown (h);
+    }
+  }
+}
+
+/**
+ * @brief Test for tensor_transform, switching a float16 stream to a mode
+ *        converting the values, on a build without float16 support (item G4
+ *        of #4960).
+ */
+TEST (testTensorTransform, float16ModeChangeUnsupported_n)
+{
+  GstHarness *h;
+  GstBuffer *out_buf;
+  guint f;
+
+  for (f = 0; f < 2U; f++) {
+    h = _new_transform_static_harness (
+        GTT_DIMCHG, "0:1", FALSE, _NNS_FLOAT16, "4:2", (gboolean) f);
+    ASSERT_TRUE (h != NULL);
+
+    EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 16U)), GST_FLOW_OK);
+    out_buf = gst_harness_try_pull (h);
+    ASSERT_TRUE (out_buf != NULL);
+    gst_buffer_unref (out_buf);
+
+    g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+    /* static caps are renegotiated and refused, flexible ones fail the buffer */
+    EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 16U)),
+        f ? GST_FLOW_ERROR : GST_FLOW_NOT_NEGOTIATED);
+    EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+    gst_harness_teardown (h);
+  }
+}
+#else /* FLOAT16_SUPPORT */
+/**
+ * @brief Test for tensor_transform, a float16 tensor cast to the 64-bit
+ *        integer types (item G4 of #4960).
+ */
+TEST (testTensorTransform, float16TypecastToInt64)
+{
+  const uint16_t in_values[] = { 0x3C00, 0x4000, 0x4200, 0x4400 }; /* 1, 2, 3, 4 */
+  const gchar *options[] = { "int64", "uint64" };
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstMapInfo info;
+  guint o, a, i;
+
+  for (o = 0; o < G_N_ELEMENTS (options); o++) {
+    for (a = 0; a < 2U; a++) {
+      h = _new_transform_static_harness (
+          GTT_TYPECAST, options[o], (gboolean) a, _NNS_FLOAT16, "4", FALSE);
+      ASSERT_TRUE (h != NULL);
+
+      in_buf = gst_harness_create_buffer (h, sizeof (in_values));
+      gst_buffer_fill (in_buf, 0, in_values, sizeof (in_values));
+
+      EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+      out_buf = gst_harness_try_pull (h);
+      ASSERT_TRUE (out_buf != NULL);
+
+      ASSERT_TRUE (gst_buffer_map (out_buf, &info, GST_MAP_READ));
+      ASSERT_EQ (info.size, G_N_ELEMENTS (in_values) * sizeof (int64_t));
+      for (i = 0; i < G_N_ELEMENTS (in_values); i++)
+        EXPECT_EQ (((int64_t *) info.data)[i], (int64_t) (i + 1));
+      gst_buffer_unmap (out_buf, &info);
+      gst_buffer_unref (out_buf);
+
+      gst_harness_teardown (h);
+    }
+  }
+}
+
+/**
+ * @brief Test for tensor_transform, per-channel arithmetic producing float16
+ *        (item G4 of #4960).
+ */
+TEST (testTensorTransform, float16PerChannelArithmetic)
+{
+  const uint8_t in_values[] = { 1, 2, 3, 4 };
+  const uint16_t expected[] = { 0x4000, 0x4000, 0x4400, 0x4400 }; /* 2, 2, 4, 4 */
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstMapInfo info;
+  guint a, i;
+
+  for (a = 0; a < 2U; a++) {
+    h = _new_transform_static_harness (GTT_ARITHMETIC,
+        "typecast:float16,per-channel:true@0,add:1@0", (gboolean) a, _NNS_UINT8,
+        "2:2", FALSE);
+    ASSERT_TRUE (h != NULL);
+
+    in_buf = gst_harness_create_buffer (h, sizeof (in_values));
+    gst_buffer_fill (in_buf, 0, in_values, sizeof (in_values));
+
+    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+    out_buf = gst_harness_try_pull (h);
+    ASSERT_TRUE (out_buf != NULL);
+
+    ASSERT_TRUE (gst_buffer_map (out_buf, &info, GST_MAP_READ));
+    ASSERT_EQ (info.size, sizeof (expected));
+    for (i = 0; i < G_N_ELEMENTS (expected); i++)
+      EXPECT_EQ (((uint16_t *) info.data)[i], expected[i]);
+    gst_buffer_unmap (out_buf, &info);
+    gst_buffer_unref (out_buf);
+
+    gst_harness_teardown (h);
+  }
+}
+#endif /* FLOAT16_SUPPORT */
 
 /**
  * @brief Push a uint8 tensor through the dimchg mode and compare the result

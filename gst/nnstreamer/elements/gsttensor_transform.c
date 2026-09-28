@@ -384,7 +384,6 @@ float16_not_supported (void)
 {
   ml_loge
       ("Tensor_transform does not support float16 operators. Apply -Denable-float16=true for meson build option if your architecture support float16. Note that tensor-transform's float16 is adhoc and does NOT perform good (slow!).\n");
-  g_assert (0);
 }
 #endif
 
@@ -468,6 +467,14 @@ refrain_from_heavy_op_on_float16 (gulong n)
         float16 *op = (gpointer) (o); \
         _conv_from_f16_action (n, op, ip, float16); \
         break; } \
+      case _NNS_INT64: {  \
+        int64_t *op = (gpointer) (o); \
+        _conv_from_f16_action (n, op, ip, int64_t); \
+        break; } \
+      case _NNS_UINT64: {  \
+        uint64_t *op = (gpointer) (o); \
+        _conv_from_f16_action (n, op, ip, uint64_t); \
+        break; } \
       default: GST_ERROR_OBJECT (filter, "Unsupported type %d", (otype)); g_assert (0); \
     } \
   } while (0)
@@ -496,6 +503,7 @@ refrain_from_heavy_op_on_float16 (gulong n)
   } while (0)
 
 #else /* ! FLOAT16_SUPPORT */
+/* unreachable: gst_tensor_transform_convert_dimension() refuses float16 first */
 #define _conv_to_f16(intype, o, i, n) do { float16_not_supported (); } while (0)
 #define _conv_from_f16(otype, o, i, n) do { float16_not_supported (); } while (0)
 #define _op_float16(i, n, v, op) do { float16_not_supported (); } while (0)
@@ -539,22 +547,6 @@ refrain_from_heavy_op_on_float16 (gulong n)
       case _NNS_UINT64: orc_typecast_to (i, o, n, u64, otype, uint64_t); break; \
       case _NNS_FLOAT16: _conv_from_f16 (otype, o, i, n); break; \
       default: GST_ERROR_OBJECT (filter, "Unsupported input type %d", itype); g_assert (0); break; \
-    } \
-  } while (0)
-
-#define orc_typesize(size, type) do { \
-    switch (type) { \
-      case _NNS_INT32: size = sizeof(int32_t); break; \
-      case _NNS_UINT32: size = sizeof(uint32_t); break; \
-      case _NNS_INT16: size = sizeof(int16_t); break; \
-      case _NNS_UINT16: size = sizeof(uint16_t); break; \
-      case _NNS_INT8: size = sizeof(int8_t); break; \
-      case _NNS_UINT8: size = sizeof(uint8_t); break; \
-      case _NNS_FLOAT64: size = sizeof(double); break; \
-      case _NNS_FLOAT32: size = sizeof(float); break; \
-      case _NNS_INT64: size = sizeof(int64_t); break; \
-      case _NNS_UINT64: size = sizeof(uint64_t); break; \
-      default: GST_ERROR_OBJECT (filter, "Unsupported type %d", type); g_assert (0); break; \
     } \
   } while (0)
 
@@ -677,10 +669,11 @@ gst_tensor_transform_do_operator (GstTensorTransform * filter,
     case _NNS_FLOAT16:
 #ifdef FLOAT16_SUPPORT
       handle_operator (desc, val, op, float16);
+      break;
 #else
       float16_not_supported ();
+      return FALSE;
 #endif
-      break;
     case _NNS_INT64:
       handle_operator (desc, val, op, int64_t);
       break;
@@ -1526,7 +1519,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
         walk = g_slist_next (walk);
       }
     } else {
-      gsize typesize = 0;
+      gsize typesize = gst_tensor_get_element_size (out_info->type);
       guint ch_dim = filter->data_arithmetic.ch_dim;
       gsize ch_offset, ch_size = 1;
       uint8_t *tmp_outptr = NULL;
@@ -1535,7 +1528,6 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
         ch_size *= in_info->dimension[i];
       }
       ch_offset = ch_size * in_info->dimension[ch_dim];
-      orc_typesize (typesize, out_info->type);
 
       while (walk) {
         op_s = (tensor_transform_operator_s *) walk->data;
@@ -2449,6 +2441,22 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
     default:
       return FALSE;
   }
+
+#ifndef FLOAT16_SUPPORT
+  if (direction == GST_PAD_SINK && (in_info->type == _NNS_FLOAT16 ||
+          out_info->type == _NNS_FLOAT16)) {
+    switch (filter->mode) {
+      case GTT_TYPECAST:
+      case GTT_ARITHMETIC:
+      case GTT_STAND:
+      case GTT_CLAMP:
+        float16_not_supported ();
+        return FALSE;
+      default:
+        break;
+    }
+  }
+#endif
 
   return TRUE;
 }
