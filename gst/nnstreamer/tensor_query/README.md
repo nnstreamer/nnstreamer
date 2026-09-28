@@ -14,11 +14,13 @@ Therefore, there is no need for cloud server by running AI on a local network.
 - The capability of source and sink pad is ```ANY```.
 - The capability of the tensor_client sink must match the capability of the tensor_query_serversrc.
 - The capability of the tensor_client source must match the capability of the tensor_query_serversink.
+- If the source caps describe tensors, an answer from the server that does not carry them (a different number of tensors or a different size for static tensors, a missing or short header for flexible and sparse tensors) is refused with an error instead of being pushed.
 
 ### tensor_query_serversrc
 - Used for heavyweight device.
 - Receive requests and data from clients.
 - The capability of tensor_query_serversrc is ```ANY```.
+- If the negotiated caps describe tensors, a request that does not carry them is refused with an error instead of being pushed, as in tensor_query_client.
 
 ### tensor_query_serversink
 - Used for heavyweight device.

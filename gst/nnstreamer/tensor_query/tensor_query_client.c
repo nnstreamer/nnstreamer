@@ -361,13 +361,9 @@ gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
        * It will be used in chain function, to push tensor buffer into src pad.
        */
       if (ret) {
-        GstStructure *s = gst_caps_get_structure (out_caps, 0);
-
-        self->is_tensor = gst_structure_is_tensor_stream (s);
-        if (self->is_tensor) {
-          gst_tensors_config_free (&self->config);
-          gst_tensors_config_from_structure (&self->config, s);
-        }
+        gst_tensors_config_free (&self->config);
+        self->is_tensor =
+            gst_tensor_query_config_from_caps (out_caps, &self->config);
       }
     } else {
       nns_loge ("out-caps from tensor_query_serversink is not fixed. "
@@ -727,7 +723,11 @@ try_pop:
       self->requested_num--;
     ret = nns_edge_data_get_count (data_h, &num_data);
 
-    if (ret == NNS_EDGE_ERROR_NONE && num_data > 0) {
+    if (ret == NNS_EDGE_ERROR_NONE && num_data > 0 && self->is_tensor
+        && !gst_tensor_query_validate_edge_data (data_h, &self->config)) {
+      nns_loge ("The edge data from the server does not match the caps.");
+      res = GST_FLOW_ERROR;
+    } else if (ret == NNS_EDGE_ERROR_NONE && num_data > 0) {
       GstMemory *new_mem;
       GstTensorInfo *_info;
 
@@ -746,16 +746,23 @@ try_pop:
 
         if (self->is_tensor) {
           _info = gst_tensors_info_get_nth_info (&self->config.info, i);
-          gst_tensor_buffer_append_memory (out_buf, new_mem, _info);
+          if (!gst_tensor_buffer_append_memory (out_buf, new_mem, _info)) {
+            g_clear_pointer (&out_buf, gst_buffer_unref);
+            break;
+          }
         } else {
           gst_buffer_append_memory (out_buf, new_mem);
         }
       }
 
-      /* metadata from incoming buffer */
-      gst_buffer_copy_into (out_buf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+      if (out_buf) {
+        /* metadata from incoming buffer */
+        gst_buffer_copy_into (out_buf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
 
-      res = gst_pad_push (self->srcpad, out_buf);
+        res = gst_pad_push (self->srcpad, out_buf);
+      } else {
+        res = GST_FLOW_ERROR;
+      }
     } else {
       nns_loge ("Failed to get the number of memories of the edge data.");
       res = GST_FLOW_ERROR;
