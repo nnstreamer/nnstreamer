@@ -1416,6 +1416,211 @@ TEST (tensorFilterFlexInput, typedDynamicTakesType)
 #define OUT_COMBI_IN_CAPS \
   "other/tensors,num_tensors=1,dimensions=(string)4,types=uint8,format=static,framerate=(fraction)0/1"
 
+/** @brief Static caps of the model of the renegotiation tests, without a framerate */
+#define RENEG_STATIC_CAPS \
+  "other/tensors,format=static,num_tensors=1,types=uint8,dimensions=176:1:1:1"
+
+/**
+ * @brief Harness a tensor_filter on a static stream of @a rate, with a bus to catch its errors.
+ */
+static GstHarness *
+_reneg_harness (const gchar *model, const gchar *rate)
+{
+  GstHarness *h;
+  GstBus *bus;
+  gchar *desc;
+
+  desc = g_strdup_printf ("tensor_filter framework=custom-easy model=%s", model);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+
+  bus = gst_bus_new ();
+  gst_element_set_bus (h->element, bus);
+  gst_object_unref (bus);
+
+  desc = g_strdup_printf ("%s,framerate=(fraction)%s", RENEG_STATIC_CAPS, rate);
+  gst_harness_set_src_caps_str (h, desc);
+  g_free (desc);
+  return h;
+}
+
+/**
+ * @brief Push a zero-filled static tensor of @a size bytes.
+ */
+static GstFlowReturn
+_reneg_push (GstHarness *h, gsize size)
+{
+  return gst_harness_push (h, gst_buffer_new_wrapped (g_malloc0 (size), size));
+}
+
+/**
+ * @brief Drop every buffer tensor_filter has pushed so far.
+ */
+static void
+_reneg_drain (GstHarness *h)
+{
+  GstBuffer *out;
+
+  while ((out = gst_harness_try_pull (h)) != NULL)
+    gst_buffer_unref (out);
+}
+
+/**
+ * @brief A renegotiation that only changes the framerate is taken, and the new framerate goes downstream.
+ */
+TEST (tensorFilterRenegotiate, framerateOnly)
+{
+  flex_in_data data;
+  GstHarness *h;
+  GstCaps *caps;
+  GstStructure *s;
+  gint rate_n = 0, rate_d = 0;
+
+  ASSERT_EQ (_flex_in_register ("reneg_rate", FALSE, &data), 0);
+
+  h = _reneg_harness ("reneg_rate", "30/1");
+  EXPECT_EQ (_reneg_push (h, FLEX_IN_MODEL_SIZE), GST_FLOW_OK);
+  _reneg_drain (h);
+
+  gst_harness_set_src_caps_str (h, RENEG_STATIC_CAPS ",framerate=(fraction)15/1");
+  EXPECT_EQ (_reneg_push (h, FLEX_IN_MODEL_SIZE), GST_FLOW_OK);
+  _reneg_drain (h);
+  EXPECT_EQ (data.invoked, 2U);
+  EXPECT_FALSE (_flex_in_refused_header (h));
+
+  caps = gst_pad_get_current_caps (h->sinkpad);
+  ASSERT_TRUE (caps != NULL);
+  s = gst_caps_get_structure (caps, 0);
+  EXPECT_TRUE (gst_structure_get_fraction (s, "framerate", &rate_n, &rate_d));
+  EXPECT_EQ (rate_n, 15);
+  EXPECT_EQ (rate_d, 1);
+  gst_caps_unref (caps);
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("reneg_rate"), 0);
+  g_free (data.in_name);
+}
+
+/**
+ * @brief With the dynamic invoke, a renegotiation that only changes the framerate is taken as well.
+ */
+TEST (tensorFilterRenegotiate, framerateOnlyDynamic)
+{
+  guint8 raw[FLEX_IN_HSIZE + FLEX_IN_MODEL_SIZE];
+  flex_in_data data;
+  GstHarness *h;
+
+  ASSERT_EQ (_flex_in_register ("reneg_rate_dyn", TRUE, &data), 0);
+  _flex_in_fill (raw, FLEX_IN_MODEL_SIZE);
+
+  h = _flex_in_harness ("reneg_rate_dyn", TRUE);
+  EXPECT_EQ (_flex_in_push (h, raw, sizeof (raw)), GST_FLOW_OK);
+  _reneg_drain (h);
+
+  gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=(fraction)15/1");
+  EXPECT_EQ (_flex_in_push (h, raw, sizeof (raw)), GST_FLOW_OK);
+  _reneg_drain (h);
+  EXPECT_EQ (data.invoked, 2U);
+  EXPECT_FALSE (_flex_in_refused_header (h));
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("reneg_rate_dyn"), 0);
+  g_free (data.in_name);
+}
+
+/**
+ * @brief A renegotiation from a static to a flexible stream is refused with an error, and the model is not invoked.
+ */
+TEST (tensorFilterRenegotiate, staticToFlexible_n)
+{
+  guint8 raw[FLEX_IN_HSIZE + FLEX_IN_MODEL_SIZE];
+  flex_in_data data;
+  GstHarness *h;
+
+  ASSERT_EQ (_flex_in_register ("reneg_format", FALSE, &data), 0);
+  _flex_in_fill (raw, FLEX_IN_MODEL_SIZE);
+
+  h = _reneg_harness ("reneg_format", "30/1");
+  EXPECT_EQ (_reneg_push (h, FLEX_IN_MODEL_SIZE), GST_FLOW_OK);
+  _reneg_drain (h);
+
+  gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=(fraction)30/1");
+  EXPECT_NE (_flex_in_push (h, raw, sizeof (raw)), GST_FLOW_OK);
+  EXPECT_EQ (data.invoked, 1U);
+  EXPECT_TRUE (_flex_in_refused_header (h));
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("reneg_format"), 0);
+  g_free (data.in_name);
+}
+
+/**
+ * @brief A renegotiation to another static dimension is refused with an error, and the model is not invoked.
+ */
+TEST (tensorFilterRenegotiate, dimensionChange_n)
+{
+  flex_in_data data;
+  GstHarness *h;
+
+  ASSERT_EQ (_flex_in_register ("reneg_dim", FALSE, &data), 0);
+
+  h = _reneg_harness ("reneg_dim", "30/1");
+  EXPECT_EQ (_reneg_push (h, FLEX_IN_MODEL_SIZE), GST_FLOW_OK);
+  _reneg_drain (h);
+
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,format=static,num_tensors=1,"
+      "types=uint8,dimensions=88:1:1:1,framerate=(fraction)30/1");
+  EXPECT_NE (_reneg_push (h, 88), GST_FLOW_OK);
+  EXPECT_EQ (data.invoked, 1U);
+  EXPECT_TRUE (_flex_in_refused_header (h));
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("reneg_dim"), 0);
+  g_free (data.in_name);
+}
+
+/**
+ * @brief A buffer reaching tensor_filter after its framework is replaced is refused with an error, not asserted on.
+ */
+TEST (tensorFilterRenegotiate, frameworkReplaced_n)
+{
+  flex_in_data data;
+  GstHarness *h;
+  GstElement *filter;
+  GstBus *bus;
+  GstMessage *msg;
+  GError *err = NULL;
+
+  ASSERT_EQ (_flex_in_register ("reneg_fw", FALSE, &data), 0);
+
+  h = _reneg_harness ("reneg_fw", "30/1");
+  EXPECT_EQ (_reneg_push (h, FLEX_IN_MODEL_SIZE), GST_FLOW_OK);
+  _reneg_drain (h);
+
+  filter = gst_harness_find_element (h, "tensor_filter");
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", "custom", NULL);
+  gst_object_unref (filter);
+
+  EXPECT_NE (_reneg_push (h, FLEX_IN_MODEL_SIZE), GST_FLOW_OK);
+  EXPECT_EQ (data.invoked, 1U);
+
+  bus = gst_element_get_bus (h->element);
+  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  ASSERT_TRUE (msg != NULL);
+  gst_message_parse_error (msg, &err, NULL);
+  EXPECT_TRUE (g_error_matches (err, GST_STREAM_ERROR, GST_STREAM_ERROR_TYPE_NOT_FOUND));
+  EXPECT_STREQ (G_OBJECT_TYPE_NAME (GST_MESSAGE_SRC (msg)), "GstTensorFilter");
+  g_clear_error (&err);
+  gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("reneg_fw"), 0);
+  g_free (data.in_name);
+}
+
 /** @brief How the output-combination test model is invoked */
 typedef enum {
   OUT_COMBI_STATIC = 0, /**< static invoke returning both outputs */
