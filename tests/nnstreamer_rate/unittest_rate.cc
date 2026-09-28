@@ -366,6 +366,63 @@ TEST_F (NNSRateTest, setPropertyFramerateOverflow_n)
 }
 
 /**
+ * @brief Test tensor_rate refuses a framerate with a term that is not a whole number within gint (negative)
+ */
+TEST_F (NNSRateTest, setPropertyFramerateNotNumber_n)
+{
+  const gchar *invalid[] = { "abc/1", "30fps/1", "3O/1", "30/1x", "30/abc",
+    "4294967297/1", "2147483648/1", "1/2147483648", "+30/1", "-0/1", "0x1E/1",
+    "/1", "30/", "30 1/1", "30/1/1", NULL };
+  gchar *framerate;
+  guint i;
+
+  ASSERT_TRUE (setupPipeline ());
+
+  GstElement *rate = getRateElem ();
+  ASSERT_TRUE (rate != NULL);
+
+  for (i = 0; invalid[i] != NULL; i++) {
+    g_object_set (rate, "framerate", invalid[i], NULL);
+    g_object_get (rate, "framerate", &framerate, NULL);
+    EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE.c_str ()) << invalid[i];
+    g_free (framerate);
+  }
+}
+
+/**
+ * @brief Test tensor_rate accepts the bounds of a framerate term and blanks around it
+ */
+TEST_F (NNSRateTest, setPropertyFramerateBounds)
+{
+  gchar *framerate;
+
+  ASSERT_TRUE (setupPipeline ());
+
+  GstElement *rate = getRateElem ();
+  ASSERT_TRUE (rate != NULL);
+
+  g_object_set (rate, "framerate", " 15 / 2 ", NULL);
+  g_object_get (rate, "framerate", &framerate, NULL);
+  EXPECT_STREQ ("15/2", framerate);
+  g_free (framerate);
+
+  g_object_set (rate, "framerate", "2147483647/1", NULL);
+  g_object_get (rate, "framerate", &framerate, NULL);
+  EXPECT_STREQ ("2147483647/1", framerate);
+  g_free (framerate);
+
+  g_object_set (rate, "framerate", "0/2147483647", NULL);
+  g_object_get (rate, "framerate", &framerate, NULL);
+  EXPECT_STREQ ("0/2147483647", framerate);
+  g_free (framerate);
+
+  g_object_set (rate, "framerate", "007/1", NULL);
+  g_object_get (rate, "framerate", &framerate, NULL);
+  EXPECT_STREQ ("7/1", framerate);
+  g_free (framerate);
+}
+
+/**
  * @brief Test tensor_rate with passthrough mode
  */
 TEST_F (NNSRateTest, passthrough)

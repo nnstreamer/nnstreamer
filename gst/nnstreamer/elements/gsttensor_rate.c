@@ -44,7 +44,6 @@
 #include "config.h"
 #endif
 
-#include <errno.h>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
 
@@ -366,31 +365,33 @@ gst_tensor_rate_set_property (GObject * object, guint prop_id,
     {
       const gchar *str = g_value_get_string (value);
       gchar **strv = g_strsplit (str, "/", -1);
-      gint rate_n, rate_d;
+      guint64 rate_n, rate_d;
+      GError *error = NULL;
 
       if (g_strv_length (strv) != 2) {
         ml_loge ("Please specify a proper 'framerate' property");
         goto done;
       }
 
-      errno = 0;
-      rate_n = (gint) g_ascii_strtoll (strv[0], NULL, 10);
-      if (errno == ERANGE || rate_n < 0) {
-        ml_loge ("Invalid frame rate numerator in 'framerate'");
+      if (!g_ascii_string_to_unsigned (g_strstrip (strv[0]), 10, 0, G_MAXINT,
+              &rate_n, &error)) {
+        ml_loge ("Invalid frame rate numerator in 'framerate': %s",
+            error->message);
         goto done;
       }
 
-      errno = 0;
-      rate_d = (gint) g_ascii_strtoll (strv[1], NULL, 10);
-      if (errno == ERANGE || rate_d <= 0) {
-        ml_loge ("Invalid frame rate denominator in 'framerate'");
+      if (!g_ascii_string_to_unsigned (g_strstrip (strv[1]), 10, 1, G_MAXINT,
+              &rate_d, &error)) {
+        ml_loge ("Invalid frame rate denominator in 'framerate': %s",
+            error->message);
         goto done;
       }
 
-      self->rate_n = rate_n;
-      self->rate_d = rate_d;
+      self->rate_n = (gint) rate_n;
+      self->rate_d = (gint) rate_d;
 
     done:
+      g_clear_error (&error);
       g_strfreev (strv);
       break;
     }
