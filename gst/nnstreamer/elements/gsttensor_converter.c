@@ -1080,7 +1080,12 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       frame_size = type * color * width * height;
 
       /** supposed 1 frame in buffer */
-      g_assert ((buf_size / self->frame_size) == 1);
+      if ((buf_size / self->frame_size) != 1) {
+        GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+            ("The incoming video buffer has %zu bytes, but a frame of the negotiated caps has %zu bytes.",
+                buf_size, self->frame_size));
+        goto error;
+      }
 
       if (self->remove_padding) {
         GstMapInfo src_info, dest_info;
@@ -1171,7 +1176,12 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         frame_size = buf_size;
       } else {
         /* get frame size from the properties */
-        g_assert ((buf_size % frame_size) == 0); /** @todo need rewrite. do not use assert */
+        if ((buf_size % frame_size) != 0) {
+          GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+              ("The incoming octet buffer has %zu bytes, which is not a multiple of the frame size %zu bytes given by input-dim and input-type.",
+                  buf_size, frame_size));
+          goto error;
+        }
         frames_in = buf_size / frame_size;
       }
       break;
