@@ -2239,6 +2239,358 @@ TEST (tensorFilterCustomOpenFail, pipelineMissingInvoke_n)
   _b3_counters_close (&counters);
 }
 
+/** @brief Data of a custom-easy model used by the unregister tests */
+typedef struct {
+  guint invoked; /**< number of calls of the model */
+  guint8 add; /**< value the model adds to each input byte */
+} unreg_data;
+
+/**
+ * @brief Custom-easy model adding a constant to each byte of the input.
+ */
+static int
+_unreg_filter (void *data, const GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  unreg_data *d = (unreg_data *) data;
+  gsize i;
+
+  UNUSED (prop);
+  d->invoked++;
+  for (i = 0; i < input[0].size; i++)
+    ((guint8 *) output[0].data)[i] = ((const guint8 *) input[0].data)[i] + d->add;
+  return 0;
+}
+
+/**
+ * @brief Register _unreg_filter taking and returning four uint8 values.
+ */
+static int
+_unreg_register (const gchar *model, unreg_data *d, guint8 add)
+{
+  GstTensorsInfo info;
+  int ret;
+
+  d->invoked = 0;
+  d->add = add;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = 1;
+  info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4:1:1:1", info.info[0].dimension);
+  ret = NNS_custom_easy_register (model, _unreg_filter, d, &info, &info);
+  gst_tensors_info_free (&info);
+  return ret;
+}
+
+/**
+ * @brief Harness a tensor_filter running the given custom-easy model.
+ */
+static GstHarness *
+_unreg_harness (const gchar *model)
+{
+  GstHarness *h;
+  gchar *desc;
+
+  desc = g_strdup_printf ("tensor_filter framework=custom-easy model=%s", model);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,num_tensors=1,types=uint8,"
+      "dimensions=4:1:1:1,format=static,framerate=(fraction)0/1");
+  return h;
+}
+
+/**
+ * @brief Push {0, 1, 2, 3} and check that the output is each byte plus @a add.
+ */
+static void
+_unreg_push_check (GstHarness *h, guint8 add)
+{
+  const guint8 raw[4] = { 0, 1, 2, 3 };
+  GstBuffer *out;
+  GstMapInfo map;
+  guint i;
+
+  ASSERT_EQ (gst_harness_push (h,
+                 gst_buffer_new_wrapped (_g_memdup (raw, sizeof (raw)), sizeof (raw))),
+      GST_FLOW_OK);
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (out != NULL);
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  ASSERT_EQ (map.size, sizeof (raw));
+  for (i = 0; i < sizeof (raw); i++)
+    EXPECT_EQ (map.data[i], (guint8) (raw[i] + add));
+  gst_buffer_unmap (out, &map);
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief An opened filter keeps running its function after the name is unregistered and registered again.
+ * @details Without a reference held by the filter, unregister freed the model under it and the next buffer called a function pointer read from freed memory.
+ */
+TEST (tensorFilterCustomEasyUnregister, whileOpened)
+{
+  unreg_data old_data, new_data;
+  GstHarness *h_old, *h_new;
+
+  ASSERT_EQ (_unreg_register ("unreg_opened", &old_data, 1), 0);
+  h_old = _unreg_harness ("unreg_opened");
+  _unreg_push_check (h_old, 1);
+  EXPECT_EQ (old_data.invoked, 1U);
+
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_opened"), 0);
+  _unreg_push_check (h_old, 1);
+  EXPECT_EQ (old_data.invoked, 2U);
+
+  ASSERT_EQ (_unreg_register ("unreg_opened", &new_data, 10), 0);
+  _unreg_push_check (h_old, 1);
+  EXPECT_EQ (old_data.invoked, 3U);
+  EXPECT_EQ (new_data.invoked, 0U);
+
+  h_new = _unreg_harness ("unreg_opened");
+  _unreg_push_check (h_new, 10);
+  EXPECT_EQ (new_data.invoked, 1U);
+  EXPECT_EQ (old_data.invoked, 3U);
+
+  gst_harness_teardown (h_old);
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_opened"), 0);
+  _unreg_push_check (h_new, 10);
+  EXPECT_EQ (new_data.invoked, 2U);
+  gst_harness_teardown (h_new);
+}
+
+/**
+ * @brief Two filters opening the same model share it, and closing one leaves the other running.
+ */
+TEST (tensorFilterCustomEasyUnregister, sharedByTwoFilters)
+{
+  unreg_data data;
+  GstHarness *h1, *h2;
+
+  ASSERT_EQ (_unreg_register ("unreg_shared", &data, 2), 0);
+  h1 = _unreg_harness ("unreg_shared");
+  h2 = _unreg_harness ("unreg_shared");
+  _unreg_push_check (h1, 2);
+  _unreg_push_check (h2, 2);
+
+  gst_harness_teardown (h1);
+  _unreg_push_check (h2, 2);
+  EXPECT_EQ (data.invoked, 3U);
+
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_shared"), 0);
+  _unreg_push_check (h2, 2);
+  EXPECT_EQ (data.invoked, 4U);
+  gst_harness_teardown (h2);
+}
+
+/**
+ * @brief A name cannot be unregistered twice, and a filter cannot open it once it is unregistered.
+ */
+TEST (tensorFilterCustomEasyUnregister, afterUnregister_n)
+{
+  unreg_data data;
+  GstHarness *h;
+  GstElement *gstpipe;
+
+  ASSERT_EQ (_unreg_register ("unreg_gone", &data, 3), 0);
+  h = _unreg_harness ("unreg_gone");
+  _unreg_push_check (h, 3);
+
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_gone"), 0);
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_gone"), -EINVAL);
+
+  gstpipe = gst_parse_launch (
+      "videotestsrc num-buffers=3 ! videoconvert ! "
+      "video/x-raw,width=160,height=120,format=RGB,framerate=10/1 ! tensor_converter ! "
+      "tensor_filter framework=custom-easy model=unreg_gone ! tensor_sink",
+      NULL);
+  ASSERT_TRUE (gstpipe != nullptr);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      -ESTRPIPE);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (gstpipe);
+
+  _unreg_push_check (h, 3);
+  EXPECT_EQ (data.invoked, 2U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Unregistering a name never registered fails.
+ */
+TEST (tensorFilterCustomEasyUnregister, unknownName_n)
+{
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_never_registered"), -EINVAL);
+}
+
+/**
+ * @brief Log handler dropping the messages the race tests emit by the thousand.
+ */
+static void
+_unreg_drop_log (const gchar *domain, GLogLevelFlags level, const gchar *message, gpointer user_data)
+{
+  UNUSED (domain);
+  UNUSED (level);
+  UNUSED (message);
+  UNUSED (user_data);
+}
+
+/** @brief Number of unregister-register cycles of the race test registrar */
+#define UNREG_RACE_CYCLES (2000U)
+
+/** @brief Shared state of the unregister race test */
+typedef struct {
+  GstTensorsInfo info; /**< input and output info of the model */
+  unreg_data data; /**< data of the model */
+  volatile gint done; /**< set when the registrar is done */
+} unreg_race;
+
+/**
+ * @brief Unregister and register the race test model again, a fixed number of times, leaving it registered.
+ */
+static gpointer
+_unreg_race_register (gpointer user_data)
+{
+  unreg_race *race = (unreg_race *) user_data;
+  guint failed = 0, i;
+
+  for (i = 0; i < UNREG_RACE_CYCLES; i++) {
+    if (NNS_custom_easy_unregister ("unreg_race") != 0)
+      failed++;
+    if (NNS_custom_easy_register (
+            "unreg_race", _unreg_filter, &race->data, &race->info, &race->info)
+        != 0)
+      failed++;
+  }
+
+  g_atomic_int_set (&race->done, 1);
+  return GUINT_TO_POINTER (failed);
+}
+
+/**
+ * @brief Filters opening a model while another thread unregisters it either fail to open or keep a working model until closed.
+ */
+TEST (tensorFilterCustomEasyUnregister, raceWithOpen)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("custom-easy");
+  GstTensorFilterProperties prop;
+  const gchar *models[] = { "unreg_race", NULL };
+  const guint8 raw[4] = { 0, 1, 2, 3 };
+  guint8 result[4];
+  GstTensorMemory in, out;
+  unreg_race race;
+  GThread *thread;
+  guint i, j, handler, opened = 0;
+  void *private_data;
+
+  ASSERT_TRUE (sp != nullptr);
+
+  memset (&race, 0, sizeof (race));
+  race.data.add = 5;
+  gst_tensors_info_init (&race.info);
+  race.info.num_tensors = 1;
+  race.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4:1:1:1", race.info.info[0].dimension);
+
+  memset (&prop, 0, sizeof (prop));
+  prop.fwname = "custom-easy";
+  prop.model_files = models;
+  prop.num_models = 1;
+
+  in.data = (void *) raw;
+  in.size = sizeof (raw);
+  out.data = result;
+  out.size = sizeof (result);
+
+  ASSERT_EQ (NNS_custom_easy_register ("unreg_race", _unreg_filter, &race.data,
+                 &race.info, &race.info),
+      0);
+  handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING),
+      _unreg_drop_log, NULL);
+  thread = g_thread_new ("unreg_race", _unreg_race_register, &race);
+
+  /* bounded on both sides: open while the registrar runs, then until one open succeeds */
+  for (i = 0; i < UNREG_RACE_CYCLES || !g_atomic_int_get (&race.done) || opened == 0; i++) {
+    if (i >= UNREG_RACE_CYCLES)
+      g_thread_yield ();
+    private_data = NULL;
+    if (sp->open (&prop, &private_data) != 0) {
+      EXPECT_TRUE (private_data == nullptr);
+      continue;
+    }
+
+    opened++;
+    memset (result, 0, sizeof (result));
+    EXPECT_EQ (sp->invoke (sp, &prop, private_data, &in, &out), 0);
+    for (j = 0; j < sizeof (raw); j++)
+      EXPECT_EQ (result[j], (guint8) (raw[j] + 5));
+    sp->close (&prop, &private_data);
+  }
+
+  EXPECT_EQ (GPOINTER_TO_UINT (g_thread_join (thread)), 0U);
+  g_log_remove_handler (NULL, handler);
+  EXPECT_GT (opened, 0U);
+  EXPECT_EQ (race.data.invoked, opened);
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_race"), 0);
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_race"), -EINVAL);
+  gst_tensors_info_free (&race.info);
+}
+
+/**
+ * @brief Register and unregister the race test model, unregistering only what this thread registered.
+ * @return The number of registrations this thread could not unregister.
+ */
+static gpointer
+_unreg_race_owner (gpointer user_data)
+{
+  unreg_race *race = (unreg_race *) user_data;
+  guint lost = 0, i;
+
+  for (i = 0; i < 20000; i++) {
+    if (NNS_custom_easy_register (
+            "unreg_owner", _unreg_filter, &race->data, &race->info, &race->info)
+            == 0
+        && NNS_custom_easy_unregister ("unreg_owner") != 0)
+      lost++;
+  }
+
+  return GUINT_TO_POINTER (lost);
+}
+
+/**
+ * @brief Two threads registering and unregistering the same name never lose a registration.
+ * @details A thread that registered the name must be able to unregister it, and the name must be free afterwards.
+ */
+TEST (tensorFilterCustomEasyUnregister, raceWithRegister)
+{
+  const gchar *names[] = { "unreg_owner_a", "unreg_owner_b" };
+  unreg_race race;
+  GThread *threads[2];
+  guint i, handler;
+
+  memset (&race, 0, sizeof (race));
+  gst_tensors_info_init (&race.info);
+  race.info.num_tensors = 1;
+  race.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4:1:1:1", race.info.info[0].dimension);
+
+  handler = g_log_set_handler (NULL, G_LOG_LEVEL_WARNING, _unreg_drop_log, NULL);
+  for (i = 0; i < G_N_ELEMENTS (threads); i++)
+    threads[i] = g_thread_new (names[i], _unreg_race_owner, &race);
+  for (i = 0; i < G_N_ELEMENTS (threads); i++)
+    EXPECT_EQ (GPOINTER_TO_UINT (g_thread_join (threads[i])), 0U);
+  g_log_remove_handler (NULL, handler);
+
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_owner"), -EINVAL);
+  EXPECT_EQ (NNS_custom_easy_register ("unreg_owner", _unreg_filter, &race.data,
+                 &race.info, &race.info),
+      0);
+  EXPECT_EQ (NNS_custom_easy_unregister ("unreg_owner"), 0);
+  gst_tensors_info_free (&race.info);
+}
+
 /**
  * @brief Main gtest
  */

@@ -92,6 +92,9 @@ extern int NNS_custom_easy_dynamic_register (const char * modelname,
  * @brief Unregister the custom-easy tensor function.
  * @param[in] modelname The registered name of custom-easy tensor function.
  * @return 0 if success, non-zero if error
+ * @note The name is free to register again right away, but a tensor_filter
+ *       that opened the function before keeps calling it with its data
+ *       until the filter is closed (e.g., its pipeline goes to NULL state).
  */
 extern int NNS_custom_easy_unregister (const char * modelname);
 
