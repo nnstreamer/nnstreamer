@@ -305,6 +305,7 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   g_mutex_init (&trainer->training_completion_lock);
   g_cond_init (&trainer->epoch_completion_cond);
   g_mutex_init (&trainer->epoch_completion_lock);
+  g_mutex_init (&trainer->push_lock);
 
   gst_tensor_trainer_set_output_meta (trainer);
 }
@@ -339,6 +340,7 @@ gst_tensor_trainer_finalize (GObject * object)
   g_mutex_clear (&trainer->training_completion_lock);
   g_cond_clear (&trainer->epoch_completion_cond);
   g_mutex_clear (&trainer->epoch_completion_lock);
+  g_mutex_clear (&trainer->push_lock);
 
   gst_tensors_info_free (&trainer->prop.input_meta);
 
@@ -472,17 +474,23 @@ gst_tensor_trainer_check_invalid_param (GstTensorTrainer * trainer)
 static gpointer
 gst_tensor_trainer_dummy_data_generation_func (GstTensorTrainer * trainer)
 {
-  guint i;
+  guint i, num;
   gint ret = -1;
-  gpointer dummy_data[NNS_TENSOR_SIZE_LIMIT] = { NULL };
+  GstTensorMemory dummy_data[NNS_TENSOR_SIZE_LIMIT] = { {0} };
   g_return_val_if_fail (trainer != NULL, NULL);
 
   gst_tensor_trainer_stop_model_training (trainer);
 
-  for (i = 0; i < trainer->output_meta.num_tensors; i++) {
-    dummy_data[i] = g_malloc (trainer->input_tensors[i].size);
-    memset (dummy_data[i], 1, trainer->input_tensors[i].size);
-    trainer->input_tensors[i].data = dummy_data[i];
+  g_mutex_lock (&trainer->push_lock);
+
+  num = MIN (trainer->prop.input_meta.num_tensors, NNS_TENSOR_SIZE_LIMIT);
+  for (i = 0; i < num; i++) {
+    dummy_data[i].size =
+        gst_tensors_info_get_size (&trainer->prop.input_meta, i);
+    if (dummy_data[i].size > 0) {
+      dummy_data[i].data = g_malloc (dummy_data[i].size);
+      memset (dummy_data[i].data, 1, dummy_data[i].size);
+    }
   }
 
   do {
@@ -493,7 +501,7 @@ gst_tensor_trainer_dummy_data_generation_func (GstTensorTrainer * trainer)
 
     ret =
         trainer->fw->push_data (trainer->fw, &trainer->prop,
-        trainer->privateData, trainer->input_tensors);
+        trainer->privateData, dummy_data);
 
     if (ret < 0) {
       GST_ERROR_OBJECT (trainer, "Failed to push dummy data");
@@ -502,8 +510,10 @@ gst_tensor_trainer_dummy_data_generation_func (GstTensorTrainer * trainer)
     }
   } while (trainer->required_sample > trainer->cur_epoch_data_cnt);
 
-  for (i = 0; i < trainer->output_meta.num_tensors; i++)
-    g_free (dummy_data[i]);
+  g_mutex_unlock (&trainer->push_lock);
+
+  for (i = 0; i < num; i++)
+    g_free (dummy_data[i].data);
 
   return NULL;
 }
@@ -609,21 +619,25 @@ gst_tensor_trainer_wait_for_epoch_completion (GstTensorTrainer * trainer)
 /**
  * @brief Check if current epochs is complete,
  * tensor_trainer wait for one of epochs to complete before getting the results from the subplugin
+ * @param trainer the element
+ * @param data_cnt the sample count the chain read after its push
  */
 static gboolean
-gst_tensor_trainer_epochs_is_complete (GstTensorTrainer * trainer)
+gst_tensor_trainer_epochs_is_complete (GstTensorTrainer * trainer,
+    guint data_cnt)
 {
   g_return_val_if_fail (trainer != NULL, FALSE);
   g_return_val_if_fail (trainer->fw != NULL, FALSE);
   g_return_val_if_fail (&trainer->prop != NULL, FALSE);
 
-  trainer->required_sample =
-      trainer->prop.num_training_samples + trainer->prop.num_validation_samples;
-  if (trainer->cur_epoch_data_cnt != trainer->required_sample)
+  if (data_cnt != trainer->required_sample)
     return FALSE;
 
   gst_tensor_trainer_wait_for_epoch_completion (trainer);
+
+  g_mutex_lock (&trainer->push_lock);
   trainer->cur_epoch_data_cnt = 0;
+  g_mutex_unlock (&trainer->push_lock);
   return TRUE;
 }
 
@@ -900,8 +914,8 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   GstTensorTrainer *trainer;
   GstBuffer *outbuf = NULL;
   GstFlowReturn ret = GST_FLOW_ERROR;
-  guint num_tensors;
-  gboolean in_flexible;
+  guint num_tensors, data_cnt;
+  gboolean in_flexible, pushed;
 
   trainer = GST_TENSOR_TRAINER (parent);
   in_flexible = gst_tensor_pad_caps_is_flexible (sinkpad);
@@ -916,7 +930,15 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     goto error;
   }
 
-  if (!gst_tensor_trainer_push_input (trainer, inbuf, in_flexible)) {
+  g_mutex_lock (&trainer->push_lock);
+  pushed = gst_tensor_trainer_push_input (trainer, inbuf, in_flexible);
+  data_cnt = trainer->cur_epoch_data_cnt;
+  if (pushed && data_cnt != 1)
+    trainer->required_sample = trainer->prop.num_training_samples +
+        trainer->prop.num_validation_samples;
+  g_mutex_unlock (&trainer->push_lock);
+
+  if (!pushed) {
     goto error;
   }
 
@@ -925,8 +947,8 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
    * push one outbuf is necessary to change pipeline state.
    * Scheduling with subplugin does not work.
    */
-  if (trainer->cur_epoch_data_cnt == 1
-      || gst_tensor_trainer_epochs_is_complete (trainer)) {
+  if (data_cnt == 1
+      || gst_tensor_trainer_epochs_is_complete (trainer, data_cnt)) {
     outbuf = gst_tensor_trainer_create_output (trainer);
 
     if (outbuf)
@@ -1039,8 +1061,10 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
       }
 
       /* copy TensorsInfo from negotiated caps to GstTensorTrainerProperties's input_meta */
+      g_mutex_lock (&trainer->push_lock);
       gst_tensors_info_free (&trainer->prop.input_meta);
       gst_tensors_info_copy (&trainer->prop.input_meta, &config.info);
+      g_mutex_unlock (&trainer->push_lock);
 
       /* set tensor-config and out caps */
       gst_tensors_config_free (&trainer->in_config);
