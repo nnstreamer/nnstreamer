@@ -160,7 +160,7 @@ static void gst_mqtt_sink_set_mqtt_ntp_srvs (GstMqttSink * self,
     const gchar * pairs);
 static GstMqttNtpServers *gst_mqtt_ntp_servers_new (const gchar * pairs);
 static void gst_mqtt_ntp_servers_unref (GstMqttNtpServers * srvs);
-static int64_t gst_mqtt_sink_get_epoch (GstMqttSink * self);
+static int64_t gst_mqtt_sink_get_epoch (GstMqttSink * self, gboolean warn);
 static gchar *gst_mqtt_sink_dup_pub_topic (GstMqttSink * self);
 
 static void cb_mqtt_on_connect (void *context,
@@ -545,7 +545,7 @@ gst_mqtt_sink_change_state (GstElement * element, GstStateChange transition)
       gst_object_unref (elem_clock);
       diff = GST_CLOCK_DIFF (base_time, cur_time);
       self->base_time_epoch =
-          gst_mqtt_sink_get_epoch (self) * GST_US_TO_NS_MULTIPLIER - diff;
+          gst_mqtt_sink_get_epoch (self, TRUE) * GST_US_TO_NS_MULTIPLIER - diff;
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
       break;
     default:
@@ -736,7 +736,7 @@ _put_timestamp_to_msg_buf_hdr (GstMqttSink * self, GstBuffer * gst_buf,
     GstMQTTMessageHdr * hdr)
 {
   hdr->base_time_epoch = self->base_time_epoch;
-  hdr->sent_time_epoch = gst_mqtt_sink_get_epoch (self) *
+  hdr->sent_time_epoch = gst_mqtt_sink_get_epoch (self, FALSE) *
       GST_US_TO_NS_MULTIPLIER;
 
   hdr->duration = GST_BUFFER_DURATION_IS_VALID (gst_buf) ?
@@ -1375,10 +1375,12 @@ gst_mqtt_ntp_servers_unref (GstMqttNtpServers * srvs)
 
 /**
  * @brief Get the Unix epoch from get_epoch_func () while holding a reference
- *        to the NTP server list it reads
+ *        to the NTP server list it reads, or from the local clock if
+ *        get_epoch_func () fails
+ * @param warn log a failure as a warning instead of a debug message
  */
 static int64_t
-gst_mqtt_sink_get_epoch (GstMqttSink * self)
+gst_mqtt_sink_get_epoch (GstMqttSink * self, gboolean warn)
 {
   GstMqttNtpServers *srvs;
   int64_t epoch;
@@ -1389,11 +1391,22 @@ gst_mqtt_sink_get_epoch (GstMqttSink * self)
     g_atomic_int_inc (&srvs->ref_count);
   GST_OBJECT_UNLOCK (self);
 
-  if (!srvs)
-    return self->get_epoch_func (0, NULL, NULL);
+  if (!srvs) {
+    epoch = self->get_epoch_func (0, NULL, NULL);
+  } else {
+    epoch = self->get_epoch_func (srvs->num, srvs->hnames, srvs->ports);
+    gst_mqtt_ntp_servers_unref (srvs);
+  }
 
-  epoch = self->get_epoch_func (srvs->num, srvs->hnames, srvs->ports);
-  gst_mqtt_ntp_servers_unref (srvs);
+  if (epoch < 0) {
+    if (warn)
+      GST_WARNING_OBJECT (self, "Failed to get the epoch (%" G_GINT64_FORMAT
+          "), using the local clock", epoch);
+    else
+      GST_DEBUG_OBJECT (self, "Failed to get the epoch (%" G_GINT64_FORMAT
+          "), using the local clock", epoch);
+    epoch = g_get_real_time ();
+  }
 
   return epoch;
 }
