@@ -72,23 +72,30 @@ static char errmsg[_NNSTREAMER_ERROR_LENGTH] = { 0 };
 
 static int errmsg_reported = 0;
 G_LOCK_DEFINE_STATIC (errlock);
+static GPrivate errmsg_copy = G_PRIVATE_INIT (g_free);
 
 /**
- * @brief return the last internal error string and clean it.
- * @return a string of error. Do not free the returned string.
+ * @brief return the last internal error string and mark it reported.
+ * @return a string of error. Do not free the returned string. It stays valid
+ *         until the calling thread gets the next error string or exits.
  */
 const char *
 _nnstreamer_error (void)
 {
+  gchar *copy;
+
   G_LOCK (errlock);
   if (errmsg_reported || errmsg[0] == '\0') {
     G_UNLOCK (errlock);
     return NULL;
   }
+
+  copy = g_strdup (errmsg);
+  errmsg_reported = 1;
   G_UNLOCK (errlock);
 
-  errmsg_reported = 1;
-  return errmsg;
+  g_private_replace (&errmsg_copy, copy);
+  return copy;
 }
 
 /**
