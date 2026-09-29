@@ -71,6 +71,7 @@ struct _GstTensorTrainer
   GCond training_completion_cond;
   GMutex epoch_completion_lock;
   GCond epoch_completion_cond;
+  GMutex push_lock; /**< Serializes the chain and the dummy-data thread */
 
   GThread *dummy_data_thread; /**< Dummy data generation thread */
 };

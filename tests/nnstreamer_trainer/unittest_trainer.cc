@@ -594,6 +594,12 @@ static struct {
   gboolean destroy_prop_matched; /**< whether destroy() saw the set properties */
   guint missing_tensors; /**< inputs and labels without data in the last push_data() */
   gint extra_warnings; /**< warnings tensor_trainer logged about extra tensors */
+  gulong push_delay; /**< microseconds every push_data() sleeps */
+  gint in_push; /**< number of push_data() calls running now */
+  gboolean push_overlapped; /**< whether two push_data() calls ever ran at once */
+  guint pushed_num; /**< number of input tensors the last push_data() declared */
+  gboolean sizes_matched; /**< whether the last push_data() tensors match the declared sizes */
+  gboolean all_ones; /**< whether every byte the last push_data() got is 1 */
 } fake_stat;
 
 /**
@@ -678,8 +684,33 @@ static int
 fake_trainer_push_data (const GstTensorTrainerFramework *,
     const GstTensorTrainerProperties *prop, void *, const GstTensorMemory *input)
 {
+  guint t;
+  gsize j;
+
+  if (g_atomic_int_add (&fake_stat.in_push, 1) > 0)
+    fake_stat.push_overlapped = TRUE;
+
   if (g_atomic_int_add (&fake_stat.push_calls, 1) == 0 && fake_stat.first_push_delay > 0)
     g_usleep (fake_stat.first_push_delay);
+  if (fake_stat.push_delay > 0)
+    g_usleep (fake_stat.push_delay);
+
+  /* read every byte of every declared tensor, as a real sub-plugin would */
+  fake_stat.pushed_num = prop->input_meta.num_tensors;
+  fake_stat.sizes_matched = TRUE;
+  fake_stat.all_ones = TRUE;
+  for (t = 0; t < prop->input_meta.num_tensors; t++) {
+    if (input[t].size != gst_tensors_info_get_size (&prop->input_meta, t)
+        || (input[t].size > 0 && !input[t].data)) {
+      fake_stat.sizes_matched = FALSE;
+      fake_stat.all_ones = FALSE;
+      continue;
+    }
+    for (j = 0; j < input[t].size; j++) {
+      if (((guint8 *) input[t].data)[j] != 1)
+        fake_stat.all_ones = FALSE;
+    }
+  }
 
   /* the properties must outlive this call, even when it runs during finalize */
   if (prop->model_config && fake_stat.expect_config[0]) {
@@ -705,6 +736,7 @@ fake_trainer_push_data (const GstTensorTrainerFramework *,
     fake_stat.pushed_first = ((guint8 *) input[0].data)[0];
 
   g_atomic_int_inc (&fake_stat.push_done);
+  g_atomic_int_add (&fake_stat.in_push, -1);
   return fake_stat.push_ret;
 }
 
@@ -1166,6 +1198,307 @@ TEST_F (TensorTrainerFakeFw, flexibleHeaderUnknownVersion_n)
 
   EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
   EXPECT_EQ (g_atomic_int_get (&fake_stat.push_calls), 0);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Wait until the fake sub-plugin has returned from @a count push_data() calls.
+ */
+static gboolean
+wait_for_push_done (gint count)
+{
+  guint i;
+
+  for (i = 0; i < 500; i++) {
+    if (g_atomic_int_get (&fake_stat.push_done) >= count)
+      return TRUE;
+    g_usleep (10000);
+  }
+
+  return FALSE;
+}
+
+/**
+ * @brief Wait until the fake sub-plugin has entered @a count push_data() calls.
+ */
+static gboolean
+wait_for_push_calls (gint count)
+{
+  guint i;
+
+  for (i = 0; i < 500; i++) {
+    if (g_atomic_int_get (&fake_stat.push_calls) >= count)
+      return TRUE;
+    g_usleep (10000);
+  }
+
+  return FALSE;
+}
+
+/**
+ * @brief Push a buffer of zero-filled memories with the given sizes.
+ */
+static GstFlowReturn
+push_zero_buffer (GstHarness *h, const gsize *sizes, guint num)
+{
+  GstBuffer *buf = gst_buffer_new ();
+  guint i;
+
+  for (i = 0; i < num; i++)
+    gst_buffer_append_memory (buf, gst_allocator_alloc (NULL, sizes[i], NULL));
+  gst_buffer_memset (buf, 0, 0, gst_buffer_get_size (buf));
+
+  return gst_harness_push (h, buf);
+}
+
+/**
+ * @brief Pausing hands the sub-plugin dummy tensors of the negotiated sizes.
+ *
+ * The dummy-data thread fills every input tensor the caps declare with ones.
+ * It used to size them from the per-buffer tensors, which the chain resets
+ * to {NULL, 0}, and to iterate the output tensor count, so the sub-plugin
+ * got one empty tensor while the properties declared two real ones.
+ */
+TEST_F (TensorTrainerFakeFw, dummyDataSizedFromInputMeta)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  const gsize sizes[2] = { 4, 8 };
+
+  ASSERT_NE (h, nullptr);
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,format=static,num_tensors=2,framerate=0/1,"
+      "dimensions=(string)\"4:1:1:1.8:1:1:1\",types=(string)\"uint8,uint8\"");
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 1);
+  EXPECT_TRUE (fake_stat.sizes_matched);
+  EXPECT_FALSE (fake_stat.all_ones);
+
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  ASSERT_TRUE (wait_for_push_done (2));
+
+  EXPECT_EQ (fake_stat.pushed_num, 2U);
+  EXPECT_TRUE (fake_stat.sizes_matched);
+  EXPECT_TRUE (fake_stat.all_ones);
+
+  gst_harness_teardown (h);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 2);
+}
+
+/**
+ * @brief Pausing a flexible stream sizes the dummy tensors from the last headers.
+ */
+TEST_F (TensorTrainerFakeFw, dummyDataFlexibleInput)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  GstTensorMetaInfo meta;
+  GstMemory *data_mem, *mem;
+  GstBuffer *buf;
+  guint8 data[6] = { 0 };
+  guint8 label[2] = { 0 };
+
+  ASSERT_NE (h, nullptr);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 6;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  buf = gst_buffer_new ();
+  data_mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, data,
+      sizeof (data), 0, sizeof (data), NULL, NULL);
+  mem = gst_tensor_meta_info_append_header (&meta, data_mem);
+  gst_memory_unref (data_mem);
+  ASSERT_NE (mem, nullptr);
+  gst_buffer_append_memory (buf, mem);
+
+  meta.dimension[0] = 2;
+  data_mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, label,
+      sizeof (label), 0, sizeof (label), NULL, NULL);
+  mem = gst_tensor_meta_info_append_header (&meta, data_mem);
+  gst_memory_unref (data_mem);
+  ASSERT_NE (mem, nullptr);
+  gst_buffer_append_memory (buf, mem);
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  ASSERT_TRUE (wait_for_push_done (2));
+
+  EXPECT_EQ (fake_stat.pushed_num, 2U);
+  EXPECT_EQ (fake_stat.pushed_size, sizeof (data));
+  EXPECT_TRUE (fake_stat.sizes_matched);
+  EXPECT_TRUE (fake_stat.all_ones);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief The dummy-data thread and the chain never push to the sub-plugin at once.
+ *
+ * Upstream may still push while the element is paused. The buffer arrives
+ * while the dummy-data thread is inside push_data(), and the chain must wait
+ * for it instead of calling push_data() concurrently and racing on the
+ * element's input tensors and sample count.
+ */
+TEST_F (TensorTrainerFakeFw, dummyDataSerializedWithChain)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  const gsize sizes[2] = { 1, 1 };
+  gchar *caps_str;
+
+  ASSERT_NE (h, nullptr);
+  caps_str = make_static_caps_string (2, 10);
+  gst_harness_set_src_caps_str (h, caps_str);
+  g_free (caps_str);
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+
+  fake_stat.push_delay = G_USEC_PER_SEC / 2;
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  ASSERT_TRUE (wait_for_push_calls (2));
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 3);
+  EXPECT_FALSE (fake_stat.push_overlapped);
+  EXPECT_FALSE (fake_stat.all_ones);
+
+  fake_stat.push_delay = 0;
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Pausing before any caps hands the sub-plugin no dummy tensor.
+ */
+TEST_F (TensorTrainerFakeFw, dummyDataWithoutCaps_n)
+{
+  GstElement *trainer = make_fake_trainer ();
+  ASSERT_NE (trainer, nullptr);
+
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  ASSERT_TRUE (wait_for_push_done (1));
+
+  EXPECT_EQ (fake_stat.pushed_num, 0U);
+  EXPECT_EQ (fake_stat.pushed_size, 0U);
+  EXPECT_TRUE (fake_stat.sizes_matched);
+
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (trainer);
+}
+
+/**
+ * @brief Pausing mid-epoch pushes exactly the dummy samples the epoch still needs.
+ *
+ * With five samples per epoch and two real ones pushed, the dummy-data
+ * thread must add three, each sized from the negotiated caps.
+ */
+TEST_F (TensorTrainerFakeFw, dummyDataFillsEpoch)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  const gsize sizes[2] = { 4, 8 };
+
+  ASSERT_NE (h, nullptr);
+  g_object_set (h->element, "num-training-samples", 5U, NULL);
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,format=static,num_tensors=2,framerate=0/1,"
+      "dimensions=(string)\"4:1:1:1.8:1:1:1\",types=(string)\"uint8,uint8\"");
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 2);
+
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_TRUE (wait_for_push_done (5));
+
+  EXPECT_EQ (fake_stat.pushed_num, 2U);
+  EXPECT_TRUE (fake_stat.sizes_matched);
+  EXPECT_TRUE (fake_stat.all_ones);
+
+  gst_harness_teardown (h);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 5);
+}
+
+/**
+ * @brief A buffer push running in its own thread.
+ */
+typedef struct {
+  GstHarness *h; /**< harness to push to */
+  GstFlowReturn ret; /**< what the push returned */
+  gint done; /**< whether the push has returned */
+} PushJob;
+
+/**
+ * @brief Thread pushing one input and label buffer.
+ */
+static gpointer
+push_job_func (gpointer data)
+{
+  PushJob *job = (PushJob *) data;
+  const gsize sizes[2] = { 1, 1 };
+
+  job->ret = push_zero_buffer (job->h, sizes, 2);
+  g_atomic_int_set (&job->done, 1);
+
+  return NULL;
+}
+
+/**
+ * @brief The chain waits at the end of an epoch and the next epoch starts from zero.
+ *
+ * The buffer completing the epoch must not return before the sub-plugin
+ * reports the epoch, and must return once it does. The first buffer of an
+ * epoch is the one that yields an output, so an output for the buffer
+ * after that shows the sample count was reset.
+ */
+TEST_F (TensorTrainerFakeFw, epochBoundaryWaitsAndResets)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  const gsize sizes[2] = { 1, 1 };
+  static PushJob job;
+  GThread *thread;
+  gchar *caps_str;
+  guint i;
+
+  ASSERT_NE (h, nullptr);
+  job.h = h;
+  job.ret = GST_FLOW_ERROR;
+  job.done = 0;
+  g_object_set (h->element, "num-training-samples", 3U, NULL);
+  caps_str = make_static_caps_string (2, 10);
+  gst_harness_set_src_caps_str (h, caps_str);
+  g_free (caps_str);
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  thread = g_thread_new ("push_job", push_job_func, &job);
+  EXPECT_TRUE (wait_for_push_done (3));
+  /* not a sync point: it only gives a chain that does not wait time to return */
+  g_usleep (200000);
+  EXPECT_EQ (g_atomic_int_get (&job.done), 0);
+
+  /* keep notifying so that a chain that missed one cannot hang the test */
+  for (i = 0; i < 500 && !g_atomic_int_get (&job.done); i++) {
+    nnstreamer_trainer_notify_event (
+        fake_stat.notifier, TRAINER_EVENT_EPOCH_COMPLETION, NULL);
+    g_usleep (10000);
+  }
+  if (!g_atomic_int_get (&job.done)) {
+    /* the push is stuck: joining it or tearing down would hang as well; job is static for it */
+    g_thread_unref (thread);
+    FAIL () << "The push did not return after the epoch completion event.";
+  }
+  g_thread_join (thread);
+  EXPECT_EQ (job.ret, GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 4);
+  EXPECT_EQ (gst_harness_buffers_received (h), 3U);
 
   gst_harness_teardown (h);
 }
