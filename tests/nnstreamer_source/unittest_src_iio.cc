@@ -1965,6 +1965,37 @@ TEST (testTensorSrcIio, channelNameEmpty_n)
 }
 
 /**
+ * @brief tests the bounds of the used bits of a channel type
+ */
+TEST (testTensorSrcIio, channelTypeUsedBits)
+{
+  const gchar *names[] = { "123_en", "123_index", "123_type" };
+  const gchar *types[] = { "le:u1/8>>7", "be:s1/8>>0", "le:s64/64>>0", "be:u64/64>>0" };
+  const gchar *contents[3] = { "0", "8", NULL };
+
+  for (guint idx = 0; idx < G_N_ELEMENTS (types); idx++) {
+    contents[2] = types[idx];
+    run_extra_channel_case (names, contents, G_N_ELEMENTS (names), GST_STATE_CHANGE_NO_PREROLL);
+  }
+}
+
+/**
+ * @brief tests that a channel type with no used bits or more than 64 is refused
+ */
+TEST (testTensorSrcIio, channelTypeUsedBits_n)
+{
+  const gchar *names[] = { "123_en", "123_index", "123_type" };
+  const gchar *types[] = { "le:s0/16>>0", "be:u0/64>>0", "le:u/16>>0", "le:u1/0>>0",
+    "le:s65/64>>0", "le:u18446744073709551616/16>>0", "le:u4294967296/16>>0" };
+  const gchar *contents[3] = { "0", "8", NULL };
+
+  for (guint idx = 0; idx < G_N_ELEMENTS (types); idx++) {
+    contents[2] = types[idx];
+    run_extra_channel_case (names, contents, G_N_ELEMENTS (names), GST_STATE_CHANGE_FAILURE);
+  }
+}
+
+/**
  * @brief tests that a buffer capacity larger than the readable size is refused
  */
 TEST (testTensorSrcIio, bufferCapacityOverflow_n)

@@ -726,6 +726,7 @@ gst_tensor_src_iio_set_channel_type (GstTensorSrcIIOChannelProperties * prop,
   gchar endianchar = '\0', signchar = '\0';
   gchar *start, *end;
   guint base = 10;
+  guint64 used_bits;
   errno = 0;
 
   /** check endian */
@@ -754,10 +755,11 @@ gst_tensor_src_iio_set_channel_type (GstTensorSrcIIOChannelProperties * prop,
 
   /** used bits */
   start = (gchar *) contents + 4;
-  prop->used_bits = (guint) g_ascii_strtoull (start, &end, base);
-  if (errno != 0) {
+  used_bits = g_ascii_strtoull (start, &end, base);
+  if (errno != 0 || used_bits == 0 || used_bits > 64) {
     goto exit_fail;
   }
+  prop->used_bits = (guint) used_bits;
   /** verify static parts of the contents */
   g_return_val_if_fail (end[0] == '/', FALSE);
   prop->mask = G_MAXUINT64 >> (64 - prop->used_bits);
