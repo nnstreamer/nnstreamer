@@ -42,7 +42,7 @@ gst_tensor_info_free (GstTensorInfo * info);
 /**
  * @brief Get data size of single tensor
  * @param info tensor info structure
- * @return data size
+ * @return data size (0 if the size overflows)
  */
 extern gsize
 gst_tensor_info_get_size (const GstTensorInfo *info);
@@ -129,7 +129,7 @@ gst_tensors_info_free (GstTensorsInfo * info);
  * @brief Get data size of single tensor
  * @param info tensors info structure
  * @param index the index of tensor (-1 to get total size of tensors)
- * @return data size
+ * @return data size (0 if the size overflows)
  */
 gsize
 gst_tensors_info_get_size (const GstTensorsInfo * info, gint index);
@@ -374,7 +374,7 @@ gst_tensor_dimension_string_is_equal (const gchar * dimstr1, const gchar * dimst
 
 /**
  * @brief Count the number of elements of a tensor
- * @return The number of elements. 0 if error.
+ * @return The number of elements. 0 if error or if the count overflows.
  * @param dim The tensor dimension
  */
 extern gulong
@@ -459,7 +459,7 @@ gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta);
 /**
  * @brief Get the data size calculated from tensor meta.
  * @param[in] meta tensor meta structure
- * @return The data size for meta info (0 if meta is invalid)
+ * @return The data size for meta info (0 if meta is invalid or the size overflows)
  */
 extern gsize
 gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta);

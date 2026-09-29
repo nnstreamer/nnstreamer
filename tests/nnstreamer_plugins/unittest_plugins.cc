@@ -12772,11 +12772,10 @@ TEST (testTensorCrop, cropRawShortHeader_n)
 
 /**
  * @brief Test for tensor_crop, a raw header whose dimensions overflow.
- * @details gst_tensor_meta_info_get_data_size() multiplies the dimensions with
- *          no overflow check, so a header can declare a frame whose byte size
- *          wraps below the buffer size and passes the size check. Without the
- *          element's own overflow-checked bound, the copy then reads far past
- *          the mapping; the guarded page makes that a deterministic fault.
+ * @details The byte size of 65536:65536:65536:65536 wraps to 0 modulo 2^64, so
+ *          without an overflow-checked size a header-only buffer passes the size
+ *          check and the copy reads far past the mapping; the guarded page makes
+ *          that a deterministic fault.
  */
 TEST (testTensorCrop, cropRawDimensionOverflow_n)
 {
