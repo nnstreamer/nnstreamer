@@ -711,13 +711,7 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
   mh = info.dimension[2];
   esize = gst_tensor_get_element_size (info.type);
 
-  /**
-   * The frame is read as ch * mw * mh elements. dsize above cannot bound it: it
-   * comes from gst_tensor_meta_info_get_data_size(), whose element count is an
-   * unchecked product of the dimensions, so a flexible header can declare a
-   * frame whose byte size wraps below map.size. Recompute the frame with
-   * overflow-checked arithmetic and require it to fit the mapped payload.
-   */
+  /* the frame is read as ch * mw * mh elements, which must fit the payload */
   if (!g_size_checked_mul (&fsize, esize, ch) ||
       !g_size_checked_mul (&fsize, fsize, mw) ||
       !g_size_checked_mul (&fsize, fsize, mh) ||

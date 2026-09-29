@@ -669,6 +669,200 @@ TEST (commonTensorInfo, size03_n)
 }
 
 /**
+ * @brief Test for the element count and data size of a valid dimension.
+ */
+TEST (commonTensorInfo, elementCountAndSize)
+{
+  GstTensorInfo info;
+  tensor_dim dim = { 0 };
+  guint i;
+
+  dim[0] = 3U;
+  dim[1] = 224U;
+  dim[2] = 224U;
+  dim[3] = 1U;
+  EXPECT_EQ (gst_tensor_get_element_count (dim), 150528UL);
+  EXPECT_TRUE (gst_tensor_dimension_is_valid (dim));
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+    dim[i] = 2U;
+  EXPECT_EQ (gst_tensor_get_element_count (dim), 65536UL);
+  EXPECT_TRUE (gst_tensor_dimension_is_valid (dim));
+
+  gst_tensor_info_init (&info);
+  info.type = _NNS_FLOAT32;
+  info.dimension[0] = 3U;
+  info.dimension[1] = 224U;
+  info.dimension[2] = 224U;
+  info.dimension[3] = 1U;
+  EXPECT_EQ (gst_tensor_info_get_size (&info), (gsize) 602112);
+  EXPECT_TRUE (gst_tensor_info_validate (&info));
+  gst_tensor_info_free (&info);
+}
+
+/**
+ * @brief Test for the largest element count and data size that fit.
+ */
+TEST (commonTensorInfo, elementCountAndSizeLimit)
+{
+  GstTensorInfo info;
+
+  if (sizeof (gulong) < 8 || sizeof (gsize) < 8)
+    GTEST_SKIP () << "needs a 64-bit gulong and gsize";
+
+  /* 2^31 * 2^31 * 2 = 2^63 elements */
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT8;
+  info.dimension[0] = 0x80000000U;
+  info.dimension[1] = 0x80000000U;
+  info.dimension[2] = 2U;
+  EXPECT_EQ ((guint64) gst_tensor_get_element_count (info.dimension),
+      G_GUINT64_CONSTANT (1) << 63);
+  EXPECT_EQ ((guint64) gst_tensor_info_get_size (&info), G_GUINT64_CONSTANT (1) << 63);
+  EXPECT_TRUE (gst_tensor_info_validate (&info));
+  gst_tensor_info_free (&info);
+}
+
+/**
+ * @brief Test for a dimension whose element count overflows.
+ * @details 3:64:64:65536:65536:65536:65536 has 3 * 2^76 elements, 0 modulo 2^64.
+ */
+TEST (commonTensorInfo, elementCountOverflow_n)
+{
+  tensor_dim dim = { 0 };
+
+  dim[0] = 3U;
+  dim[1] = 64U;
+  dim[2] = 64U;
+  dim[3] = dim[4] = dim[5] = dim[6] = 65536U;
+  EXPECT_EQ (gst_tensor_get_element_count (dim), 0UL);
+
+  /* 2^64 + 2^48 elements, a non-zero value modulo 2^64 */
+  memset (dim, 0, sizeof (dim));
+  dim[0] = 65537U;
+  dim[1] = 65536U;
+  dim[2] = 65536U;
+  dim[3] = 65536U;
+  EXPECT_EQ (gst_tensor_get_element_count (dim), 0UL);
+}
+
+/**
+ * @brief Test for a tensor info whose element count overflows.
+ * @details The dimension itself is well-formed; only the tensor size is refused.
+ */
+TEST (commonTensorInfo, validateCountOverflow_n)
+{
+  GstTensorInfo info;
+
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT8;
+  info.dimension[0] = 3U;
+  info.dimension[1] = 64U;
+  info.dimension[2] = 64U;
+  info.dimension[3] = info.dimension[4] = 65536U;
+  info.dimension[5] = info.dimension[6] = 65536U;
+  EXPECT_TRUE (gst_tensor_dimension_is_valid (info.dimension));
+  EXPECT_EQ (gst_tensor_info_get_size (&info), 0U);
+  EXPECT_FALSE (gst_tensor_info_validate (&info));
+  gst_tensor_info_free (&info);
+}
+
+/**
+ * @brief Test for a tensor info with an out-of-range type.
+ */
+TEST (commonTensorInfo, validateTypeOutOfRange_n)
+{
+  GstTensorInfo info;
+
+  gst_tensor_info_init (&info);
+  info.type = (tensor_type) (_NNS_END + 1);
+  info.dimension[0] = 4U;
+  EXPECT_FALSE (gst_tensor_info_validate (&info));
+  gst_tensor_info_free (&info);
+}
+
+/**
+ * @brief Test for a tensor whose element count fits but whose byte size overflows.
+ */
+TEST (commonTensorInfo, sizeOverflow_n)
+{
+  GstTensorInfo info;
+
+  if (sizeof (gulong) < 8 || sizeof (gsize) < 8)
+    GTEST_SKIP () << "needs a 64-bit gulong and gsize";
+
+  /* 2^63 elements of 4 bytes */
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT32;
+  info.dimension[0] = 0x80000000U;
+  info.dimension[1] = 0x80000000U;
+  info.dimension[2] = 2U;
+  EXPECT_TRUE (gst_tensor_dimension_is_valid (info.dimension));
+  EXPECT_EQ (gst_tensor_info_get_size (&info), 0U);
+  EXPECT_FALSE (gst_tensor_info_validate (&info));
+  gst_tensor_info_free (&info);
+}
+
+/**
+ * @brief Test for tensors whose total byte size overflows.
+ */
+TEST (commonTensorsInfo, totalSizeOverflow_n)
+{
+  GstTensorsInfo info;
+  guint i;
+
+  if (sizeof (gulong) < 8 || sizeof (gsize) < 8)
+    GTEST_SKIP () << "needs a 64-bit gulong and gsize";
+
+  /* three tensors of 2^63 bytes each, which wrap to 2^63 */
+  gst_tensors_info_init (&info);
+  info.num_tensors = 3;
+  for (i = 0; i < info.num_tensors; i++) {
+    info.info[i].type = _NNS_UINT8;
+    info.info[i].dimension[0] = 0x80000000U;
+    info.info[i].dimension[1] = 0x80000000U;
+    info.info[i].dimension[2] = 2U;
+  }
+
+  EXPECT_EQ ((guint64) gst_tensors_info_get_size (&info, 0), G_GUINT64_CONSTANT (1) << 63);
+  EXPECT_EQ ((guint64) gst_tensors_info_get_size (&info, 2), G_GUINT64_CONSTANT (1) << 63);
+  EXPECT_EQ (gst_tensors_info_get_size (&info, -1), 0U);
+  gst_tensors_info_free (&info);
+}
+
+/**
+ * @brief Test for tensors of which one tensor size overflows.
+ * @details The overflowing tensor must fail the total, not count as 0 bytes.
+ */
+TEST (commonTensorsInfo, totalSizeTensorOverflow_n)
+{
+  GstTensorsInfo info;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = 3;
+  info.info[0].type = _NNS_UINT8;
+  info.info[0].dimension[0] = 16U;
+  info.info[1].type = _NNS_UINT8;
+  info.info[1].dimension[0] = 3U;
+  info.info[1].dimension[1] = 64U;
+  info.info[1].dimension[2] = 64U;
+  info.info[1].dimension[3] = info.info[1].dimension[4] = 65536U;
+  info.info[1].dimension[5] = info.info[1].dimension[6] = 65536U;
+
+  /* the third tensor is not configured and has no data */
+  EXPECT_EQ (gst_tensors_info_get_size (&info, 0), (gsize) 16);
+  EXPECT_EQ (gst_tensors_info_get_size (&info, 1), 0U);
+  EXPECT_EQ (gst_tensors_info_get_size (&info, 2), 0U);
+  EXPECT_EQ (gst_tensors_info_get_size (&info, -1), 0U);
+
+  info.info[1].dimension[3] = 0U;
+  info.info[1].dimension[4] = info.info[1].dimension[5] = 0U;
+  info.info[1].dimension[6] = 0U;
+  EXPECT_EQ (gst_tensors_info_get_size (&info, -1), (gsize) (16 + 3 * 64 * 64));
+  gst_tensors_info_free (&info);
+}
+
+/**
  * @brief Test for same tensors info.
  */
 TEST (commonTensorInfo, equal01_p)
@@ -2174,6 +2368,95 @@ TEST (commonMetaInfo, validateKnownVersion)
 }
 
 /**
+ * @brief Test for tensor meta info (data size of dense and sparse tensors).
+ */
+TEST (commonMetaInfo, dataSize)
+{
+  GstTensorMetaInfo meta;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_FLOAT32;
+  meta.dimension[0] = 3U;
+  meta.dimension[1] = 224U;
+  meta.dimension[2] = 224U;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), (gsize) 602112);
+
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.sparse_info.nnz = 10U;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), (gsize) 80);
+
+  meta.sparse_info.nnz = 0U;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (a dimension whose data size overflows).
+ * @details A header declaring 3:64:64:65536:65536:65536:65536 used to report a
+ *          data size of 0, so a header-only buffer matched the declared size.
+ */
+TEST (commonMetaInfo, dataSizeOverflow_n)
+{
+  GstTensorMetaInfo meta;
+  uint32_t *header;
+  gsize hsize;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 3U;
+  meta.dimension[1] = 64U;
+  meta.dimension[2] = 64U;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  header = (uint32_t *) g_malloc0 (hsize);
+  ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
+  EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, header));
+
+  /* dimension[3..6] of the v1 header */
+  header[6] = header[7] = header[8] = header[9] = 65536U;
+  EXPECT_FALSE (gst_tensor_meta_info_parse_header (&meta, header));
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+
+  g_free (header);
+}
+
+/**
+ * @brief Test for tensor meta info (element count fits but the byte size overflows).
+ */
+TEST (commonMetaInfo, dataSizeTypeOverflow_n)
+{
+  GstTensorMetaInfo meta;
+
+  if (sizeof (gulong) < 8 || sizeof (gsize) < 8)
+    GTEST_SKIP () << "needs a 64-bit gulong and gsize";
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 0x80000000U;
+  meta.dimension[1] = 0x80000000U;
+  meta.dimension[2] = 2U;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ ((guint64) gst_tensor_meta_info_get_data_size (&meta),
+      G_GUINT64_CONSTANT (1) << 63);
+
+  meta.type = _NNS_FLOAT64;
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+
+  /* a sparse tensor carries a few elements of a dense tensor that cannot exist */
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.sparse_info.nnz = 1U;
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+}
+
+/**
  * @brief Test for tensor meta info (parsing a header of an unknown version fails).
  */
 TEST (commonMetaInfo, parseHeaderUnknownVersion_n)
@@ -2958,6 +3241,32 @@ TEST (commonUtil, createFlexTensorBufferInvalidHeader_n)
 
   EXPECT_EQ (gst_buffer_n_memory (out), 1U);
   EXPECT_EQ (gst_buffer_get_size (out), (gsize) 256);
+
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Test tensor buffer util (flexible header whose data size overflows)
+ * @details The header used to be sized as a header-only tensor and split off,
+ *          handing the next element a memory that declares far more data than
+ *          it holds. It is now left unsplit, as any other invalid header.
+ */
+TEST (commonUtil, createFlexTensorBufferSizeOverflow_n)
+{
+  GstBuffer *out;
+  guint8 *data;
+  uint32_t *header;
+  gsize total, each;
+
+  data = build_flex_tensor_data (2U, 16U, &total, &each);
+  header = (uint32_t *) data;
+  header[4] = header[5] = header[6] = header[7] = 65536U;
+
+  out = flex_buffer_from_config (data, total);
+  ASSERT_TRUE (out != NULL);
+
+  EXPECT_EQ (gst_buffer_n_memory (out), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out), total);
 
   gst_buffer_unref (out);
 }

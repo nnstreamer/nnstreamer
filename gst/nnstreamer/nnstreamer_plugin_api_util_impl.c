@@ -148,9 +148,32 @@ gst_tensor_info_free (GstTensorInfo * info)
 }
 
 /**
+ * @brief Calculate data size of single tensor.
+ * @param[in] info tensor info structure
+ * @param[out] size the data size, 0 for a tensor without dimension or type
+ * @return FALSE if the size overflows
+ */
+static gboolean
+gst_tensor_info_calc_size (const GstTensorInfo * info, gsize * size)
+{
+  gulong count;
+
+  *size = 0;
+  if (info->dimension[0] == 0)
+    return TRUE;
+
+  count = gst_tensor_get_element_count (info->dimension);
+  if (count == 0)
+    return FALSE;
+
+  return g_size_checked_mul (size, count,
+      gst_tensor_get_element_size (info->type));
+}
+
+/**
  * @brief Get data size of single tensor
  * @param info tensor info structure
- * @return data size
+ * @return data size (0 if the size overflows)
  */
 gsize
 gst_tensor_info_get_size (const GstTensorInfo * info)
@@ -159,8 +182,8 @@ gst_tensor_info_get_size (const GstTensorInfo * info)
 
   g_return_val_if_fail (info != NULL, 0);
 
-  data_size = gst_tensor_get_element_count (info->dimension) *
-      gst_tensor_get_element_size (info->type);
+  if (!gst_tensor_info_calc_size (info, &data_size))
+    return 0;
 
   return data_size;
 }
@@ -175,7 +198,7 @@ gst_tensor_info_validate (const GstTensorInfo * info)
 {
   g_return_val_if_fail (info != NULL, FALSE);
 
-  if (info->type == _NNS_END) {
+  if (info->type >= _NNS_END) {
     nns_logd
         ("Failed to validate tensor info. type: %s. Please specify tensor type. e.g., type=uint8 ",
         _STR_NULL (gst_tensor_get_type_string (info->type)));
@@ -186,7 +209,17 @@ gst_tensor_info_validate (const GstTensorInfo * info)
   }
 
   /* validate tensor dimension */
-  return gst_tensor_dimension_is_valid (info->dimension);
+  if (!gst_tensor_dimension_is_valid (info->dimension))
+    return FALSE;
+
+  if (gst_tensor_info_get_size (info) == 0) {
+    nns_logd ("Failed to validate tensor info. The data size overflows.");
+    _nnstreamer_error_write
+        ("Failed to validate tensor info. The data size overflows.");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 /**
@@ -398,13 +431,13 @@ gst_tensors_info_free (GstTensorsInfo * info)
  * @brief Get data size of single tensor
  * @param info tensors info structure
  * @param index the index of tensor (-1 to get total size of tensors)
- * @return data size
+ * @return data size (0 if the size overflows)
  */
 gsize
 gst_tensors_info_get_size (const GstTensorsInfo * info, gint index)
 {
   GstTensorInfo *_info;
-  gsize data_size = 0;
+  gsize data_size = 0, size;
   guint i;
 
   g_return_val_if_fail (info != NULL, 0);
@@ -413,7 +446,9 @@ gst_tensors_info_get_size (const GstTensorsInfo * info, gint index)
   if (index < 0) {
     for (i = 0; i < info->num_tensors; ++i) {
       _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
-      data_size += gst_tensor_info_get_size (_info);
+      if (!gst_tensor_info_calc_size (_info, &size) ||
+          !g_size_checked_add (&data_size, data_size, size))
+        return 0;
     }
   } else {
     _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, index);
@@ -1268,15 +1303,22 @@ done:
 gulong
 gst_tensor_get_element_count (const tensor_dim dim)
 {
-  gulong count = 1;
+  gsize count = 1;
   guint i;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     if (dim[i] == 0)
       break;
 
-    count *= dim[i];
+    if (!g_size_checked_mul (&count, count, dim[i]))
+      return 0;
   }
+
+  /* gulong is narrower than gsize on LLP64 (Windows) */
+#if GLIB_SIZEOF_SIZE_T > GLIB_SIZEOF_LONG
+  if (count > G_MAXULONG)
+    return 0;
+#endif
 
   return (i > 0) ? count : 0;
 }
@@ -1494,6 +1536,30 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
 }
 
 /**
+ * @brief Calculate the data size described by tensor meta.
+ * @param[in] meta tensor meta structure
+ * @param[out] size the data size
+ * @return FALSE if the dense tensor has no data (no dimension or no type),
+ *         or if the size, or the size of the dense tensor, overflows
+ */
+static gboolean
+gst_tensor_meta_info_calc_data_size (const GstTensorMetaInfo * meta,
+    gsize * size)
+{
+  gsize esize = gst_tensor_get_element_size (meta->type);
+
+  if (!g_size_checked_mul (size, esize,
+          gst_tensor_get_element_count (meta->dimension)) || *size == 0)
+    return FALSE;
+
+  if (meta->format == _NNS_TENSOR_FORMAT_SPARSE)
+    return g_size_checked_mul (size, meta->sparse_info.nnz,
+        esize + sizeof (guint));
+
+  return TRUE;
+}
+
+/**
  * @brief Check the meta info is valid.
  * @param[in] meta tensor meta structure
  * @return TRUE if given meta is valid
@@ -1501,6 +1567,8 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
 gboolean
 gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
 {
+  gsize dsize;
+
   if (!GST_TENSOR_META_IS_VALID (meta)) {
     return FALSE;
   }
@@ -1535,6 +1603,11 @@ gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
   if (meta->media_type > _NNS_TENSOR) {
     nns_logd ("Failed to validate tensor meta info. invalid media type: %d.",
         meta->media_type);
+    return FALSE;
+  }
+
+  if (!gst_tensor_meta_info_calc_data_size (meta, &dsize)) {
+    nns_logd ("Failed to validate tensor meta info. The data size overflows.");
     return FALSE;
   }
 
@@ -1576,13 +1649,8 @@ gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
     return 0;
   }
 
-  dsize = gst_tensor_get_element_size (meta->type);
-
-  if (meta->format == _NNS_TENSOR_FORMAT_SPARSE) {
-    return meta->sparse_info.nnz * (dsize + sizeof (guint));
-  }
-
-  dsize *= gst_tensor_get_element_count (meta->dimension);
+  if (!gst_tensor_meta_info_calc_data_size (meta, &dsize))
+    return 0;
 
   return dsize;
 }

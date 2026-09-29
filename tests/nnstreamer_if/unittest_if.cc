@@ -1376,6 +1376,26 @@ _expect_refused_cv_option (const gchar *caps, gsize size, const gchar *cv_option
 }
 
 /**
+ * @brief Check that caps declaring a tensor whose byte size overflows are refused.
+ * @note The size of such a tensor cannot be computed, so the caps fail to
+ * negotiate before tensor_if computes the offset of the compared element.
+ */
+static void
+_expect_refused_overflow_caps (const gchar *caps, gsize size, const gchar *cv_option)
+{
+  gchar *error_src = NULL;
+  GError *error = NULL;
+  guint received = 0;
+
+  EXPECT_EQ (GST_MESSAGE_ERROR, _push_a_value_frame (caps, size, cv_option,
+                                    "1224", &error_src, &error, &received));
+  EXPECT_EQ (0U, received);
+
+  g_clear_error (&error);
+  g_free (error_src);
+}
+
+/**
  * @brief Compare the elements at both ends of the tensor.
  * @note Every element of the test frame is unique, so the buffer reaches the
  * sink only if the element the option describes is the one that was read.
@@ -1466,7 +1486,7 @@ TEST (tensorIfAppsrc, comparedValueBufferShorterThanCaps_n)
  */
 TEST (tensorIfAppsrc, comparedValueOffsetWrapsAround_n)
 {
-  _expect_refused_cv_option ("other/tensor,dimension=(string)4294967295:4294967295:2,type=(string)uint8,framerate=(fraction)0/1",
+  _expect_refused_overflow_caps ("other/tensor,dimension=(string)4294967295:4294967295:2,type=(string)uint8,framerate=(fraction)0/1",
       4, "0:2:1,0");
 }
 
@@ -1478,7 +1498,7 @@ TEST (tensorIfAppsrc, comparedValueOffsetWrapsAround_n)
  */
 TEST (tensorIfAppsrc, comparedValueOffsetOverflow_n)
 {
-  _expect_refused_cv_option ("other/tensor,dimension=(string)2147483648:2147483648:4:2,type=(string)uint8,framerate=(fraction)0/1",
+  _expect_refused_overflow_caps ("other/tensor,dimension=(string)2147483648:2147483648:4:2,type=(string)uint8,framerate=(fraction)0/1",
       4, "0:0:0:1,0");
 }
 #endif
