@@ -3849,6 +3849,205 @@ TEST (commonUtil, errorMessage)
 }
 
 /**
+ * @brief Test that a returned error string survives a later error write.
+ */
+TEST (commonUtil, errorMessageKeptAfterWrite)
+{
+  const char *first, *second;
+
+  _nnstreamer_error_clean ();
+  _nnstreamer_error_write ("first error %d", 1);
+  first = _nnstreamer_error ();
+  ASSERT_NE (nullptr, first);
+
+  _nnstreamer_error_write ("second error %d", 2);
+  EXPECT_STREQ ("first error 1", first);
+
+  second = _nnstreamer_error ();
+  ASSERT_NE (nullptr, second);
+  EXPECT_STREQ ("second error 2", second);
+
+  _nnstreamer_error_clean ();
+}
+
+/**
+ * @brief Test that an error string is reported only once.
+ */
+TEST (commonUtil, errorMessageReportedOnce_n)
+{
+  const char *first;
+
+  _nnstreamer_error_clean ();
+  _nnstreamer_error_write ("reported once");
+  first = _nnstreamer_error ();
+  ASSERT_NE (nullptr, first);
+
+  EXPECT_EQ (nullptr, _nnstreamer_error ());
+  EXPECT_STREQ ("reported once", first);
+
+  _nnstreamer_error_clean ();
+  EXPECT_EQ (nullptr, _nnstreamer_error ());
+}
+
+/**
+ * @brief Thread body that writes a new error and reads it back.
+ */
+static gpointer
+error_write_and_read (gpointer user_data)
+{
+  gboolean *ok = (gboolean *) user_data;
+  const char *msg;
+
+  _nnstreamer_error_write ("error from another thread");
+  msg = _nnstreamer_error ();
+  *ok = (msg != NULL && g_str_equal (msg, "error from another thread"));
+
+  return NULL;
+}
+
+/**
+ * @brief Test that another thread's error neither changes nor frees the string held by this thread.
+ */
+TEST (commonUtil, errorMessageOtherThread)
+{
+  const char *mine;
+  gboolean ok = FALSE;
+  GThread *thread;
+
+  _nnstreamer_error_clean ();
+  _nnstreamer_error_write ("error of this thread");
+  mine = _nnstreamer_error ();
+  ASSERT_NE (nullptr, mine);
+
+  thread = g_thread_new ("error_writer", error_write_and_read, &ok);
+  g_thread_join (thread);
+
+  EXPECT_TRUE (ok);
+  EXPECT_STREQ ("error of this thread", mine);
+  EXPECT_EQ (nullptr, _nnstreamer_error ());
+
+  _nnstreamer_error_clean ();
+}
+
+#define ERROR_RACE_THREADS (4)
+#define ERROR_RACE_LOOPS (2000)
+
+/**
+ * @brief Thread body that keeps writing its own error and checks every string it reads.
+ */
+static gpointer
+error_race_body (gpointer user_data)
+{
+  guint *torn = (guint *) user_data;
+  guint i;
+
+  for (i = 0; i < ERROR_RACE_LOOPS; i++) {
+    const char *msg;
+    gchar *copy;
+
+    const char *mine = (i % 2) ? "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" :
+                                 "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+
+    _nnstreamer_error_write ("%s", mine);
+    msg = _nnstreamer_error ();
+    if (msg == NULL)
+      continue;
+
+    copy = g_strdup (msg);
+    g_thread_yield ();
+    if (!g_str_equal (copy, msg) || (strspn (msg, "A") != 40 && strspn (msg, "B") != 64)
+        || (msg[0] == 'A' && msg[40] != '\0') || (msg[0] == 'B' && msg[64] != '\0'))
+      g_atomic_int_inc (torn);
+    g_free (copy);
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief Test that concurrent writers never hand a reader a torn or changing error string.
+ */
+TEST (commonUtil, errorMessageConcurrent)
+{
+  GThread *threads[ERROR_RACE_THREADS];
+  guint torn = 0;
+  guint i;
+
+  _nnstreamer_error_clean ();
+
+  for (i = 0; i < ERROR_RACE_THREADS; i++)
+    threads[i] = g_thread_new ("error_race", error_race_body, &torn);
+  for (i = 0; i < ERROR_RACE_THREADS; i++)
+    g_thread_join (threads[i]);
+
+  EXPECT_EQ (0U, torn);
+  _nnstreamer_error_clean ();
+}
+
+#define ERROR_ONCE_READERS (8)
+#define ERROR_ONCE_ROUNDS (200)
+
+/**
+ * @brief Shared state of the competing-reader test.
+ */
+typedef struct {
+  gint ready; /**< readers waiting for the start signal */
+  gint go; /**< start signal */
+  gint reported; /**< non-NULL reads in this round */
+} error_once_round_s;
+
+/**
+ * @brief Thread body that waits for the start signal and reads the last error once.
+ */
+static gpointer
+error_once_reader (gpointer user_data)
+{
+  error_once_round_s *round = (error_once_round_s *) user_data;
+
+  g_atomic_int_inc (&round->ready);
+  while (!g_atomic_int_get (&round->go))
+    g_thread_yield ();
+
+  if (_nnstreamer_error () != NULL)
+    g_atomic_int_inc (&round->reported);
+
+  return NULL;
+}
+
+/**
+ * @brief Test that competing readers get one error exactly once.
+ */
+TEST (commonUtil, errorMessageReportedOnceConcurrent)
+{
+  GThread *threads[ERROR_ONCE_READERS];
+  guint r, i, duplicated = 0, missed = 0;
+
+  for (r = 0; r < ERROR_ONCE_ROUNDS; r++) {
+    error_once_round_s round = { 0, 0, 0 };
+
+    _nnstreamer_error_clean ();
+    _nnstreamer_error_write ("round %u", r);
+
+    for (i = 0; i < ERROR_ONCE_READERS; i++)
+      threads[i] = g_thread_new ("error_once", error_once_reader, &round);
+    while (g_atomic_int_get (&round.ready) < ERROR_ONCE_READERS)
+      g_thread_yield ();
+    g_atomic_int_set (&round.go, 1);
+    for (i = 0; i < ERROR_ONCE_READERS; i++)
+      g_thread_join (threads[i]);
+
+    if (round.reported > 1)
+      duplicated++;
+    else if (round.reported < 1)
+      missed++;
+  }
+
+  EXPECT_EQ (0U, duplicated);
+  EXPECT_EQ (0U, missed);
+  _nnstreamer_error_clean ();
+}
+
+/**
  * @brief Thread body that bumps the counter after a short delay.
  */
 static gpointer

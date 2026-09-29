@@ -119,8 +119,9 @@ _backtrace_to_string (void);
 #define ml_loge_stacktrace(...) ml_log_stacktrace(ml_loge, __VA_ARGS__)
 
 /**
- * @brief return the last internal error string and clean it.
- * @return a string of error. Do not free the returned string.
+ * @brief return the last internal error string and mark it reported.
+ * @return a string of error. Do not free the returned string. It stays valid
+ *         until the calling thread gets the next error string or exits.
  */
 extern const char *
 _nnstreamer_error (void);
