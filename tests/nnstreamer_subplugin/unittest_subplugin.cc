@@ -7,12 +7,147 @@
  * @bug         No known bugs
  */
 #include <gtest/gtest.h>
+#include <dlfcn.h>
 #include <glib.h>
 #include <nnstreamer_subplugin.h>
+#include <stdarg.h>
 #include <string.h>
 
 #define RACE_THREADS (16U)
 #define RACE_ROUNDS (500U)
+#define UNLOCK_WAIT_US (100 * G_TIME_SPAN_MILLISECOND)
+
+/**
+ * @brief A registry entry to unregister from inside an interposed GLib call.
+ */
+typedef struct {
+  GThread *owner; /**< the thread whose call triggers the unregister */
+  subpluginType type; /**< type of the entry */
+  const char *name; /**< name of the entry */
+  gboolean triggered; /**< TRUE once the interposed call has fired */
+  gboolean unregistered; /**< result of unregister_subplugin () */
+  gboolean finished; /**< TRUE when unregister_subplugin () returned */
+  gboolean finished_in_call; /**< finished, sampled inside the interposed call */
+  GMutex lock; /**< protects finished and finished_in_call */
+  GCond cond; /**< signals finished */
+} interpose_s;
+
+static interpose_s *join_hook = NULL;
+static interpose_s *clear_hook = NULL;
+
+/**
+ * @brief Take the hook if the calling thread armed it.
+ */
+static interpose_s *
+_take_hook (interpose_s **hook)
+{
+  interpose_s *h = *hook;
+
+  if (h == NULL || h->owner != g_thread_self ())
+    return NULL;
+
+  *hook = NULL;
+  h->triggered = TRUE;
+  return h;
+}
+
+static gsize real_strjoinv = 0;
+static gsize real_datalist_clear = 0;
+
+/**
+ * @brief Resolve the GLib function an interposer wraps, once.
+ */
+static gpointer
+_real_symbol (gsize *cache, const char *symbol)
+{
+  if (g_once_init_enter (cache)) {
+    gpointer real = dlsym (RTLD_NEXT, symbol);
+
+    g_assert (real != NULL);
+    g_once_init_leave (cache, (gsize) real);
+  }
+
+  return (gpointer) *cache;
+}
+
+/**
+ * @brief Interposes g_strjoinv (): drops the armed entry before the join,
+ *        as a concurrent unregister_subplugin () would.
+ */
+extern "C" gchar *
+g_strjoinv (const gchar *separator, gchar **str_array)
+{
+  typedef gchar *(*strjoinv_f) (const gchar *, gchar **);
+  strjoinv_f real_join = (strjoinv_f) _real_symbol (&real_strjoinv, "g_strjoinv");
+  interpose_s *h = _take_hook (&join_hook);
+
+  if (h != NULL)
+    h->unregistered = unregister_subplugin (h->type, h->name);
+
+  return real_join (separator, str_array);
+}
+
+/**
+ * @brief Thread body: unregister the entry of the hook.
+ */
+static gpointer
+_unregister_worker (gpointer user_data)
+{
+  interpose_s *h = (interpose_s *) user_data;
+  gboolean ret = unregister_subplugin (h->type, h->name);
+
+  g_mutex_lock (&h->lock);
+  h->unregistered = ret;
+  h->finished = TRUE;
+  g_cond_signal (&h->cond);
+  g_mutex_unlock (&h->lock);
+
+  return NULL;
+}
+
+/**
+ * @brief Interposes g_datalist_clear (): starts a concurrent
+ *        unregister_subplugin () and gives it time to run before the clear.
+ */
+extern "C" void
+g_datalist_clear (GData **datalist)
+{
+  typedef void (*datalist_clear_f) (GData **);
+  datalist_clear_f real_clear
+      = (datalist_clear_f) _real_symbol (&real_datalist_clear, "g_datalist_clear");
+  interpose_s *h = _take_hook (&clear_hook);
+
+  if (h != NULL) {
+    gint64 end = g_get_monotonic_time () + UNLOCK_WAIT_US;
+    GThread *t = g_thread_new ("sp-unregister", _unregister_worker, h);
+
+    g_thread_unref (t);
+    g_mutex_lock (&h->lock);
+    while (!h->finished && g_cond_wait_until (&h->cond, &h->lock, end))
+      ;
+    h->finished_in_call = h->finished;
+    g_mutex_unlock (&h->lock);
+
+    /* The entry holding *datalist is freed if the unregister got through. */
+    if (h->finished_in_call)
+      return;
+  }
+
+  real_clear (datalist);
+}
+
+/**
+ * @brief Calls subplugin_set_custom_property_desc () with variable arguments.
+ */
+static void
+_set_desc (subpluginType type, const char *name, const gchar *prop, ...)
+{
+  va_list varargs;
+
+  va_start (varargs, prop);
+  subplugin_set_custom_property_desc (type, name, prop, varargs);
+  va_end (varargs);
+}
 
 /**
  * @brief State shared by the threads of the concurrent registration test.
@@ -227,6 +362,223 @@ TEST (nnstreamerSubplugin, unregisterUnknown_n)
   EXPECT_FALSE (unregister_subplugin (NNS_CUSTOM_DECODER, "unittest_subplugin_none"));
   EXPECT_TRUE (unregister_subplugin (NNS_CUSTOM_DECODER, "unittest_subplugin_once"));
   EXPECT_FALSE (unregister_subplugin (NNS_CUSTOM_DECODER, "unittest_subplugin_once"));
+}
+
+/**
+ * @brief get_all_subplugins () keeps the names it listed when an entry is
+ *        unregistered before they are joined.
+ */
+TEST (nnstreamerSubplugin, listNamesUnregisteredWhileJoining)
+{
+  const char *name = "unittest_subplugin_list_unregistered";
+  const char *other = "unittest_subplugin_list_kept";
+  interpose_s hook;
+  gint data = 1;
+  gchar **names;
+
+  memset (&hook, 0, sizeof (hook));
+  hook.owner = g_thread_self ();
+  hook.type = NNS_CUSTOM_CONVERTER;
+  hook.name = name;
+
+  ASSERT_TRUE (register_subplugin (NNS_CUSTOM_CONVERTER, name, &data));
+  ASSERT_TRUE (register_subplugin (NNS_CUSTOM_CONVERTER, other, &data));
+
+  join_hook = &hook;
+  names = get_all_subplugins (NNS_CUSTOM_CONVERTER);
+  join_hook = NULL;
+
+  EXPECT_TRUE (hook.triggered);
+  EXPECT_TRUE (hook.unregistered);
+  ASSERT_NE (names, nullptr);
+  EXPECT_TRUE (g_strv_contains ((const gchar *const *) names, name));
+  EXPECT_TRUE (g_strv_contains ((const gchar *const *) names, other));
+  g_strfreev (names);
+
+  names = get_all_subplugins (NNS_CUSTOM_CONVERTER);
+  ASSERT_NE (names, nullptr);
+  EXPECT_FALSE (g_strv_contains ((const gchar *const *) names, name));
+  EXPECT_TRUE (g_strv_contains ((const gchar *const *) names, other));
+  g_strfreev (names);
+
+  EXPECT_EQ (get_subplugin (NNS_CUSTOM_CONVERTER, name), nullptr);
+  EXPECT_TRUE (unregister_subplugin (NNS_CUSTOM_CONVERTER, other));
+}
+
+/**
+ * @brief A concurrent unregister_subplugin () waits until
+ *        subplugin_set_custom_property_desc () is done with the entry.
+ */
+TEST (nnstreamerSubplugin, setDescBlocksUnregister)
+{
+  const char *name = "unittest_subplugin_desc_unregister";
+  interpose_s hook;
+  gint data = 1;
+
+  memset (&hook, 0, sizeof (hook));
+  g_mutex_init (&hook.lock);
+  g_cond_init (&hook.cond);
+  hook.owner = g_thread_self ();
+  hook.type = NNS_IF_CUSTOM;
+  hook.name = name;
+
+  ASSERT_TRUE (register_subplugin (NNS_IF_CUSTOM, name, &data));
+
+  clear_hook = &hook;
+  _set_desc (NNS_IF_CUSTOM, name, NULL);
+  clear_hook = NULL;
+
+  g_mutex_lock (&hook.lock);
+  while (hook.triggered && !hook.finished)
+    g_cond_wait (&hook.cond, &hook.lock);
+  g_mutex_unlock (&hook.lock);
+
+  EXPECT_TRUE (hook.triggered);
+  EXPECT_FALSE (hook.finished_in_call);
+  EXPECT_TRUE (hook.unregistered);
+  EXPECT_EQ (get_subplugin (NNS_IF_CUSTOM, name), nullptr);
+  EXPECT_EQ (subplugin_get_custom_property_desc (NNS_IF_CUSTOM, name), nullptr);
+
+  g_cond_clear (&hook.cond);
+  g_mutex_clear (&hook.lock);
+}
+
+/**
+ * @brief Custom property descriptions are stored, replaced and dropped with
+ *        the entry.
+ */
+TEST (nnstreamerSubplugin, customPropertyDesc)
+{
+  const char *name = "unittest_subplugin_desc";
+  gint data = 1;
+  GData *dlist;
+
+  ASSERT_TRUE (register_subplugin (NNS_CUSTOM_DECODER, name, &data));
+  EXPECT_EQ (subplugin_get_custom_property_desc (NNS_CUSTOM_DECODER, name), nullptr);
+
+  _set_desc (NNS_CUSTOM_DECODER, name, "alpha", "first", "beta", "second", NULL);
+  dlist = subplugin_get_custom_property_desc (NNS_CUSTOM_DECODER, name);
+  EXPECT_STREQ ((const gchar *) g_datalist_get_data (&dlist, "alpha"), "first");
+  EXPECT_STREQ ((const gchar *) g_datalist_get_data (&dlist, "beta"), "second");
+
+  _set_desc (NNS_CUSTOM_DECODER, name, "gamma", "third", NULL);
+  dlist = subplugin_get_custom_property_desc (NNS_CUSTOM_DECODER, name);
+  EXPECT_EQ (g_datalist_get_data (&dlist, "alpha"), nullptr);
+  EXPECT_STREQ ((const gchar *) g_datalist_get_data (&dlist, "gamma"), "third");
+
+  EXPECT_TRUE (unregister_subplugin (NNS_CUSTOM_DECODER, name));
+  EXPECT_EQ (subplugin_get_custom_property_desc (NNS_CUSTOM_DECODER, name), nullptr);
+}
+
+/**
+ * @brief A property without a description stops the list and keeps the
+ *        ones before it; an unknown name stores nothing.
+ */
+TEST (nnstreamerSubplugin, customPropertyDescInvalid_n)
+{
+  const char *name = "unittest_subplugin_desc_invalid";
+  gint data = 1;
+  GData *dlist;
+  guint handler;
+
+  handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_WARNING | G_LOG_LEVEL_CRITICAL), _drop_log, NULL);
+
+  ASSERT_TRUE (register_subplugin (NNS_CUSTOM_DECODER, name, &data));
+  _set_desc (NNS_CUSTOM_DECODER, name, "alpha", "first", "beta", NULL);
+  dlist = subplugin_get_custom_property_desc (NNS_CUSTOM_DECODER, name);
+  EXPECT_STREQ ((const gchar *) g_datalist_get_data (&dlist, "alpha"), "first");
+  EXPECT_EQ (g_datalist_get_data (&dlist, "beta"), nullptr);
+
+  _set_desc (NNS_CUSTOM_DECODER, "unittest_subplugin_desc_none", "alpha", "first", NULL);
+  EXPECT_EQ (subplugin_get_custom_property_desc (NNS_CUSTOM_DECODER, "unittest_subplugin_desc_none"),
+      nullptr);
+
+  EXPECT_TRUE (unregister_subplugin (NNS_CUSTOM_DECODER, name));
+  g_log_remove_handler (NULL, handler);
+}
+
+/**
+ * @brief State shared by the lookup-versus-unregister stress test.
+ */
+typedef struct {
+  const char *name; /**< the name the writer registers and unregisters */
+  const void *data; /**< the data registered under name */
+  gint quit; /**< nonzero when the readers should exit */
+  gint started; /**< readers that finished their first lookup round */
+  gint bad; /**< lookups that returned something other than data or NULL */
+} lookup_state_s;
+
+/**
+ * @brief Thread body: look the name up until told to stop.
+ */
+static gpointer
+_lookup_worker (gpointer user_data)
+{
+  lookup_state_s *state = (lookup_state_s *) user_data;
+  const void *found;
+  gchar **names;
+  gboolean started = FALSE;
+
+  while (!g_atomic_int_get (&state->quit)) {
+    found = get_subplugin (NNS_CUSTOM_DECODER, state->name);
+    if (found != NULL && found != state->data)
+      g_atomic_int_inc (&state->bad);
+
+    subplugin_get_custom_property_desc (NNS_CUSTOM_DECODER, state->name);
+
+    names = get_all_subplugins (NNS_CUSTOM_DECODER);
+    g_strfreev (names);
+
+    if (!started) {
+      started = TRUE;
+      g_atomic_int_inc (&state->started);
+    }
+
+    /* let the writer run under valgrind's serialized thread scheduling */
+    g_usleep (10);
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief Lookups racing register/unregister of the same name only ever see
+ *        the registered data or nothing.
+ */
+TEST (nnstreamerSubplugin, lookupWhileUnregistering)
+{
+  lookup_state_s state;
+  GThread *threads[4];
+  gint data = 1;
+  guint r, i;
+  guint handler;
+
+  memset (&state, 0, sizeof (state));
+  state.name = "unittest_subplugin_lookup_race";
+  state.data = &data;
+
+  /* load the configuration before the readers race on it (#4960 B4) */
+  handler = g_log_set_handler (NULL, G_LOG_LEVEL_CRITICAL, _drop_log, NULL);
+  g_strfreev (get_all_subplugins (NNS_CUSTOM_DECODER));
+
+  for (i = 0; i < G_N_ELEMENTS (threads); i++)
+    threads[i] = g_thread_new ("sp-lookup", _lookup_worker, &state);
+  while (g_atomic_int_get (&state.started) < (gint) G_N_ELEMENTS (threads))
+    g_thread_yield ();
+
+  for (r = 0; r < RACE_ROUNDS; r++) {
+    EXPECT_TRUE (register_subplugin (NNS_CUSTOM_DECODER, state.name, &data));
+    _set_desc (NNS_CUSTOM_DECODER, state.name, "alpha", "first", NULL);
+    EXPECT_TRUE (unregister_subplugin (NNS_CUSTOM_DECODER, state.name));
+  }
+
+  g_atomic_int_set (&state.quit, 1);
+  for (i = 0; i < G_N_ELEMENTS (threads); i++)
+    g_thread_join (threads[i]);
+  g_log_remove_handler (NULL, handler);
+
+  EXPECT_EQ (g_atomic_int_get (&state.bad), 0);
 }
 
 /**

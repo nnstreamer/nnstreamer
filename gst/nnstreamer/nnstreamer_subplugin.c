@@ -81,33 +81,47 @@ static subpluginSearchLogic searchAlgorithm[] = {
 };
 
 /**
- * @brief Internal function to get sub-plugin data.
+ * @brief Internal function to look up a sub-plugin entry. The caller holds splock.
  */
 static subpluginData *
-_get_subplugin_data (subpluginType type, const gchar * name)
+_lookup_subplugin_locked (subpluginType type, const gchar * name)
 {
-  subpluginData *spdata = NULL;
-
-  G_LOCK (splock);
   if (subplugins[type] == NULL) {
     subplugins[type] =
         g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
         _spdata_destroy);
-  } else {
-    spdata = g_hash_table_lookup (subplugins[type], name);
+    return NULL;
   }
+
+  return g_hash_table_lookup (subplugins[type], name);
+}
+
+/**
+ * @brief Internal function to get the data of a registered sub-plugin.
+ */
+static const void *
+_get_subplugin_data (subpluginType type, const gchar * name)
+{
+  subpluginData *spdata;
+  const void *data = NULL;
+
+  G_LOCK (splock);
+  spdata = _lookup_subplugin_locked (type, name);
+  if (spdata)
+    data = spdata->data;
   G_UNLOCK (splock);
 
-  return spdata;
+  return data;
 }
 
 /**
  * @brief Internal function to scan sub-plugin.
  */
-static subpluginData *
+static const void *
 _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
 {
-  subpluginData *spdata = NULL;
+  subpluginData *spdata;
+  const void *data = NULL;
   GModule *module;
 
   g_return_val_if_fail (name != NULL, NULL);
@@ -121,26 +135,29 @@ _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
     return NULL;
   }
 
-  spdata = _get_subplugin_data (type, name);
+  G_LOCK (splock);
+  spdata = _lookup_subplugin_locked (type, name);
   if (spdata) {
-    G_LOCK (splock);
+    data = spdata->data;
     g_ptr_array_add (handles, (gpointer) module);
-    G_UNLOCK (splock);
-  } else {
+  }
+  G_UNLOCK (splock);
+
+  if (data == NULL) {
     ml_loge
         ("nnstreamer_subplugin of %s(%s) is broken. It does not call register_subplugin with its init function.",
         name, path);
     g_module_close (module);
   }
 
-  return spdata;
+  return data;
 }
 
 /** @brief Public function defined in the header */
 const void *
 get_subplugin (subpluginType type, const char *name)
 {
-  subpluginData *spdata = NULL;
+  const void *data;
 
   g_return_val_if_fail (name, NULL);
 
@@ -157,18 +174,18 @@ get_subplugin (subpluginType type, const char *name)
     searchAlgorithm[type] = NNS_SEARCH_NO_OP;
   }
 
-  spdata = _get_subplugin_data (type, name);
-  if (spdata == NULL && searchAlgorithm[type] == NNS_SEARCH_FILENAME) {
+  data = _get_subplugin_data (type, name);
+  if (data == NULL && searchAlgorithm[type] == NNS_SEARCH_FILENAME) {
     /** Search and register if found with the conf */
     nnsconf_type_path conf_type = (nnsconf_type_path) type;
     const gchar *fullpath = nnsconf_get_fullpath (name, conf_type);
 
     if (nnsconf_validate_file (conf_type, fullpath)) {
-      spdata = _search_subplugin (type, name, fullpath);
+      data = _search_subplugin (type, name, fullpath);
     }
   }
 
-  return (spdata != NULL) ? spdata->data : NULL;
+  return data;
 }
 
 /** @brief Public function defined in the header */
@@ -178,6 +195,7 @@ get_all_subplugins (subpluginType type)
   GString *names;
   subplugin_info_s info;
   gchar **list = NULL;
+  gchar **keys;
   gchar *name;
   guint i, total;
 
@@ -186,7 +204,9 @@ get_all_subplugins (subpluginType type)
   /* get registered subplugins */
   G_LOCK (splock);
   if (subplugins[type]) {
-    list = (gchar **) g_hash_table_get_keys_as_array (subplugins[type], NULL);
+    keys = (gchar **) g_hash_table_get_keys_as_array (subplugins[type], NULL);
+    list = g_strdupv (keys);
+    g_free (keys);
   }
   G_UNLOCK (splock);
 
@@ -210,7 +230,7 @@ get_all_subplugins (subpluginType type)
     }
   }
 
-  g_free (list);
+  g_strfreev (list);
 
   /* finally get the list of subplugins */
   name = g_string_free (names, FALSE);
@@ -254,8 +274,7 @@ register_subplugin (subpluginType type, const char *name, const void *data)
     return FALSE;
   }
 
-  spdata = _get_subplugin_data (type, name);
-  if (spdata) {
+  if (_get_subplugin_data (type, name)) {
     /* already exists */
     ml_logw ("Subplugin %s is already registered.", name);
     return FALSE;
@@ -337,22 +356,27 @@ subplugin_set_custom_property_desc (subpluginType type, const char *name,
   g_return_if_fail (name != NULL);
   g_return_if_fail (subplugins[type] != NULL);
 
-  spdata = _get_subplugin_data (type, name);
+  G_LOCK (splock);
+  spdata = _lookup_subplugin_locked (type, name);
+  if (spdata) {
+    g_datalist_clear (&spdata->custom_dlist);
+
+    while (prop) {
+      gchar *desc = va_arg (varargs, gchar *);
+
+      if (G_UNLIKELY (desc == NULL))
+        break;
+
+      g_datalist_set_data (&spdata->custom_dlist, prop, desc);
+      prop = va_arg (varargs, gchar *);
+    }
+  }
+  G_UNLOCK (splock);
+
   g_return_if_fail (spdata != NULL);
 
-  g_datalist_clear (&spdata->custom_dlist);
-
-  while (prop) {
-    gchar *desc = va_arg (varargs, gchar *);
-
-    if (G_UNLIKELY (desc == NULL)) {
-      ml_logw ("No description for %s", prop);
-      return;
-    }
-
-    g_datalist_set_data (&spdata->custom_dlist, prop, desc);
-    prop = va_arg (varargs, gchar *);
-  }
+  if (prop)
+    ml_logw ("No description for %s", prop);
 }
 
 /**
@@ -362,15 +386,18 @@ GData *
 subplugin_get_custom_property_desc (subpluginType type, const char *name)
 {
   subpluginData *spdata;
+  GData *dlist = NULL;
 
   g_return_val_if_fail (name != NULL, NULL);
   g_return_val_if_fail (subplugins[type] != NULL, NULL);
 
-  spdata = _get_subplugin_data (type, name);
+  G_LOCK (splock);
+  spdata = _lookup_subplugin_locked (type, name);
   if (spdata)
-    return spdata->custom_dlist;
+    dlist = spdata->custom_dlist;
+  G_UNLOCK (splock);
 
-  return NULL;
+  return dlist;
 }
 
 /** @brief Create handles at the start of library */
