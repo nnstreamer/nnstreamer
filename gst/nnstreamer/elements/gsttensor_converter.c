@@ -1199,6 +1199,12 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       tmp.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
       buf = gst_tensor_buffer_from_config (buf, &tmp);
+      if (!buf) {
+        GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+            ("Cannot split the incoming flexible buffer into tensors, its tensor headers declare more data than the buffer holds."));
+        gst_tensors_config_free (&tmp);
+        return GST_FLOW_ERROR;
+      }
 
       /* type and dimension from buffer */
       tmp.info.format = _NNS_TENSOR_FORMAT_STATIC;
@@ -1208,14 +1214,31 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       inbuf = gst_buffer_new ();
 
       for (n = 0; n < tmp.info.num_tensors; n++) {
+        gboolean valid = FALSE;
+
         _info = gst_tensors_info_get_nth_info (&tmp.info, n);
         mem = gst_tensor_buffer_get_nth_memory (buf, n);
-        s1 = gst_memory_get_sizes (mem, NULL, NULL);
+        s1 = hsize = 0;
 
         /* flex-tensor has header in each mem block */
-        gst_tensor_meta_info_parse_memory (&meta, mem);
-        gst_tensor_meta_info_convert (&meta, _info);
-        hsize = gst_tensor_meta_info_get_header_size (&meta);
+        if (mem) {
+          s1 = gst_memory_get_sizes (mem, NULL, NULL);
+          valid = gst_tensor_meta_info_parse_memory (&meta, mem) &&
+              gst_tensor_meta_info_convert (&meta, _info);
+          hsize = gst_tensor_meta_info_get_header_size (&meta);
+        }
+
+        if (!valid || s1 < hsize) {
+          GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+              ("The tensor %u/%u of the incoming flexible buffer cannot be read or has no valid tensor header.",
+                  (n + 1), tmp.info.num_tensors));
+          if (mem)
+            gst_memory_unref (mem);
+          gst_buffer_unref (inbuf);
+          gst_tensors_config_free (&tmp);
+          goto error;
+        }
+
         s1 -= hsize;
 
         s2 = gst_tensor_info_get_size (_info);
@@ -1236,7 +1259,14 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
         new_mem = gst_memory_share (mem, hsize, s1);
         gst_memory_unref (mem);
-        gst_tensor_buffer_append_memory (inbuf, new_mem, _info);
+        if (!gst_tensor_buffer_append_memory (inbuf, new_mem, _info)) {
+          GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+              ("Cannot append the tensor %u/%u of the incoming flexible buffer.",
+                  (n + 1), tmp.info.num_tensors));
+          gst_buffer_unref (inbuf);
+          gst_tensors_config_free (&tmp);
+          goto error;
+        }
       }
 
       gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);

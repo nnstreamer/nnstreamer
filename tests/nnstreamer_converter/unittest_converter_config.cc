@@ -432,6 +432,224 @@ TEST (tensorConverterConfig, flexToStaticExtraTensorsProperty_n)
 }
 
 /**
+ * @brief Attach a new bus to the element of @a h, to collect the errors it posts.
+ */
+static GstBus *
+attach_bus (GstHarness *h)
+{
+  GstBus *bus = gst_bus_new ();
+
+  gst_element_set_bus (h->element, bus);
+  return bus;
+}
+
+/**
+ * @brief Count and drop the error messages posted on @a bus.
+ */
+static guint
+pop_errors (GstBus *bus)
+{
+  GstMessage *msg;
+  guint count = 0;
+
+  while ((msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR)) != NULL) {
+    count++;
+    gst_message_unref (msg);
+  }
+
+  return count;
+}
+
+/**
+ * @brief Detach @a bus from the element of @a h and release it.
+ */
+static void
+detach_bus (GstHarness *h, GstBus *bus)
+{
+  gst_element_set_bus (h->element, NULL);
+  gst_bus_set_flushing (bus, TRUE);
+  gst_object_unref (bus);
+}
+
+/**
+ * @brief Get a flexible buffer of flex_buffer_new() with all tensors packed in one memory.
+ */
+static GstBuffer *
+flex_packed_buffer_new (guint num, gsize last_size, gsize last_declared)
+{
+  GstBuffer *flex = flex_buffer_new (num, last_size, last_declared);
+  GstBuffer *buf = gst_buffer_new ();
+
+  gst_buffer_append_memory (buf, gst_buffer_get_all_memory (flex));
+  gst_buffer_unref (flex);
+  return buf;
+}
+
+/**
+ * @brief Push a flexible buffer of one header-only tensor whose header declares the invalid type @a type.
+ */
+static GstFlowReturn
+push_flex_invalid_type (GstHarness *h, guint32 type)
+{
+  GstBuffer *buf = flex_buffer_new (1U, 0U, TENSOR_SIZE);
+  GstMapInfo map;
+
+  /* the element type is the third 32-bit field of a meta header */
+  if (!gst_buffer_map (buf, &map, GST_MAP_WRITE)) {
+    gst_buffer_unref (buf);
+    return GST_FLOW_CUSTOM_ERROR;
+  }
+  ((guint32 *) map.data)[2] = type;
+  gst_buffer_unmap (buf, &map);
+
+  return gst_harness_push (h, buf);
+}
+
+/**
+ * @brief Flexible to static conversion of tensors packed in one memory.
+ */
+TEST (tensorConverterConfig, flexToStaticPackedTensors)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBuffer *out;
+  gchar *num;
+
+  gst_harness_set_src_caps_str (h, FLEX_CAPS);
+
+  EXPECT_EQ (gst_harness_push (h, flex_packed_buffer_new (3U, 8U, 8U)), GST_FLOW_OK);
+  out = gst_harness_try_pull (h);
+  check_output (out, 3U, 8U);
+  gst_buffer_unref (out);
+
+  num = get_output_caps_field (h, "num_tensors");
+  EXPECT_STREQ (num, "3");
+  g_free (num);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Packed tensors whose last header declares more than the buffer holds are refused.
+ */
+TEST (tensorConverterConfig, flexToStaticPackedTruncated_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+  GstBuffer *out;
+
+  gst_harness_set_src_caps_str (h, FLEX_CAPS);
+
+  EXPECT_EQ (gst_harness_push (h, flex_packed_buffer_new (3U, TENSOR_SIZE, 8U)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (pop_errors (bus), 1U);
+
+  /* the element keeps converting valid buffers after a refusal */
+  EXPECT_EQ (gst_harness_push (h, flex_packed_buffer_new (3U, TENSOR_SIZE, TENSOR_SIZE)),
+      GST_FLOW_OK);
+  out = gst_harness_try_pull (h);
+  check_output (out, 3U, TENSOR_SIZE);
+  gst_buffer_unref (out);
+  EXPECT_EQ (pop_errors (bus), 0U);
+
+  detach_bus (h, bus);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A tensor whose header is not valid is refused and does not change the output caps.
+ */
+TEST (tensorConverterConfig, flexToStaticInvalidHeader_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+  GstBuffer *out;
+  gchar *dims, *types;
+
+  gst_harness_set_src_caps_str (h, FLEX_CAPS);
+
+  EXPECT_EQ (gst_harness_push (h, flex_buffer_new (1U, TENSOR_SIZE, TENSOR_SIZE)), GST_FLOW_OK);
+  out = gst_harness_try_pull (h);
+  check_output (out, 1U, TENSOR_SIZE);
+  gst_buffer_unref (out);
+
+  /* a header-only tensor of an unknown type declares zero bytes, as much as it holds */
+  EXPECT_EQ (push_flex_invalid_type (h, (guint32) _NNS_END), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+  EXPECT_EQ (pop_errors (bus), 1U);
+
+  dims = get_output_caps_field (h, "dimensions");
+  types = get_output_caps_field (h, "types");
+  EXPECT_TRUE (dims != NULL && g_str_has_prefix (dims, "4"));
+  EXPECT_STREQ (types, "uint8");
+  g_free (dims);
+  g_free (types);
+
+  detach_bus (h, bus);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A tensor shorter than a meta header is refused.
+ */
+TEST (tensorConverterConfig, flexToStaticNoHeader_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+  GstBuffer *buf = gst_buffer_new_allocate (NULL, 16U, NULL);
+
+  gst_buffer_memset (buf, 0, 0, 16U);
+  gst_harness_set_src_caps_str (h, FLEX_CAPS);
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (pop_errors (bus), 1U);
+
+  detach_bus (h, bus);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Mirror of the leading fields of the private GstTensorExtraInfo header
+ *        in gst/nnstreamer/nnstreamer_plugin_api_impl.c.
+ */
+typedef struct {
+  uint32_t magic;
+  uint32_t version;
+  uint32_t num_extra_tensors;
+  uint64_t reserved;
+} TestTensorExtraHeader;
+
+/**
+ * @brief An extra tensor that lies out of its memory is refused.
+ */
+TEST (tensorConverterConfig, flexToStaticExtraTensorsOutOfMemory_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+  GstBuffer *buf = flex_buffer_new (EXTRA_TENSORS, TENSOR_SIZE, TENSOR_SIZE);
+  GstMemory *mem = gst_buffer_peek_memory (buf, NNS_TENSOR_MEMORY_MAX - 1);
+  TestTensorExtraHeader *extra;
+  GstMapInfo map;
+
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+  extra = (TestTensorExtraHeader *) map.data;
+  /* the mirror layout is right if it reads the one tensor beyond the memories */
+  EXPECT_EQ (extra->num_extra_tensors, 1U);
+  extra->reserved = G_MAXUINT64;
+  gst_memory_unmap (mem, &map);
+
+  gst_harness_set_src_caps_str (h, FLEX_CAPS);
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buf), EXTRA_TENSORS);
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (pop_errors (bus), 1U);
+
+  detach_bus (h, bus);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Octet stream configured by downstream caps of extra tensors.
  */
 TEST (tensorConverterConfig, octetPeerExtraTensors)
@@ -643,46 +861,6 @@ TEST (tensorConverterConfig, renegotiateExtraTensors)
   g_free (rate);
 
   gst_harness_teardown (h);
-}
-
-/**
- * @brief Attach a new bus to the element of @a h, to collect the errors it posts.
- */
-static GstBus *
-attach_bus (GstHarness *h)
-{
-  GstBus *bus = gst_bus_new ();
-
-  gst_element_set_bus (h->element, bus);
-  return bus;
-}
-
-/**
- * @brief Count and drop the error messages posted on @a bus.
- */
-static guint
-pop_errors (GstBus *bus)
-{
-  GstMessage *msg;
-  guint count = 0;
-
-  while ((msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR)) != NULL) {
-    count++;
-    gst_message_unref (msg);
-  }
-
-  return count;
-}
-
-/**
- * @brief Detach @a bus from the element of @a h and release it.
- */
-static void
-detach_bus (GstHarness *h, GstBus *bus)
-{
-  gst_element_set_bus (h->element, NULL);
-  gst_bus_set_flushing (bus, TRUE);
-  gst_object_unref (bus);
 }
 
 /**
