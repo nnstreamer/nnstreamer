@@ -35,6 +35,12 @@ void fini_filter_custom_easy (void) __attribute__((destructor));
 
 static const char fw_name_custom_easy[] = "custom-easy";
 
+/** @brief Guards custom_easy_models and keeps it in step with the registry. Never held while the registry may load a .so. */
+static GMutex custom_easy_lock;
+
+/** @brief Registered models by name, looked up without loading a .so */
+static GHashTable *custom_easy_models = NULL;
+
 /**
  * @brief internal_data
  */
@@ -45,6 +51,7 @@ typedef struct _internal_data
   GstTensorsInfo out_info;
   void *data; /**< The easy-filter writer's data */
   NNS_custom_invoke_dynamic func_dynamic;
+  gint refcount; /**< One for the registry and one for each opened filter */
 } internal_data;
 
 /**
@@ -52,7 +59,7 @@ typedef struct _internal_data
  */
 typedef struct
 {
-  const internal_data *model;
+  internal_data *model;
 } runtime_data;
 
 /**
@@ -66,6 +73,63 @@ custom_free_internal_data (internal_data * data)
     gst_tensors_info_free (&data->out_info);
     g_free (data);
   }
+}
+
+/**
+ * @brief Internal function to drop a reference of internal data, releasing it with the last one.
+ */
+static void
+custom_unref_internal_data (internal_data * data)
+{
+  if (data && g_atomic_int_dec_and_test (&data->refcount))
+    custom_free_internal_data (data);
+}
+
+/**
+ * @brief Internal function to register internal data under the model name.
+ * @return 0 if success. -EINVAL if error, releasing the data.
+ */
+static int
+custom_register_internal_data (const char *modelname, internal_data * data)
+{
+  gboolean registered;
+
+  g_mutex_lock (&custom_easy_lock);
+  registered = register_subplugin (NNS_EASY_CUSTOM_FILTER, modelname, data);
+  if (registered) {
+    if (!custom_easy_models)
+      custom_easy_models = g_hash_table_new_full (g_str_hash, g_str_equal,
+          g_free, NULL);
+    g_hash_table_insert (custom_easy_models, g_strdup (modelname), data);
+  }
+  g_mutex_unlock (&custom_easy_lock);
+
+  if (registered)
+    return 0;
+
+  custom_free_internal_data (data);
+  return -EINVAL;
+}
+
+/**
+ * @brief Internal function to find a registered model and take a reference of it.
+ * @note The registry may load a .so that registers the name, and a .so constructor or destructor may call the register APIs. So the lookup that loads runs without the lock, and the lock only covers the table lookup and the reference.
+ */
+static internal_data *
+custom_ref_internal_data (const char *modelname)
+{
+  internal_data *data = NULL;
+
+  get_subplugin (NNS_EASY_CUSTOM_FILTER, modelname);
+
+  g_mutex_lock (&custom_easy_lock);
+  if (custom_easy_models)
+    data = g_hash_table_lookup (custom_easy_models, modelname);
+  if (data)
+    g_atomic_int_inc (&data->refcount);
+  g_mutex_unlock (&custom_easy_lock);
+
+  return data;
 }
 
 /**
@@ -93,14 +157,11 @@ NNS_custom_easy_register (const char *modelname,
 
   ptr->func = func;
   ptr->data = data;
+  ptr->refcount = 1;
   gst_tensors_info_copy (&ptr->in_info, in_info);
   gst_tensors_info_copy (&ptr->out_info, out_info);
 
-  if (register_subplugin (NNS_EASY_CUSTOM_FILTER, modelname, ptr))
-    return 0;
-
-  custom_free_internal_data (ptr);
-  return -EINVAL;
+  return custom_register_internal_data (modelname, ptr);
 }
 
 
@@ -127,13 +188,10 @@ NNS_custom_easy_dynamic_register (const char *modelname,
 
   ptr->func_dynamic = func;
   ptr->data = data;
+  ptr->refcount = 1;
   gst_tensors_info_copy (&ptr->in_info, in_info);
 
-  if (register_subplugin (NNS_EASY_CUSTOM_FILTER, modelname, ptr))
-    return 0;
-
-  custom_free_internal_data (ptr);
-  return -EINVAL;
+  return custom_register_internal_data (modelname, ptr);
 }
 
 /**
@@ -143,18 +201,29 @@ NNS_custom_easy_dynamic_register (const char *modelname,
 int
 NNS_custom_easy_unregister (const char *modelname)
 {
-  internal_data *ptr;
+  internal_data *ptr = NULL;
+  gboolean unregistered = FALSE;
 
-  /* get internal data before unregistering the custom filter */
-  ptr = (internal_data *) get_subplugin (NNS_EASY_CUSTOM_FILTER, modelname);
+  if (modelname)
+    get_subplugin (NNS_EASY_CUSTOM_FILTER, modelname);
 
-  if (!unregister_subplugin (NNS_EASY_CUSTOM_FILTER, modelname)) {
+  g_mutex_lock (&custom_easy_lock);
+  if (custom_easy_models && modelname)
+    ptr = g_hash_table_lookup (custom_easy_models, modelname);
+  if (ptr) {
+    unregistered = unregister_subplugin (NNS_EASY_CUSTOM_FILTER, modelname);
+    if (unregistered)
+      g_hash_table_remove (custom_easy_models, modelname);
+  }
+  g_mutex_unlock (&custom_easy_lock);
+
+  if (!unregistered) {
     ml_loge ("Failed to unregister custom filter %s.", modelname);
     return -EINVAL;
   }
 
-  /* free internal data */
-  custom_free_internal_data (ptr);
+  /* opened filters keep the data until they are closed */
+  custom_unref_internal_data (ptr);
   return 0;
 }
 
@@ -176,7 +245,7 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
   rd = g_new (runtime_data, 1);
   if (!rd)
     return -ENOMEM;
-  rd->model = get_subplugin (NNS_EASY_CUSTOM_FILTER, prop->model_files[0]);
+  rd->model = custom_ref_internal_data (prop->model_files[0]);
 
   if (NULL == rd->model) {
     ml_loge
@@ -226,6 +295,7 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
   *private_data = rd;
   return 0;
 errorreturn:
+  custom_unref_internal_data (rd->model);
   g_free (rd);
   return -EINVAL;
 }
@@ -238,6 +308,8 @@ custom_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   runtime_data *rd = *private_data;
   UNUSED (prop);
+  if (rd)
+    custom_unref_internal_data (rd->model);
   g_free (rd);
   *private_data = NULL;
 }

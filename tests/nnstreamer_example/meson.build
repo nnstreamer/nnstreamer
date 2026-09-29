@@ -100,6 +100,14 @@ library('nnscustom_framecounter',
   install_dir: customfilter_install_dir
 )
 
+# custom-easy filter that registers itself from the constructor of its library
+library('nnscustom_easy_selfreg',
+  join_paths('custom_example_easy_selfreg', 'nnscustom_easy_selfreg.c'),
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+  install: get_option('install-test'),
+  install_dir: customfilter_install_dir
+)
+
 # These custom filters are used in unittest_filter_custom. 'pipeline' repeats what
 # 'no_invoke' does on purpose: a test case that runs a pipeline needs a library of its
 # own, because the pipeline releases the sub-plugin on its own threads.
