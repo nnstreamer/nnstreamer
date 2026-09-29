@@ -15,6 +15,12 @@
 #include <gst/gst.h>
 
 #include <MQTTAsync.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
 #include <unittest_util.h>
 
 #include <atomic>
@@ -25,6 +31,7 @@
 #include "GstMqttTestHelper.hh"
 #include "mqttcommon.h"
 #include "mqttsink.h"
+#include "ntputil.h"
 
 std::unique_ptr<GstMqttTestHelper> GstMqttTestHelper::mInstance;
 std::once_flag GstMqttTestHelper::mOnceFlag;
@@ -2272,6 +2279,398 @@ free_strs:
 
   if (err_flag)
     FAIL () << err_msg;
+}
+
+/** How a local NTP server stub answers each request */
+enum ntp_stub_reply {
+  NTP_STUB_SILENT,
+  NTP_STUB_SHORT,
+  NTP_STUB_FULL,
+  NTP_STUB_DROP_FIRST
+};
+
+static const size_t NTP_PACKET_SIZE = 48;
+static const uint32_t NTP_UNIX_EPOCH_DELTA = 2208988800U;
+
+/**
+ * @brief A UDP NTP server stub on 127.0.0.1 answering requests until it is destroyed
+ */
+class NtpServerStub
+{
+  public:
+  /**
+   * @brief Bind the stub to a free local port and start waiting for a request
+   */
+  NtpServerStub (ntp_stub_reply reply, uint32_t sec, uint32_t frac)
+      : fd (-1), port (0), requests (0), stop (false)
+  {
+    struct sockaddr_in addr;
+    socklen_t len = sizeof (addr);
+    struct timeval tv = { 0, 100000 };
+
+    fd = socket (AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (fd < 0)
+      return;
+
+    memset (&addr, 0, sizeof (addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+    if (bind (fd, (struct sockaddr *) &addr, sizeof (addr)) < 0
+        || getsockname (fd, (struct sockaddr *) &addr, &len) < 0
+        || setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof (tv)) < 0) {
+      close (fd);
+      fd = -1;
+      return;
+    }
+    port = ntohs (addr.sin_port);
+
+    worker = std::thread (&NtpServerStub::serve, this, reply, sec, frac);
+  }
+
+  /**
+   * @brief Stop the stub thread and close its socket
+   */
+  ~NtpServerStub ()
+  {
+    stop = true;
+    if (worker.joinable ())
+      worker.join ();
+    if (fd >= 0)
+      close (fd);
+  }
+
+  int fd;
+  uint16_t port;
+  std::atomic<int> requests;
+
+  private:
+  std::atomic<bool> stop;
+  std::thread worker;
+
+  /**
+   * @brief Receive requests and answer each as configured
+   */
+  void serve (ntp_stub_reply reply, uint32_t sec, uint32_t frac)
+  {
+    while (!stop)
+      serve_one (reply, sec, frac);
+  }
+
+  /**
+   * @brief Receive one request, if any arrives in time, and answer it
+   */
+  void serve_one (ntp_stub_reply reply, uint32_t sec, uint32_t frac)
+  {
+    uint8_t pkt[NTP_PACKET_SIZE];
+    struct sockaddr_in peer;
+    socklen_t len = sizeof (peer);
+    uint32_t be;
+    ssize_t n;
+
+    n = recvfrom (fd, pkt, sizeof (pkt), 0, (struct sockaddr *) &peer, &len);
+    if (n <= 0)
+      return;
+    requests++;
+
+    if (reply == NTP_STUB_SILENT || (reply == NTP_STUB_DROP_FIRST && requests == 1))
+      return;
+
+    memset (pkt, 0, sizeof (pkt));
+    pkt[0] = 0x1C; /* li = 0, vn = 3, mode = 4 (server) */
+    be = htonl (sec);
+    memcpy (pkt + 40, &be, sizeof (be));
+    be = htonl (frac);
+    memcpy (pkt + 44, &be, sizeof (be));
+
+    sendto (fd, pkt, (reply == NTP_STUB_SHORT) ? NTP_PACKET_SIZE - 1 : NTP_PACKET_SIZE,
+        0, (struct sockaddr *) &peer, len);
+  }
+};
+
+/**
+ * @brief Query the NTP server stub through ntputil_get_epoch ()
+ */
+static int64_t
+_query_ntp_stub (NtpServerStub &stub, gint64 *elapsed_us)
+{
+  char hname[] = "127.0.0.1";
+  char *hnames[] = { hname, NULL };
+  uint16_t ports[] = { stub.port };
+  gint64 start = g_get_monotonic_time ();
+  int64_t epoch;
+
+  epoch = ntputil_get_epoch (1, hnames, ports);
+  if (elapsed_us)
+    *elapsed_us = g_get_monotonic_time () - start;
+
+  return epoch;
+}
+
+/**
+ * @brief Test ntputil_get_epoch () converting a full NTP reply to the same Unix epoch as before
+ */
+TEST (testNtpUtil, getEpochFromReply)
+{
+  NtpServerStub stub (NTP_STUB_FULL, NTP_UNIX_EPOCH_DELTA + 1000U, 0x80000000U);
+  int64_t epoch;
+
+  ASSERT_GE (stub.fd, 0);
+
+  epoch = _query_ntp_stub (stub, NULL);
+  EXPECT_EQ (epoch, 1000LL * 1000000LL + 500000LL);
+  EXPECT_EQ (stub.requests, 1);
+}
+
+/**
+ * @brief Test ntputil_get_epoch () giving up on a server that never answers
+ * instead of blocking, and not waiting on it again right away once it failed
+ * three times in a row
+ */
+TEST (testNtpUtil, getEpochNoReply_n)
+{
+  NtpServerStub stub (NTP_STUB_SILENT, 0, 0);
+  gint64 elapsed_us = 0;
+  int64_t epoch;
+  int i;
+
+  ASSERT_GE (stub.fd, 0);
+
+  for (i = 1; i <= 3; i++) {
+    epoch = _query_ntp_stub (stub, &elapsed_us);
+    EXPECT_LT (epoch, 0);
+    EXPECT_EQ (stub.requests, i);
+    EXPECT_LT (elapsed_us, 5 * G_USEC_PER_SEC);
+  }
+
+  epoch = _query_ntp_stub (stub, &elapsed_us);
+  EXPECT_EQ (epoch, -EAGAIN);
+  EXPECT_EQ (stub.requests, 3);
+  EXPECT_LT (elapsed_us, G_USEC_PER_SEC / 2);
+}
+
+/**
+ * @brief Test ntputil_get_epoch () getting the server time again right after
+ * one lost reply, without a hold-off
+ */
+TEST (testNtpUtil, getEpochAfterOneLostReply)
+{
+  NtpServerStub stub (NTP_STUB_DROP_FIRST, NTP_UNIX_EPOCH_DELTA + 1000U, 0x80000000U);
+
+  ASSERT_GE (stub.fd, 0);
+
+  EXPECT_LT (_query_ntp_stub (stub, NULL), 0);
+  EXPECT_EQ (_query_ntp_stub (stub, NULL), 1000LL * 1000000LL + 500000LL);
+  EXPECT_EQ (stub.requests, 2);
+}
+
+/**
+ * @brief Test ntputil_get_epoch () refusing a reply shorter than an NTP packet
+ */
+TEST (testNtpUtil, getEpochShortReply_n)
+{
+  NtpServerStub stub (NTP_STUB_SHORT, NTP_UNIX_EPOCH_DELTA + 1000U, 0);
+  int64_t epoch;
+
+  ASSERT_GE (stub.fd, 0);
+
+  epoch = _query_ntp_stub (stub, NULL);
+  EXPECT_LT (epoch, 0);
+  EXPECT_EQ (stub.requests, 1);
+}
+
+/**
+ * @brief Test ntputil_get_epoch () refusing a transmit time before the Unix epoch
+ */
+TEST (testNtpUtil, getEpochBeforeUnixEpoch_n)
+{
+  NtpServerStub stub (NTP_STUB_FULL, NTP_UNIX_EPOCH_DELTA, 0);
+  int64_t epoch;
+
+  ASSERT_GE (stub.fd, 0);
+
+  epoch = _query_ntp_stub (stub, NULL);
+  EXPECT_LT (epoch, 0);
+}
+
+/**
+ * @brief Test mqttsink with ntp-sync still rendering, without waiting on the
+ * server once it is held off, and publishing the local time when its NTP
+ * server never answers
+ */
+TEST (testMqttSinkWithHelper, sinkPushNtpNoReply_n)
+{
+  NtpServerStub stub (NTP_STUB_SILENT, 0, 0);
+  GstHarness *h;
+  GstClock *clock;
+  GstMQTTMessageHdr hdr;
+  gchar *srvs;
+  gint64 start, before, after;
+  GstFlowReturn ret;
+  int i;
+
+  ASSERT_GE (stub.fd, 0);
+
+  h = gst_harness_new ("mqttsink");
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  srvs = g_strdup_printf ("127.0.0.1:%u", stub.port);
+  g_object_set (h->element, "async", FALSE, "ntp-sync", true, "ntp-srvs", srvs, NULL);
+  g_free (srvs);
+  clock = gst_system_clock_obtain ();
+  gst_element_set_clock (h->element, clock);
+
+  /* The harness started the sink before ntp-sync was set; restart it with NTP */
+  before = g_get_real_time ();
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  gst_element_set_base_time (h->element, gst_clock_get_time (clock));
+  gst_object_unref (clock);
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (stub.requests, 1);
+
+  /* The second and third failures in a row start the hold-off */
+  for (i = 2; i <= 3; i++) {
+    ret = gst_harness_push (h, gst_harness_create_buffer (h, 4));
+    EXPECT_EQ (ret, GST_FLOW_OK);
+    EXPECT_EQ (stub.requests, i);
+  }
+
+  start = g_get_monotonic_time ();
+  ret = gst_harness_push (h, gst_harness_create_buffer (h, 4));
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  EXPECT_LT (g_get_monotonic_time () - start, G_USEC_PER_SEC / 2);
+  EXPECT_EQ (stub.requests, 3);
+  after = g_get_real_time ();
+
+  {
+    const std::vector<guint8> &payload
+        = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+    ASSERT_GE (payload.size (), (size_t) GST_MQTT_LEN_MSG_HDR);
+    memcpy (&hdr, payload.data (), GST_MQTT_LEN_MSG_HDR);
+  }
+  EXPECT_GE (hdr.sent_time_epoch, before * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_LE (hdr.sent_time_epoch, after * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_GE (hdr.base_time_epoch, (before - G_USEC_PER_SEC) * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_LE (hdr.base_time_epoch, hdr.sent_time_epoch);
+
+  gst_harness_teardown (h);
+}
+
+/** The offset of the fake NTP time from the local clock in the epoch tests */
+static const gint64 FAKE_NTP_OFFSET_US = 7 * G_USEC_PER_SEC;
+static std::atomic<int> fake_epoch_calls (0);
+static std::atomic<int> fake_epoch_failures (0);
+
+/**
+ * @brief A get_epoch_func replacement that fails fake_epoch_failures times, then returns the
+ *        local clock shifted by FAKE_NTP_OFFSET_US like a healthy NTP server ahead of it
+ */
+static int64_t
+_fake_ntp_epoch_func (uint32_t hnum, char **hnames, uint16_t *hports)
+{
+  (void) hnum;
+  (void) hnames;
+  (void) hports;
+
+  if (fake_epoch_calls++ < fake_epoch_failures)
+    return -EAGAIN;
+
+  return g_get_real_time () + FAKE_NTP_OFFSET_US;
+}
+
+/**
+ * @brief Start mqttsink with _fake_ntp_epoch_func, push one buffer and return the header it sent,
+ *        with the local clock read before the start and after the push
+ */
+static void
+_push_with_fake_ntp (gint failures, GstMQTTMessageHdr *hdr, gint64 *before, gint64 *after)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstClock *clock;
+
+  ASSERT_TRUE (h != NULL);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+
+  g_object_set (h->element, "async", FALSE, NULL);
+  clock = gst_system_clock_obtain ();
+  gst_element_set_clock (h->element, clock);
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  /* Start the running time now, as a pipeline going to PLAYING does */
+  gst_element_set_base_time (h->element, gst_clock_get_time (clock));
+  gst_object_unref (clock);
+
+  fake_epoch_calls = 0;
+  fake_epoch_failures = failures;
+  GST_MQTT_SINK (h->element)->get_epoch_func = _fake_ntp_epoch_func;
+
+  *before = g_get_real_time ();
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  *after = g_get_real_time ();
+  EXPECT_EQ (fake_epoch_calls, 2);
+
+  {
+    const std::vector<guint8> &payload
+        = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+    ASSERT_GE (payload.size (), (size_t) GST_MQTT_LEN_MSG_HDR);
+    memcpy (hdr, payload.data (), GST_MQTT_LEN_MSG_HDR);
+  }
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test mqttsink publishing the time a healthy NTP server gives as is, for subscribers
+ *        that rebase timestamps with base_time_epoch and sent_time_epoch
+ */
+TEST (testMqttSinkWithHelper, sinkNtpEpochPublishedAsIs)
+{
+  GstMQTTMessageHdr hdr;
+  gint64 before = 0, after = 0;
+
+  _push_with_fake_ntp (0, &hdr, &before, &after);
+
+  EXPECT_GE (hdr.sent_time_epoch, (before + FAKE_NTP_OFFSET_US) * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_LE (hdr.sent_time_epoch, (after + FAKE_NTP_OFFSET_US) * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_GE (hdr.base_time_epoch,
+      (before + FAKE_NTP_OFFSET_US - G_USEC_PER_SEC) * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_LE (hdr.base_time_epoch, hdr.sent_time_epoch);
+}
+
+/**
+ * @brief Test mqttsink publishing the local time instead of an error code when NTP fails
+ */
+TEST (testMqttSinkWithHelper, sinkNtpEpochFailureUsesLocalClock_n)
+{
+  GstMQTTMessageHdr hdr;
+  gint64 before = 0, after = 0;
+
+  _push_with_fake_ntp (2, &hdr, &before, &after);
+
+  EXPECT_GE (hdr.sent_time_epoch, before * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_LE (hdr.sent_time_epoch, after * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_GE (hdr.base_time_epoch, (before - G_USEC_PER_SEC) * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_LE (hdr.base_time_epoch, hdr.sent_time_epoch);
+}
+
+/**
+ * @brief Test mqttsink going back to the NTP time as soon as a query succeeds after a failure
+ */
+TEST (testMqttSinkWithHelper, sinkNtpEpochRecoversAfterFailure)
+{
+  GstMQTTMessageHdr hdr;
+  gint64 before = 0, after = 0;
+
+  _push_with_fake_ntp (1, &hdr, &before, &after);
+
+  EXPECT_GE (hdr.base_time_epoch, (before - G_USEC_PER_SEC) * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_LE (hdr.base_time_epoch, after * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_GE (hdr.sent_time_epoch, (before + FAKE_NTP_OFFSET_US) * GST_US_TO_NS_MULTIPLIER);
+  EXPECT_LE (hdr.sent_time_epoch, (after + FAKE_NTP_OFFSET_US) * GST_US_TO_NS_MULTIPLIER);
 }
 
 /**

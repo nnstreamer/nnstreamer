@@ -37,6 +37,13 @@ ntputil_get_epoch (uint32_t hnums, char **hnames, uint16_t * ports);
 uint32_t
 _convert_to_host_byte_order (uint32_t in);
 
+/**
+ * @brief Get the monotonic time in microseconds.
+ * @note Exposed so that unit tests can replace the clock the retry hold-off uses.
+ */
+int64_t
+_get_monotonic_time_us (void);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
