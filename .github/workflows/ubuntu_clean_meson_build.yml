@@ -154,7 +154,12 @@ jobs:
         # itself off, and the MQTT unit tests then never reach the memory
         # checker this job runs. Enabled, meson falls back to a hard-coded
         # paho configuration, and a missing library fails the job instead.
-        meson setup build/ -Darmnn-support=enabled -Dmqtt-support=enabled -Dinstall-test=true
+        #
+        # The arm64 entry builds with float16, the only per-PR job running the
+        # FLOAT16_SUPPORT-only unit tests; the x86 entry keeps it off.
+        float16_opt=
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04-arm' ]; then float16_opt=-Denable-float16=true; fi
+        meson setup build/ -Darmnn-support=enabled -Dmqtt-support=enabled -Dinstall-test=true ${float16_opt}
 
         # This job installs the newest meson from PyPI, so it configures
         # happily with a construct that the meson on a target distro does not
