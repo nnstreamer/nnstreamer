@@ -12726,6 +12726,79 @@ TEST (testTensorCrop, cropInfoElementCount_n)
 }
 
 /**
+ * @brief Set the single crop region [x, y, w, h] as float16 crop info.
+ * @details The values are stored as IEEE half-precision bit patterns, so this
+ *          builds the same info buffer with and without float16 support.
+ */
+static void
+_crop_test_set_float16_region (crop_test_data_s *crop_test)
+{
+  /* [3.0, 0.0, 3.0, 1.0] */
+  const uint16_t region[4] = { 0x4200U, 0x0000U, 0x4200U, 0x3c00U };
+
+  crop_test->info_type = _NNS_FLOAT16;
+  crop_test->info_size = sizeof (region);
+  g_free (crop_test->info_data);
+  crop_test->info_data = _g_memdup (region, sizeof (region));
+}
+
+#ifdef FLOAT16_SUPPORT
+/**
+ * @brief Test for tensor_crop, float16 crop info is converted to the region.
+ */
+TEST (testTensorCrop, cropInfoFloat16)
+{
+  crop_test_data_s crop_test;
+  const guint expected[] = { 4U, 5U, 6U };
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+  _crop_test_set_float16_region (&crop_test);
+
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 1U);
+
+  if (crop_test.received > 0)
+    _crop_test_compare_single (&crop_test, 3U, 1U, expected);
+
+  _crop_test_free (&crop_test);
+}
+#else
+/**
+ * @brief Test for tensor_crop, float16 crop info without float16 support.
+ * @details Without the fix the element aborts in the element typecast.
+ */
+TEST (testTensorCrop, cropInfoFloat16Unsupported_n)
+{
+  crop_test_data_s crop_test;
+  GstBus *bus;
+  GstMessage *msg;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+  _crop_test_set_float16_region (&crop_test);
+
+  bus = gst_bus_new ();
+  gst_element_set_bus (crop_test.crop->element, bus);
+
+  _crop_test_set_raw_caps (&crop_test);
+  _crop_test_push_raw_buffer (&crop_test, crop_test.ts_raw);
+  _crop_test_push_info_buffer (&crop_test, crop_test.ts_info);
+
+  msg = gst_bus_timed_pop_filtered (bus, 2 * GST_SECOND, GST_MESSAGE_ERROR);
+  EXPECT_TRUE (msg != NULL);
+  if (msg)
+    gst_message_unref (msg);
+
+  EXPECT_EQ (gst_harness_buffers_received (crop_test.crop), 0U);
+
+  gst_element_set_bus (crop_test.crop->element, NULL);
+  gst_object_unref (bus);
+  _crop_test_free (&crop_test);
+}
+#endif
+
+/**
  * @brief Test for tensor_crop, an info memory smaller than the meta header.
  * @details Without the fix the header is parsed past the end of the memory.
  */

@@ -47,7 +47,7 @@
 #else /* FLOAT16_SUPPORT */
 #define td_typecast_to_fromf16(td,itype) do { \
     nns_loge ("Your nnstreamer binary is built without -DFLOAT16_SUPPORT option; thus float16 is not supported.\n"); \
-    g_assert (0); \
+    return FALSE; \
   } while (0)
 #endif
 
@@ -64,7 +64,7 @@
       case _NNS_FLOAT16: td_typecast_to_fromf16 (td, otype); break; \
       case _NNS_INT64: td_typecast_to (td, int64_t, otype); break; \
       case _NNS_UINT64: td_typecast_to (td, uint64_t, otype); break; \
-      default: g_assert (0); break; \
+      default: nns_logw ("Unknown tensor type %d", (td)->type); return FALSE; \
     } \
   } while (0)
 
@@ -297,9 +297,28 @@ gst_tensor_data_raw_typecast (gpointer input, tensor_type in_type,
   g_return_val_if_fail (in_type != _NNS_END, FALSE);
   g_return_val_if_fail (out_type != _NNS_END, FALSE);
 
-  gst_tensor_data_set (&td, in_type, input);
-  gst_tensor_data_typecast (&td, out_type);
-  gst_tensor_data_get (&td, output);
+  return gst_tensor_data_set (&td, in_type, input) &&
+      gst_tensor_data_typecast (&td, out_type) &&
+      gst_tensor_data_get (&td, output);
+}
+
+/**
+ * @brief Check that this binary can read the elements of the given type.
+ */
+static gboolean
+gst_tensor_data_type_is_readable (tensor_type type)
+{
+  if (type < 0 || type >= _NNS_END) {
+    nns_logw ("Unknown tensor type %d", type);
+    return FALSE;
+  }
+#ifndef FLOAT16_SUPPORT
+  if (type == _NNS_FLOAT16) {
+    nns_loge
+        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+    return FALSE;
+  }
+#endif
   return TRUE;
 }
 
@@ -323,6 +342,9 @@ gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type,
   g_return_val_if_fail (raw != NULL, FALSE);
   g_return_val_if_fail (length > 0, FALSE);
   g_return_val_if_fail (type != _NNS_END, FALSE);
+
+  if (!gst_tensor_data_type_is_readable (type))
+    return FALSE;
 
   element_size = gst_tensor_get_element_size (type);
   num = length / element_size;
@@ -369,6 +391,9 @@ gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
   g_return_val_if_fail (length > 0, FALSE);
   g_return_val_if_fail (dim[0] > 0, FALSE);
   g_return_val_if_fail (type != _NNS_END, FALSE);
+
+  if (!gst_tensor_data_type_is_readable (type))
+    return FALSE;
 
   element_size = gst_tensor_get_element_size (type);
   num = length / element_size;
@@ -418,6 +443,9 @@ gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
   g_return_val_if_fail (length > 0, FALSE);
   g_return_val_if_fail (type != _NNS_END, FALSE);
 
+  if (!gst_tensor_data_type_is_readable (type))
+    return FALSE;
+
   element_size = gst_tensor_get_element_size (type);
   num = length / element_size;
   *result = (gdouble *) g_try_malloc0 (sizeof (gdouble));
@@ -464,6 +492,9 @@ gst_tensor_data_raw_std_per_channel (gpointer raw, gsize length,
   g_return_val_if_fail (length > 0, FALSE);
   g_return_val_if_fail (dim[0] > 0, FALSE);
   g_return_val_if_fail (type != _NNS_END, FALSE);
+
+  if (!gst_tensor_data_type_is_readable (type))
+    return FALSE;
 
   element_size = gst_tensor_get_element_size (type);
   num = length / element_size;

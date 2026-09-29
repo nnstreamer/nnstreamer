@@ -637,7 +637,12 @@ gst_tensor_crop_get_crop_info (GstTensorCrop * self, GstBuffer * info,
       src = pos + (esize * j);
       desc = (guint8 *) (&cinfo->region[i]) + sizeof (guint) * j;
 
-      gst_tensor_data_raw_typecast (src, meta.type, desc, _NNS_UINT32);
+      if (!gst_tensor_data_raw_typecast (src, meta.type, desc, _NNS_UINT32)) {
+        GST_ERROR_OBJECT (self,
+            "Failed to read the crop info of type %s.",
+            gst_tensor_get_type_string (meta.type));
+        goto done;
+      }
     }
   }
 

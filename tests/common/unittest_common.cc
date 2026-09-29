@@ -16,6 +16,7 @@
 #include <nnstreamer_conf.h>
 #include <nnstreamer_plugin_api.h>
 #include <tensor_common.h>
+#include <tensor_data.h>
 #include <unistd.h>
 #include <unittest_util.h>
 
@@ -4029,6 +4030,198 @@ TEST (commonUtil, countOutputPipelineNoBuffer_n)
   gst_object_unref (sink);
   gst_object_unref (pipeline);
 }
+
+/**
+ * @brief Test for the element typecast, converting between supported types.
+ */
+TEST (commonTensorData, rawTypecast)
+{
+  uint8_t u8 = 200U;
+  int16_t i16 = -3;
+  float f32 = 7.9f;
+  double f64 = 0.0;
+  uint32_t u32 = 0U;
+
+  EXPECT_TRUE (gst_tensor_data_raw_typecast (&u8, _NNS_UINT8, &u32, _NNS_UINT32));
+  EXPECT_EQ (u32, 200U);
+  EXPECT_TRUE (gst_tensor_data_raw_typecast (&f32, _NNS_FLOAT32, &u32, _NNS_UINT32));
+  EXPECT_EQ (u32, 7U);
+  EXPECT_TRUE (gst_tensor_data_raw_typecast (&i16, _NNS_INT16, &f64, _NNS_FLOAT64));
+  EXPECT_DOUBLE_EQ (f64, -3.0);
+  EXPECT_TRUE (gst_tensor_data_raw_typecast (&u8, _NNS_UINT8, &u8, _NNS_UINT8));
+  EXPECT_EQ (u8, 200U);
+}
+
+/**
+ * @brief Test for the element typecast, an unknown input type is refused.
+ * @details Without the fix the typecast asserts on the type left by the failed set.
+ */
+TEST (commonTensorData, rawTypecastUnknownInType_n)
+{
+  uint32_t in = 5U, out = 9U;
+
+  EXPECT_FALSE (gst_tensor_data_raw_typecast (
+      &in, (tensor_type) (_NNS_END + 1), &out, _NNS_UINT32));
+  EXPECT_FALSE (gst_tensor_data_raw_typecast (
+      &in, (tensor_type) (_NNS_END + 1), &out, _NNS_FLOAT32));
+  EXPECT_EQ (out, 9U);
+}
+
+/**
+ * @brief Test for the element typecast, an unknown output type is refused.
+ */
+TEST (commonTensorData, rawTypecastUnknownOutType_n)
+{
+  uint32_t in = 5U, out = 9U;
+
+  EXPECT_FALSE (gst_tensor_data_raw_typecast (
+      &in, _NNS_UINT32, &out, (tensor_type) (_NNS_END + 1)));
+  EXPECT_EQ (out, 9U);
+}
+
+/**
+ * @brief Test for the typecast of tensor data holding an unknown type.
+ */
+TEST (commonTensorData, typecastUnknownType_n)
+{
+  tensor_data_s td;
+
+  td.type = (tensor_type) (_NNS_END + 1);
+  td.data._int64_t = 0;
+  EXPECT_FALSE (gst_tensor_data_typecast (&td, _NNS_INT32));
+
+  td.type = _NNS_END;
+  EXPECT_FALSE (gst_tensor_data_typecast (&td, _NNS_UINT64));
+}
+
+/**
+ * @brief Test for the average and standard deviation of a tensor.
+ */
+TEST (commonTensorData, rawAverageStd)
+{
+  int16_t data[4] = { 1, 3, 5, 7 };
+  tensor_dim dim = { 2U, 2U, 1U, 1U };
+  gdouble *avg = NULL, *std = NULL, *avgs = NULL, *stds = NULL;
+
+  ASSERT_TRUE (gst_tensor_data_raw_average (data, sizeof (data), _NNS_INT16, &avg));
+  EXPECT_DOUBLE_EQ (*avg, 4.0);
+  ASSERT_TRUE (gst_tensor_data_raw_std (data, sizeof (data), _NNS_INT16, avg, &std));
+  EXPECT_DOUBLE_EQ (*std, 2.2360679774997898); /* sqrt (5) */
+
+  ASSERT_TRUE (gst_tensor_data_raw_average_per_channel (
+      data, sizeof (data), _NNS_INT16, dim, &avgs));
+  EXPECT_DOUBLE_EQ (avgs[0], 3.0);
+  EXPECT_DOUBLE_EQ (avgs[1], 5.0);
+  ASSERT_TRUE (gst_tensor_data_raw_std_per_channel (
+      data, sizeof (data), _NNS_INT16, dim, avgs, &stds));
+  EXPECT_DOUBLE_EQ (stds[0], 2.0);
+  EXPECT_DOUBLE_EQ (stds[1], 2.0);
+
+  g_free (avg);
+  g_free (std);
+  g_free (avgs);
+  g_free (stds);
+}
+
+/**
+ * @brief Test for the average and standard deviation, an unknown type is refused.
+ * @details Without the fix the element size is 0 and the helpers divide by zero.
+ */
+TEST (commonTensorData, rawAverageStdUnknownType_n)
+{
+  uint32_t data[4] = { 1U, 2U, 3U, 4U };
+  tensor_dim dim = { 2U, 2U, 1U, 1U };
+  const tensor_type types[2] = { (tensor_type) (_NNS_END + 1), (tensor_type) -1 };
+  gdouble avg = 2.5, avgs[2] = { 2.0, 3.0 };
+  gdouble *result = NULL;
+
+  for (const tensor_type type : types) {
+    EXPECT_FALSE (gst_tensor_data_raw_average (data, sizeof (data), type, &result));
+    EXPECT_FALSE (gst_tensor_data_raw_std (data, sizeof (data), type, &avg, &result));
+    EXPECT_FALSE (gst_tensor_data_raw_average_per_channel (
+        data, sizeof (data), type, dim, &result));
+    EXPECT_FALSE (gst_tensor_data_raw_std_per_channel (
+        data, sizeof (data), type, dim, avgs, &result));
+    EXPECT_TRUE (result == NULL);
+  }
+}
+
+#ifdef FLOAT16_SUPPORT
+/**
+ * @brief Test for the element typecast and the average of float16 data.
+ */
+TEST (commonTensorData, float16Typecast)
+{
+  float16 data[2] = { (float16) 3.0f, (float16) 5.0f };
+  uint32_t u32 = 0U;
+  gdouble *avg = NULL;
+
+  EXPECT_TRUE (gst_tensor_data_raw_typecast (&data[0], _NNS_FLOAT16, &u32, _NNS_UINT32));
+  EXPECT_EQ (u32, 3U);
+
+  ASSERT_TRUE (gst_tensor_data_raw_average (data, sizeof (data), _NNS_FLOAT16, &avg));
+  EXPECT_DOUBLE_EQ (*avg, 4.0);
+  g_free (avg);
+}
+#else
+/**
+ * @brief Test for the element typecast, float16 is refused without float16 support.
+ * @details Without the fix the typecast from float16 asserts.
+ */
+TEST (commonTensorData, float16TypecastUnsupported_n)
+{
+  uint16_t f16 = 0x4200U; /* 3.0 */
+  uint32_t u32 = 9U;
+  float f32 = 1.0f;
+
+  EXPECT_FALSE (gst_tensor_data_raw_typecast (&f16, _NNS_FLOAT16, &u32, _NNS_UINT32));
+  EXPECT_FALSE (gst_tensor_data_raw_typecast (&f16, _NNS_FLOAT16, &f32, _NNS_FLOAT32));
+  EXPECT_FALSE (gst_tensor_data_raw_typecast (&f16, _NNS_FLOAT16, &f16, _NNS_FLOAT16));
+  EXPECT_FALSE (gst_tensor_data_raw_typecast (&f32, _NNS_FLOAT32, &f16, _NNS_FLOAT16));
+  EXPECT_EQ (u32, 9U);
+  EXPECT_EQ (f16, 0x4200U);
+}
+
+/**
+ * @brief Test for the typecast of float16 tensor data without float16 support.
+ * @details The data is set directly, as the setter refuses float16. Without
+ *          the fix the typecast from float16 asserts.
+ */
+TEST (commonTensorData, float16TypecastDataUnsupported_n)
+{
+  const tensor_type targets[]
+      = { _NNS_INT32, _NNS_UINT32, _NNS_FLOAT32, _NNS_FLOAT64, _NNS_UINT64 };
+  tensor_data_s td;
+
+  for (const tensor_type target : targets) {
+    td.type = _NNS_FLOAT16;
+    td.data._int64_t = 0x4200; /* 3.0 */
+    EXPECT_FALSE (gst_tensor_data_typecast (&td, target));
+    EXPECT_EQ (td.type, _NNS_FLOAT16);
+    EXPECT_EQ (td.data._int64_t, 0x4200);
+  }
+}
+
+/**
+ * @brief Test for the average and standard deviation, float16 is refused without float16 support.
+ * @details Without the fix the per-element typecast asserts.
+ */
+TEST (commonTensorData, float16AverageStdUnsupported_n)
+{
+  uint16_t data[4] = { 0x3c00U, 0x4000U, 0x4200U, 0x4400U };
+  tensor_dim dim = { 2U, 2U, 1U, 1U };
+  gdouble avg = 2.5, avgs[2] = { 2.0, 3.0 };
+  gdouble *result = NULL;
+
+  EXPECT_FALSE (gst_tensor_data_raw_average (data, sizeof (data), _NNS_FLOAT16, &result));
+  EXPECT_FALSE (gst_tensor_data_raw_std (data, sizeof (data), _NNS_FLOAT16, &avg, &result));
+  EXPECT_FALSE (gst_tensor_data_raw_average_per_channel (
+      data, sizeof (data), _NNS_FLOAT16, dim, &result));
+  EXPECT_FALSE (gst_tensor_data_raw_std_per_channel (
+      data, sizeof (data), _NNS_FLOAT16, dim, avgs, &result));
+  EXPECT_TRUE (result == NULL);
+}
+#endif
 
 /**
  * @brief Main function for unit test.
