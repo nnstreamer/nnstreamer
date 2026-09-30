@@ -75,7 +75,7 @@ if gtest_dep.found()
   # Run unittest_common
   unittest_common = executable('unittest_common',
     join_paths('common', 'unittest_common.cc'),
-    dependencies: [nnstreamer_unittest_deps],
+    dependencies: [nnstreamer_unittest_deps, libdl_dep],
     install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
