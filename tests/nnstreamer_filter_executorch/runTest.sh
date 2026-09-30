@@ -76,6 +76,12 @@ else
 d = np.random.uniform(-100, 100, [3, 4]).astype(np.float32); \
 d.tofile('test_3x4.dat'); \
 np.concatenate([d + 1.0, d + 2.0]).astype(np.float32).tofile('test_3x4.golden')"
+    # A 3:4 uint8 input for the uint8 add-one model. It stops short of 255 so
+    # the golden does not depend on how the model wraps around.
+    python3 -c "import numpy as np; \
+d = np.random.randint(0, 255, [3, 4]).astype(np.uint8); \
+d.tofile('test_3x4_uint8.dat'); \
+(d + 1).astype(np.uint8).tofile('test_3x4_uint8.golden')"
     sopath=$1
 fi
 
@@ -107,6 +113,19 @@ PATH_TO_MODEL="../test_models/models/sample_3x4_two_input_two_output.pte"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_3x4.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:3 input-type=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=executorch model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 7 0 0 $PERFORMANCE
 callCompareTest test_3x4.golden tensorfilter.out.log 8 "Compare 7" 0 0
+
+# A non-float32 model negotiates in its own type and computes in it.
+PATH_TO_MODEL="../test_models/models/sample_3x4_uint8_add_one.pte"
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_3x4_uint8.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:3 input-type=uint8 ! tensor_filter framework=executorch model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 9 0 0 $PERFORMANCE
+callCompareTest test_3x4_uint8.golden tensorfilter.out.log 10 "Compare 9" 0 0
+
+## wrong input type : (expected) uint8 vs float32
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_3x4.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:3 input-type=float32 ! tensor_filter framework=executorch model=${PATH_TO_MODEL} ! tensor_sink" 11_n 0 1 $PERFORMANCE
+
+## bfloat16 has no NNStreamer counterpart, so the model is refused
+PATH_TO_MODEL="../test_models/models/sample_3x4_bfloat16_add_one.pte"
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_3x4_uint8.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:3 input-type=uint8 ! tensor_filter framework=executorch model=${PATH_TO_MODEL} ! tensor_sink" 12_n 0 1 $PERFORMANCE
 
 # Cleanup
 rm *.log *.golden *.dat

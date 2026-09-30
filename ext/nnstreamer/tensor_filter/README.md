@@ -56,6 +56,21 @@ ExecuTorch has no distro package and publishes no prebuilt binaries for desktop 
 
 That script exists because the pkg-config file ExecuTorch generates links the runtime alone, without the operator kernels; a subplugin built against the stock file links cleanly and then fails on the first invoke with an unregistered operator.
 
+Input and output tensor types are taken from the model and mapped as follows:
+
+| ExecuTorch ```ScalarType``` | NNStreamer type |
+| --- | --- |
+| ```Byte```, ```Bool``` | uint8 |
+| ```Char``` | int8 |
+| ```Short``` | int16 |
+| ```Int``` | int32 |
+| ```Long``` | int64 |
+| ```Float``` | float32 |
+| ```Double``` | float64 |
+| ```Half``` | float16, only when NNStreamer is built with ```enable-float16``` |
+
+A model with any other type at its boundary (```BFloat16```, ```UInt16``` and wider unsigned types, the complex, ```QInt*```/```QUInt*``` and bits types) is refused when the filter opens it. A ```Bool``` tensor is passed through as uint8, so every byte fed to a ```Bool``` input must be 0 or 1; ExecuTorch kernels read it as C++ ```bool```, and any other value is undefined behavior.
+
 ### MXNET
 ### NNFW
 ### ONNX Runtime

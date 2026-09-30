@@ -20,11 +20,12 @@
 #   pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
 #   pip install executorch==1.4.1
 #
-# To extend this into quantized or delegated fixtures - the filter is still
-# float32 only, so a quantized fixture is a prerequisite for widening it -
-# quantize the exported program with prepare_pt2e/convert_pt2e from
-# torch.ao.quantization.quantize_pt2e before to_edge_transform_and_lower, and
-# pass a partitioner to that call to delegate to a backend.
+# The non-float32 fixtures pin the tensor type mapping of the filter: models
+# covering every type it accepts, plus a bfloat16 model it has to refuse since
+# NNStreamer has no bfloat16 type. A PT2E quantized model keeps float32 at its
+# boundary; integer boundaries come from integer inputs such as token ids, or
+# from folding the boundary quantize/dequantize ops into the I/O with the
+# QuantizeInputs/QuantizeOutputs passes in executorch.exir.passes.
 #
 # Usage: python3 generateModel.py [output-directory]   (in this directory)
 
@@ -58,6 +59,30 @@ class TwoInputOneOutput(torch.nn.Module):
         return x + y
 
 
+class AddOne(torch.nn.Module):
+    """Adds one to its input, in the input's own type."""
+
+    def forward(self, x):
+        """Return the input plus one."""
+        return x + 1
+
+
+class MultiType(torch.nn.Module):
+    """Adds one to each of six numeric inputs and negates a seventh, bool input."""
+
+    def forward(self, u8, i8, i16, i32, i64, f64, b):
+        """Return every input plus one, and the logical not of the bool input."""
+        return u8 + 1, i8 + 1, i16 + 1, i32 + 1, i64 + 1, f64 + 1, torch.logical_not(b)
+
+
+class SumToBfloat16(torch.nn.Module):
+    """Sums its float32 inputs into a bfloat16 output."""
+
+    def forward(self, *inputs):
+        """Return the sum of every input, cast to bfloat16."""
+        return torch.stack(inputs).sum(0).to(torch.bfloat16)
+
+
 def save_model(path, model, example_args):
     """Export model to the ExecuTorch program format and write it to path."""
     program = to_edge_transform_and_lower(export(model.eval(), example_args)).to_executorch()
@@ -67,13 +92,28 @@ def save_model(path, model, example_args):
 
 
 def main():
-    """Write both fixtures into the directory given on the command line."""
+    """Write every fixture into the directory given on the command line."""
     out_dir = sys.argv[1] if len(sys.argv) > 1 else '../test_models/models'
 
     save_model(os.path.join(out_dir, 'sample_3x4_two_input_two_output.pte'),
                TwoInputTwoOutput(), (torch.rand(3, 4), torch.rand(3, 4)))
     save_model(os.path.join(out_dir, 'sample_4x4x4x4x4_two_input_one_output.pte'),
                TwoInputOneOutput(), (torch.rand(4, 4, 4, 4, 4), torch.rand(4, 4, 4, 4, 4)))
+
+    save_model(os.path.join(out_dir, 'sample_3x4_multi_type.pte'), MultiType(),
+               tuple(torch.zeros(3, 4, dtype=t) for t in
+                     (torch.uint8, torch.int8, torch.int16, torch.int32,
+                      torch.int64, torch.float64, torch.bool)))
+    save_model(os.path.join(out_dir, 'sample_3x4_uint8_add_one.pte'),
+               AddOne(), (torch.zeros(3, 4, dtype=torch.uint8),))
+    save_model(os.path.join(out_dir, 'sample_3x4_float16_add_one.pte'),
+               AddOne(), (torch.zeros(3, 4, dtype=torch.float16),))
+    save_model(os.path.join(out_dir, 'sample_3x4_bfloat16_add_one.pte'),
+               AddOne(), (torch.zeros(3, 4, dtype=torch.bfloat16),))
+    # 17 inputs, so that the input info has spilled past the 16 tensors kept
+    # inline by the time the output type is refused.
+    save_model(os.path.join(out_dir, 'sample_17_input_bfloat16_output.pte'),
+               SumToBfloat16(), tuple(torch.zeros(3, 4) for _ in range(17)))
 
 
 if __name__ == '__main__':
