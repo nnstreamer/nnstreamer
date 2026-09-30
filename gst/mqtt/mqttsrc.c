@@ -167,6 +167,30 @@ _is_gst_buffer_timestamp_valid (GstBuffer * buf)
   return TRUE;
 }
 
+/**
+ * @brief Add two signed time values, failing instead of overflowing
+ */
+static inline gboolean
+_add_time_diff (gint64 a, gint64 b, gint64 * sum)
+{
+  if ((b > 0 && a > G_MAXINT64 - b) || (b < 0 && a < G_MININT64 - b))
+    return FALSE;
+  *sum = a + b;
+  return TRUE;
+}
+
+/**
+ * @brief Subtract two signed time values, failing instead of overflowing
+ */
+static inline gboolean
+_sub_time_diff (gint64 a, gint64 b, gint64 * diff)
+{
+  if ((b < 0 && a > G_MAXINT64 + b) || (b > 0 && a < G_MININT64 + b))
+    return FALSE;
+  *diff = a - b;
+  return TRUE;
+}
+
 /** Function definitions */
 /**
  * @brief Initialize GstMqttSrc object
@@ -1587,24 +1611,40 @@ static void
 _put_timestamp_on_gst_buf (GstMqttSrc * self, GstMQTTMessageHdr * hdr,
     GstBuffer * buf)
 {
-  gint64 diff_base_epoch = hdr->base_time_epoch - self->base_time_epoch;
+  gint64 diff_base_epoch;
+  GstClockTimeDiff ts;
 
   buf->pts = GST_CLOCK_TIME_NONE;
   buf->dts = GST_CLOCK_TIME_NONE;
   buf->duration = GST_CLOCK_TIME_NONE;
 
+  /** A clockless pipeline plays with the epoch unset; keep its timestamps */
+  if (self->base_time_epoch == (gint64) GST_CLOCK_TIME_NONE &&
+      GST_STATE (self) != GST_STATE_PLAYING)
+    return;
+
   if (hdr->sent_time_epoch < self->base_time_epoch)
     return;
 
-  if (((GstClockTimeDiff) hdr->pts + diff_base_epoch) < 0)
+  if (!_sub_time_diff (hdr->base_time_epoch, self->base_time_epoch,
+          &diff_base_epoch))
+    return;
+
+  if (hdr->pts != GST_CLOCK_TIME_NONE && hdr->pts > G_MAXINT64)
+    return;
+
+  if (!_add_time_diff ((GstClockTimeDiff) hdr->pts, diff_base_epoch, &ts) ||
+      ts < 0)
     return;
 
   if (hdr->pts != GST_CLOCK_TIME_NONE) {
-    buf->pts = hdr->pts + diff_base_epoch;
+    buf->pts = (GstClockTime) ts;
   }
 
-  if (hdr->dts != GST_CLOCK_TIME_NONE) {
-    buf->dts = hdr->dts + diff_base_epoch;
+  if (hdr->dts != GST_CLOCK_TIME_NONE && hdr->dts <= G_MAXINT64 &&
+      _add_time_diff ((GstClockTimeDiff) hdr->dts, diff_base_epoch, &ts) &&
+      ts >= 0) {
+    buf->dts = (GstClockTime) ts;
   }
 
   buf->duration = hdr->duration;
