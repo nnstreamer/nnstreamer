@@ -482,6 +482,35 @@ TEST (nnstreamerFilterLiteRT, invoke01_n)
   sp->close (&prop, &data);
 }
 
+/**
+ * @brief Install a log handler for the default domain, which ml_log* uses.
+ * @param[in] func the handler to install for every level
+ * @return the handler id to pass to g_log_remove_handler (NULL, id)
+ */
+static guint
+_WatchDefaultLogDomain (GLogFunc func)
+{
+  /* G_LOG_FLAG_FATAL keeps the handler matching when critical messages are fatal. */
+  return g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      func, NULL);
+}
+
+/**
+ * @brief Log a message on the default domain to prove a handler is live.
+ * @param[in] level the level the message under test is logged at
+ * @param[in] message a message the handler under test counts
+ */
+static void
+_ProbeDefaultLogDomain (GLogLevelFlags level, const gchar *message)
+{
+  /* Only the intentional probe may bypass fatal handling of critical messages. */
+  GLogLevelFlags fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+
+  g_log (NULL, level, "%s", message);
+  g_log_set_always_fatal (fatal_mask);
+}
+
 static std::atomic<int> _direct_output_count (0);
 
 /**
@@ -530,11 +559,11 @@ TEST (nnstreamerFilterLiteRT, zeroCopyDirectPathElected)
    *  g_debug output either way - verified on glib 2.72 - and setting the
    *  variable would only discard whatever the caller had exported. */
   _direct_output_count = 0;
-  GLogFunc prev_handler = g_log_set_default_handler (_countDirectOutputs, NULL);
+  guint handler = _WatchDefaultLogDomain (_countDirectOutputs);
 
   const int ret = sp->open (&prop, &data);
 
-  g_log_set_default_handler (prev_handler, NULL);
+  g_log_remove_handler (NULL, handler);
 
   ASSERT_EQ (ret, 0);
   EXPECT_GT (_direct_output_count.load (), 0)
@@ -1434,8 +1463,14 @@ TEST (nnstreamerFilterLiteRT, sharedEnvRefBalanceOnConfigureFailure)
   ret = sp->open (&prop, &data);
   ASSERT_EQ (ret, 0);
 
+  guint handler = _WatchDefaultLogDomain (_countUnbalancedRelease);
+
   _unbalanced_release_count = 0;
-  GLogFunc prev_handler = g_log_set_default_handler (_countUnbalancedRelease, NULL);
+  _ProbeDefaultLogDomain (G_LOG_LEVEL_CRITICAL,
+      "[probe] Unbalanced LiteRT environment release: handler self-check");
+  EXPECT_EQ (_unbalanced_release_count.load (), 1)
+      << "The handler did not see a probe, so the count below proves nothing.";
+  _unbalanced_release_count = 0;
 
   /* fails in resolveSignature(), after the environment reference is taken */
   _SetFilterProp (&prop_bad, "litert", model_files, "Signature:no_such_signature_key");
@@ -1452,7 +1487,7 @@ TEST (nnstreamerFilterLiteRT, sharedEnvRefBalanceOnConfigureFailure)
   EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
       << "A failed model load disturbed an already-open instance.";
 
-  g_log_set_default_handler (prev_handler, NULL);
+  g_log_remove_handler (NULL, handler);
   EXPECT_EQ (_unbalanced_release_count.load (), 0)
       << "A failed configure released an environment reference it did not hold.";
 
@@ -1932,8 +1967,13 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokePaddedShapeSkipsReshape)
          "agree under either comparison and prove nothing; the fixture needs an "
          "axis the model leaves unset";
 
+  guint handler = _WatchDefaultLogDomain (_countReshapes);
+
   _reshape_count = 0;
-  GLogFunc prev_handler = g_log_set_default_handler (_countReshapes, NULL);
+  _ProbeDefaultLogDomain (G_LOG_LEVEL_DEBUG, "[probe] litert reshaping: handler self-check");
+  EXPECT_EQ (_reshape_count.load (), 1)
+      << "The handler did not see a probe, so the count below proves nothing.";
+  _reshape_count = 0;
 
   gboolean invoked_ok = TRUE;
   for (guint r = 0; r < rounds && invoked_ok; ++r) {
@@ -1951,7 +1991,7 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokePaddedShapeSkipsReshape)
     g_free (output.data);
   }
 
-  g_log_set_default_handler (prev_handler, NULL);
+  g_log_remove_handler (NULL, handler);
 
   EXPECT_TRUE (invoked_ok) << "An invoke at the model's own shape failed.";
   EXPECT_EQ (_reshape_count.load (), 0)
@@ -1995,7 +2035,7 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeNewShapeReshapesOnce)
   dims[1] = 3;
 
   _reshape_count = 0;
-  GLogFunc prev_handler = g_log_set_default_handler (_countReshapes, NULL);
+  guint handler = _WatchDefaultLogDomain (_countReshapes);
 
   gboolean invoked_ok = TRUE;
   for (guint r = 0; r < 3U && invoked_ok; ++r) {
@@ -2014,7 +2054,7 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeNewShapeReshapesOnce)
     g_free (output.data);
   }
 
-  g_log_set_default_handler (prev_handler, NULL);
+  g_log_remove_handler (NULL, handler);
 
   EXPECT_TRUE (invoked_ok) << "Invoking at a new shape failed.";
   EXPECT_EQ (_reshape_count.load (), 1)
