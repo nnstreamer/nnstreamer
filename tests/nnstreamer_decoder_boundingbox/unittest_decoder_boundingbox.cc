@@ -14,7 +14,9 @@
 #include <glib.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
+#include <initializer_list>
 #include <string.h>
+#include <string>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <unittest_util.h>
@@ -2261,6 +2263,633 @@ TEST (tensorDecoderBoundingBox, logBoxOfNegativeClass_n)
   gst_tensors_config_free (&config);
   decoder->exit (&pdata);
   g_ptr_array_unref (log);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief Collect a critical or warning message logged to the default GLib log handler.
+ * @details The message is prefixed with "CRITICAL: " or "WARNING: ".
+ */
+static void
+collectProblem (const gchar *log_domain, GLogLevelFlags log_level,
+    const gchar *message, gpointer user_data)
+{
+  UNUSED (log_domain);
+
+  if (log_level & G_LOG_LEVEL_CRITICAL)
+    g_ptr_array_add ((GPtrArray *) user_data, g_strconcat ("CRITICAL: ", message, NULL));
+  else if (log_level & G_LOG_LEVEL_WARNING)
+    g_ptr_array_add ((GPtrArray *) user_data, g_strconcat ("WARNING: ", message, NULL));
+}
+
+/**
+ * @brief The criticals and warnings logged while an instance lives.
+ * @details nns_loge () and nns_logw () are g_critical () and g_warning () of
+ *          the default domain, which the default handler receives. Criticals
+ *          are made non-fatal meanwhile, so the refusals under test do not
+ *          abort a run with G_DEBUG=fatal-criticals.
+ */
+class LogCapture
+{
+  public:
+  GPtrArray *lines; /**< the collected messages */
+
+  /**
+   * @brief Start collecting.
+   */
+  LogCapture ()
+  {
+    lines = g_ptr_array_new_with_free_func (g_free);
+    old_fatal = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+    old_handler = g_log_set_default_handler (collectProblem, lines);
+  }
+
+  /**
+   * @brief Stop collecting and restore the handler and the fatal mask.
+   */
+  ~LogCapture ()
+  {
+    g_log_set_default_handler (old_handler, NULL);
+    g_log_set_always_fatal (old_fatal);
+    g_ptr_array_unref (lines);
+  }
+
+  /**
+   * @brief Tell whether one collected message contains every fragment.
+   */
+  gboolean has (std::initializer_list<const gchar *> fragments) const
+  {
+    guint i;
+
+    for (i = 0; i < lines->len; i++) {
+      const gchar *line = (const gchar *) g_ptr_array_index (lines, i);
+      gboolean all = TRUE;
+
+      for (const gchar *fragment : fragments)
+        all = all && (strstr (line, fragment) != NULL);
+      if (all)
+        return TRUE;
+    }
+    return FALSE;
+  }
+
+  /**
+   * @brief Get the collected messages, one per line, for a failure report.
+   */
+  std::string dump () const
+  {
+    std::string out = "collected messages:";
+    guint i;
+
+    for (i = 0; i < lines->len; i++)
+      out += std::string ("\n  ") + (const gchar *) g_ptr_array_index (lines, i);
+    return out;
+  }
+
+  private:
+  GLogFunc old_handler; /**< the default handler to restore */
+  GLogLevelFlags old_fatal; /**< the fatal mask to restore */
+};
+
+#ifdef __TIZEN__
+/** @brief nns_loge () is dlog_print () on Tizen, which no GLib log handler receives. */
+#define EXPECT_LOGGED(capture, ...) \
+  do {                              \
+  } while (0)
+#else
+/** @brief Expect that one message of @a capture contains every given fragment. */
+#define EXPECT_LOGGED(capture, ...) \
+  EXPECT_TRUE ((capture).has ({ __VA_ARGS__ })) << (capture).dump ()
+#endif
+
+/**
+ * @brief An empty or unknown option1 is refused with the modes that option1 takes.
+ * @details yolov10 is a mode the option1 description does not list, so the
+ *          names have to come from the modes that are registered.
+ */
+TEST (tensorDecoderBoundingBox, messageUnknownMode_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+
+  {
+    LogCapture log;
+
+    EXPECT_FALSE (decoder->setOption (&pdata, 0, ""));
+    EXPECT_LOGGED (log, "option1", "is empty", "mobilenet-ssd-postprocess", "yolov10");
+  }
+  {
+    LogCapture log;
+
+    EXPECT_FALSE (decoder->setOption (&pdata, 0, "yolov9"));
+    EXPECT_LOGGED (log, "\"yolov9\"", "mp-palm-detection, ov-person-detection, yolov10");
+  }
+
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief An option that needs option1 first is refused with its name and value.
+ * @details The refusal is a warning, as the element gives the option again
+ *          once option1 is set; a stream without option1 is refused with a
+ *          critical when its caps are asked for.
+ */
+TEST (tensorDecoderBoundingBox, messageOptionBeforeMode_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  GstTensorsConfig config;
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 1, "labels.txt"));
+  EXPECT_LOGGED (log, "WARNING: option2 of boundingbox (\"labels.txt\")", "before option2");
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0:0.25:0.45"));
+  EXPECT_LOGGED (log, "WARNING: option3 of boundingbox (\"0:0.25:0.45\")", "before option3");
+  EXPECT_FALSE (decoder->setOption (&pdata, 4, "300:300"));
+  EXPECT_LOGGED (log, "WARNING: option5 of boundingbox (\"300:300\")", "before option5");
+
+  setOvDetectionConfig (&config);
+  EXPECT_TRUE (decoder->getOutCaps (&pdata, &config) == NULL);
+  EXPECT_LOGGED (log, "CRITICAL: ", "box decoding mode is not configured", "option1");
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief An option set before option1 and again after it logs no critical.
+ * @details The element gives the sub-plugin every option again whenever one is
+ *          set, in the order they were last set, so the option ahead of option1
+ *          is refused on each property set until it is set again. The stream
+ *          that follows is configured, so none of that may be a critical.
+ */
+TEST (tensorDecoderBoundingBox, optionBeforeModeSetAgainLogsNoCritical)
+{
+  gchar *labels = writeSsdLabels ();
+  gchar *priors = writeBoxPriors (SSD_DETECTIONS, "0.5");
+  GstElement *dec;
+  guint i;
+
+  ASSERT_TRUE (labels != NULL);
+  ASSERT_TRUE (priors != NULL);
+
+  dec = gst_element_factory_make ("tensor_decoder", NULL);
+  ASSERT_TRUE (dec != NULL);
+  gst_object_ref_sink (dec);
+
+  {
+    LogCapture log;
+
+    g_object_set (dec, "mode", "bounding_boxes", "option3", priors, "option1",
+        "mobilenet-ssd", "option2", labels, "option3", priors, "option4",
+        "64:48", "option5", "300:300", NULL);
+
+    EXPECT_LOGGED (log, "WARNING: option3 of boundingbox", "before option3");
+    for (i = 0; i < log.lines->len; i++)
+      EXPECT_FALSE (g_str_has_prefix (
+          (const gchar *) g_ptr_array_index (log.lines, i), "CRITICAL: "))
+          << log.dump ();
+  }
+
+  gst_object_unref (dec);
+  removeTempFile (&priors);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief A malformed option4 or option5 is named with the value given.
+ * @details option4 is still ignored rather than refused, as it always was.
+ */
+TEST (tensorDecoderBoundingBox, messageVideoSizes_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  GstTensorsConfig config;
+  GstTensorMemory input;
+  GstBuffer *outbuf;
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64"));
+  EXPECT_LOGGED (log, "WARNING: option4", "\"64\"", "left unset");
+  EXPECT_FALSE (decoder->setOption (&pdata, 4, "640"));
+  EXPECT_LOGGED (log, "option5", "\"640\"", "not acceptable");
+  EXPECT_FALSE (decoder->setOption (&pdata, 4, "640:0"));
+  EXPECT_LOGGED (log, "option5", "\"640:0\"", "zero dimension");
+
+  setOvDetectionConfig (&config);
+  EXPECT_TRUE (decoder->getOutCaps (&pdata, &config) == NULL);
+  EXPECT_LOGGED (log, "not configured", "option5");
+
+  memset (&input, 0, sizeof (input));
+  outbuf = gst_buffer_new ();
+  EXPECT_EQ (decoder->decode (&pdata, &config, &input, outbuf), GST_FLOW_ERROR);
+  EXPECT_LOGGED (log, "dimension of the model is zero", "option5");
+  gst_buffer_unref (outbuf);
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief Too few tensors, or tensors of mixed types, are refused with the tensors given.
+ */
+TEST (tensorDecoderBoundingBox, messageTensorCountAndType_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeSsdLabels ();
+  gchar *priors = writeBoxPriors (SSD_DETECTIONS, "0.5");
+  SsdTensors t (0);
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (priors != NULL);
+  ASSERT_TRUE (initSsdDecoder (decoder, &pdata, labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, priors));
+
+  t.config.info.num_tensors = 1;
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_LOGGED (log, "has to be at least 2 for the bounding-box decoding mode, but the input has 1",
+      "4:1:4");
+
+  t.config.info.num_tensors = 2;
+  t.config.info.info[1].type = _NNS_UINT8;
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_LOGGED (log, "tensor 1 is uint8 while tensor 0 is float32");
+
+  decoder->exit (&pdata);
+  removeTempFile (&priors);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief A yolo tensor of the wrong shape is refused with where the expected shape comes from.
+ * @details The expected shape follows from option2 and option5, which is what
+ *          users of these modes get wrong most.
+ */
+TEST (tensorDecoderBoundingBox, messageYoloShape_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const v5_dims[] = { "6:60:1" };
+  gchar *labels = writeLabelFile ("object\n");
+  GstTensorsConfig config;
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (initYoloV8Decoder (decoder, &pdata, labels, YOLO_SMALL_MODEL));
+  setYoloV8Config (&config, YOLO_LARGE_BOXES);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "5:21:1", "5:84:1", "labels in option2 (1)", "option5 (32:32)");
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov5"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, YOLO_SMALL_MODEL));
+  setFloatConfig (&config, 1, v5_dims);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "YoloV5", "6:63:1", "6:60:1", "labels in option2 (1)", "option5 (32:32)");
+
+  gst_tensor_parse_dimension ("6:63:2", config.info.info[0].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "YoloV5", "RANK=2", "6:63:2");
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief yolov8 and yolov8-obb tensors they refuse are named in the messages.
+ * @details Both modes take one float32 tensor of RANK 2 whose shape follows
+ *          from the labels of option2 and the model size of option5; the
+ *          OBB mode has one value more per box, the angle.
+ */
+TEST (tensorDecoderBoundingBox, messageYoloV8AndObb_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const struct {
+    const gchar *mode; /**< option1 */
+    const gchar *valid; /**< the shape the mode takes for 1 label and 32:32 */
+    const gchar *rank3; /**< the same with a third dimension */
+    const gchar *other_size; /**< the shape of a 64:64 model */
+    const gchar *other_mode; /**< the shape the other mode takes */
+  } cases[] = {
+    { "yolov8", "5:21:1", "5:21:2", "5:84:1", "6:21:1" },
+    { "yolov8-obb", "6:21:1", "6:21:2", "6:84:1", "5:21:1" },
+  };
+  gchar *labels = writeLabelFile ("object\n");
+  guint i;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (labels != NULL);
+
+  for (i = 0; i < G_N_ELEMENTS (cases); i++) {
+    const gchar *const dims[] = { cases[i].valid };
+    g_autofree gchar *expected
+        = g_strdup_printf ("requires the input shape to be %s", cases[i].valid);
+    GstTensorsConfig config;
+    void *pdata = NULL;
+    LogCapture log;
+
+    ASSERT_TRUE (decoder->init (&pdata));
+    EXPECT_TRUE (decoder->setOption (&pdata, 0, cases[i].mode));
+    EXPECT_TRUE (decoder->setOption (&pdata, 1, labels));
+    EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+    EXPECT_TRUE (decoder->setOption (&pdata, 4, YOLO_SMALL_MODEL));
+
+    setFloatConfig (&config, 1, dims);
+    EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config)) << cases[i].mode;
+
+    gst_tensor_parse_dimension (cases[i].other_size, config.info.info[0].dimension);
+    EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config)) << cases[i].mode;
+    EXPECT_LOGGED (log, expected, "labels in option2 (1)", "option5 (32:32)");
+
+    gst_tensor_parse_dimension (cases[i].other_mode, config.info.info[0].dimension);
+    EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config)) << cases[i].mode;
+    EXPECT_LOGGED (log, expected, cases[i].other_mode);
+
+    gst_tensor_parse_dimension (cases[i].rank3, config.info.info[0].dimension);
+    EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config)) << cases[i].mode;
+    EXPECT_LOGGED (log, "RANK=2", cases[i].rank3);
+
+    gst_tensor_parse_dimension (cases[i].valid, config.info.info[0].dimension);
+    config.info.info[0].type = _NNS_INT32;
+    EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config)) << cases[i].mode;
+    EXPECT_LOGGED (log, "float32 input tensors only", "int32");
+
+    config.info.info[0].type = _NNS_FLOAT32;
+    config.info.num_tensors = 0;
+    EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config)) << cases[i].mode;
+    EXPECT_LOGGED (log, "needs at least 1 valid tensor");
+
+    config.info.num_tensors = 1;
+    gst_tensors_config_free (&config);
+    decoder->exit (&pdata);
+  }
+
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief mobilenet-ssd options and tensors it refuses are named in the messages.
+ */
+TEST (tensorDecoderBoundingBox, messageSsd_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeSsdLabels ();
+  gchar *priors = writeBoxPriors (SSD_DETECTIONS, "0.5");
+  gchar *fewer = writeBoxPriors (SSD_DETECTIONS - 1, "0.5");
+  gchar *inconsistent = writeLabelFile ("1 1 1 1\n1 1 1 1\n1 1\n1 1 1 1\n");
+  SsdTensors t (0);
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (priors != NULL);
+  ASSERT_TRUE (fewer != NULL);
+  ASSERT_TRUE (inconsistent != NULL);
+  ASSERT_TRUE (initSsdDecoder (decoder, &pdata, labels));
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "/no/such/box_priors.txt"));
+  EXPECT_LOGGED (log, "/no/such/box_priors.txt", "cannot be read");
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, inconsistent));
+  EXPECT_LOGGED (log, inconsistent, "line 3 has 2 priors", "have 4");
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, fewer));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_LOGGED (log, "4 detections", fewer, "has 3 priors");
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, priors));
+  gst_tensor_parse_dimension ("4:2:4", t.config.info.info[0].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_LOGGED (log, "first tensor (box locations) to be 4:1:#DETECTIONS", "4:2:4");
+
+  gst_tensor_parse_dimension ("4:1:4", t.config.info.info[0].dimension);
+  gst_tensor_parse_dimension ("3:4", t.config.info.info[1].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_LOGGED (log, "(class scores), 3,", "labels in option2 (2)");
+
+  gst_tensor_parse_dimension ("2:3", t.config.info.info[1].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_LOGGED (log, "second tensor (class scores) to be #LABELS:4", "2:3");
+
+  decoder->exit (&pdata);
+  removeTempFile (&inconsistent);
+  removeTempFile (&fewer);
+  removeTempFile (&priors);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief mobilenet-ssd-postprocess options and tensors it refuses are named in the messages.
+ * @details Each tensor is named with its index, which option3 chooses.
+ */
+TEST (tensorDecoderBoundingBox, messageSsdPp_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const one_dims[] = { "1", "1:1", "1:1", "4:1" };
+  const gchar *const two_dims[] = { "1", "2:1", "2:1", "4:2" };
+  GstTensorsConfig config;
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "mobilenet-ssd-postprocess"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0:1:2"));
+  EXPECT_LOGGED (log,
+      "LOCATIONS_IDX:CLASSES_IDX:SCORES_IDX:NUM_IDX,THRESHOLD_PERCENT", "\"0:1:2\"");
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, "3:1:2:0,150"));
+  EXPECT_LOGGED (log, "150", "[0, 100]", "stays 0.00");
+
+  setFloatConfig (&config, 4, one_dims);
+  gst_tensor_parse_dimension ("2", config.info.info[0].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "tensor 0 (the number of detections, NUM_IDX of option3) to be 1");
+
+  gst_tensor_parse_dimension ("1", config.info.info[0].dimension);
+  gst_tensor_parse_dimension ("2:1", config.info.info[1].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "tensor 1 (classes", "tensor 2 (scores");
+
+  gst_tensor_parse_dimension ("1:1", config.info.info[1].dimension);
+  gst_tensor_parse_dimension ("4:2", config.info.info[3].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "tensor 3 (locations, LOCATIONS_IDX of option3) to be 4:1");
+  gst_tensors_config_free (&config);
+
+  setFloatConfig (&config, 4, one_dims);
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  gst_tensors_config_free (&config);
+  setFloatConfig (&config, 4, two_dims);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "set up for 1 detections", "the 2 detections");
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief mp-palm-detection options and tensors it refuses are named in the messages.
+ */
+TEST (tensorDecoderBoundingBox, messagePalm_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (initPalmDecoder (decoder, &pdata));
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:7:1.0:1.0:0.5:0.5:32:32:32:32:32:32:32:32"));
+  EXPECT_LOGGED (log, "at most 13 values", "has 14");
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:0"));
+  EXPECT_LOGGED (log, "number of layers", "\"0.5:0\"", "[1, 7]", "it is 0");
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:2:1.0:1.0:0.5:0.5:32:0"));
+  EXPECT_LOGGED (log, "stride of layer 1 (value #8", "it is 0");
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_64));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_LOGGED (log, "72 detections", "generates 18 anchors");
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32));
+  gst_tensor_parse_dimension ("17:72:1", t.config.info.info[0].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_LOGGED (log, "first tensor (boxes) to be 18:#DETECTIONS:1", "17:72:1");
+
+  gst_tensor_parse_dimension ("18:72:1", t.config.info.info[0].dimension);
+  gst_tensor_parse_dimension ("1:71:1", t.config.info.info[1].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_LOGGED (log, "second tensor (scores) to be 1:72", "1:71:1");
+
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief An ov-person-detection tensor of the wrong shape is refused with the shape expected.
+ */
+TEST (tensorDecoderBoundingBox, messageOvDetectionShape_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  GstTensorsConfig config;
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+
+  setOvDetectionConfig (&config);
+  gst_tensor_parse_dimension ("7:100:1:1", config.info.info[0].dimension);
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "7:200:1:1", "7:100:1:1");
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief Streams every mode accepts are set up without a critical or a warning.
+ * @details The messages of the refusals must not reach a stream that decodes.
+ *          A probe proves the capture sees criticals first, since a count of
+ *          zero would pass with a handler that sees nothing.
+ */
+TEST (tensorDecoderBoundingBox, acceptedStreamsLogNoProblem)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const ssd_pp_dims[] = { "1", "1:1", "1:1", "4:1" };
+  const gchar *const yolov5_dims[] = { "6:63:1" };
+  const gchar *const yolov10_dims[] = { "6:300:1" };
+  gchar *labels = writeLabelFile ("object\n");
+  gchar *ssd_labels = writeSsdLabels ();
+  gchar *priors = writeBoxPriors (SSD_DETECTIONS, "0.5");
+  PalmDetectionTensors palm;
+  SsdTensors ssd (0);
+  GstTensorsConfig config;
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (labels != NULL);
+  ASSERT_TRUE (priors != NULL);
+
+  g_critical ("probe of the log capture");
+  ASSERT_EQ (log.lines->len, 1U);
+  g_ptr_array_set_size (log.lines, 0);
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+  setOvDetectionConfig (&config);
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+
+  ASSERT_TRUE (initSsdDecoder (decoder, &pdata, ssd_labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, priors));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &ssd.config));
+  decoder->exit (&pdata);
+
+  ASSERT_TRUE (initSsdPpDecoder (decoder, &pdata, labels, "0", "0"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, "3:1:2:0,50"));
+  setFloatConfig (&config, 4, ssd_pp_dims);
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+
+  ASSERT_TRUE (initPalmDecoder (decoder, &pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &palm.config));
+  decoder->exit (&pdata);
+
+  ASSERT_TRUE (initYoloV8Decoder (decoder, &pdata, labels, YOLO_SMALL_MODEL));
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, "0:0.25:0.45"));
+  setYoloV8Config (&config, YOLO_SMALL_BOXES);
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov5"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, YOLO_SMALL_MODEL));
+  setFloatConfig (&config, 1, yolov5_dims);
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov10"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "320:320"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "320:320"));
+  setFloatConfig (&config, 1, yolov10_dims);
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+
+  EXPECT_EQ (log.lines->len, 0U) << log.dump ();
+
+  removeTempFile (&priors);
+  removeTempFile (&ssd_labels);
   removeTempFile (&labels);
 }
 

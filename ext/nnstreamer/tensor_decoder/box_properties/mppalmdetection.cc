@@ -258,14 +258,16 @@ MpPalmDetection::setOptionInternal (const char *param)
   noptions = g_strv_length (options);
 
   if (noptions > PARAMS_MAX) {
-    GST_ERROR ("Invalid MP PALM DETECTION PARAM length: %d", noptions);
+    nns_loge ("option3 of boundingbox for mp-palm-detection takes at most %d values, but \"%s\" has %d.",
+        PARAMS_MAX, param, noptions);
     ret = FALSE;
     goto exit_mp_palm_detection;
   }
 
   layers = (noptions > 1) ? (gint) g_strtod (options[1], NULL) : num_layers;
   if (layers < 1 || layers > PARAMS_MAX - 6) {
-    GST_ERROR ("Invalid MP PALM DETECTION number of layers: %d", layers);
+    nns_loge ("The number of layers, the second value of option3 of boundingbox for mp-palm-detection (\"%s\"), has to be in the range [1, %d], but it is %d.",
+        param, PARAMS_MAX - 6, layers);
     ret = FALSE;
     goto exit_mp_palm_detection;
   }
@@ -277,7 +279,8 @@ MpPalmDetection::setOptionInternal (const char *param)
       stride = (gint) g_strtod (options[idx + 6], NULL);
 
     if (stride <= 0) {
-      GST_ERROR ("Invalid MP PALM DETECTION stride of layer %d: %d", idx, stride);
+      nns_loge ("The stride of layer %d (value #%d of option3 of boundingbox for mp-palm-detection, \"%s\") has to be positive, but it is %d. A layer beyond the fourth needs its stride given.",
+          idx, idx + 7, param, stride);
       ret = FALSE;
       goto exit_mp_palm_detection;
     }
@@ -306,7 +309,9 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
 {
   const uint32_t *dim1, *dim2;
   int i;
+  gboolean valid;
   GstTensorInfo *info = nullptr;
+  g_autofree gchar *info_str = NULL;
 
   if (!check_tensors (config, MAX_TENSORS))
     return FALSE;
@@ -315,35 +320,48 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
   dim1 = info->dimension;
 
-  g_return_val_if_fail (dim1[0] == INFO_SIZE, FALSE);
-  g_return_val_if_fail (dim1[1] > 0, FALSE);
-  g_return_val_if_fail (dim1[2] == 1, FALSE);
+  valid = (dim1[0] == INFO_SIZE && dim1[1] > 0 && dim1[2] == 1);
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, FALSE);
+    valid = valid && (dim1[i] == 0 || dim1[i] == 1);
+
+  if (!valid) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("mp-palm-detection bounding-box decoder requires the first tensor (boxes) to be %d:#DETECTIONS:1. The given input tensors are: %s.",
+        INFO_SIZE, info_str);
+    return FALSE;
+  }
 
   /* Check if the second tensor is compatible */
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 1);
   dim2 = info->dimension;
-  g_return_val_if_fail (dim2[0] == 1, FALSE);
-  g_return_val_if_fail (dim1[1] == dim2[1], FALSE);
+  valid = (dim2[0] == 1 && dim1[1] == dim2[1]);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, FALSE);
+    valid = valid && (dim2[i] == 0 || dim2[i] == 1);
+
+  if (!valid) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("mp-palm-detection bounding-box decoder requires the second tensor (scores) to be 1:%u to match the detections of the first tensor. The given input tensors are: %s.",
+        dim1[1], info_str);
+    return FALSE;
+  }
 
   /* Check consistency with max_detection */
   if (max_detection != 0 && max_detection != dim1[1]) {
-    GST_ERROR ("Failed to check consistency with max_detection");
+    nns_loge ("mp-palm-detection bounding-box decoder has been set up for %u detections and cannot take the %u detections of the new input tensors.",
+        max_detection, dim1[1]);
     return FALSE;
   } else {
     max_detection = dim1[1];
   }
 
   if (max_detection > MAX_DETECTION) {
-    GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
+    nns_loge ("mp-palm-detection bounding-box decoder supports up to %d detections, but the input tensors have %u.",
+        MAX_DETECTION, max_detection);
     return FALSE;
   }
 
   if (anchors->len < max_detection) {
-    GST_ERROR ("Incoming tensor has %u detections but option3 generates %u anchors",
+    nns_loge ("mp-palm-detection bounding-box decoder requires an anchor for every detection, but the input tensors have %u detections while option3 of boundingbox generates %u anchors. Give option3 the layers and strides of the model.",
         max_detection, anchors->len);
     return FALSE;
   }

@@ -221,7 +221,7 @@ MobilenetSSD::mobilenet_ssd_loadBoxPrior ()
 
   /* Read file contents */
   if (!g_file_get_contents (box_prior_path, &contents, NULL, &err)) {
-    GST_ERROR ("Decoder/Bound-Box/SSD's box prior file %s cannot be read: %s",
+    nns_loge ("The box prior file of mobilenet-ssd (option3 of boundingbox), %s, cannot be read: %s",
         box_prior_path, err->message);
     g_clear_error (&err);
     return FALSE;
@@ -262,7 +262,8 @@ MobilenetSSD::mobilenet_ssd_loadBoxPrior ()
     }
 
     if (prev_reg != -1 && prev_reg != registered) {
-      GST_ERROR ("Decoder/Bound-Box/SSD's box prior data file is not consistent.");
+      nns_loge ("The box prior file of mobilenet-ssd (option3 of boundingbox), %s, is not consistent: line %u has %d priors while the previous lines have %d. Each of the first %d lines has to list one value per prior.",
+          box_prior_path, row + 1, registered, prev_reg, BOX_SIZE);
       failed = TRUE;
       break;
     }
@@ -328,8 +329,10 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
 {
   const uint32_t *dim1, *dim2;
   int i;
+  gboolean valid;
   guint max_label;
   GstTensorInfo *info = nullptr;
+  g_autofree gchar *info_str = NULL;
 
   if (!check_tensors (config, MAX_TENSORS))
     return FALSE;
@@ -338,43 +341,62 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
   dim1 = info->dimension;
 
-  g_return_val_if_fail (dim1[0] == BOX_SIZE, FALSE);
-  g_return_val_if_fail (dim1[1] == 1, FALSE);
-  g_return_val_if_fail (dim1[2] > 0, FALSE);
-
+  valid = (dim1[0] == BOX_SIZE && dim1[1] == 1 && dim1[2] > 0);
   /** @todo unused dimension value should be 0 */
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, FALSE);
+    valid = valid && (dim1[i] == 0 || dim1[i] == 1);
+
+  if (!valid) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("mobilenet-ssd bounding-box decoder requires the first tensor (box locations) to be %d:1:#DETECTIONS. The given input tensors are: %s.",
+        BOX_SIZE, info_str);
+    return FALSE;
+  }
 
   /* Check if the second tensor is compatible */
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 1);
   dim2 = info->dimension;
 
   max_label = dim2[0];
-  g_return_val_if_fail (max_label <= total_labels, FALSE);
+  if (max_label > total_labels) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("mobilenet-ssd bounding-box decoder requires the first dimension of the second tensor (class scores), %u, to be at most the number of labels in option2 (%u). The given input tensors are: %s.",
+        max_label, total_labels, info_str);
+    return FALSE;
+  }
   if (max_label < total_labels)
     GST_WARNING ("The given tensor (2nd) has max_label (first dimension: %u) smaller than the number of labels in labels file (%u).",
         max_label, total_labels);
-  g_return_val_if_fail (dim1[2] == dim2[1], FALSE);
+
+  valid = (dim1[2] == dim2[1]);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, FALSE);
+    valid = valid && (dim2[i] == 0 || dim2[i] == 1);
+
+  if (!valid) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("mobilenet-ssd bounding-box decoder requires the second tensor (class scores) to be #LABELS:%u to match the detections of the first tensor. The given input tensors are: %s.",
+        dim1[2], info_str);
+    return FALSE;
+  }
 
   /* Check consistency with max_detection */
   if (max_detection != 0 && max_detection != dim1[2]) {
-    GST_ERROR ("Failed to check consistency with max_detection");
+    nns_loge ("mobilenet-ssd bounding-box decoder has been set up for %u detections and cannot take the %u detections of the new input tensors.",
+        max_detection, dim1[2]);
     return FALSE;
   } else {
     max_detection = dim1[2];
   }
 
   if (max_detection > DETECTION_MAX) {
-    GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
+    nns_loge ("mobilenet-ssd bounding-box decoder supports up to %d detections, but the input tensors have %u.",
+        DETECTION_MAX, max_detection);
     return FALSE;
   }
 
   if (box_prior_count < max_detection) {
-    GST_ERROR ("Incoming tensor has %u detections but the box prior file has %u priors",
-        max_detection, box_prior_count);
+    nns_loge ("mobilenet-ssd bounding-box decoder requires a box prior for every detection, but the input tensors have %u detections while the box prior file of option3 (%s) has %u priors.",
+        max_detection, GST_STR_NULL (box_prior_path), box_prior_count);
     return FALSE;
   }
 
