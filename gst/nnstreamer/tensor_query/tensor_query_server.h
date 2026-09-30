@@ -45,6 +45,8 @@ typedef struct
 {
   guint id;
   gboolean configured;
+  gboolean removed;
+  gint refcount;
   GMutex lock;
   GCond cond;
 

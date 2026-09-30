@@ -56,7 +56,20 @@ _release_server_data (gpointer data)
 }
 
 /**
- * @brief Get nnstreamer edge server handle.
+ * @brief Drop a reference of query server data, releasing it with the last one.
+ */
+static void
+gst_tensor_query_server_unref (gpointer data)
+{
+  GstTensorQueryServer *_data = (GstTensorQueryServer *) data;
+
+  if (_data && g_atomic_int_dec_and_test (&_data->refcount))
+    _release_server_data (_data);
+}
+
+/**
+ * @brief Get nnstreamer edge server handle. The caller owns a reference and
+ *        must drop it with gst_tensor_query_server_unref().
  */
 static GstTensorQueryServer *
 gst_tensor_query_server_get_handle (const guint id)
@@ -65,6 +78,8 @@ gst_tensor_query_server_get_handle (const guint id)
 
   G_LOCK (query_server_table);
   data = g_hash_table_lookup (_qs_table, GUINT_TO_POINTER (id));
+  if (data)
+    g_atomic_int_inc (&data->refcount);
   G_UNLOCK (query_server_table);
 
   return data;
@@ -77,33 +92,29 @@ gboolean
 gst_tensor_query_server_add_data (const guint id)
 {
   GstTensorQueryServer *data;
-  gboolean ret;
+  gboolean ret = TRUE;
 
-  data = gst_tensor_query_server_get_handle (id);
-
-  if (NULL != data) {
-    return TRUE;
-  }
+  G_LOCK (query_server_table);
+  if (g_hash_table_contains (_qs_table, GUINT_TO_POINTER (id)))
+    goto done;
 
   data = g_try_new0 (GstTensorQueryServer, 1);
   if (NULL == data) {
     nns_loge ("Failed to allocate memory for tensor query server data.");
-    return FALSE;
+    ret = FALSE;
+    goto done;
   }
 
   g_mutex_init (&data->lock);
   g_cond_init (&data->cond);
   data->id = id;
   data->configured = FALSE;
+  data->refcount = 1;
 
-  G_LOCK (query_server_table);
-  ret = g_hash_table_insert (_qs_table, GUINT_TO_POINTER (id), data);
-  if (!ret) {
-    _release_server_data (data);
-    nns_loge ("Failed to add tensor query server data into the table.");
-  }
+  g_hash_table_insert (_qs_table, GUINT_TO_POINTER (id), data);
+
+done:
   G_UNLOCK (query_server_table);
-
   return ret;
 }
 
@@ -125,6 +136,9 @@ gst_tensor_query_server_prepare (const guint id,
   }
 
   g_mutex_lock (&data->lock);
+  if (data->removed)
+    goto done;
+
   if (data->edge_h == NULL) {
     id_str = g_strdup_printf ("%u", id);
 
@@ -173,6 +187,7 @@ gst_tensor_query_server_prepare (const guint id,
 
 done:
   g_mutex_unlock (&data->lock);
+  gst_tensor_query_server_unref (data);
   return prepared;
 }
 
@@ -202,12 +217,14 @@ gst_tensor_query_server_send_buffer (const guint id, GstBuffer * buffer)
   meta_query = gst_buffer_get_meta_query (buffer);
   if (!meta_query) {
     nns_loge ("Failed to send buffer, cannot get tensor query meta.");
+    gst_tensor_query_server_unref (data);
     return FALSE;
   }
 
   ret = nns_edge_data_create (&data_h);
   if (ret != NNS_EDGE_ERROR_NONE) {
     nns_loge ("Failed to create edge data handle in query server.");
+    gst_tensor_query_server_unref (data);
     return FALSE;
   }
 
@@ -247,6 +264,7 @@ done:
   }
 
   nns_edge_data_destroy (data_h);
+  gst_tensor_query_server_unref (data);
 
   return sent;
 }
@@ -271,18 +289,39 @@ gst_tensor_query_server_release_edge_handle (const guint id)
     data->edge_h = NULL;
   }
   g_mutex_unlock (&data->lock);
+  gst_tensor_query_server_unref (data);
 }
 
 /**
- * @brief Remove GstTensorQueryServer.
+ * @brief Remove GstTensorQueryServer and release its edge handle. A user still
+ *        holding the data keeps it until it is done; a waiter in
+ *        gst_tensor_query_server_wait_sink() is woken up and fails.
  */
 void
 gst_tensor_query_server_remove_data (const guint id)
 {
+  GstTensorQueryServer *data;
+
   G_LOCK (query_server_table);
-  if (g_hash_table_lookup (_qs_table, GUINT_TO_POINTER (id)))
+  data = g_hash_table_lookup (_qs_table, GUINT_TO_POINTER (id));
+  if (data) {
+    g_atomic_int_inc (&data->refcount);
     g_hash_table_remove (_qs_table, GUINT_TO_POINTER (id));
+  }
   G_UNLOCK (query_server_table);
+
+  if (NULL == data)
+    return;
+
+  g_mutex_lock (&data->lock);
+  data->removed = TRUE;
+  if (data->edge_h) {
+    nns_edge_release_handle (data->edge_h);
+    data->edge_h = NULL;
+  }
+  g_cond_broadcast (&data->cond);
+  g_mutex_unlock (&data->lock);
+  gst_tensor_query_server_unref (data);
 }
 
 /**
@@ -293,6 +332,7 @@ gst_tensor_query_server_wait_sink (const guint id)
 {
   gint64 end_time;
   GstTensorQueryServer *data;
+  gboolean configured;
 
   data = gst_tensor_query_server_get_handle (id);
 
@@ -303,16 +343,17 @@ gst_tensor_query_server_wait_sink (const guint id)
   end_time = g_get_monotonic_time () +
       DEFAULT_QUERY_INFO_TIMEOUT * G_TIME_SPAN_SECOND;
   g_mutex_lock (&data->lock);
-  while (!data->configured) {
-    if (!g_cond_wait_until (&data->cond, &data->lock, end_time)) {
-      g_mutex_unlock (&data->lock);
-      ml_loge ("Failed to get server sink info.");
-      return FALSE;
-    }
+  while (!data->configured && !data->removed) {
+    if (!g_cond_wait_until (&data->cond, &data->lock, end_time))
+      break;
   }
+  configured = data->configured && !data->removed;
+  if (!configured)
+    ml_loge ("Failed to get server sink info.");
   g_mutex_unlock (&data->lock);
+  gst_tensor_query_server_unref (data);
 
-  return TRUE;
+  return configured;
 }
 
 /**
@@ -333,6 +374,7 @@ gst_tensor_query_server_set_configured (const guint id)
   data->configured = TRUE;
   g_cond_broadcast (&data->cond);
   g_mutex_unlock (&data->lock);
+  gst_tensor_query_server_unref (data);
 }
 
 /**
@@ -363,6 +405,7 @@ gst_tensor_query_server_set_caps (const guint id, const gchar * caps_str)
   g_free (new_caps_str);
 
   g_mutex_unlock (&data->lock);
+  gst_tensor_query_server_unref (data);
 }
 
 /**
@@ -374,7 +417,7 @@ init_queryserver (void)
   G_LOCK (query_server_table);
   g_assert (NULL == _qs_table); /** Internal error (duplicated init call?) */
   _qs_table = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
-      _release_server_data);
+      gst_tensor_query_server_unref);
   G_UNLOCK (query_server_table);
 }
 

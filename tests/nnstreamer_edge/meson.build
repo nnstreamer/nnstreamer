@@ -33,3 +33,13 @@ unittest_query = executable('unittest_query',
 )
 
 test('unittest_query', unittest_query, env: testenv)
+
+# Run unittest_query_server (interposes GLib and nnstreamer-edge symbols)
+unittest_query_server = executable('unittest_query_server',
+  join_paths('query', 'unittest_query_server.cc'),
+  dependencies: [nnstreamer_unittest_deps, nnstreamer_edge_support_deps, libdl_dep],
+  install: get_option('install-test'),
+  install_dir: unittest_install_dir
+)
+
+test('unittest_query_server', unittest_query_server, env: testenv)
