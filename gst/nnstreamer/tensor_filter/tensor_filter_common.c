@@ -2725,7 +2725,7 @@ gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv,
 {
   if (priv->prop.fw_opened) {
     if (priv->fw) {
-      if (suspend && gst_tensor_filter_suspend (priv)) {
+      if (suspend && (priv->is_suspended || gst_tensor_filter_suspend (priv))) {
         /* Suspended, skip closing the model. */
         return;
       }
@@ -2737,6 +2737,7 @@ gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv,
 
     priv->prop.fw_opened = FALSE;
     priv->privateData = NULL;
+    priv->is_suspended = FALSE;
   }
 }
 
