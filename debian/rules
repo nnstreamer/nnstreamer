@@ -113,8 +113,7 @@ ifeq ($(DEB_HOST_ARCH), amd64)
 #
 # The block is amd64 because part of the suite expects openvino-cpu-mkldnn,
 # which the PPA ships for amd64 only; running here asserts nothing about an
-# arm64 build that no job exercises. test_debian_rules_series.sh pins where
-# this runs, where it does not, and that every case named below still exists.
+# arm64 build that no job exercises.
 ifeq ($(ENABLE_OPENVINO), true)
 	GTEST_FILTER=$(OPENVINO_TESTS) ./packaging/run_unittests_binaries.sh ./tests/nnstreamer_filter_openvino
 endif

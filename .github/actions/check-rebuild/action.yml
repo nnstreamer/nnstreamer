@@ -16,8 +16,7 @@ runs:
         echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
         # get_rebuild_flag.sh prints 0 or 1 and exits nonzero on checker
         # failure, which fails this "sh -e" step instead of silently
-        # skipping the job. It is also exercised by
-        # test_check_if_rebuild_requires.sh in the Static checks workflow.
+        # skipping the job.
         rebuild=$(bash .github/actions/check-rebuild/get_rebuild_flag.sh ${tmpfile} ${{ inputs.mode }})
         echo "Rebuild required: ${rebuild}"
         echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
