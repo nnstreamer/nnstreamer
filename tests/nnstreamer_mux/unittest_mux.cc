@@ -265,6 +265,308 @@ TEST (tensorMuxCollect, flexibleTooManyTensors_n)
 }
 
 /**
+ * @brief Data size of each flexible tensor the tests below make.
+ */
+#define MUX_FLEX_DATA_SIZE (4U)
+
+/**
+ * @brief Create a flexible tensor: a meta header and 4 uint8 values, the
+ *        j-th of which is (id * 4 + j + 1).
+ * @return the memory, which the caller should unref
+ */
+static GstMemory *
+_flexible_tensor (guint id)
+{
+  GstTensorInfo info;
+  GstTensorMetaInfo meta;
+  GstMemory *data, *mem;
+  GstMapInfo map;
+  guint j;
+
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT8;
+  info.dimension[0] = MUX_FLEX_DATA_SIZE;
+  gst_tensor_info_convert_to_meta (&info, &meta);
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  data = gst_allocator_alloc (NULL, MUX_FLEX_DATA_SIZE, NULL);
+  if (gst_memory_map (data, &map, GST_MAP_WRITE)) {
+    for (j = 0; j < MUX_FLEX_DATA_SIZE; j++)
+      map.data[j] = (guint8) (id * MUX_FLEX_DATA_SIZE + j + 1);
+    gst_memory_unmap (data, &map);
+  }
+
+  mem = gst_tensor_meta_info_append_header (&meta, data);
+  gst_memory_unref (data);
+  return mem;
+}
+
+/**
+ * @brief Create a buffer of one memory holding flexible tensors 0 to
+ *        num_tensors - 1 back to back, followed by tail bytes of 0xff.
+ * @return the buffer, which the caller should unref
+ */
+static GstBuffer *
+_flexible_single_memory (guint num_tensors, gsize tail)
+{
+  GstMemory *first = _flexible_tensor (0);
+  gsize tsize = gst_memory_get_sizes (first, NULL, NULL);
+  GstBuffer *buf;
+  GstMapInfo map;
+  gsize offset = 0;
+  guint i;
+
+  gst_memory_unref (first);
+  buf = gst_buffer_new_allocate (NULL, tsize * num_tensors + tail, NULL);
+
+  if (gst_buffer_map (buf, &map, GST_MAP_WRITE)) {
+    for (i = 0; i < num_tensors; i++) {
+      GstMemory *mem = _flexible_tensor (i);
+      GstMapInfo tmap;
+
+      if (gst_memory_map (mem, &tmap, GST_MAP_READ)) {
+        memcpy (map.data + offset, tmap.data, tmap.size);
+        gst_memory_unmap (mem, &tmap);
+      }
+      gst_memory_unref (mem);
+      offset += tsize;
+    }
+    memset (map.data + offset, 0xff, tail);
+    gst_buffer_unmap (buf, &map);
+  }
+
+  GST_BUFFER_PTS (buf) = 0;
+  return buf;
+}
+
+/**
+ * @brief Check that the n-th tensor of a buffer is the whole flexible tensor
+ *        made by _flexible_tensor (id).
+ */
+static void
+_expect_flexible_tensor (GstBuffer *buf, guint nth, guint id)
+{
+  GstMemory *mem = gst_tensor_buffer_get_nth_memory (buf, nth);
+  GstMemory *expected = _flexible_tensor (id);
+  GstMapInfo map, emap;
+
+  ASSERT_NE (mem, nullptr);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+  ASSERT_TRUE (gst_memory_map (expected, &emap, GST_MAP_READ));
+  EXPECT_EQ (map.size, emap.size) << "tensor " << nth;
+  if (map.size == emap.size) {
+    EXPECT_EQ (memcmp (map.data, emap.data, map.size), 0) << "tensor " << nth;
+  }
+  gst_memory_unmap (expected, &emap);
+  gst_memory_unmap (mem, &map);
+  gst_memory_unref (expected);
+  gst_memory_unref (mem);
+}
+
+/**
+ * @brief Push a buffer to a flexible tensor_mux pad and check that the
+ *        output carries flexible tensors 0 to num_tensors - 1 in order.
+ */
+static void
+_expect_flexible_collect (GstBuffer *in, guint num_tensors)
+{
+  GstHarness *h = _mux_harness_new (MUX_FLEXIBLE_CAPS);
+  GstBuffer *out;
+  guint i;
+
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+  EXPECT_FALSE (_element_posted_error (h->element));
+
+  out = gst_harness_try_pull (h);
+  EXPECT_NE (out, nullptr);
+  if (out) {
+    EXPECT_EQ (gst_tensor_buffer_get_count (out), num_tensors);
+    for (i = 0; i < num_tensors && i < gst_tensor_buffer_get_count (out); i++)
+      _expect_flexible_tensor (out, i, i);
+    gst_buffer_unref (out);
+  }
+
+  EXPECT_TRUE (gst_harness_push_event (h, gst_event_new_eos ()));
+  _mux_harness_teardown (h);
+}
+
+/**
+ * @brief A flexible pad takes one memory holding two flexible tensors and
+ *        collects both of them, in order.
+ */
+TEST (tensorMuxCollect, flexibleSingleMemory)
+{
+  _expect_flexible_collect (_flexible_single_memory (2, 0), 2);
+}
+
+/**
+ * @brief A flexible pad takes one memory holding NNS_TENSOR_MEMORY_MAX
+ *        flexible tensors, the most that gst_tensor_buffer_from_config() can
+ *        split, and collects all of them.
+ */
+TEST (tensorMuxCollect, flexibleSingleMemoryMax)
+{
+  _expect_flexible_collect (
+      _flexible_single_memory (NNS_TENSOR_MEMORY_MAX, 0), NNS_TENSOR_MEMORY_MAX);
+}
+
+/**
+ * @brief A flexible pad takes one memory made from a buffer of more than
+ *        NNS_TENSOR_MEMORY_MAX flexible tensors, whose last memory holds the
+ *        extra tensors, and collects all of them.
+ */
+TEST (tensorMuxCollect, flexibleSingleMemoryExtraTensors)
+{
+  const guint num_tensors = NNS_TENSOR_MEMORY_MAX + 2;
+  GstBuffer *tensors = gst_buffer_new ();
+  GstBuffer *in = gst_buffer_new ();
+  GstTensorInfo info;
+  guint i;
+
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT8;
+  info.dimension[0] = MUX_FLEX_DATA_SIZE;
+  for (i = 0; i < num_tensors; i++)
+    ASSERT_TRUE (gst_tensor_buffer_append_memory (tensors, _flexible_tensor (i), &info));
+  ASSERT_EQ (gst_tensor_buffer_get_count (tensors), num_tensors);
+
+  gst_buffer_append_memory (in, gst_buffer_get_all_memory (tensors));
+  gst_buffer_unref (tensors);
+  GST_BUFFER_PTS (in) = 0;
+
+  _expect_flexible_collect (in, num_tensors);
+}
+
+/**
+ * @brief The bytes after the last flexible tensor of a single memory are not
+ *        a tensor, and tensor_mux does not collect them.
+ */
+TEST (tensorMuxCollect, flexibleSingleMemoryTail)
+{
+  /* shorter than a meta header, and as long as one but not a valid header */
+  _expect_flexible_collect (_flexible_single_memory (2, 10), 2);
+  _expect_flexible_collect (_flexible_single_memory (2, 200), 2);
+}
+
+/**
+ * @brief A single flexible tensor followed by bytes that are not a tensor
+ *        still gives that tensor alone.
+ */
+TEST (tensorMuxCollect, flexibleSingleTensorTail)
+{
+  _expect_flexible_collect (_flexible_single_memory (1, 10), 1);
+  _expect_flexible_collect (_flexible_single_memory (1, 200), 1);
+}
+
+/**
+ * @brief Flexible inputs that were never split keep their tensor count: a
+ *        single tensor in one memory, and one tensor per memory.
+ */
+TEST (tensorMuxCollect, flexibleUnsplit)
+{
+  GstBuffer *in = gst_buffer_new ();
+  guint i;
+
+  _expect_flexible_collect (_flexible_single_memory (1, 0), 1);
+
+  for (i = 0; i < 3; i++)
+    gst_buffer_append_memory (in, _flexible_tensor (i));
+  GST_BUFFER_PTS (in) = 0;
+  _expect_flexible_collect (in, 3);
+}
+
+/**
+ * @brief Flexible tensors from two pads, one of which sends them in a single
+ *        memory, are collected in pad order.
+ */
+TEST (tensorMuxCollect, flexibleSingleMemoryTwoPads)
+{
+  GstElement *pipeline, *src0, *src1, *sink;
+  GstBuffer *buf;
+  GstSample *sample = NULL;
+  GstFlowReturn ret;
+  guint i;
+
+  pipeline = gst_parse_launch (
+      "appsrc name=src0 caps=" MUX_FLEXIBLE_CAPS " ! mux.sink_0 "
+      "appsrc name=src1 caps=" MUX_FLEXIBLE_CAPS " ! mux.sink_1 "
+      "tensor_mux name=mux sync-mode=nosync ! appsink name=sink sync=false",
+      NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  src0 = gst_bin_get_by_name (GST_BIN (pipeline), "src0");
+  src1 = gst_bin_get_by_name (GST_BIN (pipeline), "src1");
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  ASSERT_NE (src0, nullptr);
+  ASSERT_NE (src1, nullptr);
+  ASSERT_NE (sink, nullptr);
+
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+
+  buf = _flexible_single_memory (2, 0);
+  g_signal_emit_by_name (src0, "push-buffer", buf, &ret);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  gst_buffer_unref (buf);
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, _flexible_tensor (2));
+  GST_BUFFER_PTS (buf) = 0;
+  g_signal_emit_by_name (src1, "push-buffer", buf, &ret);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  gst_buffer_unref (buf);
+
+  g_signal_emit_by_name (sink, "try-pull-sample", MUX_TIMEOUT_MS * GST_MSECOND, &sample);
+  ASSERT_NE (sample, nullptr);
+  buf = gst_sample_get_buffer (sample);
+  ASSERT_NE (buf, nullptr);
+  EXPECT_EQ (gst_tensor_buffer_get_count (buf), 3U);
+  for (i = 0; i < 3 && i < gst_tensor_buffer_get_count (buf); i++)
+    _expect_flexible_tensor (buf, i, i);
+  gst_sample_unref (sample);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (src0);
+  gst_object_unref (src1);
+  gst_object_unref (sink);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief One memory holding more flexible tensors than
+ *        gst_tensor_buffer_from_config() can split, with no extra-tensors
+ *        header: tensor_mux refuses it instead of passing on the first
+ *        tensors only.
+ */
+TEST (tensorMuxCollect, flexibleSingleMemoryTooManyTensors_n)
+{
+  GstHarness *h = _mux_harness_new (MUX_FLEXIBLE_CAPS);
+
+  EXPECT_EQ (gst_harness_push (h, _flexible_single_memory (NNS_TENSOR_MEMORY_MAX + 1, 0)),
+      GST_FLOW_ERROR);
+  EXPECT_TRUE (_element_posted_error (h->element));
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  _mux_harness_teardown (h);
+}
+
+/**
+ * @brief One memory holding a flexible tensor whose header claims more data
+ *        than is left: tensor_mux refuses it.
+ */
+TEST (tensorMuxCollect, flexibleSingleMemoryTruncated_n)
+{
+  GstHarness *h = _mux_harness_new (MUX_FLEXIBLE_CAPS);
+  GstBuffer *in = _flexible_single_memory (2, 0);
+
+  gst_buffer_resize (in, 0, gst_buffer_get_size (in) - 1);
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_ERROR);
+  EXPECT_TRUE (_element_posted_error (h->element));
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  _mux_harness_teardown (h);
+}
+
+/**
  * @brief Main GTest
  */
 int

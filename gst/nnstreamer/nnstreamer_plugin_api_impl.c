@@ -336,6 +336,38 @@ _gst_tensor_time_sync_buffer_update (GstCollectPads * collect,
 }
 
 /**
+ * @brief Internal function to count the tensors of a flexible buffer that
+ *        gst_tensor_buffer_from_config() has split out of a single memory.
+ * @param buf the split buffer, which has two or more memories
+ * @return the number of tensors to collect, which leaves out the bytes after
+ *         the last tensor, or 0 if the last memory holds more tensors than
+ *         the split could separate.
+ */
+static guint
+_gst_tensor_time_sync_count_split (GstBuffer * buf)
+{
+  guint n_mem = gst_buffer_n_memory (buf);
+  guint n_tensor = gst_tensor_buffer_get_count (buf);
+  GstMemory *last;
+  GstTensorMetaInfo meta;
+
+  /* the last memory is an extra-tensors memory */
+  if (n_tensor > n_mem)
+    return n_tensor;
+
+  last = gst_buffer_peek_memory (buf, n_mem - 1);
+  if (!gst_tensor_meta_info_parse_memory (&meta, last))
+    return n_mem - 1;
+
+  if (gst_tensor_meta_info_get_header_size (&meta) +
+      gst_tensor_meta_info_get_data_size (&meta) ==
+      gst_memory_get_sizes (last, NULL, NULL))
+    return n_mem;
+
+  return 0;
+}
+
+/**
  * @brief A function call to make tensors from collected pads.
  * It decide which buffer is going to be used according to sync option.
  * @return GST_FLOW_OK to push buffer, GST_FLOW_EOS at end-of-stream,
@@ -483,8 +515,20 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
         goto error;
       }
 
-      if (is_static)
+      if (is_static) {
         n_tensor = gst_tensor_buffer_get_count (buf);
+      } else if (n_tensor == 1 && gst_buffer_n_memory (buf) > 1) {
+        /* a single memory holding several flexible tensors has been split */
+        n_tensor = _gst_tensor_time_sync_count_split (buf);
+        if (n_tensor == 0) {
+          nns_loge ("The buffer of %s:%s holds more flexible tensors in one "
+              "memory than can be split (%d).",
+              GST_DEBUG_PAD_NAME (data->pad), NNS_TENSOR_MEMORY_MAX);
+          gst_buffer_unref (buf);
+          ret = GST_FLOW_ERROR;
+          goto error;
+        }
+      }
 
       if ((is_static && n_tensor != in_configs.info.num_tensors) ||
           n_tensor > NNS_TENSOR_SIZE_LIMIT - counting) {
