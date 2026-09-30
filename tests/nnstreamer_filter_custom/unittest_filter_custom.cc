@@ -2445,6 +2445,151 @@ TEST (tensorFilterCustomOpenFail, pipelineMissingInvoke_n)
 }
 
 /**
+ * @brief Custom-easy model data of the QoS throttling tests.
+ */
+typedef struct {
+  gulong sleep_us; /**< how long an invoke blocks */
+} qos_latency_data;
+
+/**
+ * @brief Custom-easy filter copying its input after blocking for @a sleep_us.
+ */
+static int
+_qos_latency_invoke (void *data, const GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  qos_latency_data *d = (qos_latency_data *) data;
+
+  UNUSED (prop);
+  if (d->sleep_us > 0)
+    g_usleep (d->sleep_us);
+  memcpy (output[0].data, input[0].data, MIN (input[0].size, output[0].size));
+  return 0;
+}
+
+/**
+ * @brief Push a 4-byte buffer stamped @a pts and lasting @a duration.
+ */
+static GstFlowReturn
+_qos_latency_push (GstHarness *h, GstClockTime pts, GstClockTime duration)
+{
+  GstBuffer *buf = gst_harness_create_buffer (h, 4);
+
+  GST_BUFFER_PTS (buf) = pts;
+  GST_BUFFER_DURATION (buf) = duration;
+  return gst_harness_push (h, buf);
+}
+
+/**
+ * @brief Throttle a tensor_filter at 10 ms, let one invoke block @a sleep_us, then push a buffer @a gap after the previous one.
+ * @param[out] latency The average latency (us) tensor_filter measured before the last buffer.
+ * @param[out] overflow Whether tensor_filter sent a QoS overflow event upstream.
+ * @return The number of buffers tensor_filter pushed out of the three it got.
+ */
+static guint
+_qos_latency_run (const gchar *model, gulong sleep_us, GstClockTime gap,
+    gint *latency, gboolean *overflow)
+{
+  GstTensorsInfo in_info, out_info;
+  qos_latency_data d = { 0 };
+  GstHarness *h;
+  GstElement *filter;
+  GstEvent *event;
+  gchar *desc;
+  guint received;
+
+  *latency = 0;
+  *overflow = FALSE;
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  in_info.num_tensors = out_info.num_tensors = 1;
+  in_info.info[0].type = out_info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4:1:1:1", in_info.info[0].dimension);
+  gst_tensor_parse_dimension ("4:1:1:1", out_info.info[0].dimension);
+  EXPECT_EQ (NNS_custom_easy_register (model, _qos_latency_invoke, &d, &in_info, &out_info), 0);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+
+  desc = g_strdup_printf ("tensor_filter framework=custom-easy model=%s", model);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,num_tensors=1,types=uint8,dimensions=4:1:1:1,format=static,framerate=(fraction)0/1");
+
+  EXPECT_TRUE (gst_harness_push_upstream_event (
+      h, gst_event_new_qos (GST_QOS_TYPE_THROTTLE, 1.0, 10 * GST_MSECOND, 0)));
+
+  /* The first measurement is ignored; the second one sets the average latency. */
+  EXPECT_EQ (_qos_latency_push (h, 0, gap), GST_FLOW_OK);
+  d.sleep_us = sleep_us;
+  EXPECT_EQ (_qos_latency_push (h, gap, gap), GST_FLOW_OK);
+  d.sleep_us = 0;
+
+  filter = gst_harness_find_element (h, "tensor_filter");
+  g_object_get (filter, "latency", latency, NULL);
+  gst_object_unref (filter);
+
+  EXPECT_EQ (_qos_latency_push (h, 2 * gap, gap), GST_FLOW_OK);
+
+  while ((event = gst_harness_try_pull_upstream_event (h)) != NULL) {
+    if (GST_EVENT_TYPE (event) == GST_EVENT_QOS) {
+      GstQOSType type;
+
+      gst_event_parse_qos (event, &type, NULL, NULL, NULL);
+      if (type == GST_QOS_TYPE_OVERFLOW)
+        *overflow = TRUE;
+    }
+    gst_event_unref (event);
+  }
+
+  received = gst_harness_buffers_received (h);
+  gst_harness_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister (model), 0);
+  return received;
+}
+
+/**
+ * @brief An average latency longer than the frame gap drops the next frame and asks upstream to slow down.
+ */
+TEST (tensorFilterQos, latencyThrottles)
+{
+  gint latency;
+  gboolean overflow;
+
+  EXPECT_EQ (_qos_latency_run ("qos_latency_short", 50000, 20 * GST_MSECOND, &latency, &overflow),
+      2U);
+  EXPECT_GE (latency, 50000);
+  EXPECT_TRUE (overflow);
+}
+
+/**
+ * @brief A latency over G_MAXINT32 ns (~2.1 s) still throttles; its conversion to ns used to overflow int.
+ */
+TEST (tensorFilterQos, longLatencyThrottles)
+{
+  gint latency;
+  gboolean overflow;
+
+  EXPECT_EQ (_qos_latency_run ("qos_latency_long", 2300000, GST_SECOND, &latency, &overflow), 2U);
+  EXPECT_GT (latency, G_MAXINT32 / 1000);
+  EXPECT_TRUE (overflow);
+}
+
+/**
+ * @brief An average latency shorter than the frame gap drops nothing.
+ */
+TEST (tensorFilterQos, latencyBelowGap_n)
+{
+  gint latency;
+  gboolean overflow;
+
+  EXPECT_EQ (_qos_latency_run ("qos_latency_fast", 0, 500 * GST_MSECOND, &latency, &overflow), 3U);
+  EXPECT_LT (latency, 500000);
+  EXPECT_FALSE (overflow);
+}
+
+/**
  * @brief Main gtest
  */
 int
