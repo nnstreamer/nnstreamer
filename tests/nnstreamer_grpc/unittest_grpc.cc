@@ -2065,8 +2065,8 @@ _fb_send (const std::string &address, const std::function<void ()> &wait,
   for (FbMessage &msg : msgs)
     writer->Write (msg);
   writer->WritesDone ();
-  /* Finish () of a flatbuf client-streaming call aborts, see SyncServiceImplFlatbuf::_client_thread (). */
   wait ();
+  EXPECT_TRUE (writer->Finish ().ok ());
 }
 
 /**
@@ -2175,7 +2175,6 @@ _fb_send_finish (const std::string &address, guint num)
   for (i = 0; i < num; i++)
     writer->Write (_fb_build (2, &valid));
   writer->WritesDone ();
-  /* unlike the sync server _fb_send () talks to, the async server replies with a valid Empty */
   EXPECT_TRUE (writer->Finish ().ok ());
 }
 
@@ -2227,6 +2226,263 @@ TEST (nnstreamerGrpc, recvFlatbufSizeMismatch_n)
   EXPECT_EQ (received, 1U);
   ASSERT_EQ (sizes.size (), 2U);
   EXPECT_EQ (sizes[1], 2U);
+}
+
+/**
+ * @brief How a raw flatbuf server handles the call of a tensor_sink_grpc client.
+ */
+typedef enum {
+  FB_PEER_SLOW_READ, /**< read every message, pausing before each, and answer with an Empty message */
+  FB_PEER_NO_REPLY, /**< read every message and answer without a response message */
+  FB_PEER_FAIL, /**< read nothing and fail the call */
+  FB_PEER_HOLD, /**< read every message, then never end the call */
+} FbPeerMode;
+
+/**
+ * @brief A raw flatbuf server taking the call of a tensor_sink_grpc client.
+ */
+class FbPeerService final : public nnstreamer::flatbuf::TensorService::Service
+{
+  public:
+  /** @brief Construct a server that handles the call as @a mode says */
+  FbPeerService (FbPeerMode mode) : count (0), mode_ (mode)
+  {
+  }
+
+  /** @brief Handle the client-streaming call of the client */
+  grpc::Status SendTensors (grpc::ServerContext *context,
+      grpc::ServerReader<FbMessage> *reader,
+      flatbuffers::grpc::Message<nnstreamer::flatbuf::Empty> *reply) override
+  {
+    flatbuffers::grpc::MessageBuilder builder;
+    FbMessage msg;
+
+    if (mode_ == FB_PEER_FAIL)
+      return grpc::Status (grpc::StatusCode::INTERNAL, "refused by the test");
+
+    while (reader->Read (&msg)) {
+      if (mode_ == FB_PEER_SLOW_READ)
+        g_usleep (50000);
+      g_atomic_int_inc (&count);
+    }
+
+    while (mode_ == FB_PEER_HOLD && !context->IsCancelled ())
+      g_usleep (10000);
+
+    if (mode_ == FB_PEER_SLOW_READ) {
+      builder.Finish (nnstreamer::flatbuf::CreateEmpty (builder));
+      *reply = builder.ReleaseMessage<nnstreamer::flatbuf::Empty> ();
+    }
+
+    return grpc::Status::OK;
+  }
+
+  gint count; /**< the messages read */
+
+  private:
+  FbPeerMode mode_; /**< how the call is handled */
+};
+
+/**
+ * @brief Stream frames from a blocking tensor_sink_grpc (flatbuf) client to @a
+ * service, and bring the client to NULL at the end of the stream.
+ * @param service the server side of the call
+ * @param video_caps the caps of the raw frames
+ * @param num the number of frames
+ * @param options more properties of the client
+ * @return TRUE if the client reached the end of the stream and then NULL
+ */
+static gboolean
+_fb_send_to_peer (grpc::Service *service, const gchar *video_caps, guint num,
+    const gchar *options)
+{
+  grpc::ServerBuilder builder;
+  GstElement *client;
+  GstMessage *msg;
+  GstBus *bus;
+  gchar *str;
+  int port = 0;
+  gboolean ended;
+
+  builder.AddListeningPort ("localhost:0", grpc::InsecureServerCredentials (), &port);
+  builder.RegisterService (service);
+  auto server = builder.BuildAndStart ();
+  if (!server) {
+    ADD_FAILURE () << "the flatbuf peer server did not start";
+    return FALSE;
+  }
+
+  str = g_strdup_printf ("videotestsrc num-buffers=%u ! %s ! tensor_converter ! "
+                         "tensor_sink_grpc server=FALSE blocking=TRUE idl=flatbuf host=localhost port=%d async=FALSE %s",
+      num, video_caps, port, options);
+  client = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!client) {
+    ADD_FAILURE () << "the flatbuf client pipeline did not build";
+    return FALSE;
+  }
+
+  gst_element_set_state (client, GST_STATE_PLAYING);
+  bus = gst_element_get_bus (client);
+  msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  ended = (msg != NULL && GST_MESSAGE_TYPE (msg) == GST_MESSAGE_EOS);
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  /* the client ends its call here, after its last buffers */
+  if (!_set_null_in_time (client))
+    ended = FALSE;
+
+  server->Shutdown (std::chrono::system_clock::now () + std::chrono::seconds (5));
+
+  return ended;
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) client hands every buffer to a server that reads slowly.
+ *
+ * The frames are large enough that the transport cannot buffer the whole
+ * stream, so the call still carries buffers when the client ends it.
+ */
+TEST (nnstreamerGrpc, sinkClientFlatbufSlowServer)
+{
+  FbPeerService service (FB_PEER_SLOW_READ);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service,
+      "video/x-raw,format=RGB,width=1280,height=720,framerate=30/1", 10, ""));
+  EXPECT_EQ (g_atomic_int_get (&service.count), 10);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) client that stops lets a slow server read, within the default stop-timeout, what the transport holds for it.
+ */
+TEST (nnstreamerGrpc, sinkClientFlatbufSlowServerSmallFrames)
+{
+  FbPeerService service (FB_PEER_SLOW_READ);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, STREAM_VIDEO_CAPS, SMALL_FRAMES, "sync=FALSE"));
+  EXPECT_EQ (g_atomic_int_get (&service.count), SMALL_FRAMES);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) client with a short stop-timeout drops what a slow server has not read by then.
+ */
+TEST (nnstreamerGrpc, sinkClientFlatbufStopTimeout_n)
+{
+  FbPeerService service (FB_PEER_SLOW_READ);
+
+  EXPECT_TRUE (_fb_send_to_peer (
+      &service, STREAM_VIDEO_CAPS, SMALL_FRAMES, "sync=FALSE stop-timeout=200"));
+  EXPECT_LT (g_atomic_int_get (&service.count), SMALL_FRAMES);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) client ends its call cleanly when the server answers without a response message.
+ */
+TEST (nnstreamerGrpc, sinkClientFlatbufNoReply_n)
+{
+  FbPeerService service (FB_PEER_NO_REPLY);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, STREAM_VIDEO_CAPS, 10, ""));
+  EXPECT_EQ (g_atomic_int_get (&service.count), 10);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) client ends its call cleanly when the server fails it.
+ */
+TEST (nnstreamerGrpc, sinkClientFlatbufFailedCall_n)
+{
+  FbPeerService service (FB_PEER_FAIL);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, STREAM_VIDEO_CAPS, 10, ""));
+  EXPECT_EQ (g_atomic_int_get (&service.count), 0);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) client reaches NULL, once its stop-timeout is over, when the server reads everything but never ends the call.
+ */
+TEST (nnstreamerGrpc, sinkClientFlatbufHoldingServer_n)
+{
+  FbPeerService service (FB_PEER_HOLD);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, STREAM_VIDEO_CAPS, 10, "stop-timeout=1000"));
+  EXPECT_EQ (g_atomic_int_get (&service.count), 10);
+}
+
+/**
+ * @brief Stream frames from a blocking tensor_sink_grpc (flatbuf) client to a blocking tensor_src_grpc (flatbuf) server.
+ * @return the number of buffers the server produced, G_MAXUINT if a pipeline did not build or start
+ */
+static guint
+_fb_sink_client_to_src_server (void)
+{
+  GstElement *server, *client, *grpc, *sink;
+  GstMessage *msg;
+  GstBus *bus;
+  RecvData data;
+  gchar *str;
+  gint port = 0;
+  guint received = G_MAXUINT;
+
+  server = gst_parse_launch (
+      "tensor_src_grpc name=grpc server=TRUE blocking=TRUE idl=flatbuf host=localhost port=0 ! " STREAM_TENSOR_CAPS
+      " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
+      NULL);
+  if (!server)
+    return G_MAXUINT;
+
+  g_mutex_init (&data.lock);
+  data.received = 0;
+
+  sink = gst_bin_get_by_name (GST_BIN (server), "sink");
+  g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), &data);
+  gst_object_unref (sink);
+
+  gst_element_set_state (server, GST_STATE_PLAYING);
+  grpc = gst_bin_get_by_name (GST_BIN (server), "grpc");
+  if (_wait_for_caps (grpc))
+    g_object_get (grpc, "port", &port, NULL);
+  gst_object_unref (grpc);
+
+  if (port > 0) {
+    str = g_strdup_printf (
+        "videotestsrc num-buffers=10 ! " STREAM_VIDEO_CAPS " ! tensor_converter ! "
+        "tensor_sink_grpc server=FALSE blocking=TRUE idl=flatbuf host=localhost port=%d async=FALSE",
+        port);
+    client = gst_parse_launch (str, NULL);
+    g_free (str);
+
+    if (client) {
+      gst_element_set_state (client, GST_STATE_PLAYING);
+      bus = gst_element_get_bus (client);
+      msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND, GST_MESSAGE_EOS);
+      EXPECT_TRUE (msg != NULL);
+      if (msg)
+        gst_message_unref (msg);
+      gst_object_unref (bus);
+
+      EXPECT_EQ (gst_element_set_state (client, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+      gst_object_unref (client);
+
+      received = _wait_for_buffers (data, 10);
+    }
+  }
+
+  gst_element_set_state (server, GST_STATE_NULL);
+  gst_object_unref (server);
+  g_mutex_clear (&data.lock);
+
+  return received;
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) client hands every buffer to a blocking tensor_src_grpc (flatbuf) server.
+ */
+TEST (nnstreamerGrpc, sinkClientFlatbufBlockingServer)
+{
+  EXPECT_EQ (_fb_sink_client_to_src_server (), 10U);
 }
 
 /**
@@ -2350,8 +2606,8 @@ _fb_idle_send (const std::string &address, PeerState *state)
   g_atomic_int_set (&state->count, 1);
   _wait_for_release (state);
 
-  /* Finish () of a flatbuf client-streaming call aborts, see SyncServiceImplFlatbuf::_client_thread (). */
   context.TryCancel ();
+  writer->Finish ();
 }
 
 /**
