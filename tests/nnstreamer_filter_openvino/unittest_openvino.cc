@@ -11,7 +11,9 @@
 #include <gst/check/gstharness.h>
 #include <gst/check/gsttestclock.h>
 #include <gst/gst.h>
+#include <link.h>
 #include <nnstreamer_plugin_api_filter.h>
+#include <set>
 #include <string.h>
 #include <tensor_common.h>
 
@@ -1735,6 +1737,347 @@ TEST (tensorFilterOpenvino, invoke0)
   gst_tensors_info_free (&prop->output_meta);
   g_free (prop);
   g_free (test_model);
+}
+
+/**
+ * @brief An instance of the sub-plugin running the MobileNet v2 model on the CPU
+ */
+class OpenvinoCpuInstance
+{
+  public:
+  OpenvinoCpuInstance ();
+  ~OpenvinoCpuInstance ();
+
+  int open ();
+  int invoke ();
+  void close ();
+  bool isOutputEqual (OpenvinoCpuInstance &other);
+
+  private:
+  const GstTensorFilterFramework *fw;
+  GstTensorFilterProperties prop;
+  gpointer privateData;
+  gchar *modelPath;
+  const gchar *modelFiles[2];
+  GstTensorMemory input[MOBINET_V2_IN_NUM_TENSOR];
+  GstTensorMemory output[MOBINET_V2_OUT_NUM_TENSOR];
+};
+
+/** @brief Prepare the properties to open the model on the CPU */
+OpenvinoCpuInstance::OpenvinoCpuInstance ()
+    : fw (nnstreamer_filter_find ("openvino")), prop (), privateData (NULL),
+      input (), output ()
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  modelPath = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  modelFiles[0] = modelPath;
+  modelFiles[1] = NULL;
+
+  gst_tensors_info_init (&prop.input_meta);
+  gst_tensors_info_init (&prop.output_meta);
+  prop.fwname = "openvino";
+  prop.model_files = modelFiles;
+  prop.num_models = 1;
+  prop.accl_str = "true:cpu";
+}
+
+/** @brief Close the instance and release the buffers */
+OpenvinoCpuInstance::~OpenvinoCpuInstance ()
+{
+  guint i;
+
+  close ();
+
+  for (i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i)
+    g_free (input[i].data);
+  for (i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i)
+    g_free (output[i].data);
+
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  g_free (modelPath);
+}
+
+/** @brief Open the model and allocate the buffers the model asks for */
+int
+OpenvinoCpuInstance::open ()
+{
+  GstTensorsInfo info;
+  guint i, j;
+  int ret;
+
+  if (fw == NULL)
+    return -EINVAL;
+
+  ret = fw->open (&prop, &privateData);
+  if (ret != 0)
+    return ret;
+
+  if (prop.input_meta.num_tensors == 0) {
+    gst_tensors_info_init (&info);
+    ret = fw->getInputDimension (&prop, &privateData, &info);
+    if (ret != 0 || info.num_tensors != MOBINET_V2_IN_NUM_TENSOR) {
+      gst_tensors_info_free (&info);
+      return -EINVAL;
+    }
+    gst_tensors_info_copy (&prop.input_meta, &info);
+    gst_tensors_info_free (&info);
+
+    gst_tensors_info_init (&info);
+    ret = fw->getOutputDimension (&prop, &privateData, &info);
+    if (ret != 0 || info.num_tensors != MOBINET_V2_OUT_NUM_TENSOR) {
+      gst_tensors_info_free (&info);
+      return -EINVAL;
+    }
+    gst_tensors_info_copy (&prop.output_meta, &info);
+    gst_tensors_info_free (&info);
+
+    for (i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i) {
+      input[i].size = gst_tensor_info_get_size (
+          gst_tensors_info_get_nth_info (&prop.input_meta, i));
+      input[i].data = g_malloc (input[i].size);
+      for (j = 0; j < input[i].size; ++j)
+        ((guint8 *) input[i].data)[j] = (guint8) (j * 7);
+    }
+    for (i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i) {
+      output[i].size = gst_tensor_info_get_size (
+          gst_tensors_info_get_nth_info (&prop.output_meta, i));
+      output[i].data = g_malloc0 (output[i].size);
+    }
+  }
+
+  return 0;
+}
+
+/** @brief Run an inference */
+int
+OpenvinoCpuInstance::invoke ()
+{
+  if (privateData == NULL)
+    return -EINVAL;
+
+  return fw->invoke_NN (&prop, &privateData, input, output);
+}
+
+/** @brief Close the model if it is open */
+void
+OpenvinoCpuInstance::close ()
+{
+  if (privateData != NULL)
+    fw->close (&prop, &privateData);
+}
+
+/** @brief Check the last outputs of the two instances are the same */
+bool
+OpenvinoCpuInstance::isOutputEqual (OpenvinoCpuInstance &other)
+{
+  guint i;
+
+  for (i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i) {
+    if (output[i].data == NULL || other.output[i].data == NULL
+        || output[i].size != other.output[i].size
+        || memcmp (output[i].data, other.output[i].data, output[i].size) != 0)
+      return false;
+  }
+
+  return true;
+}
+
+/** @brief Add the path of a loaded shared object to the given set */
+static int
+collectLoadedObject (struct dl_phdr_info *info, size_t size, void *data)
+{
+  std::set<std::string> *paths = static_cast<std::set<std::string> *> (data);
+
+  (void) size;
+  if (info->dlpi_name != NULL && info->dlpi_name[0] != '\0')
+    paths->insert (info->dlpi_name);
+
+  return 0;
+}
+
+/**
+ * @brief Test that closing the last instance keeps the device plugins loaded
+ *
+ * Unloading the CPU plugin of the Inference Engine leaves a worker thread of
+ * the plugin running in unmapped code, which crashes the process only now and
+ * then; checking that nothing is unloaded makes the regression deterministic.
+ */
+TEST (tensorFilterOpenvino, closeKeepsDevicePlugins)
+{
+  std::set<std::string> loadedOpen;
+  std::set<std::string> loadedClosed;
+
+  {
+    OpenvinoCpuInstance inst;
+
+    ASSERT_EQ (inst.open (), 0);
+    EXPECT_EQ (inst.invoke (), 0);
+    dl_iterate_phdr (collectLoadedObject, &loadedOpen);
+  }
+
+  dl_iterate_phdr (collectLoadedObject, &loadedClosed);
+
+  for (const std::string &path : loadedOpen)
+    EXPECT_EQ (loadedClosed.count (path), 1U) << path << " is unloaded";
+}
+
+/**
+ * @brief Test that instances sharing the core run and replace each other
+ */
+TEST (tensorFilterOpenvino, sharedCoreInstances)
+{
+  OpenvinoCpuInstance first;
+  OpenvinoCpuInstance second;
+  OpenvinoCpuInstance third;
+
+  ASSERT_EQ (first.open (), 0);
+  ASSERT_EQ (second.open (), 0);
+
+  EXPECT_EQ (first.invoke (), 0);
+  EXPECT_EQ (second.invoke (), 0);
+  EXPECT_TRUE (first.isOutputEqual (second));
+
+  /** A pipeline that stops and restarts replaces its instance */
+  first.close ();
+  EXPECT_EQ (second.invoke (), 0);
+  EXPECT_EQ (first.open (), 0);
+  EXPECT_EQ (first.invoke (), 0);
+  EXPECT_TRUE (first.isOutputEqual (second));
+
+  first.close ();
+  second.close ();
+  ASSERT_EQ (third.open (), 0);
+  EXPECT_EQ (third.invoke (), 0);
+  EXPECT_TRUE (third.isOutputEqual (second));
+}
+
+/**
+ * @brief The thread body of sharedCoreThreads, counting the failed rounds
+ */
+static gpointer
+openInvokeCloseThread (gpointer data)
+{
+  gint *failures = static_cast<gint *> (data);
+  int round;
+
+  for (round = 0; round < 10; ++round) {
+    OpenvinoCpuInstance inst;
+
+    if (inst.open () != 0 || inst.invoke () != 0)
+      g_atomic_int_inc (failures);
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief Test that instances opened on several threads at once share the core
+ */
+TEST (tensorFilterOpenvino, sharedCoreThreads)
+{
+  const guint num_threads = 8;
+  GThread *threads[num_threads];
+  gint failures = 0;
+  guint i;
+
+  for (i = 0; i < num_threads; ++i)
+    threads[i] = g_thread_new ("ov-open", openInvokeCloseThread, &failures);
+  for (i = 0; i < num_threads; ++i)
+    g_thread_join (threads[i]);
+
+  EXPECT_EQ (g_atomic_int_get (&failures), 0);
+}
+
+/**
+ * @brief Test that a model cannot be loaded twice onto the device
+ */
+TEST (tensorFilterOpenvino, loadModelTwice_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+
+    ASSERT_EQ (tfOvTest.loadModel (ACCL_CPU), TensorFilterOpenvino::RetSuccess);
+    EXPECT_EQ (tfOvTest.loadModel (ACCL_CPU), TensorFilterOpenvino::RetEBusy);
+    EXPECT_TRUE (tfOvTest.isModelLoaded ());
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
+ * @brief Test that a refused device leaves the shared core usable
+ */
+TEST (tensorFilterOpenvino, loadModelUnavailableDevice_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  int ret;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+
+    ret = tfOvTest.loadModel (ACCL_NPU_MOVIDIUS);
+    if (ret == TensorFilterOpenvino::RetSuccess) {
+      g_free (test_model_xml);
+      g_free (test_model_bin);
+      GTEST_SKIP () << "A Movidius device is attached";
+    }
+    EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
+    EXPECT_FALSE (tfOvTest.isModelLoaded ());
+
+    /** The refusal must not keep the core to itself */
+    EXPECT_EQ (tfOvTest.loadModel (ACCL_CPU), TensorFilterOpenvino::RetSuccess);
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
 }
 #endif /* __OPENVINO_CPU_EXT__ */
 

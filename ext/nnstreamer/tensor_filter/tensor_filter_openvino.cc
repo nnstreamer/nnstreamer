@@ -62,6 +62,27 @@ std::map<accl_hw, std::string> TensorFilterOpenvino::_nnsAcclHwToOVDevMap = {
 const std::string TensorFilterOpenvino::extBin = ".bin";
 const std::string TensorFilterOpenvino::extXml = ".xml";
 
+std::mutex TensorFilterOpenvino::_ieCoreLock;
+bool TensorFilterOpenvino::_cpuExtAdded = false;
+
+/**
+ * @brief Get the Inference Engine core shared by every instance in the process
+ * @return the shared core
+ *
+ * Destroying a core unloads the device plugins it has loaded, and the CPU
+ * plugin of OpenVino 2019R3 leaves a worker thread of its own running in its
+ * code when it is unloaded, which takes the process down. The core is,
+ * therefore, created once and never destroyed. The caller must hold
+ * _ieCoreLock while using it.
+ */
+InferenceEngine::Core &
+TensorFilterOpenvino::getIECore ()
+{
+  static InferenceEngine::Core *core = new InferenceEngine::Core ();
+
+  return *core;
+}
+
 /**
  * @brief Convert the string representing the tensor data type to _nns_tensor_type
  * @param type a std::string representing the tensor data type in InferenceEngine
@@ -128,7 +149,7 @@ TensorFilterOpenvino::convertGstTensorMemoryToBlobPtr (const InferenceEngine::Te
 
 /**
  * @brief Check the given hw is supported by the fw or not
- * @param devsVector a reference of a vector of the available device names (the return of _ieCore.GetAvailableDevices ().)
+ * @param devsVector a reference of a vector of the available device names (the return of GetAvailableDevices () of the core)
  * @param hw a user-given acceleration device of which the data type is accl_hw
  * @return TRUE if supported
  */
@@ -262,7 +283,10 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
     return RetEBusy;
   }
 
-  strVector = this->_ieCore.GetAvailableDevices ();
+  std::lock_guard<std::mutex> lock (_ieCoreLock);
+  InferenceEngine::Core &ieCore = getIECore ();
+
+  strVector = ieCore.GetAvailableDevices ();
   if (strVector.size () == 0) {
     ml_loge ("No devices found for the OpenVino toolkit; "
              "check your plugin is installed, and the device is also connected.");
@@ -276,15 +300,16 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
   }
 
 #ifdef __OPENVINO_CPU_EXT__
-  if (hw == ACCL_CPU) {
-    this->_ieCore.AddExtension (
+  if (hw == ACCL_CPU && !_cpuExtAdded) {
+    ieCore.AddExtension (
         std::make_shared<InferenceEngine::Extensions::Cpu::CpuExtensions> (),
         _nnsAcclHwToOVDevMap[hw]);
+    _cpuExtAdded = true;
   }
 #endif
   /** @todo Catch the IE exception */
   this->_executableNet
-      = this->_ieCore.LoadNetwork (this->_networkCNN, _nnsAcclHwToOVDevMap[hw]);
+      = ieCore.LoadNetwork (this->_networkCNN, _nnsAcclHwToOVDevMap[hw]);
   this->_hw = hw;
   this->_isLoaded = true;
   this->_inferRequest = this->_executableNet.CreateInferRequest ();
