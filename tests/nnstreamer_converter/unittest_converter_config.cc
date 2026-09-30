@@ -864,6 +864,143 @@ TEST (tensorConverterConfig, videoPaddedFrameSizeMismatch_n)
   gst_harness_teardown (h);
 }
 
+#define VIDEO_CAPS(format, width) \
+  "video/x-raw,format=" format ",width=" width ",height=2,framerate=(fraction)0/1"
+
+/**
+ * @brief Push a video frame of @a size bytes, byte i filled with i, and check
+ * the converter pushes the same memory without removing any padding.
+ */
+static void
+check_video_passthrough (GstHarness *h, gsize size)
+{
+  GstBuffer *buf = gst_buffer_new_allocate (NULL, size, NULL);
+  GstMemory *mem;
+  GstMapInfo map;
+  gsize i;
+
+  ASSERT_TRUE (gst_buffer_map (buf, &map, GST_MAP_WRITE));
+  for (i = 0; i < size; i++)
+    map.data[i] = i;
+  gst_buffer_unmap (buf, &map);
+
+  mem = gst_buffer_get_memory (buf, 0);
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+
+  buf = gst_harness_try_pull (h);
+  EXPECT_TRUE (buf != NULL);
+  if (buf) {
+    EXPECT_EQ (gst_buffer_n_memory (buf), 1U);
+    EXPECT_TRUE (gst_buffer_peek_memory (buf, 0) == mem);
+    gst_buffer_unref (buf);
+  }
+  gst_memory_unref (mem);
+}
+
+/**
+ * @brief Push a video frame of 2 rows with @a stride bytes per row, byte i
+ * filled with i, and check the converter keeps only the first @a row_size
+ * bytes of each row.
+ */
+static void
+check_video_padding_removed (GstHarness *h, gsize row_size, gsize stride)
+{
+  GstBuffer *out;
+  GstMapInfo map;
+  gsize r, c;
+
+  EXPECT_EQ (push_octet (h, 2 * stride), GST_FLOW_OK);
+
+  out = gst_harness_try_pull (h);
+  ASSERT_TRUE (out != NULL);
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  ASSERT_EQ (map.size, 2 * row_size);
+  for (r = 0; r < 2; r++)
+    for (c = 0; c < row_size; c++)
+      EXPECT_EQ (map.data[r * row_size + c], (guint8) (r * stride + c));
+
+  gst_buffer_unmap (out, &map);
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Renegotiating a padded RGB width to a 4-aligned width stops removing padding.
+ */
+TEST (tensorConverterConfig, videoRenegotiatePaddedToAlignedWidth)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+
+  /* rows of 15 bytes are padded to a stride of 16 bytes */
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("RGB", "5"));
+  check_video_padding_removed (h, 15U, 16U);
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("RGB", "8"));
+  check_video_passthrough (h, 48U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Renegotiating a padded RGB width to RGBx of the same width stops removing padding.
+ */
+TEST (tensorConverterConfig, videoRenegotiatePaddedToRGBx)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("RGB", "5"));
+  check_video_padding_removed (h, 15U, 16U);
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("RGBx", "5"));
+  check_video_passthrough (h, 40U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Renegotiating a 4-aligned RGB width to a padded width starts removing padding.
+ */
+TEST (tensorConverterConfig, videoRenegotiateAlignedToPaddedWidth)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("RGB", "8"));
+  check_video_passthrough (h, 48U);
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("GRAY8", "5"));
+  check_video_padding_removed (h, 5U, 8U);
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("RGB", "5"));
+  check_video_padding_removed (h, 15U, 16U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Refused padded video caps do not make the converter remove padding
+ * from the 4-aligned frames it negotiates next.
+ */
+TEST (tensorConverterConfig, videoRefusedPaddedCaps_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstCaps *caps;
+
+  set_input_info (h->element, 1, "3:8:2:1");
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("RGB", "8"));
+  check_video_passthrough (h, 48U);
+
+  /* the width does not match input-dim; the refusal shows on the next push */
+  caps = gst_caps_from_string (VIDEO_CAPS ("RGB", "5"));
+  gst_pad_push_event (h->srcpad, gst_event_new_caps (caps));
+  gst_caps_unref (caps);
+  EXPECT_EQ (push_octet (h, 32U), GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("RGB", "8"));
+  check_video_passthrough (h, 48U);
+
+  gst_harness_teardown (h);
+}
+
 /**
  * @brief Main GTest
  */
