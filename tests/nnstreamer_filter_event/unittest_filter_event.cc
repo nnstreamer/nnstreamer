@@ -82,7 +82,7 @@ class event_mock_subplugin : public nnstreamer::tensor_filter_subplugin
   {
     EXPECT_LT ((guint) ops, G_N_ELEMENTS (num_events));
     if ((guint) ops < G_N_ELEMENTS (num_events))
-      num_events[ops]++;
+      g_atomic_int_inc ((gint *) &num_events[ops]);
 
     if (ops == SET_INPUT_PROP || ops == SET_OUTPUT_PROP) {
       memcpy (last_layout, data.layout, sizeof (last_layout));
@@ -322,6 +322,117 @@ TEST_F (testFilterEvent, resumeFail_n)
   EXPECT_EQ (event_mock_subplugin::num_events[RESUME], 1U);
   EXPECT_TRUE (priv.prop.fw_opened);
   EXPECT_TRUE (priv.is_suspended);
+}
+
+/**
+ * @brief Count the critical logs of the default domain.
+ */
+static void
+_count_critical_logs (const gchar *log_domain, GLogLevelFlags log_level,
+    const gchar *message, gpointer user_data)
+{
+  UNUSED (log_domain);
+  UNUSED (log_level);
+  UNUSED (message);
+  (*(guint *) user_data)++;
+}
+
+/**
+ * @brief Unloading a suspended C++ sub-plugin with suspend keeps it suspended,
+ *        so it is resumed, not reopened, afterwards.
+ */
+TEST_F (testFilterEvent, unloadSuspended)
+{
+  guint critical_count = 0;
+  guint handler = g_log_set_handler (
+      NULL, G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
+
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+  g_log_remove_handler (NULL, handler);
+
+  EXPECT_EQ (critical_count, 0U);
+  EXPECT_EQ (event_mock_subplugin::num_events[SUSPEND], 1U);
+  EXPECT_TRUE (priv.prop.fw_opened);
+  EXPECT_TRUE (priv.is_suspended);
+
+  EXPECT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+  EXPECT_EQ (event_mock_subplugin::num_events[RESUME], 1U);
+  EXPECT_FALSE (priv.is_suspended);
+}
+
+/**
+ * @brief A suspended C++ sub-plugin failing RESUME stays suspended, and
+ *        unloading it again with suspend still sends no SUSPEND.
+ */
+TEST_F (testFilterEvent, unloadSuspendedResumeFail_n)
+{
+  guint critical_count = 0;
+  guint handler;
+
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+  event_mock_subplugin::event_ret = -EINVAL;
+  EXPECT_FALSE (gst_tensor_filter_common_open_fw (&priv));
+  EXPECT_TRUE (priv.is_suspended);
+
+  handler = g_log_set_handler (NULL, G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+  g_log_remove_handler (NULL, handler);
+
+  EXPECT_EQ (critical_count, 0U);
+  EXPECT_EQ (event_mock_subplugin::num_events[SUSPEND], 1U);
+  EXPECT_EQ (event_mock_subplugin::num_events[RESUME], 1U);
+  EXPECT_TRUE (priv.prop.fw_opened);
+  EXPECT_TRUE (priv.is_suspended);
+}
+
+/**
+ * @brief Closing a suspended C++ sub-plugin clears the suspended state, so it
+ *        can be opened again.
+ */
+TEST_F (testFilterEvent, closeSuspended)
+{
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+  ASSERT_TRUE (priv.is_suspended);
+
+  gst_tensor_filter_common_unload_fw (&priv, FALSE);
+  EXPECT_FALSE (priv.prop.fw_opened);
+  EXPECT_FALSE (priv.is_suspended);
+
+  EXPECT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+  EXPECT_TRUE (priv.prop.fw_opened);
+  EXPECT_EQ (event_mock_subplugin::num_events[RESUME], 0U);
+}
+
+/**
+ * @brief tensor_filter stopped after the suspend watchdog suspended its model
+ *        starts again by resuming the model.
+ */
+TEST_F (testFilterEvent, restartAfterSuspend)
+{
+  GstElement *filter;
+  gint *suspend_count = (gint *) &event_mock_subplugin::num_events[SUSPEND];
+  guint critical_count = 0;
+  guint handler, i;
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != nullptr);
+  g_object_set (filter, "framework", event_mock_subplugin::mock_name, "suspend", 10, NULL);
+  handler = g_log_set_handler (NULL, G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  for (i = 0; i < 5000 && g_atomic_int_get (suspend_count) == 0; i++)
+    g_usleep (1000);
+  EXPECT_EQ (g_atomic_int_get (suspend_count), 1);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (event_mock_subplugin::num_events[RESUME], 1U);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  g_log_remove_handler (NULL, handler);
+  gst_object_unref (filter);
+  EXPECT_EQ (critical_count, 0U);
 }
 
 /**
