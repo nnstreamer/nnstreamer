@@ -592,6 +592,8 @@ static struct {
   gint create_ret; /**< what create() returns */
   gint destroy_calls; /**< number of destroy() calls */
   gboolean destroy_prop_matched; /**< whether destroy() saw the set properties */
+  guint missing_tensors; /**< inputs and labels without data in the last push_data() */
+  gint extra_warnings; /**< warnings tensor_trainer logged about extra tensors */
 } fake_stat;
 
 /**
@@ -692,6 +694,12 @@ fake_trainer_push_data (const GstTensorTrainerFramework *,
     }
   }
 
+  fake_stat.missing_tensors = 0;
+  for (guint i = 0; i < prop->num_inputs + prop->num_labels; i++) {
+    if (!input[i].data)
+      fake_stat.missing_tensors++;
+  }
+
   fake_stat.pushed_size = input[0].size;
   if (input[0].data && input[0].size > 0)
     fake_stat.pushed_first = ((guint8 *) input[0].data)[0];
@@ -732,6 +740,24 @@ static GstTensorTrainerFramework fake_trainer_fw = { GST_TENSOR_TRAINER_FRAMEWOR
   fake_trainer_push_data, fake_trainer_get_status, fake_trainer_get_framework_info };
 
 /**
+ * @brief Count the warnings tensor_trainer logs about extra tensors.
+ */
+static void
+trainer_count_extra_warning (GstDebugCategory *category, GstDebugLevel level,
+    const gchar *, const gchar *, gint, GObject *, GstDebugMessage *message, gpointer)
+{
+  const gchar *text;
+
+  if (level != GST_LEVEL_WARNING
+      || g_strcmp0 (gst_debug_category_get_name (category), "tensor_trainer") != 0)
+    return;
+
+  text = gst_debug_message_get (message);
+  if (text && strstr (text, "more than num-inputs"))
+    g_atomic_int_inc (&fake_stat.extra_warnings);
+}
+
+/**
  * @brief Test fixture registering the fake trainer sub-plugin.
  */
 class TensorTrainerFakeFw : public ::testing::Test
@@ -742,6 +768,15 @@ class TensorTrainerFakeFw : public ::testing::Test
    */
   void SetUp () override
   {
+    static gsize log_added = 0;
+
+    /* removing a log function leaks in GStreamer, so it stays for the whole run */
+    if (g_once_init_enter (&log_added)) {
+      gst_debug_set_threshold_for_name ("tensor_trainer", GST_LEVEL_WARNING);
+      gst_debug_add_log_function (trainer_count_extra_warning, NULL, NULL);
+      g_once_init_leave (&log_added, 1);
+    }
+
     memset (&fake_stat, 0, sizeof (fake_stat));
     ASSERT_TRUE (nnstreamer_trainer_probe (&fake_trainer_fw));
   }
@@ -942,6 +977,31 @@ make_static_caps_string (guint num, gint rate_n)
 }
 
 /**
+ * @brief Append a flexible uint8 tensor holding a copy of @a data to @a buf.
+ */
+static gboolean
+append_flexible_tensor (GstBuffer *buf, const guint8 *data, gsize size)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *data_mem, *mem;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = (guint) size;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  data_mem = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, (gpointer) data, size, 0, size, NULL, NULL);
+  mem = gst_tensor_meta_info_append_header (&meta, data_mem);
+  gst_memory_unref (data_mem);
+  if (!mem)
+    return FALSE;
+
+  gst_buffer_append_memory (buf, mem);
+  return TRUE;
+}
+
+/**
  * @brief Renegotiating caps with more than 16 tensors frees the previous config.
  *
  * Each GstTensorsInfo with more than 16 tensors owns a heap block for the
@@ -979,37 +1039,27 @@ TEST_F (TensorTrainerFakeFw, renegotiateManyTensors)
 }
 
 /**
- * @brief Push a flexible tensor with a valid header and 4 bytes of data.
+ * @brief Push a flexible input of 4 bytes and a flexible label with valid headers.
  */
 TEST_F (TensorTrainerFakeFw, flexibleInput)
 {
   GstHarness *h = make_fake_trainer_harness ();
-  GstTensorMetaInfo meta;
-  GstMemory *data_mem, *mem;
   GstBuffer *buf;
-  guint8 data[4] = { 7, 8, 9, 10 };
+  const guint8 data[4] = { 7, 8, 9, 10 };
+  const guint8 label = 1;
 
   ASSERT_NE (h, nullptr);
   gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
 
-  gst_tensor_meta_info_init (&meta);
-  meta.type = _NNS_UINT8;
-  meta.dimension[0] = 4;
-  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-
-  data_mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, data,
-      sizeof (data), 0, sizeof (data), NULL, NULL);
-  mem = gst_tensor_meta_info_append_header (&meta, data_mem);
-  gst_memory_unref (data_mem);
-  ASSERT_NE (mem, nullptr);
-
   buf = gst_buffer_new ();
-  gst_buffer_append_memory (buf, mem);
+  ASSERT_TRUE (append_flexible_tensor (buf, data, sizeof (data)));
+  ASSERT_TRUE (append_flexible_tensor (buf, &label, sizeof (label)));
 
   EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
   EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 1);
   EXPECT_EQ (fake_stat.pushed_size, sizeof (data));
   EXPECT_EQ ((guint) fake_stat.pushed_first, 7U);
+  EXPECT_EQ (fake_stat.missing_tensors, 0U);
   EXPECT_EQ (gst_harness_buffers_received (h), 1U);
 
   gst_harness_teardown (h);
@@ -1020,12 +1070,14 @@ TEST_F (TensorTrainerFakeFw, flexibleInput)
  *
  * The 8 bytes end right before an inaccessible page, so reading the
  * 128-byte header out of them faults instead of silently reading the
- * neighbouring heap.
+ * neighbouring heap. A valid label follows, so the tensor count is not
+ * what the element refuses.
  */
 TEST_F (TensorTrainerFakeFw, flexibleHeaderTruncated_n)
 {
   const gsize page = (gsize) sysconf (_SC_PAGESIZE);
   const gsize size = 8;
+  const guint8 label = 1;
   GstHarness *h;
   GstBuffer *buf;
   gpointer region;
@@ -1049,6 +1101,7 @@ TEST_F (TensorTrainerFakeFw, flexibleHeaderTruncated_n)
   buf = gst_buffer_new ();
   gst_buffer_append_memory (buf, gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
                                      region, page, page - size, size, NULL, NULL));
+  EXPECT_TRUE (append_flexible_tensor (buf, &label, sizeof (label)));
 
   EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
   EXPECT_EQ (g_atomic_int_get (&fake_stat.push_calls), 0);
@@ -1059,18 +1112,20 @@ TEST_F (TensorTrainerFakeFw, flexibleHeaderTruncated_n)
 }
 
 /**
- * @brief Push a flexible tensor whose header is long enough but invalid.
+ * @brief Push a flexible tensor whose header is long enough but invalid, and a valid label.
  */
 TEST_F (TensorTrainerFakeFw, flexibleHeaderInvalid_n)
 {
   GstHarness *h = make_fake_trainer_harness ();
   GstBuffer *buf;
+  const guint8 label = 1;
 
   ASSERT_NE (h, nullptr);
   gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
 
   buf = gst_buffer_new_allocate (NULL, 256, NULL);
   gst_buffer_memset (buf, 0, 0, 256);
+  ASSERT_TRUE (append_flexible_tensor (buf, &label, sizeof (label)));
 
   EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
   EXPECT_EQ (g_atomic_int_get (&fake_stat.push_calls), 0);
@@ -1083,7 +1138,7 @@ TEST_F (TensorTrainerFakeFw, flexibleHeaderInvalid_n)
  *
  * The header passes validation but its size is unknown. The declared data
  * size equals the whole memory, so only refusing the header keeps the
- * header bytes from reaching the sub-plugin as data.
+ * header bytes from reaching the sub-plugin as data. A valid label follows.
  */
 TEST_F (TensorTrainerFakeFw, flexibleHeaderUnknownVersion_n)
 {
@@ -1091,6 +1146,7 @@ TEST_F (TensorTrainerFakeFw, flexibleHeaderUnknownVersion_n)
   GstTensorMetaInfo meta;
   GstBuffer *buf;
   GstMapInfo map;
+  const guint8 label = 1;
 
   ASSERT_NE (h, nullptr);
   gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
@@ -1106,6 +1162,7 @@ TEST_F (TensorTrainerFakeFw, flexibleHeaderUnknownVersion_n)
   EXPECT_TRUE (gst_tensor_meta_info_update_header (&meta, map.data));
   ((uint32_t *) map.data)[1] = 0xDE002000U;
   gst_buffer_unmap (buf, &map);
+  ASSERT_TRUE (append_flexible_tensor (buf, &label, sizeof (label)));
 
   EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
   EXPECT_EQ (g_atomic_int_get (&fake_stat.push_calls), 0);
@@ -1379,8 +1436,8 @@ TEST_F (TensorTrainerFakeFw, unmappableSecondInput_n)
 /**
  * @brief Push fewer memories than the caps announce; nothing is mapped.
  *
- * The element refuses the buffer before the mapping loop, so the cleanup
- * runs with no memory taken at all.
+ * One memory is also fewer than num-inputs + num-labels, so the element
+ * refuses the buffer before it takes any memory.
  */
 TEST_F (TensorTrainerFakeFw, fewerMemoriesThanTensors_n)
 {
@@ -1438,6 +1495,239 @@ TEST_F (TensorTrainerFakeFw, subpluginPushFailure_n)
   EXPECT_EQ (result.second->freed, 1U);
 
   trainer_map_test_result_clear (&result);
+}
+
+/**
+ * @brief What the pushes of the tensor count cases below did.
+ */
+typedef struct {
+  GstFlowReturn ret; /**< flow return of the last push */
+  gint push_calls; /**< push_data() calls the buffers caused */
+  guint missing_tensors; /**< inputs and labels the sub-plugin got without data */
+  gint extra_warnings; /**< warnings about extra tensors */
+} TrainerCountResult;
+
+/**
+ * @brief Set static caps of @a caps_tensors one-byte tensors, or flexible caps when it is 0.
+ */
+static void
+trainer_count_set_caps (GstHarness *h, guint caps_tensors)
+{
+  if (caps_tensors > 0) {
+    gchar *caps_str = make_static_caps_string (caps_tensors, 0);
+
+    gst_harness_set_src_caps_str (h, caps_str);
+    g_free (caps_str);
+  } else {
+    gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
+  }
+}
+
+/**
+ * @brief Push a buffer of @a num_tensors one-byte tensors, flexible when @a flexible is set.
+ */
+static GstFlowReturn
+trainer_count_push_buffer (GstHarness *h, guint num_tensors, gboolean flexible)
+{
+  GstBuffer *buf = gst_buffer_new ();
+  guint i;
+
+  for (i = 0; i < num_tensors; i++) {
+    const guint8 value = (guint8) (i + 1);
+
+    if (flexible) {
+      EXPECT_TRUE (append_flexible_tensor (buf, &value, 1));
+    } else {
+      gst_buffer_append_memory (buf, gst_allocator_alloc (NULL, 1, NULL));
+      gst_buffer_memset (buf, i, value, 1);
+    }
+  }
+
+  return gst_harness_push (h, buf);
+}
+
+/**
+ * @brief Push @a num_buffers buffers of @a num_tensors tensors to a trainer with the given num-inputs and num-labels.
+ *
+ * Static caps announce @a caps_tensors tensors, and flexible caps are used
+ * when it is 0. The counters are read before the harness is torn down,
+ * because the dummy-data thread the element starts when it pauses pushes
+ * as well.
+ */
+static void
+trainer_count_push (guint num_inputs, guint num_labels, guint caps_tensors,
+    guint num_tensors, guint num_buffers, TrainerCountResult *result)
+{
+  GstElement *trainer = make_fake_trainer ();
+  GstHarness *h;
+  guint i;
+
+  memset (result, 0, sizeof (*result));
+  result->ret = GST_FLOW_CUSTOM_ERROR;
+  ASSERT_NE (trainer, nullptr);
+
+  g_object_set (trainer, "num-inputs", num_inputs, "num-labels", num_labels, NULL);
+  h = gst_harness_new_with_element (trainer, "sink", "src");
+  gst_object_unref (trainer);
+  ASSERT_NE (h, nullptr);
+
+  trainer_count_set_caps (h, caps_tensors);
+  for (i = 0; i < num_buffers; i++)
+    result->ret = trainer_count_push_buffer (h, num_tensors, caps_tensors == 0);
+
+  result->push_calls = g_atomic_int_get (&fake_stat.push_calls);
+  result->missing_tensors = fake_stat.missing_tensors;
+  result->extra_warnings = g_atomic_int_get (&fake_stat.extra_warnings);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Push buffers of exactly num-inputs + num-labels static tensors; nothing is warned.
+ */
+TEST_F (TensorTrainerFakeFw, tensorCountMatchesInputsAndLabels)
+{
+  TrainerCountResult result;
+
+  trainer_count_push (2, 1, 3, 3, 2, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_OK);
+  EXPECT_EQ (result.push_calls, 2);
+  EXPECT_EQ (result.missing_tensors, 0U);
+  EXPECT_EQ (result.extra_warnings, 0);
+}
+
+/**
+ * @brief Push buffers of exactly num-inputs + num-labels flexible tensors; nothing is warned.
+ */
+TEST_F (TensorTrainerFakeFw, flexibleTensorCountMatchesInputsAndLabels)
+{
+  TrainerCountResult result;
+
+  trainer_count_push (2, 1, 0, 3, 2, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_OK);
+  EXPECT_EQ (result.push_calls, 2);
+  EXPECT_EQ (result.missing_tensors, 0U);
+  EXPECT_EQ (result.extra_warnings, 0);
+}
+
+/**
+ * @brief Push buffers with more tensors than num-inputs + num-labels.
+ *
+ * They are still accepted, and the extra tensors are warned about once,
+ * not once per buffer.
+ */
+TEST_F (TensorTrainerFakeFw, moreTensorsThanInputsAndLabels)
+{
+  TrainerCountResult result;
+
+  trainer_count_push (1, 1, 3, 3, 3, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_OK);
+  EXPECT_EQ (result.push_calls, 3);
+  EXPECT_EQ (result.missing_tensors, 0U);
+  EXPECT_EQ (result.extra_warnings, 1);
+}
+
+/**
+ * @brief Push flexible buffers with more tensors than num-inputs + num-labels.
+ */
+TEST_F (TensorTrainerFakeFw, flexibleMoreTensorsThanInputsAndLabels)
+{
+  TrainerCountResult result;
+
+  trainer_count_push (1, 1, 0, 3, 3, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_OK);
+  EXPECT_EQ (result.push_calls, 3);
+  EXPECT_EQ (result.missing_tensors, 0U);
+  EXPECT_EQ (result.extra_warnings, 1);
+}
+
+/**
+ * @brief The extra tensors are warned about again when the element runs again.
+ *
+ * The same element is started twice, so the second run must report them
+ * once more, and again only once.
+ */
+TEST_F (TensorTrainerFakeFw, moreTensorsWarnedOncePerRun)
+{
+  GstElement *trainer = make_fake_trainer ();
+  GstHarness *h;
+  guint run;
+
+  ASSERT_NE (trainer, nullptr);
+
+  for (run = 1; run <= 2; run++) {
+    h = gst_harness_new_with_element (trainer, "sink", "src");
+    ASSERT_NE (h, nullptr);
+
+    trainer_count_set_caps (h, 3);
+    EXPECT_EQ (trainer_count_push_buffer (h, 3, FALSE), GST_FLOW_OK);
+    EXPECT_EQ (trainer_count_push_buffer (h, 3, FALSE), GST_FLOW_OK);
+    EXPECT_EQ (g_atomic_int_get (&fake_stat.extra_warnings), (gint) run);
+
+    gst_harness_teardown (h);
+  }
+
+  gst_object_unref (trainer);
+}
+
+/**
+ * @brief Push one static tensor to a trainer that expects an input and a label.
+ *
+ * The caps agree with the buffer, so only the check against num-inputs +
+ * num-labels keeps the sub-plugin from reading a label with no data.
+ */
+TEST_F (TensorTrainerFakeFw, fewerTensorsThanInputsAndLabels_n)
+{
+  TrainerCountResult result;
+
+  trainer_count_push (1, 1, 1, 1, 1, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_ERROR);
+  EXPECT_EQ (result.push_calls, 0);
+  EXPECT_EQ (result.missing_tensors, 0U);
+  EXPECT_EQ (result.extra_warnings, 0);
+}
+
+/**
+ * @brief Push two static tensors to a trainer that expects two inputs and a label.
+ */
+TEST_F (TensorTrainerFakeFw, fewerTensorsThanMultipleInputs_n)
+{
+  TrainerCountResult result;
+
+  trainer_count_push (2, 1, 2, 2, 1, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_ERROR);
+  EXPECT_EQ (result.push_calls, 0);
+  EXPECT_EQ (result.missing_tensors, 0U);
+  EXPECT_EQ (result.extra_warnings, 0);
+}
+
+/**
+ * @brief Push one flexible tensor to a trainer that expects an input and a label.
+ */
+TEST_F (TensorTrainerFakeFw, flexibleFewerTensorsThanInputsAndLabels_n)
+{
+  TrainerCountResult result;
+
+  trainer_count_push (1, 1, 0, 1, 1, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_ERROR);
+  EXPECT_EQ (result.push_calls, 0);
+  EXPECT_EQ (result.missing_tensors, 0U);
+  EXPECT_EQ (result.extra_warnings, 0);
+}
+
+/**
+ * @brief Push more static tensors than the caps announce.
+ *
+ * The count is enough for num-inputs + num-labels, so it is the check
+ * against the negotiated caps that refuses the buffer.
+ */
+TEST_F (TensorTrainerFakeFw, moreTensorsThanCaps_n)
+{
+  TrainerCountResult result;
+
+  trainer_count_push (1, 1, 2, 3, 1, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_ERROR);
+  EXPECT_EQ (result.push_calls, 0);
 }
 
 /**

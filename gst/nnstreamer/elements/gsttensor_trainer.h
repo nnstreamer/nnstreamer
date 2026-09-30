@@ -52,6 +52,7 @@ struct _GstTensorTrainer
   gboolean fw_created;
   gboolean is_training_complete;
   gboolean is_epoch_complete;
+  gboolean extra_tensors_warned; /**< Whether extra tensors were reported in this run */
 
   GstTensorMemory input_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorsInfo output_meta;

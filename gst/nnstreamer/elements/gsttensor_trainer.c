@@ -523,6 +523,7 @@ gst_tensor_trainer_change_state (GstElement * element,
       GST_INFO_OBJECT (trainer, "NULL_TO_READY");
       /* currently not used */
       trainer->is_training_complete = FALSE;
+      trainer->extra_tensors_warned = FALSE;
       break;
 
     case GST_STATE_CHANGE_READY_TO_PAUSED:
@@ -656,8 +657,27 @@ gst_tensor_trainer_check_chain_conditions (GstTensorTrainer * trainer,
       return FALSE;
   }
 
-  if (num_tensors >= NNS_TENSOR_SIZE_LIMIT)
+  if (num_tensors >= NNS_TENSOR_SIZE_LIMIT) {
+    GST_ERROR_OBJECT (trainer, "The buffer has too many tensors (%u)",
+        num_tensors);
     return FALSE;
+  }
+
+  if (num_tensors < trainer->prop.num_inputs + trainer->prop.num_labels) {
+    GST_ERROR_OBJECT (trainer,
+        "The buffer has %u tensors, fewer than num-inputs (%u) + num-labels (%u)",
+        num_tensors, trainer->prop.num_inputs, trainer->prop.num_labels);
+    return FALSE;
+  }
+
+  if (!trainer->extra_tensors_warned &&
+      num_tensors > trainer->prop.num_inputs + trainer->prop.num_labels) {
+    GST_WARNING_OBJECT (trainer,
+        "The buffer has %u tensors, more than num-inputs (%u) + num-labels (%u); "
+        "the extra tensors are not used as inputs or labels",
+        num_tensors, trainer->prop.num_inputs, trainer->prop.num_labels);
+    trainer->extra_tensors_warned = TRUE;
+  }
 
   return TRUE;
 }
