@@ -1311,11 +1311,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   FilterTransformData *out_trans_data = NULL;
   GstTensorMemory *invoke_tensors = NULL;
 
-  /** Reset suspend timeout */
+  /** Reset suspend timeout. This waits for a running unload, so no object lock. */
   if (priv->prop.suspend != 0) {
-    GST_OBJECT_LOCK (self);
     nnstreamer_watchdog_release (priv->watchdog_h);
-    GST_OBJECT_UNLOCK (self);
 
     if (!gst_tensor_filter_common_open_fw (priv))
       return GST_FLOW_ERROR;

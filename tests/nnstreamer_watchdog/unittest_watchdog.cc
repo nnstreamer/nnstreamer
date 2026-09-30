@@ -32,6 +32,8 @@ static std::atomic<bool> hook_thread_new_fail{ false };
 static std::atomic<bool> hook_thread_new_wait_loop{ false };
 static std::atomic<bool> hook_cond_signal_delay{ false };
 static std::atomic<bool> hook_track_mutex{ false };
+static std::atomic<bool> hook_dispatch_lock_delay{ false };
+static std::atomic<bool> hook_dispatch_lock_paused{ false };
 static std::atomic<int> hook_mutex_violations{ 0 };
 static std::atomic<int> hook_loop_run_calls{ 0 };
 static std::atomic<int> hook_thread_new_calls{ 0 };
@@ -167,6 +169,11 @@ g_mutex_lock (GMutex *mutex)
   static auto real = (void (*) (GMutex *)) _hook_next ("g_mutex_lock");
 
   _hook_check_mutex (mutex);
+  if (hook_dispatch_lock_delay.load () && std::this_thread::get_id () != hook_test_thread
+      && g_main_current_source () && hook_dispatch_lock_delay.exchange (false)) {
+    hook_dispatch_lock_paused = true;
+    g_usleep (300000);
+  }
   real (mutex);
 }
 
@@ -487,6 +494,150 @@ TEST (NnstWatchdog, createThreadFail_n)
   EXPECT_EQ (FALSE, ret);
   EXPECT_EQ (nullptr, watchdog_h);
   EXPECT_EQ (0U, critical_count);
+}
+
+/**
+ * @brief State shared with a watchdog callback that blocks for a while.
+ */
+typedef struct {
+  std::atomic<int> entered;
+  std::atomic<int> finished;
+} slow_callback_s;
+
+/**
+ * @brief Called when watchdog is triggered; returns only after 300 ms.
+ */
+static gboolean
+_watchdog_slow_trigger (gpointer ptr)
+{
+  slow_callback_s *state = (slow_callback_s *) ptr;
+
+  state->entered++;
+  g_usleep (300000);
+  state->finished++;
+
+  return FALSE;
+}
+
+/**
+ * @brief Wait until @a counter becomes non-zero, for at most @a timeout_ms.
+ */
+static gboolean
+_wait_nonzero (std::atomic<int> &counter, guint timeout_ms)
+{
+  guint i;
+
+  for (i = 0; i < timeout_ms && counter.load () == 0; i++)
+    g_usleep (1000);
+
+  return counter.load () != 0;
+}
+
+/**
+ * @brief Test that release waits for the callback running in the watchdog thread.
+ */
+TEST (NnstWatchdog, releaseWaitsRunningCallback)
+{
+  nns_watchdog_h watchdog_h = nullptr;
+  slow_callback_s state;
+
+  state.entered = 0;
+  state.finished = 0;
+
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_create (&watchdog_h));
+  ASSERT_EQ (TRUE,
+      nnstreamer_watchdog_feed (watchdog_h, _watchdog_slow_trigger, 10, &state));
+  ASSERT_TRUE (_wait_nonzero (state.entered, 5000));
+
+  nnstreamer_watchdog_release (watchdog_h);
+  EXPECT_EQ (1, state.finished.load ());
+
+  nnstreamer_watchdog_destroy (watchdog_h);
+  EXPECT_EQ (1, state.entered.load ());
+  EXPECT_EQ (1, state.finished.load ());
+}
+
+/**
+ * @brief Test that the callback of a source released while being dispatched
+ *        does not run.
+ */
+TEST (NnstWatchdog, releaseDuringDispatch_n)
+{
+  nns_watchdog_h watchdog_h = nullptr;
+  bool paused;
+  guint received = 0;
+  guint i;
+
+  hook_dispatch_lock_paused = false;
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_create (&watchdog_h));
+
+  hook_dispatch_lock_delay = true;
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_feed (watchdog_h, _watchdog_trigger, 10, &received));
+  for (i = 0; i < 1000 && !hook_dispatch_lock_paused.load (); i++)
+    g_usleep (1000);
+  paused = hook_dispatch_lock_paused.load ();
+
+  nnstreamer_watchdog_release (watchdog_h);
+  g_usleep (500000);
+  nnstreamer_watchdog_destroy (watchdog_h);
+  hook_dispatch_lock_delay = false;
+
+  if (!paused) {
+    GTEST_SKIP () << "The dispatch did not lock from libnnstreamer.";
+  }
+
+  EXPECT_EQ (0U, received);
+}
+
+/**
+ * @brief Test that a released source is not dispatched and release is idempotent.
+ */
+TEST (NnstWatchdog, releaseTwice)
+{
+  nns_watchdog_h watchdog_h = nullptr;
+  guint received = 0;
+
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_create (&watchdog_h));
+  nnstreamer_watchdog_release (watchdog_h);
+
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_feed (watchdog_h, _watchdog_trigger, 50, &received));
+  nnstreamer_watchdog_release (watchdog_h);
+  nnstreamer_watchdog_release (watchdog_h);
+  g_usleep (200000);
+  EXPECT_EQ (0U, received);
+
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_feed (watchdog_h, _watchdog_trigger, 10, &received));
+  g_usleep (1000000);
+  EXPECT_EQ (10U, received);
+
+  nnstreamer_watchdog_destroy (watchdog_h);
+}
+
+/**
+ * @brief Test that feeding again replaces the source that is still armed.
+ */
+TEST (NnstWatchdog, feedTwice)
+{
+  nns_watchdog_h watchdog_h = nullptr;
+  guint first = 9, second = 9;
+
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_create (&watchdog_h));
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_feed (watchdog_h, _watchdog_trigger, 100, &first));
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_feed (watchdog_h, _watchdog_trigger, 100, &second));
+  g_usleep (500000);
+  nnstreamer_watchdog_destroy (watchdog_h);
+
+  EXPECT_EQ (9U, first);
+  EXPECT_EQ (10U, second);
+}
+
+/**
+ * @brief Test for releasing an invalid watchdog handle.
+ */
+TEST (NnstWatchdog, releaseNull_n)
+{
+  nnstreamer_watchdog_release (NULL);
+  nnstreamer_watchdog_destroy (NULL);
 }
 
 /**

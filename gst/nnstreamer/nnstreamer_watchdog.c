@@ -24,6 +24,8 @@ typedef struct _NnstWatchdog
   GMainLoop *loop;
   GThread *thread;
   GSource *source;
+  GSourceFunc func;
+  gpointer user_data;
   GMutex lock;
   GCond cond;
   gboolean started;
@@ -52,6 +54,24 @@ _loop_quit_cb (NnstWatchdog * watchdog)
   g_main_loop_quit (watchdog->loop);
 
   return G_SOURCE_REMOVE;
+}
+
+/**
+ * @brief Called in the watchdog thread when the fed source expires.
+ * @details Runs the user callback under the lock, so that release() waits for
+ *          a running callback and a source released before this point is skipped.
+ */
+static gboolean
+_watchdog_timeout_cb (NnstWatchdog * watchdog)
+{
+  gboolean ret = G_SOURCE_REMOVE;
+
+  g_mutex_lock (&watchdog->lock);
+  if (watchdog->source == g_main_current_source ())
+    ret = watchdog->func (watchdog->user_data);
+  g_mutex_unlock (&watchdog->lock);
+
+  return ret;
 }
 
 /**
@@ -175,17 +195,23 @@ nnstreamer_watchdog_destroy (nns_watchdog_h watchdog_h)
 }
 
 /**
- * @brief Release watchdog source. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
+ * @brief Release watchdog source. This waits for a running callback, so do not hold a lock the callback may wait for.
  */
 void
 nnstreamer_watchdog_release (nns_watchdog_h watchdog_h)
 {
   NnstWatchdog *watchdog = (NnstWatchdog *) watchdog_h;
-  if (watchdog && watchdog->source) {
+
+  if (!watchdog)
+    return;
+
+  g_mutex_lock (&watchdog->lock);
+  if (watchdog->source) {
     g_source_destroy (watchdog->source);
     g_source_unref (watchdog->source);
     watchdog->source = NULL;
   }
+  g_mutex_unlock (&watchdog->lock);
 }
 
 /**
@@ -203,9 +229,18 @@ nnstreamer_watchdog_feed (nns_watchdog_h watchdog_h, GSourceFunc func,
   }
 
   if (watchdog->context) {
+    g_mutex_lock (&watchdog->lock);
+    if (watchdog->source) {
+      g_source_destroy (watchdog->source);
+      g_source_unref (watchdog->source);
+    }
+    watchdog->func = func;
+    watchdog->user_data = user_data;
     watchdog->source = g_timeout_source_new (interval);
-    g_source_set_callback (watchdog->source, func, user_data, NULL);
+    g_source_set_callback (watchdog->source,
+        (GSourceFunc) _watchdog_timeout_cb, watchdog, NULL);
     g_source_attach (watchdog->source, watchdog->context);
+    g_mutex_unlock (&watchdog->lock);
   } else {
     ml_loge
         ("Failed to feed to watchdog. Watchdog is not created or context is invalid.");

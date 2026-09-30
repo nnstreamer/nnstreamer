@@ -9,8 +9,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
 #include <errno.h>
 #include <glib.h>
+#include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #include <string.h>
 
@@ -355,6 +357,255 @@ TEST_F (testFilterEvent, isUpdatableUnsupported_n)
 
   EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 1U);
   EXPECT_FALSE (priv.is_updatable);
+}
+
+/**
+ * @brief State of the sub-plugin checking what runs while it is being unloaded.
+ */
+static struct {
+  std::atomic<int> unloading; /**< SUSPEND or close in progress */
+  std::atomic<int> unload_entered; /**< number of SUSPEND and close calls started */
+  std::atomic<int> overlaps; /**< invokes run while unloading */
+  std::atomic<int> invokes; /**< number of invokes */
+  std::atomic<int> opens; /**< number of opens */
+  std::atomic<int> resumes; /**< number of RESUME calls */
+  int suspend_ret; /**< return value of SUSPEND */
+} unload_mock;
+
+static const char unload_mock_name[] = "unload_mock_subplugin";
+static const gulong unload_mock_delay_us = 500000;
+
+/**
+ * @brief Mark the sub-plugin busy unloading for a while.
+ */
+static void
+unload_mock_busy (void)
+{
+  unload_mock.unloading = 1;
+  unload_mock.unload_entered++;
+  g_usleep (unload_mock_delay_us);
+  unload_mock.unloading = 0;
+}
+
+/**
+ * @brief open callback of the unload mock.
+ */
+static int
+unload_mock_open (const GstTensorFilterProperties *prop, void **private_data)
+{
+  UNUSED (prop);
+  *private_data = g_new0 (int, 1);
+  unload_mock.opens++;
+  return 0;
+}
+
+/**
+ * @brief close callback of the unload mock.
+ */
+static void
+unload_mock_close (const GstTensorFilterProperties *prop, void **private_data)
+{
+  UNUSED (prop);
+  unload_mock_busy ();
+  g_free (*private_data);
+  *private_data = NULL;
+}
+
+/**
+ * @brief invoke callback of the unload mock, copying the input.
+ */
+static int
+unload_mock_invoke (const GstTensorFilterFramework *self, GstTensorFilterProperties *prop,
+    void *private_data, const GstTensorMemory *input, GstTensorMemory *output)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  if (unload_mock.unloading.load () || !private_data)
+    unload_mock.overlaps++;
+  memcpy (output[0].data, input[0].data, MIN (input[0].size, output[0].size));
+  unload_mock.invokes++;
+  return 0;
+}
+
+/**
+ * @brief getFrameworkInfo callback of the unload mock.
+ */
+static int
+unload_mock_get_fw_info (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data,
+    GstTensorFilterFrameworkInfo *info)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  memset (info, 0, sizeof (*info));
+  info->name = unload_mock_name;
+  info->run_without_model = 1;
+  return 0;
+}
+
+/**
+ * @brief getModelInfo callback of the unload mock: one uint8 tensor of 4.
+ */
+static int
+unload_mock_get_model_info (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info)
+{
+  GstTensorsInfo *infos[] = { in_info, out_info };
+  guint i;
+
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  if (ops != GET_IN_OUT_INFO)
+    return -ENOENT;
+
+  for (i = 0; i < G_N_ELEMENTS (infos); i++) {
+    gst_tensors_info_init (infos[i]);
+    infos[i]->num_tensors = 1;
+    infos[i]->info[0].type = _NNS_UINT8;
+    infos[i]->info[0].dimension[0] = 4;
+  }
+  return 0;
+}
+
+/**
+ * @brief eventHandler callback of the unload mock.
+ */
+static int
+unload_mock_event (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData *data)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  UNUSED (data);
+  if (ops == SUSPEND) {
+    if (unload_mock.suspend_ret != 0)
+      return unload_mock.suspend_ret;
+    unload_mock_busy ();
+    return 0;
+  }
+  if (ops == RESUME) {
+    unload_mock.resumes++;
+    return 0;
+  }
+  return -ENOENT;
+}
+
+/**
+ * @brief Wait until @a counter reaches @a value, for at most 5 seconds.
+ */
+static gboolean
+_wait_counter (std::atomic<int> &counter, int value)
+{
+  guint i;
+
+  for (i = 0; i < 5000 && counter.load () < value; i++)
+    g_usleep (1000);
+
+  return counter.load () >= value;
+}
+
+/**
+ * @brief Push a 4-byte buffer to appsrc.
+ */
+static GstFlowReturn
+_push_4bytes (GstElement *src)
+{
+  static const guint8 data[4] = { 1, 2, 3, 4 };
+  GstBuffer *buf = gst_buffer_new_allocate (NULL, sizeof (data), NULL);
+
+  gst_buffer_fill (buf, 0, data, sizeof (data));
+  return gst_app_src_push_buffer (GST_APP_SRC (src), buf);
+}
+
+/**
+ * @brief Push a buffer into tensor_filter with the suspend watchdog while the
+ *        watchdog is unloading the sub-plugin.
+ * @param suspend_ret the value SUSPEND returns (0: suspended, else: closed)
+ */
+static void
+_run_unload_race (int suspend_ret)
+{
+  static GstTensorFilterFramework fw;
+  GstElement *pipeline, *src;
+  int entered;
+
+  memset (&fw, 0, sizeof (fw));
+  fw.version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+  fw.open = unload_mock_open;
+  fw.close = unload_mock_close;
+  fw.invoke = unload_mock_invoke;
+  fw.getFrameworkInfo = unload_mock_get_fw_info;
+  fw.getModelInfo = unload_mock_get_model_info;
+  fw.eventHandler = unload_mock_event;
+
+  unload_mock.unloading = 0;
+  unload_mock.unload_entered = 0;
+  unload_mock.overlaps = 0;
+  unload_mock.invokes = 0;
+  unload_mock.opens = 0;
+  unload_mock.resumes = 0;
+  unload_mock.suspend_ret = suspend_ret;
+  ASSERT_TRUE (nnstreamer_filter_probe (&fw));
+
+  pipeline = gst_parse_launch (
+      "appsrc name=src caps=other/tensors,format=static,num_tensors=1,"
+      "dimensions=(string)4,types=(string)uint8,framerate=0/1 ! "
+      "tensor_filter framework=unload_mock_subplugin suspend=50 ! fakesink async=false",
+      NULL);
+  src = pipeline ? gst_bin_get_by_name (GST_BIN (pipeline), "src") : nullptr;
+  if (!src) {
+    if (pipeline)
+      gst_object_unref (pipeline);
+    nnstreamer_filter_exit (unload_mock_name);
+    FAIL () << "Failed to create the pipeline.";
+  }
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (_push_4bytes (src), GST_FLOW_OK);
+  EXPECT_TRUE (_wait_counter (unload_mock.invokes, 1));
+
+  /* The watchdog unloads 50 ms after the invoke; push while it is unloading. */
+  entered = unload_mock.unload_entered.load ();
+  EXPECT_TRUE (_wait_counter (unload_mock.unload_entered, entered + 1));
+  EXPECT_EQ (_push_4bytes (src), GST_FLOW_OK);
+  EXPECT_TRUE (_wait_counter (unload_mock.invokes, 2));
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  nnstreamer_filter_exit (unload_mock_name);
+
+  EXPECT_EQ (unload_mock.overlaps.load (), 0);
+  EXPECT_EQ (unload_mock.invokes.load (), 2);
+}
+
+/**
+ * @brief A buffer arriving while the suspend watchdog suspends the sub-plugin
+ *        is invoked only after the model is suspended and resumed.
+ */
+TEST (testFilterSuspendWatchdog, invokeWhileSuspending)
+{
+  _run_unload_race (0);
+
+  EXPECT_EQ (unload_mock.opens.load (), 1);
+  EXPECT_GE (unload_mock.resumes.load (), 1);
+}
+
+/**
+ * @brief A buffer arriving while the suspend watchdog closes a sub-plugin that
+ *        refuses SUSPEND is invoked only after the model is opened again.
+ */
+TEST (testFilterSuspendWatchdog, invokeWhileClosing_n)
+{
+  _run_unload_race (-ENOENT);
+
+  EXPECT_GE (unload_mock.opens.load (), 2);
+  EXPECT_EQ (unload_mock.resumes.load (), 0);
 }
 
 /**
