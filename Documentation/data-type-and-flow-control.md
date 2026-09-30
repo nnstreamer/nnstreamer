@@ -112,6 +112,7 @@ A ```tensor_filter``` with flexible input stops the stream with an error when a 
 
 The buffer of ```other/tensors,format=flexible``` may have single memory or multiple memory chunks.
 NNStreamer element with ```other/tensors,format=flexible``` capability gets the number of memories in a buffer and handles each memory as a tensor.
+A single memory may also hold several tensors back to back, each with its own header; elements split it into one memory per tensor first.
 Note that, it also has a limit, the maximum allowed number of memory chunks in a buffer is **256**.
 
 ```
