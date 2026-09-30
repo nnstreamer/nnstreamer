@@ -1,7 +1,7 @@
 /**
  * @file        unittest_aggregator.cc
  * @date        17 Sep 2026
- * @brief       Unit test for tensor_aggregator buffer ownership and input size
+ * @brief       Unit test for tensor_aggregator buffer ownership, input size and property races
  * @see         https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
@@ -315,6 +315,158 @@ TEST (testTensorAggregatorInputSize, validInput)
     EXPECT_EQ (memcmp (map.data + sizeof (aggr_input), aggr_input, sizeof (aggr_input)), 0);
   }
   gst_buffer_unmap (out, &map);
+  gst_buffer_unref (out);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Meta that sets an element property when its buffer is copied.
+ * tensor_aggregator copies the buffer to concatenate, so the property changes
+ * while the concatenation of that buffer is running.
+ */
+typedef struct {
+  GstMeta meta;
+  GstElement *element; /**< element whose property is set */
+  const gchar *name; /**< property name */
+  guint value; /**< property value */
+} AggrSetPropMeta;
+
+/**
+ * @brief Get the API type of AggrSetPropMeta.
+ */
+static GType
+_aggr_set_prop_meta_api_get_type (void)
+{
+  static GType type = 0;
+  static const gchar *tags[] = { NULL };
+
+  if (g_once_init_enter (&type)) {
+    GType t = gst_meta_api_type_register ("AggrSetPropMetaAPI", tags);
+    g_once_init_leave (&type, t);
+  }
+
+  return type;
+}
+
+/**
+ * @brief Initialize an AggrSetPropMeta.
+ */
+static gboolean
+_aggr_set_prop_meta_init (GstMeta *meta, gpointer, GstBuffer *)
+{
+  AggrSetPropMeta *m = (AggrSetPropMeta *) meta;
+
+  m->element = NULL;
+  m->name = NULL;
+  m->value = 0;
+
+  return TRUE;
+}
+
+/**
+ * @brief Set the property when the buffer is copied; the meta is not copied.
+ */
+static gboolean
+_aggr_set_prop_meta_transform (GstBuffer *, GstMeta *meta, GstBuffer *, GQuark, gpointer)
+{
+  AggrSetPropMeta *m = (AggrSetPropMeta *) meta;
+
+  if (m->element)
+    g_object_set (m->element, m->name, m->value, NULL);
+
+  return TRUE;
+}
+
+/**
+ * @brief Get the info of AggrSetPropMeta.
+ */
+static const GstMetaInfo *
+_aggr_set_prop_meta_get_info (void)
+{
+  static const GstMetaInfo *info = NULL;
+
+  if (g_once_init_enter (&info)) {
+    const GstMetaInfo *i = gst_meta_register (_aggr_set_prop_meta_api_get_type (),
+        "AggrSetPropMeta", sizeof (AggrSetPropMeta), _aggr_set_prop_meta_init,
+        NULL, _aggr_set_prop_meta_transform);
+    g_once_init_leave (&info, i);
+  }
+
+  return info;
+}
+
+/**
+ * @brief Push one buffer of the test input whose concatenation sets property
+ * @a name to @a value midway, and check the output is concatenated with the
+ * property values the buffer started with.
+ */
+static void
+_aggr_test_racing_prop (GstHarness *h, const gchar *name, guint value)
+{
+  GstBuffer *in, *out;
+  AggrSetPropMeta *meta;
+  guint current = 0;
+
+  in = _aggr_buffer_new (h, AGGR_NUM_ELEMENTS);
+  meta = (AggrSetPropMeta *) gst_buffer_add_meta (in, _aggr_set_prop_meta_get_info (), NULL);
+  ASSERT_TRUE (meta != NULL);
+  meta->element = h->element;
+  meta->name = name;
+  meta->value = value;
+
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+  g_object_get (h->element, name, &current, NULL);
+  EXPECT_EQ (current, value);
+  ASSERT_EQ (gst_harness_buffers_received (h), 1U);
+
+  out = gst_harness_pull (h);
+  _aggr_check_data (out, aggr_concat);
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Raising frames-out while a buffer is concatenated does not make the
+ * concatenation read or write past the buffer (#4960 G11).
+ */
+TEST (testTensorAggregatorRace, framesOutDuringConcat_n)
+{
+  GstHarness *h;
+
+  h = _aggr_harness_new (2, 2, TRUE);
+  _aggr_test_racing_prop (h, "frames-out", 4);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Changing frames-dim while a buffer is concatenated does not change the
+ * layout of that buffer (#4960 G11).
+ */
+TEST (testTensorAggregatorRace, framesDimDuringConcat_n)
+{
+  GstHarness *h;
+
+  h = _aggr_harness_new (2, 2, TRUE);
+  _aggr_test_racing_prop (h, "frames-dim", 0);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A frames-dim set while a buffer is concatenated applies from the next buffer.
+ */
+TEST (testTensorAggregatorRace, framesDimNextBuffer)
+{
+  GstHarness *h;
+  GstBuffer *out;
+
+  h = _aggr_harness_new (2, 2, TRUE);
+  _aggr_test_racing_prop (h, "frames-dim", 3);
+
+  /* Frames stacked on the outermost axis need no concatenation: the input passes as it is. */
+  EXPECT_EQ (gst_harness_push (h, _aggr_buffer_new (h, AGGR_NUM_ELEMENTS)), GST_FLOW_OK);
+  ASSERT_EQ (gst_harness_buffers_received (h), 2U);
+  out = gst_harness_pull (h);
+  _aggr_check_data (out, aggr_input);
   gst_buffer_unref (out);
 
   gst_harness_teardown (h);
