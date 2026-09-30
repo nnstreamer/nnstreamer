@@ -2347,6 +2347,340 @@ TEST (testTensorTransform, paddingChangeFlexibleOutput)
 }
 
 /**
+ * @brief Pad a static uint8 input filled by _new_uint8_sequence() (#4960 G7).
+ * @param dimension the input dimension string
+ * @param option the padding option
+ * @param in_size the size of the pushed buffer, 0 for the size of the caps
+ * @param out_config the output config, valid if the output buffer is returned
+ * @return the output buffer, or NULL if the transform pushed nothing
+ */
+static GstBuffer *
+_pad_uint8_sequence (const gchar *dimension, const gchar *option, gsize in_size,
+    GstTensorsConfig *out_config)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  GstBuffer *out_buf = NULL;
+
+  gst_tensors_config_init (out_config);
+  h = gst_harness_new ("tensor_transform");
+  if (h == NULL)
+    return NULL;
+
+  g_object_set (h->element, "mode", GTT_PADDING, "option", option, NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension (dimension, config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  if (in_size == 0)
+    in_size = gst_tensor_info_get_size (&config.info.info[0]);
+
+  if (gst_harness_push (h, _new_uint8_sequence (h, in_size)) == GST_FLOW_OK) {
+    out_buf = gst_harness_try_pull (h);
+    if (out_buf && !_get_harness_sink_config (h, out_config)) {
+      gst_buffer_unref (out_buf);
+      out_buf = NULL;
+    }
+  }
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  return out_buf;
+}
+
+/**
+ * @brief Check that a uint8 tensor holds zeros, the sequence 1..size of the
+ *        input from the given offset, and zeros again (#4960 G7).
+ */
+static void
+_check_front_padded_uint8 (GstMemory *mem, gsize total, gsize offset, gsize size)
+{
+  GstMapInfo info;
+  gsize i;
+  guint mismatched = 0;
+  guint8 expected;
+
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  EXPECT_EQ (info.size, total);
+
+  if (info.size == total) {
+    for (i = 0; i < total; i++) {
+      expected = (i >= offset && i < offset + size) ? (guint8) (i - offset + 1) : 0;
+      if (info.data[i] != expected)
+        mismatched++;
+    }
+  }
+
+  EXPECT_EQ (mismatched, 0U);
+  gst_memory_unmap (mem, &info);
+}
+
+/**
+ * @brief Test for padding the width and height of a rank-2 tensor (#4960 G7).
+ *        Nothing was copied and the output was uninitialized heap before.
+ */
+TEST (testTensorTransform, paddingRank2)
+{
+  GstTensorsConfig out_config;
+  GstBuffer *out_buf;
+
+  out_buf = _pad_uint8_sequence ("4:3", "left:1,right:1,top:1,bottom:2", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 6U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 6U);
+  EXPECT_EQ (out_config.info.info[0].dimension[2], 0U);
+  _check_padded_uint8 (gst_buffer_peek_memory (out_buf, 0), 0, 4, 3, 1, 1, 1, 2);
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+
+  out_buf = _pad_uint8_sequence ("4:3", "left:1", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 5U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 3U);
+  EXPECT_EQ (out_config.info.info[0].dimension[2], 0U);
+  _check_padded_uint8 (gst_buffer_peek_memory (out_buf, 0), 0, 4, 3, 1, 0, 0, 0);
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+}
+
+/**
+ * @brief Test for padding a rank-1 tensor (#4960 G7). The missing height
+ *        is 1, so top/bottom padding adds rows around it.
+ */
+TEST (testTensorTransform, paddingRank1)
+{
+  GstTensorsConfig out_config;
+  GstBuffer *out_buf;
+
+  out_buf = _pad_uint8_sequence ("4", "left:2,right:1", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 7U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 0U);
+  _check_padded_uint8 (gst_buffer_peek_memory (out_buf, 0), 0, 4, 1, 2, 1, 0, 0);
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+
+  out_buf = _pad_uint8_sequence ("4", "left:1,top:1,bottom:1", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 5U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 3U);
+  EXPECT_EQ (out_config.info.info[0].dimension[2], 0U);
+  _check_padded_uint8 (gst_buffer_peek_memory (out_buf, 0), 0, 4, 1, 1, 0, 1, 1);
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+}
+
+/**
+ * @brief Test for front/back padding of rank-1 and rank-2 tensors (#4960 G7).
+ *        The output was zeros only, without the input, before.
+ */
+TEST (testTensorTransform, paddingFrontRankBelow3)
+{
+  GstTensorsConfig out_config;
+  GstBuffer *out_buf;
+
+  out_buf = _pad_uint8_sequence ("4:3", "front:1,back:1", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 4U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 3U);
+  EXPECT_EQ (out_config.info.info[0].dimension[2], 3U);
+  EXPECT_EQ (out_config.info.info[0].dimension[3], 0U);
+  _check_front_padded_uint8 (gst_buffer_peek_memory (out_buf, 0), 36, 12, 12);
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+
+  out_buf = _pad_uint8_sequence ("4", "front:2", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 4U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 1U);
+  EXPECT_EQ (out_config.info.info[0].dimension[2], 3U);
+  _check_front_padded_uint8 (gst_buffer_peek_memory (out_buf, 0), 12, 8, 4);
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+}
+
+/**
+ * @brief Test for padding rank-2 tensors with layout:NHWC (#4960 G7), which
+ *        swaps left/right with front/back before the missing dimensions are
+ *        filled.
+ */
+TEST (testTensorTransform, paddingRank2NhwcLayout)
+{
+  GstTensorsConfig out_config;
+  GstBuffer *out_buf;
+
+  out_buf = _pad_uint8_sequence ("4:3", "left:1,layout:NHWC", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 4U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 3U);
+  EXPECT_EQ (out_config.info.info[0].dimension[2], 2U);
+  _check_front_padded_uint8 (gst_buffer_peek_memory (out_buf, 0), 24, 12, 12);
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+
+  out_buf = _pad_uint8_sequence ("4:3", "front:1,top:1,layout:NHWC", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 5U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 4U);
+  EXPECT_EQ (out_config.info.info[0].dimension[2], 0U);
+  _check_padded_uint8 (gst_buffer_peek_memory (out_buf, 0), 0, 4, 3, 1, 0, 1, 0);
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+}
+
+/**
+ * @brief Test that padding a rank-3 or rank-4 tensor keeps its dimension and
+ *        data layout (#4960 G7).
+ */
+TEST (testTensorTransform, paddingRank3And4)
+{
+  GstTensorsConfig out_config;
+  GstBuffer *out_buf;
+  GstMemory *mem, *plane;
+  GstMapInfo info;
+  gsize n, i;
+  guint mismatched = 0;
+
+  out_buf = _pad_uint8_sequence ("4:3:1", "left:1,right:1,top:1", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 6U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 4U);
+  EXPECT_EQ (out_config.info.info[0].dimension[2], 1U);
+  EXPECT_EQ (out_config.info.info[0].dimension[3], 0U);
+  _check_padded_uint8 (gst_buffer_peek_memory (out_buf, 0), 0, 4, 3, 1, 1, 1, 0);
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+
+  /* two 4:3 planes, each padded by one row on top and one plane in front */
+  out_buf = _pad_uint8_sequence ("4:3:1:2", "top:1,front:1", 0, &out_config);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (out_config.info.info[0].dimension[0], 4U);
+  EXPECT_EQ (out_config.info.info[0].dimension[1], 4U);
+  EXPECT_EQ (out_config.info.info[0].dimension[2], 2U);
+  EXPECT_EQ (out_config.info.info[0].dimension[3], 2U);
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_EQ (gst_memory_get_sizes (mem, NULL, NULL), 64U);
+
+  for (n = 0; n < 2; n++) {
+    /* the front plane of each 4:4:2 block is all zero */
+    plane = gst_memory_share (mem, n * 32, 16);
+    _check_front_padded_uint8 (plane, 16, 0, 0);
+    gst_memory_unref (plane);
+
+    /* then a zero row and the n-th input plane (12 + 1 .. 12 + 12 for n = 1) */
+    plane = gst_memory_share (mem, n * 32 + 16, 16);
+    ASSERT_TRUE (gst_memory_map (plane, &info, GST_MAP_READ));
+    for (i = 0; i < 16; i++) {
+      guint8 expected = (i < 4) ? 0 : (guint8) (n * 12 + i - 4 + 1);
+      if (info.data[i] != expected)
+        mismatched++;
+    }
+    gst_memory_unmap (plane, &info);
+    gst_memory_unref (plane);
+  }
+  EXPECT_EQ (mismatched, 0U);
+
+  gst_tensors_config_free (&out_config);
+  gst_buffer_unref (out_buf);
+}
+
+/**
+ * @brief Push a flexible uint8 tensor of the given dimension, filled by
+ *        _new_uint8_sequence() with the given payload size (#4960 G7).
+ */
+static GstFlowReturn
+_push_flex_uint8_sequence (GstHarness *h, guint d0, guint d1, gsize size)
+{
+  GstBuffer *in_buf = _new_uint8_sequence (h, size);
+  GstTensorMetaInfo meta;
+  GstMemory *mem;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = d0;
+  meta.dimension[1] = d1;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  mem = gst_tensor_meta_info_append_header (&meta, gst_buffer_peek_memory (in_buf, 0));
+  gst_buffer_replace_all_memory (in_buf, mem);
+
+  return gst_harness_push (h, in_buf);
+}
+
+/**
+ * @brief Test for padding a rank-2 tensor from a flexible stream (#4960 G7).
+ *        The dimension comes from the header of each buffer.
+ */
+TEST (testTensorTransform, paddingRank2FlexibleInput)
+{
+  GstHarness *h;
+  GstTensorMetaInfo meta;
+  GstBuffer *out_buf;
+  GstMemory *mem;
+  gsize hsize;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_PADDING, "option", "left:1,top:1,bottom:1", NULL);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
+
+  EXPECT_EQ (_push_flex_uint8_sequence (h, 4, 3, 12), GST_FLOW_OK);
+  out_buf = gst_harness_try_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_tensor_meta_info_parse_memory (&meta, mem));
+  EXPECT_EQ (meta.dimension[0], 5U);
+  EXPECT_EQ (meta.dimension[1], 5U);
+  EXPECT_EQ (meta.dimension[2], 0U);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  _check_padded_uint8 (mem, hsize, 4, 3, 1, 0, 1, 1);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test that a rank-2 buffer smaller than its caps is refused instead of
+ *        padded (#4960 G7).
+ */
+TEST (testTensorTransform, paddingRank2ShortBuffer_n)
+{
+  GstTensorsConfig out_config;
+  GstBuffer *out_buf;
+
+  out_buf = _pad_uint8_sequence ("4:3", "left:1,front:1", 8, &out_config);
+  EXPECT_TRUE (out_buf == NULL);
+  if (out_buf)
+    gst_buffer_unref (out_buf);
+  gst_tensors_config_free (&out_config);
+}
+
+/**
+ * @brief Test that a flexible rank-2 buffer whose payload is smaller than its
+ *        header describes is refused instead of padded (#4960 G7).
+ */
+TEST (testTensorTransform, paddingRank2FlexibleShortPayload_n)
+{
+  GstHarness *h;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_PADDING, "option", "left:1,top:1", NULL);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=flexible,framerate=0/1");
+
+  EXPECT_EQ (_push_flex_uint8_sequence (h, 4, 3, 8), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for changing to a mode that does not fit a static input while
  *        the output is flexible (#4933). The flexible caps cannot refuse it,
  *        so the buffer is refused instead.
