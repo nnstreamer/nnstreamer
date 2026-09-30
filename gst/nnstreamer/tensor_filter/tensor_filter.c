@@ -554,7 +554,8 @@ gst_tensor_filter_check_throttling_delay (GstBaseTransform * trans,
       self->throttling_accum += diff;
 
       /* check whether the average latency is longer than throttling delay */
-      delay = MAX (priv->prop.latency * 1000, self->throttling_delay);
+      delay = MAX ((GstClockTimeDiff) priv->prop.latency * GST_USECOND,
+          self->throttling_delay);
 
       if (self->throttling_accum < delay) {
         GstClockTimeDiff duration = GST_BUFFER_DURATION (inbuf);        /* original */
