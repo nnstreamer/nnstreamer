@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "mqttcommon.h"
+#include "mqttsrc.h"
 
 #define DEFAULT_SUB_TIMEOUT (G_GINT64_CONSTANT (1000000))
 #define SETTLE_TIME_US (300 * G_TIME_SPAN_MILLISECOND)
@@ -1346,6 +1347,362 @@ TEST (testMqttSrc, getSetStringProperties)
   g_free (value);
 
   gst_object_unref (elm);
+}
+
+/**
+ * @brief The timestamps of the buffers the element pushes
+ */
+typedef struct {
+  GMutex lock;
+  GCond cond;
+  guint count;
+  GstClockTime pts;
+  GstClockTime dts;
+  gulong probe_id;
+} ts_record_s;
+
+/**
+ * @brief Keep the timestamps of the last buffer the element pushes
+ */
+static GstPadProbeReturn
+_ts_probe (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  ts_record_s *rec = (ts_record_s *) user_data;
+  GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER (info);
+  (void) pad;
+
+  g_mutex_lock (&rec->lock);
+  rec->count++;
+  rec->pts = GST_BUFFER_PTS (buf);
+  rec->dts = GST_BUFFER_DTS (buf);
+  g_cond_broadcast (&rec->cond);
+  g_mutex_unlock (&rec->lock);
+
+  return GST_PAD_PROBE_OK;
+}
+
+/**
+ * @brief Start recording the timestamps of the buffers the element pushes
+ */
+static void
+_ts_record_start (ts_record_s *rec, src_fixture_s *fixture)
+{
+  memset (rec, 0, sizeof (*rec));
+  g_mutex_init (&rec->lock);
+  g_cond_init (&rec->cond);
+  rec->pts = rec->dts = GST_CLOCK_TIME_NONE;
+  rec->probe_id = gst_pad_add_probe (
+      fixture->srcpad, GST_PAD_PROBE_TYPE_BUFFER, _ts_probe, rec, NULL);
+}
+
+/**
+ * @brief Stop recording; call it after the fixture is torn down
+ */
+static void
+_ts_record_stop (ts_record_s *rec)
+{
+  g_mutex_clear (&rec->lock);
+  g_cond_clear (&rec->cond);
+}
+
+/**
+ * @brief Wait until the given number of buffers has been recorded
+ */
+static gboolean
+_ts_record_wait (ts_record_s *rec, guint expected)
+{
+  gint64 end_time = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+  gboolean reached;
+
+  g_mutex_lock (&rec->lock);
+  while (rec->count < expected) {
+    if (!g_cond_wait_until (&rec->cond, &rec->lock, end_time))
+      break;
+  }
+  reached = (rec->count >= expected);
+  g_mutex_unlock (&rec->lock);
+
+  return reached;
+}
+
+/**
+ * @brief Get the epoch the element maps its running time onto
+ */
+static gint64
+_local_epoch (src_fixture_s *fixture)
+{
+  return ((GstMqttSrc *) fixture->src)->base_time_epoch;
+}
+
+/**
+ * @brief Build a message carrying the given wire-header timestamps
+ */
+static MQTTAsync_message *
+_new_timed_message (gint64 base_time_epoch, gint64 sent_time_epoch,
+    GstClockTime pts, GstClockTime dts)
+{
+  GstMQTTMessageHdr hdr = {};
+
+  hdr.base_time_epoch = base_time_epoch;
+  hdr.sent_time_epoch = sent_time_epoch;
+  hdr.pts = pts;
+  hdr.dts = dts;
+  hdr.duration = 33 * GST_MSECOND;
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 512;
+
+  return _new_message (&hdr, 512);
+}
+
+/**
+ * @brief Deliver a message from a publisher that went to PLAYING 5 s before
+ *        the element, stamped 100 ms into the element's running time
+ */
+static gboolean
+_deliver_valid_message (src_fixture_s *fixture)
+{
+  gint64 epoch = _local_epoch (fixture);
+
+  return _deliver (_new_timed_message (
+      epoch - 5 * GST_SECOND, epoch + 1, 5100 * GST_MSECOND, 5 * GST_SECOND));
+}
+
+/**
+ * @brief mqttsrc moves wire timestamps onto its own running time unchanged
+ * @note GstBaseSrc offsets a live stream so that its first buffer lands on the
+ *       running time it is pushed at, so the cases check the PTS-DTS distance.
+ */
+TEST (testMqttSrc, messageTimestampsShifted)
+{
+  src_fixture_s fixture;
+  ts_record_s rec;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _ts_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  ASSERT_NE (_local_epoch (&fixture), (gint64) GST_CLOCK_TIME_NONE);
+
+  EXPECT_TRUE (_deliver_valid_message (&fixture));
+  EXPECT_TRUE (_ts_record_wait (&rec, 1));
+  EXPECT_EQ (rec.pts - rec.dts, 100 * GST_MSECOND);
+
+  _fixture_teardown (&fixture);
+  _ts_record_stop (&rec);
+}
+
+/**
+ * @brief mqttsrc drops a DTS that would fall before its running time starts
+ *        instead of wrapping it into a far-future sync point
+ */
+TEST (testMqttSrc, messageDtsBeforeStart)
+{
+  src_fixture_s fixture;
+  ts_record_s rec;
+  gint64 epoch;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _ts_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  epoch = _local_epoch (&fixture);
+
+  EXPECT_TRUE (_deliver (_new_timed_message (
+      epoch - 5 * GST_SECOND, epoch + 1, 5100 * GST_MSECOND, 4 * GST_SECOND)));
+  EXPECT_TRUE (_ts_record_wait (&rec, 1));
+  EXPECT_TRUE (GST_CLOCK_TIME_IS_VALID (rec.pts));
+  EXPECT_EQ (rec.dts, GST_CLOCK_TIME_NONE);
+
+  _fixture_teardown (&fixture);
+  _ts_record_stop (&rec);
+}
+
+/**
+ * @brief A publisher epoch whose distance from the local one overflows is
+ *        dropped and does not hold back the messages after it
+ */
+TEST (testMqttSrc, messageBaseEpochOverflow_n)
+{
+  src_fixture_s fixture;
+  ts_record_s rec;
+  gint64 epoch;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _ts_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  epoch = _local_epoch (&fixture);
+
+  EXPECT_TRUE (_deliver (_new_timed_message (G_MININT64, epoch + 1, 0, 0)));
+  EXPECT_TRUE (_deliver_valid_message (&fixture));
+  EXPECT_TRUE (_ts_record_wait (&rec, 1));
+  g_usleep (SETTLE_TIME_US);
+  EXPECT_EQ (rec.count, 1U);
+  EXPECT_EQ (rec.pts - rec.dts, 100 * GST_MSECOND);
+
+  _fixture_teardown (&fixture);
+  _ts_record_stop (&rec);
+}
+
+/**
+ * @brief A PTS that overflows once moved onto the local running time is
+ *        dropped and does not hold back the messages after it
+ */
+TEST (testMqttSrc, messagePtsOverflow_n)
+{
+  src_fixture_s fixture;
+  ts_record_s rec;
+  gint64 epoch;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _ts_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  epoch = _local_epoch (&fixture);
+
+  EXPECT_TRUE (_deliver (_new_timed_message (
+      epoch + GST_SECOND, epoch + GST_SECOND, G_MAXINT64, GST_CLOCK_TIME_NONE)));
+  EXPECT_TRUE (_deliver_valid_message (&fixture));
+  EXPECT_TRUE (_ts_record_wait (&rec, 1));
+  g_usleep (SETTLE_TIME_US);
+  EXPECT_EQ (rec.count, 1U);
+  EXPECT_EQ (rec.pts - rec.dts, 100 * GST_MSECOND);
+
+  _fixture_teardown (&fixture);
+  _ts_record_stop (&rec);
+}
+
+/**
+ * @brief A PTS beyond the signed time range is refused instead of wrapping
+ *        into a plausible-looking one
+ */
+TEST (testMqttSrc, messagePtsBeyondRange_n)
+{
+  src_fixture_s fixture;
+  ts_record_s rec;
+  gint64 epoch;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _ts_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  epoch = _local_epoch (&fixture);
+
+  EXPECT_TRUE (_deliver (_new_timed_message (epoch + 200 * GST_MSECOND,
+      epoch + 1, G_MAXUINT64 - 1, GST_CLOCK_TIME_NONE)));
+  EXPECT_TRUE (_deliver_valid_message (&fixture));
+  EXPECT_TRUE (_ts_record_wait (&rec, 1));
+  g_usleep (SETTLE_TIME_US);
+  EXPECT_EQ (rec.count, 1U);
+  EXPECT_EQ (rec.pts - rec.dts, 100 * GST_MSECOND);
+
+  _fixture_teardown (&fixture);
+  _ts_record_stop (&rec);
+}
+
+/**
+ * @brief A message that arrives before the element knows its epoch is
+ *        dropped and does not hold back the messages after it
+ */
+TEST (testMqttSrc, messageBeforePlaying_n)
+{
+  src_fixture_s fixture;
+  ts_record_s rec;
+  GstMQTTMessageHdr hdr = {};
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _ts_record_start (&rec, &fixture);
+  ASSERT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  ASSERT_TRUE (_wait_for_subscribe ());
+  ASSERT_EQ (_local_epoch (&fixture), (gint64) GST_CLOCK_TIME_NONE);
+
+  _set_header_timestamps (fixture.src, &hdr);
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 512;
+  EXPECT_TRUE (_deliver (_new_message (&hdr, 512)));
+
+  ASSERT_TRUE (_fixture_play (&fixture));
+  EXPECT_TRUE (_deliver_valid_message (&fixture));
+  EXPECT_TRUE (_ts_record_wait (&rec, 1));
+  g_usleep (SETTLE_TIME_US);
+  EXPECT_EQ (rec.count, 1U);
+  EXPECT_EQ (rec.pts - rec.dts, 100 * GST_MSECOND);
+
+  _fixture_teardown (&fixture);
+  _ts_record_stop (&rec);
+}
+
+/**
+ * @brief A DTS beyond the signed time range is dropped on its own and the
+ *        buffer keeps its PTS
+ */
+TEST (testMqttSrc, messageDtsBeyondRange)
+{
+  src_fixture_s fixture;
+  ts_record_s rec;
+  gint64 epoch;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _ts_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  epoch = _local_epoch (&fixture);
+
+  EXPECT_TRUE (_deliver (_new_timed_message (
+      epoch - 5 * GST_SECOND, epoch + 1, 5100 * GST_MSECOND, G_MAXUINT64 - 1)));
+  EXPECT_TRUE (_ts_record_wait (&rec, 1));
+  EXPECT_TRUE (GST_CLOCK_TIME_IS_VALID (rec.pts));
+  EXPECT_EQ (rec.dts, GST_CLOCK_TIME_NONE);
+
+  _fixture_teardown (&fixture);
+  _ts_record_stop (&rec);
+}
+
+/**
+ * @brief A DTS that overflows once moved onto the local running time is
+ *        dropped on its own and the buffer keeps its PTS
+ */
+TEST (testMqttSrc, messageDtsOverflow)
+{
+  src_fixture_s fixture;
+  ts_record_s rec;
+  gint64 epoch;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _ts_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  epoch = _local_epoch (&fixture);
+
+  EXPECT_TRUE (_deliver (
+      _new_timed_message (epoch + 100 * GST_MSECOND, epoch + 1, 0, G_MAXINT64)));
+  EXPECT_TRUE (_ts_record_wait (&rec, 1));
+  EXPECT_TRUE (GST_CLOCK_TIME_IS_VALID (rec.pts));
+  EXPECT_EQ (rec.dts, GST_CLOCK_TIME_NONE);
+
+  _fixture_teardown (&fixture);
+  _ts_record_stop (&rec);
+}
+
+/**
+ * @brief A clockless pipeline never learns the local epoch; its messages
+ *        still flow with the timestamps they always had
+ */
+TEST (testMqttSrc, messageClocklessPipeline)
+{
+  src_fixture_s fixture;
+  ts_record_s rec;
+  gint64 hdr_epoch = g_get_real_time () * GST_US_TO_NS_MULTIPLIER;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _ts_record_start (&rec, &fixture);
+  gst_pipeline_use_clock (GST_PIPELINE (fixture.pipeline), NULL);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  ASSERT_EQ (_local_epoch (&fixture), (gint64) GST_CLOCK_TIME_NONE);
+
+  EXPECT_TRUE (_deliver (
+      _new_timed_message (hdr_epoch, hdr_epoch, 5100 * GST_MSECOND, 5 * GST_SECOND)));
+  EXPECT_TRUE (_ts_record_wait (&rec, 1));
+  EXPECT_EQ (rec.pts, 5100 * GST_MSECOND + hdr_epoch + 1);
+  EXPECT_EQ (rec.dts, 5 * GST_SECOND + hdr_epoch + 1);
+
+  _fixture_teardown (&fixture);
+  _ts_record_stop (&rec);
 }
 
 /**
