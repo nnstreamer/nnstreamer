@@ -363,7 +363,13 @@ gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
 {
   GstCaps *curr_caps, *out_caps;
   gboolean ret = FALSE;
-  out_caps = gst_caps_from_string (caps_str);
+
+  out_caps = caps_str ? gst_caps_from_string (caps_str) : NULL;
+  if (!out_caps) {
+    nns_loge ("Invalid out-caps from tensor_query_serversink: %s",
+        GST_STR_NULL (caps_str));
+    return FALSE;
+  }
   silent_debug_caps (self, out_caps, "set out-caps");
 
   /* Update src pad caps if it is different. */
@@ -455,14 +461,21 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
       GstCaps *server_caps, *client_caps;
       GstStructure *server_st;
       gboolean result = FALSE;
-      gchar *ret_str, *caps_str;
+      gchar *ret_str, *caps_str = NULL;
 
       nns_edge_event_parse_capability (event_h, &caps_str);
       ret_str = _nns_edge_parse_caps (caps_str, TRUE);
       nns_logd ("Received server-src caps: %s", GST_STR_NULL (ret_str));
       client_caps = gst_caps_from_string (self->in_caps_str);
-      server_caps = gst_caps_from_string (ret_str);
+      server_caps = ret_str ? gst_caps_from_string (ret_str) : NULL;
       g_free (ret_str);
+
+      if (!client_caps || !server_caps) {
+        nns_loge ("Query caps is not acceptable! Cannot parse the caps: %s",
+            GST_STR_NULL (caps_str));
+        ret = NNS_EDGE_ERROR_UNKNOWN;
+        goto caps_done;
+      }
 
       /** Server framerate may vary. Let's skip comparing the framerate. */
       gst_caps_set_simple (server_caps, "framerate", GST_TYPE_FRACTION, 0, 1,
@@ -470,9 +483,11 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
       gst_caps_set_simple (client_caps, "framerate", GST_TYPE_FRACTION, 0, 1,
           NULL);
 
-      server_st = gst_caps_get_structure (server_caps, 0);
+      /* ANY and EMPTY caps have no structure. */
+      server_st = gst_caps_get_size (server_caps) > 0 ?
+          gst_caps_get_structure (server_caps, 0) : NULL;
 
-      if (gst_structure_is_tensor_stream (server_st)) {
+      if (server_st && gst_structure_is_tensor_stream (server_st)) {
         GstTensorsConfig server_config, client_config;
 
         gst_tensors_config_from_caps (&server_config, server_caps, TRUE);
@@ -499,8 +514,11 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
         ret = NNS_EDGE_ERROR_UNKNOWN;
       }
 
-      gst_caps_unref (server_caps);
-      gst_caps_unref (client_caps);
+    caps_done:
+      if (server_caps)
+        gst_caps_unref (server_caps);
+      if (client_caps)
+        gst_caps_unref (client_caps);
       g_free (caps_str);
       break;
     }
