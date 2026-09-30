@@ -361,13 +361,17 @@ AsyncServiceImplFlatbuf::start_client (std::string address)
   return TRUE;
 }
 
+/* the call data classes are local: the other IDL sub-plugin defines classes of the same names */
+namespace
+{
+
 /** @brief Internal derived class for server */
-class AsyncCallDataServer : public AsyncCallData
+class AsyncCallDataServer : public AsyncCallDataFlatbuf
 {
   public:
   /** @brief Constructor of AsyncCallDataServer */
   AsyncCallDataServer (AsyncServiceImplFlatbuf *service, ServerCompletionQueue *cq)
-      : AsyncCallData (service), cq_ (cq), writer_ (nullptr), reader_ (nullptr)
+      : AsyncCallDataFlatbuf (service), cq_ (cq), writer_ (nullptr), reader_ (nullptr)
   {
     RunState ();
   }
@@ -461,14 +465,14 @@ static gint client_calls_live = 0;
 static gint client_calls_unfinished = 0;
 
 /** @brief Internal derived class for client */
-class AsyncCallDataClient : public AsyncCallData
+class AsyncCallDataClient : public AsyncCallDataFlatbuf
 {
   public:
   /** @brief Constructor of AsyncCallDataClient */
   AsyncCallDataClient (AsyncServiceImplFlatbuf *service,
       TensorService::Stub *stub, CompletionQueue *cq)
-      : AsyncCallData (service), stub_ (stub), cq_ (cq), writer_ (nullptr),
-        reader_ (nullptr), done_ (false), drained_ (false)
+      : AsyncCallDataFlatbuf (service), stub_ (stub), cq_ (cq),
+        writer_ (nullptr), reader_ (nullptr), done_ (false), drained_ (false)
   {
     g_atomic_int_inc (&client_calls_live);
     RunState ();
@@ -571,6 +575,8 @@ class AsyncCallDataClient : public AsyncCallData
   bool done_;
   bool drained_;
 };
+
+} /* namespace */
 
 /** @brief gRPC client thread */
 void
