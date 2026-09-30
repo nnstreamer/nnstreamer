@@ -34,8 +34,16 @@ env:
 
 jobs:
   build:
-    name: Build against ExecuTorch and run its SSAT suite
-    runs-on: ubuntu-22.04
+    name: Build against ExecuTorch and run its SSAT suite (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # The arm64 entry builds nnstreamer with float16, which is what the
+        # sub-plugin's float16 unit test needs; the x86 entry keeps it off and
+        # runs the test expecting a float16 model to be refused. The cache key
+        # below carries runner.arch, so each keeps its own ExecuTorch tree.
+        os: [ ubuntu-22.04, ubuntu-22.04-arm ]
+    runs-on: ${{ matrix.os }}
     # A cache miss rebuilds ExecuTorch from source; a cache hit is minutes.
     timeout-minutes: 180
 
@@ -97,7 +105,9 @@ jobs:
     - name: build nnstreamer with the ExecuTorch subplugin
       run: |
         export PKG_CONFIG_PATH="${EXECUTORCH_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-        meson setup build/ -Dexecutorch-support=enabled
+        float16_opt=
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04-arm' ]; then float16_opt=-Denable-float16=true; fi
+        meson setup build/ -Dexecutorch-support=enabled ${float16_opt}
         meson compile -C build/
         # -Dexecutorch-support=enabled already fails the configure when the
         # dependency is missing, but the subplugin can still be dropped from
