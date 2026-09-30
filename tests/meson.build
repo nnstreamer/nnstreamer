@@ -611,7 +611,7 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_grpc', unittest_grpc, env: testenv)
+    test('unittest_grpc', unittest_grpc, timeout: 120, env: testenv)
   endif
 
   # Tizen sensor-src

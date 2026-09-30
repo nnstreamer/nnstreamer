@@ -265,6 +265,8 @@ SyncServiceImplFlatbuf::_client_thread ()
 {
   ClientContext context;
 
+  _set_client_context (&context);
+
   if (direction_ == GRPC_DIRECTION_TENSORS_TO_BUFFER) {
     Message<Empty> empty;
 
@@ -298,6 +300,8 @@ SyncServiceImplFlatbuf::_client_thread ()
   } else {
     g_assert (0); /* internal logic error */
   }
+
+  _set_client_context (nullptr);
 }
 
 /** @brief Constructor of AsyncServiceImplFlatbuf */
@@ -371,6 +375,18 @@ class AsyncCallDataServer : public AsyncCallData
   /** @brief implemented RunState () of AsyncCallDataServer */
   void RunState (bool ok = true) override
   {
+    /**
+     * The queue may be shut down now: start no operation, even after a
+     * successful completion. Only PROCESS starts one on an event; FINISH comes
+     * from it and DESTROY only frees.
+     */
+    if (state_ == PROCESS && service_->isShuttingDown ()) {
+      /* the call waiting for a new client is the last call, freed by the service */
+      if (count_ != 0)
+        delete this;
+      return;
+    }
+
     if (state_ == PROCESS && !ok) {
       if (count_ != 0) {
         if (reader_.get () != nullptr)

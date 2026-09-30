@@ -157,7 +157,7 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_src\_grpc](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/tensor_source) (stable)
   - This element generates tensor streams from data received via grpc connection. A received message whose tensor count or data sizes do not match the negotiated caps is dropped.
 - [tensor\_sink\_grpc](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/tensor_sink) (stable)
-  - This element sends data via grpc connection from tensor streams.
+  - This element sends data via grpc connection from tensor streams. When a server or a blocking client stops, it keeps sending the queued buffers while the peer takes them; the buffers left once the peer has taken none for a second are dropped, so the element reaches NULL even when the peer is gone or never reads. Once every queued buffer is handed over, the element waits up to ```stop-timeout``` ms (5000 by default) for the peer to finish the call, and what the peer has not read by then is dropped. A non-blocking client stops sending as soon as the element starts stopping, so its queued buffers are dropped after that second.
 - [android supports](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/android_source) (stable)
   - This element allows to accept data streams from Android's media framework.
 

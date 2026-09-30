@@ -90,6 +90,11 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_sink_grpc_debug);
 #define DEFAULT_PROP_HOST  "localhost"
 #define DEFAULT_PROP_PORT  55115
 
+/**
+ * @brief Default time in ms a stopping sink waits for its peer to finish the call
+ */
+#define DEFAULT_PROP_STOP_TIMEOUT 5000
+
 #define CAPS_STRING GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT
 
 static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
@@ -175,6 +180,14 @@ gst_tensor_sink_grpc_class_init (GstTensorSinkGRPCClass * klass)
           "The number of output messages generated",
           0, G_MAXUINT, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_STOP_TIMEOUT,
+      g_param_spec_uint ("stop-timeout", "Stop timeout",
+          "The time in ms that a stopping sink, once it has handed over every "
+          "queued buffer, waits for its peer to finish the call. "
+          "What the peer has not read by then is dropped.",
+          0, G_MAXUINT, DEFAULT_PROP_STOP_TIMEOUT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_add_static_pad_template (gstelement_class, &sinktemplate);
 
   gst_element_class_set_static_metadata (gstelement_class,
@@ -221,6 +234,7 @@ grpc_config_init (GstTensorSinkGRPC * self)
   grpc->config.dir = GRPC_DIRECTION_TENSORS_TO_BUFFER;
   grpc->config.port = DEFAULT_PROP_PORT;
   grpc->config.host = g_strdup (DEFAULT_PROP_HOST);
+  grpc->config.stop_timeout = DEFAULT_PROP_STOP_TIMEOUT;
   grpc->config.config = &self->config;
 }
 

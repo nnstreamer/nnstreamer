@@ -55,6 +55,8 @@ typedef struct {
   gboolean is_server;
   gboolean is_blocking;
 
+  guint stop_timeout; /* ms a stopping sink waits for its peer to finish the call */
+
   grpc_cb cb;
   void *cb_data;
 
@@ -77,6 +79,7 @@ enum
   PROP_HOST,
   PROP_PORT,
   PROP_OUT,
+  PROP_STOP_TIMEOUT, /* tensor_sink_grpc only */
 };
 
 /**
