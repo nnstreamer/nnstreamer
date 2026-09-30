@@ -22,9 +22,13 @@
 
 #include <grpcpp/health_check_service_interface.h>
 
+#include <chrono>
+
 static constexpr const char *NNS_GRPC_PROTOBUF_NAME = "libnnstreamer_grpc_protobuf";
 static constexpr const char *NNS_GRPC_FLATBUF_NAME = "libnnstreamer_grpc_flatbuf";
 static constexpr const char *NNS_GRPC_CREATE_INSTANCE = "create_instance";
+/** @brief How long stop () waits for a peer that takes none of the queued buffers */
+static constexpr gint64 NNS_GRPC_DRAIN_STALL_USEC = G_USEC_PER_SEC;
 
 using namespace grpc;
 
@@ -79,7 +83,8 @@ NNStreamerRPC::NNStreamerRPC (const grpc_config *config)
     : host_ (config->host), port_ (config->port), is_server_ (config->is_server),
       is_blocking_ (config->is_blocking), direction_ (config->dir),
       cb_ (config->cb), cb_data_ (config->cb_data), config_ (config->config),
-      server_instance_ (nullptr), handle_ (nullptr), stop_ (false)
+      server_instance_ (nullptr), handle_ (nullptr), stop_ (false),
+      shutting_down_ (false), client_context_ (nullptr), client_stopping_ (false)
 {
   queue_ = gst_data_queue_new (_data_queue_check_full_cb, NULL, NULL, NULL);
 }
@@ -114,16 +119,36 @@ NNStreamerRPC::stop ()
   stop_ = true;
 
   if (queue_) {
-    /* wait until the queue's flushed */
-    while (!gst_data_queue_is_empty (queue_))
+    GstDataQueueSize level;
+    guint last = G_MAXUINT;
+    gint64 progress = g_get_monotonic_time ();
+
+    /* wait for the peer to take the queued buffers, as long as it keeps taking them */
+    while (!gst_data_queue_is_empty (queue_)) {
+      gst_data_queue_get_level (queue_, &level);
+      if (level.visible < last) {
+        last = level.visible;
+        progress = g_get_monotonic_time ();
+      } else if (g_get_monotonic_time () - progress >= NNS_GRPC_DRAIN_STALL_USEC) {
+        ml_logw ("The gRPC peer took no buffer for a second; dropping %u queued.",
+            level.visible);
+        break;
+      }
       g_usleep (G_USEC_PER_SEC / 100);
+    }
 
     gst_data_queue_set_flushing (queue_, TRUE);
   }
 
+  _cancel_client ();
+
   if (is_server_) {
+    shutting_down_ = true;
+
+    /* cancel the calls still writing to a peer that does not read */
     if (server_instance_.get ())
-      server_instance_->Shutdown ();
+      server_instance_->Shutdown (std::chrono::system_clock::now ()
+                                  + std::chrono::microseconds (NNS_GRPC_DRAIN_STALL_USEC));
 
     if (completion_queue_.get ())
       completion_queue_->Shutdown ();
@@ -131,6 +156,39 @@ NNStreamerRPC::stop ()
 
   if (worker_.joinable ())
     worker_.join ();
+}
+
+/** @brief register the context of a blocking client call */
+void
+NNStreamerRPC::_set_client_context (ClientContext *context)
+{
+  std::lock_guard<std::mutex> lock (client_lock_);
+
+  if (context && client_stopping_)
+    context->TryCancel ();
+
+  client_context_ = context;
+  if (!context)
+    client_cond_.notify_all ();
+}
+
+/** @brief cancel the call of a blocking client that does not end in time */
+void
+NNStreamerRPC::_cancel_client ()
+{
+  std::unique_lock<std::mutex> lock (client_lock_);
+
+  client_stopping_ = true;
+  if (!client_context_)
+    return;
+
+  /* a writer may still be handing the last buffers to the peer; a reader has nothing to finish */
+  if (direction_ == GRPC_DIRECTION_TENSORS_TO_BUFFER
+      && client_cond_.wait_for (lock, std::chrono::microseconds (NNS_GRPC_DRAIN_STALL_USEC),
+          [this] { return client_context_ == nullptr; }))
+    return;
+
+  client_context_->TryCancel ();
 }
 
 /** @brief send buffer holding tensors */

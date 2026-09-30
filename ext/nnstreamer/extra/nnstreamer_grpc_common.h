@@ -20,7 +20,10 @@
 #include <gst/base/gstdataqueue.h>
 #include <grpcpp/grpcpp.h>
 
+#include <atomic>
+#include <condition_variable>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -40,7 +43,15 @@ class NNStreamerRPC {
 
     /** @brief start the gRPC service as a server or a client */
     gboolean start ();
-    /** @brief stop the service, drain the queue and join the worker thread */
+    /**
+     * @brief stop the service, drain the queue while the peer takes from it, and join the worker thread
+     *
+     * The drain has no overall deadline: it goes on as long as the peer keeps
+     * taking buffers, and gives up after a second without progress. A server
+     * then cancels calls still blocked on their peer after another second, and a
+     * blocking client writer is cancelled after a second, so a peer that takes
+     * nothing holds stop () for about two seconds at most.
+     */
     void stop ();
     /** @brief push a buffer holding tensors into the send queue */
     gboolean send (GstBuffer *buffer);
@@ -67,6 +78,11 @@ class NNStreamerRPC {
     /** @brief get the grpc direction */
     grpc_direction getDirection () {
       return direction_;
+    }
+
+    /** @brief tell whether stop () is shutting the server down; a call may start no operation then */
+    bool isShuttingDown () {
+      return shutting_down_;
     }
 
   protected:
@@ -96,8 +112,19 @@ class NNStreamerRPC {
     gboolean _check_tensor_count (gint64 declared, gint64 carried);
     /** @brief check the data size of a received tensor; FALSE to drop the message */
     gboolean _check_tensor_size (guint index, gsize size);
+    /** @brief register the context of a blocking client call so that stop () can cancel it; NULL once the call is over */
+    void _set_client_context (ClientContext * context);
 
   private:
+    std::atomic<bool> shutting_down_;
+    std::mutex client_lock_;
+    std::condition_variable client_cond_;
+    ClientContext *client_context_;
+    bool client_stopping_;
+
+    /** @brief cancel the call of a blocking client that does not end in time */
+    void _cancel_client ();
+
     /** @brief start gRPC server */
     virtual gboolean start_server (std::string address) { return FALSE; }
     /** @brief start gRPC client */

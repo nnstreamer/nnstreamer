@@ -15,8 +15,10 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
+#include <chrono>
 #include <functional>
 #include <string>
+#include <thread>
 #include <vector>
 
 #if defined(ENABLE_PROTOBUF) || defined(ENABLE_FLATBUF)
@@ -897,6 +899,366 @@ _run_nonblocking_test (const gchar *idl, gboolean client_src)
   return client ? received : 0;
 }
 
+/**
+ * @brief A state change to NULL, run in a thread of its own so that a hang can be detected.
+ */
+typedef struct {
+  GstElement *element; /**< the element to bring to NULL */
+  gint done; /**< set once the state change has returned */
+} StopData;
+
+/**
+ * @brief Thread body: bring the element to NULL and tell when it returns.
+ */
+static gpointer
+_set_null_thread (gpointer user_data)
+{
+  StopData *stop = (StopData *) user_data;
+
+  gst_element_set_state (stop->element, GST_STATE_NULL);
+  g_atomic_int_set (&stop->done, 1);
+
+  return NULL;
+}
+
+/**
+ * @brief Bring @a pipeline to NULL and release it, if the state change returns within 10 seconds.
+ * @return TRUE if it returned in time
+ *
+ * On a hang the pipeline and the thread stuck in its state change are left
+ * behind, so that the test fails instead of blocking the whole binary.
+ */
+static gboolean
+_set_null_in_time (GstElement *pipeline)
+{
+  StopData *stop = g_new0 (StopData, 1);
+  GThread *thread;
+  guint i;
+
+  stop->element = pipeline;
+  thread = g_thread_new ("grpc-stop", _set_null_thread, stop);
+
+  for (i = 0; i < 1000 && !g_atomic_int_get (&stop->done); i++)
+    g_usleep (10000);
+
+  if (!g_atomic_int_get (&stop->done)) {
+    g_thread_unref (thread);
+    return FALSE;
+  }
+
+  g_thread_join (thread);
+  g_free (stop);
+  gst_object_unref (pipeline);
+
+  return TRUE;
+}
+
+/**
+ * @brief Run tensor_sink_grpc until every buffer of a finite stream has been queued in it.
+ * @param video_caps the caps of the raw frames
+ * @param num the number of frames
+ * @param options the properties of tensor_sink_grpc
+ * @return the pipeline at EOS, NULL if it did not build
+ */
+static GstElement *
+_queue_in_sink (const gchar *video_caps, guint num, const gchar *options)
+{
+  GstElement *pipeline;
+  GstMessage *msg;
+  GstBus *bus;
+  gchar *str;
+
+  str = g_strdup_printf ("videotestsrc num-buffers=%u ! %s ! tensor_converter ! "
+                         "tensor_sink_grpc name=grpc host=localhost async=FALSE %s",
+      num, video_caps, options);
+  pipeline = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!pipeline)
+    return NULL;
+
+  /* the sink renders a buffer by queueing it, so all are queued once it has the EOS */
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  EXPECT_TRUE (msg != NULL && GST_MESSAGE_TYPE (msg) == GST_MESSAGE_EOS);
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  return pipeline;
+}
+
+/**
+ * @brief Queue buffers in tensor_sink_grpc that no peer takes, then bring it to NULL.
+ * @param idl the IDL of the sink
+ * @param server TRUE to run the sink as a server nobody connects to, FALSE as a client of a port nobody listens on
+ * @param blocking the blocking property of the sink
+ * @return TRUE if the change to NULL returned within 10 seconds
+ */
+static gboolean
+_stop_undrained_sink (const gchar *idl, gboolean server, gboolean blocking)
+{
+  GstElement *pipeline;
+  gchar *options;
+
+  /* port 1 (tcpmux) has no gRPC server on a test host; the client call fails */
+  options = g_strdup_printf ("server=%s blocking=%s idl=%s port=%d",
+      server ? "TRUE" : "FALSE", blocking ? "TRUE" : "FALSE", idl, server ? 0 : 1);
+  pipeline = _queue_in_sink (STREAM_VIDEO_CAPS, 5, options);
+  g_free (options);
+  if (!pipeline) {
+    ADD_FAILURE () << "the " << idl << " sink pipeline did not build";
+    return FALSE;
+  }
+
+  return _set_null_in_time (pipeline);
+}
+
+/**
+ * @brief Bring a tensor_src_grpc client to NULL while its server sends nothing.
+ * @param idl the IDL of both ends
+ * @param blocking the blocking property of the client
+ * @return TRUE if the change to NULL returned within 10 seconds
+ */
+static gboolean
+_stop_client_src_of_idle_server (const gchar *idl, gboolean blocking)
+{
+  GstElement *server, *client;
+  gchar *str;
+  gint port = 0;
+  gboolean stopped = FALSE;
+
+  server = gst_element_factory_make ("tensor_sink_grpc", NULL);
+  if (!server) {
+    ADD_FAILURE () << "tensor_sink_grpc is not available";
+    return FALSE;
+  }
+  g_object_set (server, "server", (gboolean) TRUE, "idl", idl, "host",
+      "localhost", "port", 0, NULL);
+  EXPECT_NE (gst_element_set_state (server, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  g_object_get (server, "port", &port, NULL);
+  EXPECT_GT (port, 0);
+
+  str = g_strdup_printf ("tensor_src_grpc server=FALSE blocking=%s idl=%s host=localhost port=%d ! " STREAM_TENSOR_CAPS
+                         " ! fakesink async=FALSE",
+      blocking ? "TRUE" : "FALSE", idl, port);
+  client = gst_parse_launch (str, NULL);
+  g_free (str);
+
+  if (client) {
+    EXPECT_NE (gst_element_set_state (client, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+    /* let the client call reach the server */
+    g_usleep (G_USEC_PER_SEC / 2);
+    stopped = _set_null_in_time (client);
+  } else {
+    ADD_FAILURE () << "the " << idl << " client pipeline did not build";
+  }
+
+  gst_element_set_state (server, GST_STATE_NULL);
+  gst_object_unref (server);
+
+  return stopped;
+}
+
+/**
+ * @brief State shared by a test and a raw gRPC peer it runs in a thread.
+ */
+typedef struct {
+  gint count; /**< the messages the peer has read, or 1 once it holds an idle call */
+  gint release; /**< set by the test to let an idle peer close its call */
+} PeerState;
+
+/**
+ * @brief A raw gRPC peer: runs one call against the address, reporting in the state.
+ */
+typedef std::function<void (const std::string &, PeerState *)> PeerFunc;
+
+/**
+ * @brief Frames large enough that the transport cannot buffer all of them at once.
+ */
+#define LARGE_VIDEO_CAPS \
+  "video/x-raw,format=RGB,width=1280,height=720,framerate=30/1"
+#define LARGE_FRAMES 10
+
+/**
+ * @brief How long a slow peer pauses before each message it reads.
+ */
+#define PEER_READ_DELAY_US 50000
+
+/**
+ * @brief Hold an idle peer until the test releases it, at most 25 seconds.
+ */
+static void
+_wait_for_release (PeerState *state)
+{
+  guint i;
+
+  for (i = 0; i < 2500 && !g_atomic_int_get (&state->release); i++)
+    g_usleep (10000);
+}
+
+/**
+ * @brief Wait until the peer has read a message or holds its call, at most 10 seconds.
+ */
+static gboolean
+_wait_for_peer (PeerState *state)
+{
+  guint i;
+
+  for (i = 0; i < 1000 && g_atomic_int_get (&state->count) == 0; i++)
+    g_usleep (10000);
+
+  return g_atomic_int_get (&state->count) > 0;
+}
+
+/**
+ * @brief Get the port the element named "grpc" in @a pipeline listens on.
+ */
+static gint
+_grpc_port (GstElement *pipeline)
+{
+  GstElement *grpc = gst_bin_get_by_name (GST_BIN (pipeline), "grpc");
+  gint port = 0;
+
+  g_object_get (grpc, "port", &port, NULL);
+  gst_object_unref (grpc);
+
+  return port;
+}
+
+/**
+ * @brief Queue large frames in a tensor_sink_grpc server, run @a peer on its
+ * stream, and bring the sink to NULL once the peer has a message.
+ * @param idl the IDL of the sink
+ * @param blocking the blocking property of the sink
+ * @param peer the peer reading the stream
+ * @param[out] state the state of the peer after the run
+ * @return TRUE if the change to NULL returned within 10 seconds
+ */
+static gboolean
+_stop_server_sink_with_peer (
+    const gchar *idl, gboolean blocking, const PeerFunc &peer, PeerState *state)
+{
+  GstElement *pipeline;
+  gchar *options;
+  gint port;
+  gboolean stopped;
+
+  options = g_strdup_printf (
+      "server=TRUE blocking=%s idl=%s port=0", blocking ? "TRUE" : "FALSE", idl);
+  pipeline = _queue_in_sink (LARGE_VIDEO_CAPS, LARGE_FRAMES, options);
+  g_free (options);
+  if (!pipeline) {
+    ADD_FAILURE () << "the " << idl << " sink pipeline did not build";
+    return FALSE;
+  }
+
+  port = _grpc_port (pipeline);
+  EXPECT_GT (port, 0);
+
+  std::thread reader (peer, "localhost:" + std::to_string (port), state);
+
+  EXPECT_TRUE (_wait_for_peer (state));
+  stopped = _set_null_in_time (pipeline);
+
+  g_atomic_int_set (&state->release, 1);
+  reader.join ();
+
+  return stopped;
+}
+
+/**
+ * @brief Queue large frames in a tensor_sink_grpc client of @a service, and
+ * bring the sink to NULL once the server has the call.
+ * @param idl the IDL of the sink and the service
+ * @param blocking the blocking property of the sink
+ * @param service the server side of the call, reporting in @a state
+ * @param state the state @a service reports in
+ * @return TRUE if the change to NULL returned within 10 seconds
+ */
+static gboolean
+_stop_client_sink_with_server (const gchar *idl, gboolean blocking,
+    grpc::Service *service, PeerState *state)
+{
+  grpc::ServerBuilder builder;
+  GstElement *pipeline;
+  gchar *options;
+  int port = 0;
+  gboolean stopped = FALSE;
+
+  builder.AddListeningPort ("localhost:0", grpc::InsecureServerCredentials (), &port);
+  builder.RegisterService (service);
+  auto server = builder.BuildAndStart ();
+  if (!server) {
+    ADD_FAILURE () << "the " << idl << " peer server did not start";
+    return FALSE;
+  }
+
+  options = g_strdup_printf ("server=FALSE blocking=%s idl=%s port=%d",
+      blocking ? "TRUE" : "FALSE", idl, port);
+  pipeline = _queue_in_sink (LARGE_VIDEO_CAPS, LARGE_FRAMES, options);
+  g_free (options);
+
+  if (pipeline) {
+    EXPECT_TRUE (_wait_for_peer (state));
+    stopped = _set_null_in_time (pipeline);
+  } else {
+    ADD_FAILURE () << "the " << idl << " sink pipeline did not build";
+  }
+
+  g_atomic_int_set (&state->release, 1);
+  server->Shutdown (std::chrono::system_clock::now () + std::chrono::seconds (5));
+
+  return stopped;
+}
+
+/**
+ * @brief Run tensor_src_grpc as a server, let @a peer open a call that sends nothing, and bring the source to NULL.
+ * @param idl the IDL of the source
+ * @param blocking the blocking property of the source
+ * @param peer the client holding an idle call
+ * @return TRUE if the change to NULL returned within 10 seconds
+ */
+static gboolean
+_stop_server_src_with_peer (const gchar *idl, gboolean blocking, const PeerFunc &peer)
+{
+  GstElement *pipeline, *src;
+  PeerState state = { 0, 0 };
+  gchar *str;
+  gint port = 0;
+  gboolean stopped;
+
+  str = g_strdup_printf ("tensor_src_grpc name=grpc server=TRUE blocking=%s idl=%s host=localhost port=0 ! " STREAM_TENSOR_CAPS
+                         " ! fakesink async=FALSE",
+      blocking ? "TRUE" : "FALSE", idl);
+  pipeline = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!pipeline) {
+    ADD_FAILURE () << "the " << idl << " source pipeline did not build";
+    return FALSE;
+  }
+
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  src = gst_bin_get_by_name (GST_BIN (pipeline), "grpc");
+  EXPECT_TRUE (_wait_for_caps (src));
+  gst_object_unref (src);
+  port = _grpc_port (pipeline);
+  EXPECT_GT (port, 0);
+
+  std::thread writer (peer, "localhost:" + std::to_string (port), &state);
+
+  EXPECT_TRUE (_wait_for_peer (&state));
+  /* let the server take the call */
+  g_usleep (G_USEC_PER_SEC / 5);
+  stopped = _set_null_in_time (pipeline);
+
+  g_atomic_int_set (&state.release, 1);
+  writer.join ();
+
+  return stopped;
+}
+
 #endif /* ENABLE_PROTOBUF || ENABLE_FLATBUF */
 
 #ifdef ENABLE_PROTOBUF
@@ -1108,6 +1470,240 @@ TEST (nnstreamerGrpc, nonBlockingClientSinkProtobuf)
 {
   EXPECT_GE (_run_nonblocking_test ("protobuf", FALSE), 2U);
 }
+
+/**
+ * @brief A blocking tensor_sink_grpc (protobuf) server nobody connects to reaches NULL with buffers queued.
+ */
+TEST (nnstreamerGrpc, stopUndrainedServerSinkProtobuf_n)
+{
+  EXPECT_TRUE (_stop_undrained_sink ("protobuf", TRUE, TRUE));
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (protobuf) server nobody connects to reaches NULL with buffers queued.
+ */
+TEST (nnstreamerGrpc, stopUndrainedAsyncServerSinkProtobuf_n)
+{
+  EXPECT_TRUE (_stop_undrained_sink ("protobuf", TRUE, FALSE));
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (protobuf) client without a server reaches NULL with buffers queued.
+ */
+TEST (nnstreamerGrpc, stopUndrainedClientSinkProtobuf_n)
+{
+  EXPECT_TRUE (_stop_undrained_sink ("protobuf", FALSE, TRUE));
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (protobuf) client without a server reaches NULL with buffers queued.
+ */
+TEST (nnstreamerGrpc, stopUndrainedAsyncClientSinkProtobuf_n)
+{
+  EXPECT_TRUE (_stop_undrained_sink ("protobuf", FALSE, FALSE));
+}
+
+/**
+ * @brief Read the whole stream of a protobuf server, pausing before each message.
+ */
+static void
+_pb_slow_recv (const std::string &address, PeerState *state)
+{
+  auto stub = nnstreamer::protobuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  google::protobuf::Empty empty;
+  PbTensors msg;
+
+  context.set_deadline (std::chrono::system_clock::now () + std::chrono::seconds (30));
+  auto reader = stub->RecvTensors (&context, empty);
+
+  g_usleep (PEER_READ_DELAY_US);
+  while (reader->Read (&msg)) {
+    g_atomic_int_inc (&state->count);
+    g_usleep (PEER_READ_DELAY_US);
+  }
+  reader->Finish ();
+}
+
+/**
+ * @brief Read one message of the stream of a protobuf server, then no more until released.
+ */
+static void
+_pb_idle_recv (const std::string &address, PeerState *state)
+{
+  auto stub = nnstreamer::protobuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  google::protobuf::Empty empty;
+  PbTensors msg;
+
+  context.set_deadline (std::chrono::system_clock::now () + std::chrono::seconds (30));
+  auto reader = stub->RecvTensors (&context, empty);
+
+  if (reader->Read (&msg))
+    g_atomic_int_inc (&state->count);
+  _wait_for_release (state);
+
+  context.TryCancel ();
+  reader->Finish ();
+}
+
+/**
+ * @brief Open a client-streaming call to a protobuf server and send nothing until released.
+ */
+static void
+_pb_idle_send (const std::string &address, PeerState *state)
+{
+  auto stub = nnstreamer::protobuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  google::protobuf::Empty reply;
+
+  context.set_deadline (std::chrono::system_clock::now () + std::chrono::seconds (30));
+  auto writer = stub->SendTensors (&context, &reply);
+
+  g_atomic_int_set (&state->count, 1);
+  _wait_for_release (state);
+
+  context.TryCancel ();
+  writer->Finish ();
+}
+
+/**
+ * @brief A protobuf server for a tensor_sink_grpc client: it reads the call slowly, or reads nothing of it.
+ */
+class PeerServiceProtobuf final : public nnstreamer::protobuf::TensorService::Service
+{
+  public:
+  /** @brief Construct a server that reads every message slowly if @a reads, or none */
+  PeerServiceProtobuf (gboolean reads, PeerState *state)
+      : reads_ (reads), state_ (state)
+  {
+  }
+
+  /** @brief Read the call, or hold it until it is cancelled or the test releases it */
+  grpc::Status SendTensors (grpc::ServerContext *context,
+      grpc::ServerReader<PbTensors> *reader, google::protobuf::Empty *reply) override
+  {
+    PbTensors msg;
+
+    if (reads_) {
+      while (reader->Read (&msg)) {
+        g_atomic_int_inc (&state_->count);
+        g_usleep (PEER_READ_DELAY_US);
+      }
+      return grpc::Status::OK;
+    }
+
+    g_atomic_int_set (&state_->count, 1);
+    while (!context->IsCancelled () && !g_atomic_int_get (&state_->release))
+      g_usleep (10000);
+
+    return grpc::Status::OK;
+  }
+
+  private:
+  gboolean reads_; /**< whether the call is read */
+  PeerState *state_; /**< where the server reports */
+};
+
+/**
+ * @brief A tensor_sink_grpc (protobuf) server that stops still hands every queued buffer to a peer reading slowly.
+ */
+TEST (nnstreamerGrpc, stopDrainsTakingPeerProtobuf)
+{
+  PeerState state = { 0, 0 };
+
+  EXPECT_TRUE (_stop_server_sink_with_peer ("protobuf", TRUE, _pb_slow_recv, &state));
+  EXPECT_EQ (g_atomic_int_get (&state.count), LARGE_FRAMES);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (protobuf) server reaches NULL while its peer stops reading.
+ */
+TEST (nnstreamerGrpc, stopIdlePeerServerSinkProtobuf_n)
+{
+  PeerState state = { 0, 0 };
+
+  EXPECT_TRUE (_stop_server_sink_with_peer ("protobuf", TRUE, _pb_idle_recv, &state));
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (protobuf) server reaches NULL while its peer stops reading.
+ */
+TEST (nnstreamerGrpc, stopIdlePeerAsyncServerSinkProtobuf_n)
+{
+  PeerState state = { 0, 0 };
+
+  EXPECT_TRUE (_stop_server_sink_with_peer ("protobuf", FALSE, _pb_idle_recv, &state));
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (protobuf) client that stops still hands every queued buffer to a server reading slowly.
+ */
+TEST (nnstreamerGrpc, stopDrainsToReadingServerProtobuf)
+{
+  PeerState state = { 0, 0 };
+  PeerServiceProtobuf service (TRUE, &state);
+
+  EXPECT_TRUE (_stop_client_sink_with_server ("protobuf", TRUE, &service, &state));
+  EXPECT_EQ (g_atomic_int_get (&state.count), LARGE_FRAMES);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (protobuf) client reaches NULL while its server reads nothing.
+ */
+TEST (nnstreamerGrpc, stopIdleServerClientSinkProtobuf_n)
+{
+  PeerState state = { 0, 0 };
+  PeerServiceProtobuf service (FALSE, &state);
+
+  EXPECT_TRUE (_stop_client_sink_with_server ("protobuf", TRUE, &service, &state));
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (protobuf) client reaches NULL while its server reads nothing.
+ */
+TEST (nnstreamerGrpc, stopIdleServerAsyncClientSinkProtobuf_n)
+{
+  PeerState state = { 0, 0 };
+  PeerServiceProtobuf service (FALSE, &state);
+
+  EXPECT_TRUE (_stop_client_sink_with_server ("protobuf", FALSE, &service, &state));
+}
+
+/**
+ * @brief A blocking tensor_src_grpc (protobuf) client reaches NULL while its server sends nothing.
+ */
+TEST (nnstreamerGrpc, stopIdleServerClientSrcProtobuf_n)
+{
+  EXPECT_TRUE (_stop_client_src_of_idle_server ("protobuf", TRUE));
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) client reaches NULL while its server sends nothing.
+ */
+TEST (nnstreamerGrpc, stopIdleServerAsyncClientSrcProtobuf_n)
+{
+  EXPECT_TRUE (_stop_client_src_of_idle_server ("protobuf", FALSE));
+}
+
+/**
+ * @brief A blocking tensor_src_grpc (protobuf) server reaches NULL while its client sends nothing.
+ */
+TEST (nnstreamerGrpc, stopIdlePeerServerSrcProtobuf_n)
+{
+  EXPECT_TRUE (_stop_server_src_with_peer ("protobuf", TRUE, _pb_idle_send));
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) server reaches NULL while its client sends nothing.
+ */
+TEST (nnstreamerGrpc, stopIdlePeerAsyncServerSrcProtobuf_n)
+{
+  EXPECT_TRUE (_stop_server_src_with_peer ("protobuf", FALSE, _pb_idle_send));
+}
 #endif /* ENABLE_PROTOBUF */
 
 #ifdef ENABLE_FLATBUF
@@ -1282,6 +1878,227 @@ TEST (nnstreamerGrpc, nonBlockingClientSinkFlatbuf)
 {
   EXPECT_GE (_run_nonblocking_test ("flatbuf", FALSE), 2U);
 }
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) server nobody connects to reaches NULL with buffers queued.
+ */
+TEST (nnstreamerGrpc, stopUndrainedServerSinkFlatbuf_n)
+{
+  EXPECT_TRUE (_stop_undrained_sink ("flatbuf", TRUE, TRUE));
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) server nobody connects to reaches NULL with buffers queued.
+ */
+TEST (nnstreamerGrpc, stopUndrainedAsyncServerSinkFlatbuf_n)
+{
+  EXPECT_TRUE (_stop_undrained_sink ("flatbuf", TRUE, FALSE));
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) client without a server reaches NULL with buffers queued.
+ */
+TEST (nnstreamerGrpc, stopUndrainedClientSinkFlatbuf_n)
+{
+  EXPECT_TRUE (_stop_undrained_sink ("flatbuf", FALSE, TRUE));
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) client without a server reaches NULL with buffers queued.
+ */
+TEST (nnstreamerGrpc, stopUndrainedAsyncClientSinkFlatbuf_n)
+{
+  EXPECT_TRUE (_stop_undrained_sink ("flatbuf", FALSE, FALSE));
+}
+
+/**
+ * @brief Build the empty request of a flatbuf server-streaming call.
+ */
+static flatbuffers::grpc::Message<nnstreamer::flatbuf::Empty>
+_fb_empty (void)
+{
+  flatbuffers::grpc::MessageBuilder builder;
+
+  builder.Finish (nnstreamer::flatbuf::CreateEmpty (builder));
+  return builder.ReleaseMessage<nnstreamer::flatbuf::Empty> ();
+}
+
+/**
+ * @brief Read the whole stream of a flatbuf server, pausing before each message.
+ */
+static void
+_fb_slow_recv (const std::string &address, PeerState *state)
+{
+  auto stub = nnstreamer::flatbuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  FbMessage msg;
+
+  context.set_deadline (std::chrono::system_clock::now () + std::chrono::seconds (30));
+  auto reader = stub->RecvTensors (&context, _fb_empty ());
+
+  g_usleep (PEER_READ_DELAY_US);
+  while (reader->Read (&msg)) {
+    g_atomic_int_inc (&state->count);
+    g_usleep (PEER_READ_DELAY_US);
+  }
+  reader->Finish ();
+}
+
+/**
+ * @brief Read one message of the stream of a flatbuf server, then no more until released.
+ */
+static void
+_fb_idle_recv (const std::string &address, PeerState *state)
+{
+  auto stub = nnstreamer::flatbuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  FbMessage msg;
+
+  context.set_deadline (std::chrono::system_clock::now () + std::chrono::seconds (30));
+  auto reader = stub->RecvTensors (&context, _fb_empty ());
+
+  if (reader->Read (&msg))
+    g_atomic_int_inc (&state->count);
+  _wait_for_release (state);
+
+  context.TryCancel ();
+  reader->Finish ();
+}
+
+/**
+ * @brief Open a client-streaming call to a flatbuf server and send nothing until released.
+ */
+static void
+_fb_idle_send (const std::string &address, PeerState *state)
+{
+  auto stub = nnstreamer::flatbuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  flatbuffers::grpc::Message<nnstreamer::flatbuf::Empty> reply;
+
+  context.set_deadline (std::chrono::system_clock::now () + std::chrono::seconds (30));
+  auto writer = stub->SendTensors (&context, &reply);
+
+  g_atomic_int_set (&state->count, 1);
+  _wait_for_release (state);
+
+  /* Finish () of a flatbuf client-streaming call aborts, see SyncServiceImplFlatbuf::_client_thread (). */
+  context.TryCancel ();
+}
+
+/**
+ * @brief A flatbuf server that takes the call of a tensor_sink_grpc client but reads nothing of it.
+ */
+class IdleServiceFlatbuf final : public nnstreamer::flatbuf::TensorService::Service
+{
+  public:
+  /** @brief Construct a server reporting in @a state */
+  IdleServiceFlatbuf (PeerState *state) : state_ (state)
+  {
+  }
+
+  /** @brief Hold the call until it is cancelled or the test releases it */
+  grpc::Status SendTensors (grpc::ServerContext *context,
+      grpc::ServerReader<FbMessage> *reader,
+      flatbuffers::grpc::Message<nnstreamer::flatbuf::Empty> *reply) override
+  {
+    g_atomic_int_set (&state_->count, 1);
+    while (!context->IsCancelled () && !g_atomic_int_get (&state_->release))
+      g_usleep (10000);
+
+    return grpc::Status::OK;
+  }
+
+  private:
+  PeerState *state_; /**< where the server reports */
+};
+
+/**
+ * @brief A tensor_sink_grpc (flatbuf) server that stops still hands every queued buffer to a peer reading slowly.
+ */
+TEST (nnstreamerGrpc, stopDrainsTakingPeerFlatbuf)
+{
+  PeerState state = { 0, 0 };
+
+  EXPECT_TRUE (_stop_server_sink_with_peer ("flatbuf", TRUE, _fb_slow_recv, &state));
+  EXPECT_EQ (g_atomic_int_get (&state.count), LARGE_FRAMES);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) server reaches NULL while its peer stops reading.
+ */
+TEST (nnstreamerGrpc, stopIdlePeerServerSinkFlatbuf_n)
+{
+  PeerState state = { 0, 0 };
+
+  EXPECT_TRUE (_stop_server_sink_with_peer ("flatbuf", TRUE, _fb_idle_recv, &state));
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) server reaches NULL while its peer stops reading.
+ */
+TEST (nnstreamerGrpc, stopIdlePeerAsyncServerSinkFlatbuf_n)
+{
+  PeerState state = { 0, 0 };
+
+  EXPECT_TRUE (_stop_server_sink_with_peer ("flatbuf", FALSE, _fb_idle_recv, &state));
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) client reaches NULL while its server reads nothing.
+ */
+TEST (nnstreamerGrpc, stopIdleServerClientSinkFlatbuf_n)
+{
+  PeerState state = { 0, 0 };
+  IdleServiceFlatbuf service (&state);
+
+  EXPECT_TRUE (_stop_client_sink_with_server ("flatbuf", TRUE, &service, &state));
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) client reaches NULL while its server reads nothing.
+ */
+TEST (nnstreamerGrpc, stopIdleServerAsyncClientSinkFlatbuf_n)
+{
+  PeerState state = { 0, 0 };
+  IdleServiceFlatbuf service (&state);
+
+  EXPECT_TRUE (_stop_client_sink_with_server ("flatbuf", FALSE, &service, &state));
+}
+
+/**
+ * @brief A blocking tensor_src_grpc (flatbuf) client reaches NULL while its server sends nothing.
+ */
+TEST (nnstreamerGrpc, stopIdleServerClientSrcFlatbuf_n)
+{
+  EXPECT_TRUE (_stop_client_src_of_idle_server ("flatbuf", TRUE));
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) client reaches NULL while its server sends nothing.
+ */
+TEST (nnstreamerGrpc, stopIdleServerAsyncClientSrcFlatbuf_n)
+{
+  EXPECT_TRUE (_stop_client_src_of_idle_server ("flatbuf", FALSE));
+}
+
+/**
+ * @brief A blocking tensor_src_grpc (flatbuf) server reaches NULL while its client sends nothing.
+ */
+TEST (nnstreamerGrpc, stopIdlePeerServerSrcFlatbuf_n)
+{
+  EXPECT_TRUE (_stop_server_src_with_peer ("flatbuf", TRUE, _fb_idle_send));
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) server reaches NULL while its client sends nothing.
+ */
+TEST (nnstreamerGrpc, stopIdlePeerAsyncServerSrcFlatbuf_n)
+{
+  EXPECT_TRUE (_stop_server_src_with_peer ("flatbuf", FALSE, _fb_idle_send));
+}
 #endif /* ENABLE_FLATBUF */
 
 /**
@@ -1299,6 +2116,11 @@ main (int argc, char **argv)
   }
 
   gst_init (&argc, &argv);
+
+#if defined(ENABLE_PROTOBUF) || defined(ENABLE_FLATBUF)
+  /* keep gRPC initialized across the cases; its shutdown waits for the transport to wind down */
+  grpc_init ();
+#endif
 
   try {
     result = RUN_ALL_TESTS ();
