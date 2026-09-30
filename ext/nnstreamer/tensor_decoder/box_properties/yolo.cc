@@ -147,6 +147,7 @@ YoloV5::checkCompatible (const GstTensorsConfig *config)
 {
   GstTensorInfo *info = nullptr;
   const guint *dim;
+  g_autofree gchar *info_str = NULL;
   int i;
 
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
@@ -158,10 +159,22 @@ YoloV5::checkCompatible (const GstTensorsConfig *config)
                       + (i_width / 8) * (i_height / 8))
                   * 3;
 
-  g_return_val_if_fail (dim[0] == (total_labels + DEFAULT_DETECTION_NUM_INFO_YOLO5), FALSE);
-  g_return_val_if_fail (dim[1] == max_detection, FALSE);
-  for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-    g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, FALSE);
+  if (dim[0] != (total_labels + DEFAULT_DETECTION_NUM_INFO_YOLO5) || dim[1] != max_detection) {
+    nns_loge ("YoloV5 bounding-box decoder requires the input shape to be %u:%u:1. But given shape is %u:%u:1. "
+              "The first dimension is %d + the number of labels in option2 (%u) and the second is the number of boxes for the model input dimension of option5 (%u:%u).",
+        total_labels + DEFAULT_DETECTION_NUM_INFO_YOLO5, max_detection, dim[0],
+        dim[1], DEFAULT_DETECTION_NUM_INFO_YOLO5, total_labels, i_width, i_height);
+    return FALSE;
+  }
+
+  for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i) {
+    if (dim[i] != 0 && dim[i] != 1) {
+      info_str = gst_tensors_info_to_string (&config->info);
+      nns_loge ("YoloV5 bounding-box decoder accepts RANK=2 tensors (3rd and later dimensions should be 1 or 0). The given input tensor is: %s.",
+          info_str);
+      return FALSE;
+    }
+  }
   return TRUE;
 }
 
@@ -293,8 +306,10 @@ YoloV8::checkCompatible (const GstTensorsConfig *config)
                   + (i_width / 8) * (i_height / 8);
 
   if (dim[0] != (total_labels + DEFAULT_DETECTION_NUM_INFO_YOLO8) || dim[1] != max_detection) {
-    nns_loge ("yolov8 boundingbox decoder requires the input shape to be %d:%d:1. But given shape is %d:%d:1. `tensor_transform mode=transpose` would be helpful.",
-        total_labels + DEFAULT_DETECTION_NUM_INFO_YOLO8, max_detection, dim[0], dim[1]);
+    nns_loge ("yolov8 boundingbox decoder requires the input shape to be %d:%d:1. But given shape is %d:%d:1. `tensor_transform mode=transpose` would be helpful. "
+              "The first dimension is %d + the number of labels in option2 (%u) and the second is the number of boxes for the model input dimension of option5 (%u:%u).",
+        total_labels + DEFAULT_DETECTION_NUM_INFO_YOLO8, max_detection, dim[0],
+        dim[1], DEFAULT_DETECTION_NUM_INFO_YOLO8, total_labels, i_width, i_height);
     return FALSE;
   }
 
@@ -565,9 +580,10 @@ YoloV8_OBB::checkCompatible (const GstTensorsConfig *config)
                   + (i_width / 8) * (i_height / 8);
 
   if (dim[0] != (total_labels + DEFAULT_DETECTION_NUM_INFO_YOLO8_OBB) || dim[1] != max_detection) {
-    nns_loge ("yolov8-obb boundingbox decoder requires the input shape to be %d:%d:1. But given shape is %d:%d:1. `tensor_transform mode=transpose` would be helpful.",
-        total_labels + DEFAULT_DETECTION_NUM_INFO_YOLO8_OBB, max_detection,
-        dim[0], dim[1]);
+    nns_loge ("yolov8-obb boundingbox decoder requires the input shape to be %d:%d:1. But given shape is %d:%d:1. `tensor_transform mode=transpose` would be helpful. "
+              "The first dimension is %d + the number of labels in option2 (%u) and the second is the number of boxes for the model input dimension of option5 (%u:%u).",
+        total_labels + DEFAULT_DETECTION_NUM_INFO_YOLO8_OBB, max_detection, dim[0],
+        dim[1], DEFAULT_DETECTION_NUM_INFO_YOLO8_OBB, total_labels, i_width, i_height);
     return FALSE;
   }
 

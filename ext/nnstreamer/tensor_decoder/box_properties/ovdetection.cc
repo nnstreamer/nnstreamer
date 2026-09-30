@@ -108,6 +108,7 @@ OVDetection::checkCompatible (const GstTensorsConfig *config)
 {
   const guint *dim;
   int i;
+  gboolean valid;
   GstTensorInfo *info = nullptr;
   UNUSED (total_labels);
 
@@ -120,10 +121,17 @@ OVDetection::checkCompatible (const GstTensorsConfig *config)
    */
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
   dim = info->dimension;
-  g_return_val_if_fail (dim[0] == DEFAULT_SIZE_DETECTION_DESC, FALSE);
-  g_return_val_if_fail (dim[1] == DETECTION_MAX, FALSE);
+  valid = (dim[0] == DEFAULT_SIZE_DETECTION_DESC && dim[1] == DETECTION_MAX);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-    g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, FALSE);
+    valid = valid && (dim[i] == 0 || dim[i] == 1);
+
+  if (!valid) {
+    g_autofree gchar *info_str = gst_tensors_info_to_string (&config->info);
+
+    nns_loge ("ov-person-detection bounding-box decoder requires the input tensor to be %d:%u:1:1. The given input tensors are: %s.",
+        DEFAULT_SIZE_DETECTION_DESC, DETECTION_MAX, info_str);
+    return FALSE;
+  }
 
   return TRUE;
 }

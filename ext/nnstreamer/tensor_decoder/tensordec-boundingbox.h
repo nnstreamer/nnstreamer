@@ -330,6 +330,9 @@ class BoundingBox
   static gboolean addProperties (const gchar *properties_name, BoxPropertiesCreator creator);
 
   private:
+  /** @brief Get the names of the registered box decoding modes, joined with ", " */
+  static gchar *getModeNames ();
+
   bounding_box_modes mode;
   BoxProperties *bdata; /**< The box properties of the mode option1 selected */
   GHashTable *properties; /**< The box properties of every mode selected, kept until exit */

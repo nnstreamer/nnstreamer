@@ -153,7 +153,8 @@ MobilenetSSDPP::setOptionInternal (const char *param)
       &tensor_mapping[NUM_IDX], &threshold_percent);
 
   if ((ret == EOF) || (ret < 5)) {
-    GST_ERROR ("Invalid options, must be \"locations idx:classes idx:scores idx:num idx,threshold\"");
+    nns_loge ("option3 of boundingbox for mobilenet-ssd-postprocess has to be \"LOCATIONS_IDX:CLASSES_IDX:SCORES_IDX:NUM_IDX,THRESHOLD_PERCENT\" (e.g., \"3:1:2:0,50\"), but \"%s\" is given.",
+        param);
     return FALSE;
   }
 
@@ -163,8 +164,8 @@ MobilenetSSDPP::setOptionInternal (const char *param)
       tensor_mapping[SCORES_IDX], tensor_mapping[NUM_IDX]);
 
   if ((threshold_percent > 100) || (threshold_percent < 0)) {
-    GST_ERROR ("Invalid MOBILENET SSD POST PROCESS threshold detection (%i), must be in range [0 100]",
-        threshold_percent);
+    nns_logw ("The detection threshold of option3 of boundingbox for mobilenet-ssd-postprocess, %i, has to be in the range [0, 100] (percent). It is ignored and the threshold stays %.2f.",
+        threshold_percent, threshold);
   } else {
     threshold = threshold_percent / 100.0;
   }
@@ -180,7 +181,9 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
 {
   const uint32_t *dim1, *dim2, *dim3, *dim4;
   int locations_idx, classes_idx, scores_idx, num_idx, i;
+  gboolean valid;
   GstTensorInfo *info = nullptr;
+  g_autofree gchar *info_str = NULL;
 
   if (!check_tensors (config, MAX_TENSORS))
     return FALSE;
@@ -193,39 +196,59 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
   /* Check if the number of detections tensor is compatible */
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, num_idx);
   dim1 = info->dimension;
-  g_return_val_if_fail (dim1[0] == 1, FALSE);
+  valid = (dim1[0] == 1);
   for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
-    g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, FALSE);
+    valid = valid && (dim1[i] == 0 || dim1[i] == 1);
+
+  if (!valid) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("mobilenet-ssd-postprocess bounding-box decoder requires tensor %d (the number of detections, NUM_IDX of option3) to be 1. The given input tensors are: %s.",
+        num_idx, info_str);
+    return FALSE;
+  }
 
   /* Check if the classes & scores tensors are compatible */
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, classes_idx);
   dim2 = info->dimension;
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, scores_idx);
   dim3 = info->dimension;
-  g_return_val_if_fail (dim3[0] == dim2[0], FALSE);
-  for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, FALSE);
-    g_return_val_if_fail (dim3[i] == 0 || dim3[i] == 1, FALSE);
+  valid = (dim3[0] == dim2[0]);
+  for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
+    valid = valid && (dim2[i] == 0 || dim2[i] == 1) && (dim3[i] == 0 || dim3[i] == 1);
+
+  if (!valid) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("mobilenet-ssd-postprocess bounding-box decoder requires tensor %d (classes, CLASSES_IDX of option3) and tensor %d (scores, SCORES_IDX of option3) to be #DETECTIONS each. The given input tensors are: %s.",
+        classes_idx, scores_idx, info_str);
+    return FALSE;
   }
 
   /* Check if the bbox locations tensor is compatible */
   info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, locations_idx);
   dim4 = info->dimension;
-  g_return_val_if_fail (BOX_SIZE == dim4[0], FALSE);
-  g_return_val_if_fail (dim2[0] == dim4[1], FALSE);
+  valid = (BOX_SIZE == dim4[0] && dim2[0] == dim4[1]);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-    g_return_val_if_fail (dim4[i] == 0 || dim4[i] == 1, FALSE);
+    valid = valid && (dim4[i] == 0 || dim4[i] == 1);
+
+  if (!valid) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("mobilenet-ssd-postprocess bounding-box decoder requires tensor %d (locations, LOCATIONS_IDX of option3) to be %d:%u to match the detections of tensor %d. The given input tensors are: %s.",
+        locations_idx, BOX_SIZE, dim2[0], classes_idx, info_str);
+    return FALSE;
+  }
 
   /* Check consistency with max_detection */
   if (max_detection != 0 && max_detection != dim2[0]) {
-    GST_ERROR ("Failed to check consistency with max_detection");
+    nns_loge ("mobilenet-ssd-postprocess bounding-box decoder has been set up for %u detections and cannot take the %u detections of the new input tensors.",
+        max_detection, dim2[0]);
     return FALSE;
   } else {
     max_detection = dim2[0];
   }
 
   if (max_detection > DETECTION_MAX) {
-    GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
+    nns_loge ("mobilenet-ssd-postprocess bounding-box decoder supports up to %d detections, but the input tensors have %u.",
+        DETECTION_MAX, max_detection);
     return FALSE;
   }
   return TRUE;

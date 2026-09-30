@@ -491,7 +491,14 @@ check_tensors (const GstTensorsConfig *config, const unsigned int limit)
   GstTensorInfo *_info, *_base;
 
   g_return_val_if_fail (config != NULL, FALSE);
-  g_return_val_if_fail (config->info.num_tensors >= limit, FALSE);
+
+  if (config->info.num_tensors < limit) {
+    g_autofree gchar *info_str = gst_tensors_info_to_string (&config->info);
+
+    nns_loge ("The number of input tensors has to be at least %u for the bounding-box decoding mode, but the input has %u: %s.",
+        limit, config->info.num_tensors, info_str);
+    return FALSE;
+  }
 
   if (config->info.num_tensors > limit) {
     GST_WARNING ("tensor-decoder:boundingbox accepts %d or less tensors. "
@@ -505,7 +512,14 @@ check_tensors (const GstTensorsConfig *config, const unsigned int limit)
 
     for (i = 1; i < config->info.num_tensors; ++i) {
       _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i);
-      g_return_val_if_fail (_base->type == _info->type, FALSE);
+      if (_base->type != _info->type) {
+        g_autofree gchar *info_str = gst_tensors_info_to_string (&config->info);
+
+        nns_loge ("The input tensors of the bounding-box decoder have to be of one type, but tensor %u is %s while tensor 0 is %s. The given input tensors are: %s.",
+            i, gst_tensor_get_type_string (_info->type),
+            gst_tensor_get_type_string (_base->type), info_str);
+        return FALSE;
+      }
     }
   }
 
@@ -904,7 +918,10 @@ int
 BoundingBox::setBoxDecodingMode (const char *param)
 {
   if (NULL == param || *param == '\0') {
-    GST_ERROR ("Please set the valid mode at option1 to set box decoding mode");
+    g_autofree gchar *names = getModeNames ();
+
+    nns_loge ("option1 of boundingbox (the box decoding mode) is empty. Set one of the modes: %s.",
+        names);
     return FALSE;
   }
 
@@ -915,8 +932,10 @@ BoundingBox::setBoxDecodingMode (const char *param)
   if (new_bdata == nullptr) {
     new_bdata = createProperties (mode_name);
     if (new_bdata == nullptr) {
-      nns_loge ("Could not create the box properties of mode %s: unknown mode or out of memory",
-          param);
+      g_autofree gchar *names = getModeNames ();
+
+      nns_loge ("option1 of boundingbox, \"%s\", is not a box decoding mode (or out of memory). The modes are: %s.",
+          param, names);
       return FALSE;
     }
     g_hash_table_insert (properties, g_strdup (mode_name), new_bdata);
@@ -937,7 +956,8 @@ int
 BoundingBox::setLabelPath (const char *param)
 {
   if (bdata == nullptr) {
-    GST_ERROR ("option1 of boundingbox selects the box decoding mode and has to be set before option2.");
+    nns_logw ("option2 of boundingbox (\"%s\") is not applied because option1, which selects the box decoding mode, is not set yet. Set option1 before option2.",
+        GST_STR_NULL (param));
     return FALSE;
   }
 
@@ -977,12 +997,12 @@ BoundingBox::setVideoSize (const char *param)
   height = 0;
 
   if (rank < 2) {
-    GST_ERROR ("mode-option-2 of boundingbox is video output dimension (WIDTH:HEIGHT). The given parameter, \"%s\", is not acceptable.",
+    nns_logw ("option4 of boundingbox is video output dimension (WIDTH:HEIGHT). The given parameter, \"%s\", is not acceptable, so the output video dimension is left unset (0:0).",
         param);
     return TRUE; /* Ignore this param */
   }
   if (rank > 2) {
-    GST_WARNING ("mode-option-2 of boundingbox is video output dimension (WIDTH:HEIGHT). The third and later elements of the given parameter, \"%s\", are ignored.",
+    GST_WARNING ("option4 of boundingbox is video output dimension (WIDTH:HEIGHT). The third and later elements of the given parameter, \"%s\", are ignored.",
         param);
   }
   width = dim[0];
@@ -1002,14 +1022,15 @@ BoundingBox::setInputModelSize (const char *param)
     return TRUE;
 
   if (bdata == nullptr) {
-    GST_ERROR ("option1 of boundingbox selects the box decoding mode and has to be set before option5.");
+    nns_logw ("option5 of boundingbox (\"%s\") is not applied because option1, which selects the box decoding mode, is not set yet. Set option1 before option5.",
+        param);
     return FALSE;
   }
 
   rank = gst_tensor_parse_dimension (param, dim);
 
   if (rank < 2) {
-    GST_ERROR ("option5 of boundingbox is input video dimension (WIDTH:HEIGHT). The given parameter, \"%s\", is not acceptable.",
+    nns_loge ("option5 of boundingbox is input video dimension (WIDTH:HEIGHT). The given parameter, \"%s\", is not acceptable.",
         param);
     return FALSE;
   }
@@ -1018,7 +1039,7 @@ BoundingBox::setInputModelSize (const char *param)
         param);
   }
   if (dim[0] == 0 || dim[1] == 0) {
-    GST_ERROR ("option5 of boundingbox is input video dimension (WIDTH:HEIGHT). The given parameter, \"%s\", has a zero dimension.",
+    nns_loge ("option5 of boundingbox is input video dimension (WIDTH:HEIGHT). The given parameter, \"%s\", has a zero dimension.",
         param);
     return FALSE;
   }
@@ -1040,7 +1061,8 @@ BoundingBox::setOption (BoundingBoxOption option, const char *param)
   } else if (option == BoundingBoxOption::INTERNAL) {
     /* option3 = per-decoding-mode option */
     if (bdata == nullptr) {
-      GST_ERROR ("option1 of boundingbox selects the box decoding mode and has to be set before option3.");
+      nns_logw ("option3 of boundingbox (\"%s\") is not applied because option1, which selects the box decoding mode, is not set yet. Set option1 before option3.",
+          GST_STR_NULL (param));
       return FALSE;
     }
     return bdata->setOptionInternal (param);
@@ -1073,7 +1095,7 @@ BoundingBox::getOutCaps (const GstTensorsConfig *config)
   char *str;
 
   if (bdata == nullptr) {
-    GST_ERROR ("The box decoding mode is not configured. Set option1 of boundingbox to the mode the model was trained for.");
+    nns_loge ("The box decoding mode is not configured. Set option1 of boundingbox to the mode the model was trained for.");
     return NULL;
   }
 
@@ -1082,7 +1104,7 @@ BoundingBox::getOutCaps (const GstTensorsConfig *config)
     return NULL;
 
   if (bdata->getInputWidth () == 0 || bdata->getInputHeight () == 0) {
-    GST_ERROR ("The input video dimension of the model is not configured. Set option5 of boundingbox to the WIDTH:HEIGHT the model takes, which the decoder scales the decoded boxes by.");
+    nns_loge ("The input video dimension of the model is not configured. Set option5 of boundingbox to the WIDTH:HEIGHT the model takes, which the decoder scales the decoded boxes by.");
     return NULL;
   }
 
@@ -1116,7 +1138,7 @@ BoundingBox::decode (const GstTensorsConfig *config,
 
   /* option1 may have swapped bdata since getOutCaps () approved the stream */
   if (bdata->getInputWidth () == 0 || bdata->getInputHeight () == 0) {
-    GST_ERROR ("The input video dimension of the model is zero. Set option5 of boundingbox to the WIDTH:HEIGHT the model takes.");
+    nns_loge ("The input video dimension of the model is zero. Set option5 of boundingbox to the WIDTH:HEIGHT the model takes.");
     return GST_FLOW_ERROR;
   }
 
@@ -1204,6 +1226,37 @@ BoundingBox::createProperties (const gchar *properties_name)
   } catch (...) {
     return nullptr;
   }
+}
+
+/**
+ * @brief Get the names of the registered box decoding modes
+ * @return the sorted names joined with ", ", which the caller frees
+ */
+gchar *
+BoundingBox::getModeNames ()
+{
+  GPtrArray *names = g_ptr_array_new ();
+  gchar *joined;
+
+  G_LOCK (box_properties_table);
+  if (properties_table != nullptr) {
+    GHashTableIter iter;
+    gpointer key;
+
+    g_hash_table_iter_init (&iter, properties_table);
+    while (g_hash_table_iter_next (&iter, &key, NULL))
+      g_ptr_array_add (names, key);
+  }
+  G_UNLOCK (box_properties_table);
+
+  g_ptr_array_sort (names, [] (gconstpointer a, gconstpointer b) {
+    return g_strcmp0 (*(const gchar *const *) a, *(const gchar *const *) b);
+  });
+  g_ptr_array_add (names, NULL);
+  joined = g_strjoinv (", ", (gchar **) names->pdata);
+  g_ptr_array_free (names, TRUE);
+
+  return joined;
 }
 
 /**
