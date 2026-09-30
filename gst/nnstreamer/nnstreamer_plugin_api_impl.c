@@ -158,7 +158,7 @@ gst_tensor_time_sync_set_option_data (tensor_time_sync_data * sync)
       else
         sink_id = 0;
 
-      if (strv[1] != NULL)
+      if (strv[0] != NULL && strv[1] != NULL)
         duration = (guint) g_ascii_strtoull (strv[1], NULL, 10);
       else
         duration = G_MAXINT;

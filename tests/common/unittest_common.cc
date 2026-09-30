@@ -10,6 +10,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <dlfcn.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/app/gstappsrc.h>
@@ -4028,6 +4029,106 @@ TEST (commonUtil, countOutputPipelineNoBuffer_n)
 
   gst_object_unref (sink);
   gst_object_unref (pipeline);
+}
+
+static thread_local bool hook_split_pad_empty = false;
+static thread_local int hook_split_pad_empty_calls = 0;
+
+/**
+ * @brief Interposed g_strsplit(): while hook_split_pad_empty is set on the
+ *        calling thread, the vector for an empty string has a non-NULL
+ *        pointer after its terminator, as uninitialised allocator memory
+ *        may have.
+ */
+extern "C" gchar **
+g_strsplit (const gchar *string, const gchar *delimiter, gint max_tokens)
+{
+  static auto real = (gchar * *(*) (const gchar *, const gchar *, gint))
+      dlsym (RTLD_NEXT, "g_strsplit");
+  gchar **strv;
+
+  if (!real)
+    abort ();
+
+  strv = real (string, delimiter, max_tokens);
+  if (hook_split_pad_empty && strv && strv[0] == NULL) {
+    hook_split_pad_empty_calls++;
+    strv = g_renew (gchar *, strv, 2);
+    strv[1] = (gchar *) "7";
+  }
+
+  return strv;
+}
+
+/**
+ * @brief Test for parsing valid basepad sync options.
+ */
+TEST (commonTimeSync, setOptionBasepad)
+{
+  tensor_time_sync_data sync = {};
+  gchar option1[] = "1:500";
+  gchar option2[] = "2";
+  gchar option3[] = ":300";
+
+  sync.mode = SYNC_BASEPAD;
+
+  sync.option = option1;
+  EXPECT_TRUE (gst_tensor_time_sync_set_option_data (&sync));
+  EXPECT_EQ (sync.data_basepad.sink_id, 1U);
+  EXPECT_EQ (sync.data_basepad.duration, 500U);
+
+  sync.option = option2;
+  EXPECT_TRUE (gst_tensor_time_sync_set_option_data (&sync));
+  EXPECT_EQ (sync.data_basepad.sink_id, 2U);
+  EXPECT_EQ (sync.data_basepad.duration, (GstClockTime) G_MAXINT);
+
+  sync.option = option3;
+  EXPECT_TRUE (gst_tensor_time_sync_set_option_data (&sync));
+  EXPECT_EQ (sync.data_basepad.sink_id, 0U);
+  EXPECT_EQ (sync.data_basepad.duration, 300U);
+}
+
+/**
+ * @brief Test that an empty basepad sync option gives the defaults and
+ *        does not read past the end of the split vector (#4960 A5).
+ */
+TEST (commonTimeSync, setOptionBasepadEmpty_n)
+{
+  tensor_time_sync_data sync = {};
+  gchar option[] = "";
+
+  sync.mode = SYNC_BASEPAD;
+  sync.option = option;
+  sync.data_basepad.sink_id = 3U;
+  sync.data_basepad.duration = 3U;
+
+  hook_split_pad_empty_calls = 0;
+  hook_split_pad_empty = true;
+  EXPECT_TRUE (gst_tensor_time_sync_set_option_data (&sync));
+  hook_split_pad_empty = false;
+
+  EXPECT_EQ (sync.data_basepad.sink_id, 0U);
+  EXPECT_EQ (sync.data_basepad.duration, (GstClockTime) G_MAXINT);
+
+  if (hook_split_pad_empty_calls == 0)
+    GTEST_SKIP () << "GLib calls from libnnstreamer are not interposable here.";
+}
+
+/**
+ * @brief Test for sync option data with no option or an invalid mode.
+ */
+TEST (commonTimeSync, setOptionInvalid_n)
+{
+  tensor_time_sync_data sync = {};
+  gchar option[] = "1:500";
+
+  sync.mode = SYNC_BASEPAD;
+  sync.option = NULL;
+  EXPECT_FALSE (gst_tensor_time_sync_set_option_data (&sync));
+
+  sync.mode = SYNC_END;
+  sync.option = option;
+  EXPECT_FALSE (gst_tensor_time_sync_set_option_data (&sync));
 }
 
 /**
