@@ -1284,6 +1284,256 @@ TEST (nnstreamerGrpc, nonBlockingClientSinkFlatbuf)
 }
 #endif /* ENABLE_FLATBUF */
 
+#if defined(ENABLE_PROTOBUF) && defined(ENABLE_FLATBUF)
+/**
+ * @brief Stream tensors from a non-blocking tensor_sink_grpc server to a blocking tensor_src_grpc client.
+ * @param idl the IDL both ends use
+ * @return the number of buffers the client got, 0 if a pipeline did not build or start
+ */
+static guint
+_run_async_server_test (const gchar *idl)
+{
+  GstElement *server, *client, *grpc, *sink;
+  RecvData data;
+  gchar *str;
+  gint port = 0;
+  guint received;
+
+  str = g_strdup_printf ("videotestsrc num-buffers=10 ! " STREAM_VIDEO_CAPS " ! tensor_converter ! "
+                         "tensor_sink_grpc name=grpc server=TRUE blocking=FALSE idl=%s "
+                         "host=localhost port=0 async=FALSE",
+      idl);
+  server = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!server) {
+    ADD_FAILURE () << "the server pipeline of the " << idl << " test did not build";
+    return 0;
+  }
+
+  gst_element_set_state (server, GST_STATE_PLAYING);
+  gst_element_get_state (server, NULL, NULL, 10 * GST_SECOND);
+  grpc = gst_bin_get_by_name (GST_BIN (server), "grpc");
+  g_object_get (grpc, "port", &port, NULL);
+  gst_object_unref (grpc);
+  if (port <= 0) {
+    ADD_FAILURE () << "the " << idl << " server did not get a port to listen on";
+    gst_element_set_state (server, GST_STATE_NULL);
+    gst_object_unref (server);
+    return 0;
+  }
+
+  g_mutex_init (&data.lock);
+  data.received = 0;
+
+  str = g_strdup_printf (
+      "tensor_src_grpc server=FALSE blocking=TRUE idl=%s host=localhost port=%d ! " STREAM_TENSOR_CAPS
+      " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
+      idl, port);
+  client = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!client)
+    ADD_FAILURE () << "the client pipeline of the " << idl << " test did not build";
+
+  if (client) {
+    sink = gst_bin_get_by_name (GST_BIN (client), "sink");
+    g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), &data);
+    gst_object_unref (sink);
+    gst_element_set_state (client, GST_STATE_PLAYING);
+  }
+
+  received = _wait_for_buffers (data, 2);
+
+  /* the server ends the call, which lets the blocking client leave its read */
+  gst_element_set_state (server, GST_STATE_NULL);
+  if (client) {
+    gst_element_set_state (client, GST_STATE_NULL);
+    gst_object_unref (client);
+  }
+  gst_object_unref (server);
+  g_mutex_clear (&data.lock);
+
+  return client ? received : 0;
+}
+
+/**
+ * @brief Get a local port nobody listens on: a server takes a free one and shuts down.
+ */
+static int
+_closed_port (void)
+{
+  nnstreamer::protobuf::TensorService::Service service;
+  grpc::ServerBuilder builder;
+  int port = 0;
+
+  builder.AddListeningPort ("localhost:0", grpc::InsecureServerCredentials (), &port);
+  builder.RegisterService (&service);
+  auto server = builder.BuildAndStart ();
+  if (server)
+    server->Shutdown ();
+
+  return port;
+}
+
+/**
+ * @brief Bring a non-blocking tensor_src_grpc client of a port nobody listens on to PLAYING and back.
+ * @param idl the IDL of the client
+ * @return the number of buffers it produced
+ */
+static guint
+_run_async_client_without_server (const gchar *idl)
+{
+  GstElement *client, *sink;
+  RecvData data;
+  gchar *str;
+  int port;
+
+  port = _closed_port ();
+  if (port <= 0) {
+    ADD_FAILURE () << "no free local port for the " << idl << " test";
+    return G_MAXUINT;
+  }
+
+  str = g_strdup_printf (
+      "tensor_src_grpc server=FALSE blocking=FALSE idl=%s host=localhost port=%d ! " STREAM_TENSOR_CAPS
+      " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
+      idl, port);
+  client = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!client) {
+    ADD_FAILURE () << "the client pipeline of the " << idl << " test did not build";
+    return G_MAXUINT;
+  }
+
+  g_mutex_init (&data.lock);
+  data.received = 0;
+
+  sink = gst_bin_get_by_name (GST_BIN (client), "sink");
+  g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), &data);
+  gst_object_unref (sink);
+
+  EXPECT_NE (gst_element_set_state (client, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  g_usleep (G_USEC_PER_SEC / 2);
+  EXPECT_EQ (gst_element_set_state (client, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+
+  gst_object_unref (client);
+  g_mutex_clear (&data.lock);
+
+  return data.received;
+}
+
+/**
+ * @brief Keep the sub-plugin of @a idl loaded before a test loads the other one.
+ *
+ * GModule opens a sub-plugin into the global scope, so the one loaded first
+ * provides the symbols the other resolves to when both define the same name.
+ */
+static GModule *
+_load_idl_first (const gchar *idl)
+{
+  grpc_call_stats_fn stats;
+
+  return _open_grpc_idl_module (idl, &stats);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) client works while the protobuf sub-plugin is loaded.
+ */
+TEST (nnstreamerGrpc, nonBlockingClientSrcFlatbufWithProtobuf)
+{
+  GModule *first = _load_idl_first ("protobuf");
+
+  ASSERT_TRUE (first != NULL);
+  EXPECT_GE (_run_nonblocking_test ("flatbuf", TRUE), 2U);
+  g_module_close (first);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) client works while the protobuf sub-plugin is loaded.
+ */
+TEST (nnstreamerGrpc, nonBlockingClientSinkFlatbufWithProtobuf)
+{
+  GModule *first = _load_idl_first ("protobuf");
+
+  ASSERT_TRUE (first != NULL);
+  EXPECT_GE (_run_nonblocking_test ("flatbuf", FALSE), 2U);
+  g_module_close (first);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) client works while the flatbuf sub-plugin is loaded.
+ */
+TEST (nnstreamerGrpc, nonBlockingClientSrcProtobufWithFlatbuf)
+{
+  GModule *first = _load_idl_first ("flatbuf");
+
+  ASSERT_TRUE (first != NULL);
+  EXPECT_GE (_run_nonblocking_test ("protobuf", TRUE), 2U);
+  g_module_close (first);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (protobuf) client works while the flatbuf sub-plugin is loaded.
+ */
+TEST (nnstreamerGrpc, nonBlockingClientSinkProtobufWithFlatbuf)
+{
+  GModule *first = _load_idl_first ("flatbuf");
+
+  ASSERT_TRUE (first != NULL);
+  EXPECT_GE (_run_nonblocking_test ("protobuf", FALSE), 2U);
+  g_module_close (first);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) server works while the protobuf sub-plugin is loaded.
+ */
+TEST (nnstreamerGrpc, nonBlockingServerFlatbufWithProtobuf)
+{
+  GModule *first = _load_idl_first ("protobuf");
+
+  ASSERT_TRUE (first != NULL);
+  EXPECT_GE (_run_async_server_test ("flatbuf"), 2U);
+  g_module_close (first);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (protobuf) server works while the flatbuf sub-plugin is loaded.
+ */
+TEST (nnstreamerGrpc, nonBlockingServerProtobufWithFlatbuf)
+{
+  GModule *first = _load_idl_first ("flatbuf");
+
+  ASSERT_TRUE (first != NULL);
+  EXPECT_GE (_run_async_server_test ("protobuf"), 2U);
+  g_module_close (first);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) client without a server fails
+ * its call cleanly while the protobuf sub-plugin is loaded.
+ */
+TEST (nnstreamerGrpc, nonBlockingClientNoServerFlatbufWithProtobuf_n)
+{
+  GModule *first = _load_idl_first ("protobuf");
+
+  ASSERT_TRUE (first != NULL);
+  EXPECT_EQ (_run_async_client_without_server ("flatbuf"), 0U);
+  g_module_close (first);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) client without a server
+ * fails its call cleanly while the flatbuf sub-plugin is loaded.
+ */
+TEST (nnstreamerGrpc, nonBlockingClientNoServerProtobufWithFlatbuf_n)
+{
+  GModule *first = _load_idl_first ("flatbuf");
+
+  ASSERT_TRUE (first != NULL);
+  EXPECT_EQ (_run_async_client_without_server ("protobuf"), 0U);
+  g_module_close (first);
+}
+#endif /* ENABLE_PROTOBUF && ENABLE_FLATBUF */
+
 /**
  * @brief gtest main
  */
