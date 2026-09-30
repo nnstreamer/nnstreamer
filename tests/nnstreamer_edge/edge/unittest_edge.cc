@@ -956,6 +956,276 @@ TEST (edgeSinkSrc, refusesTruncatedFlexibleData_n)
 }
 
 /**
+ * @brief edgesrc max-buffers is 0 (no limit) by default and can be set.
+ */
+TEST (edgeSrc, maxBuffersProperty)
+{
+  GstElement *element = gst_element_factory_make ("edgesrc", nullptr);
+  guint val = 1U;
+
+  ASSERT_NE (element, nullptr);
+
+  g_object_get (element, "max-buffers", &val, NULL);
+  EXPECT_EQ (val, 0U);
+
+  g_object_set (element, "max-buffers", 5U, NULL);
+  g_object_get (element, "max-buffers", &val, NULL);
+  EXPECT_EQ (val, 5U);
+
+  gst_object_unref (element);
+}
+
+/**
+ * @brief The first bytes of the buffers a fakesink received, in order.
+ */
+typedef struct {
+  GMutex lock;
+  GArray *ids;
+} IdLog;
+
+/**
+ * @brief Record the first byte of a buffer a fakesink receives.
+ */
+static void
+_log_id (GstElement *element, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  IdLog *log = (IdLog *) user_data;
+  guint8 id = 0xff;
+
+  gst_buffer_extract (buffer, 0, &id, 1);
+  g_mutex_lock (&log->lock);
+  g_array_append_val (log->ids, id);
+  g_mutex_unlock (&log->lock);
+}
+
+/**
+ * @brief Wait until the id log has @a num entries, then a little longer to catch extra buffers.
+ */
+static void
+_wait_ids (IdLog *log, guint num, guint timeout_ms)
+{
+  guint len, waited;
+
+  for (waited = 0; waited <= timeout_ms; waited += 10) {
+    g_mutex_lock (&log->lock);
+    len = log->ids->len;
+    g_mutex_unlock (&log->lock);
+    if (len >= num)
+      break;
+    g_usleep (10000);
+  }
+
+  g_usleep (200000);
+}
+
+/**
+ * @brief Adds up the data edgesrc reports as dropped from its receive queue.
+ */
+static gint edgesrc_dropped;
+
+/**
+ * @brief Debug log function adding up the "Dropped N ..." messages of edgesrc.
+ */
+static void
+_count_dropped (GstDebugCategory *category, GstDebugLevel level,
+    const gchar *file, const gchar *function, gint line, GObject *object,
+    GstDebugMessage *message, gpointer user_data)
+{
+  const gchar *text;
+
+  if (g_strcmp0 (gst_debug_category_get_name (category), "edgesrc") != 0)
+    return;
+
+  text = gst_debug_message_get (message);
+  if (text && g_str_has_prefix (text, "Dropped "))
+    g_atomic_int_add (&edgesrc_dropped, (gint) g_ascii_strtoull (text + 8, NULL, 10));
+}
+
+/**
+ * @brief Event callback of a raw nnstreamer-edge publisher; counts the subscribers that connected.
+ */
+static int
+_raw_pub_event_cb (nns_edge_event_h event_h, void *user_data)
+{
+  nns_edge_event_e type;
+
+  if (nns_edge_event_get_type (event_h, &type) == NNS_EDGE_ERROR_NONE
+      && type == NNS_EDGE_EVENT_CONNECTION_COMPLETED)
+    g_atomic_int_inc ((gint *) user_data);
+
+  return NNS_EDGE_ERROR_NONE;
+}
+
+/**
+ * @brief Pad probe callback that keeps buffers blocked until the probe is removed.
+ */
+static GstPadProbeReturn
+_block_buffers (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  return GST_PAD_PROBE_OK;
+}
+
+#define EDGE_TEST_CAPS_4 \
+  "other/tensor,dimension=(string)4,type=(string)uint8,framerate=(fraction)0/1"
+
+/**
+ * @brief Publish ten data (ids 0 to 9) from a raw publisher to edgesrc while its src pad is blocked, then unblock it.
+ * @param max_buffers The max-buffers property of edgesrc.
+ * @param[out] log The ids of the data edgesrc pushed, in order.
+ * @param expected The number of data edgesrc is expected to push.
+ * @return The number of data edgesrc reported as dropped.
+ */
+static guint
+_flood_edgesrc (guint max_buffers, IdLog *log, guint expected)
+{
+  gchar *pipeline, *port_str;
+  GstElement *gstpipe, *element;
+  GstPad *pad;
+  nns_edge_h pub_h = nullptr;
+  nns_edge_data_h data_h;
+  gulong probe_id;
+  guint i, port, waited, timeout_ms, dropped;
+  gint connected = 0;
+  guint8 *mem;
+  static gsize log_function_added = 0;
+
+  /* Removing a log function leaks the old list in GStreamer, so add it once and keep it. */
+  if (g_once_init_enter (&log_function_added)) {
+    gst_debug_add_log_function (_count_dropped, nullptr, nullptr);
+    g_once_init_leave (&log_function_added, 1);
+  }
+  g_atomic_int_set (&edgesrc_dropped, 0);
+  gst_debug_set_threshold_for_name ("edgesrc", GST_LEVEL_DEBUG);
+
+  port = get_available_port ();
+  EXPECT_EQ (nns_edge_create_handle ("rawpub", NNS_EDGE_CONNECT_TYPE_TCP,
+                 NNS_EDGE_NODE_TYPE_PUB, &pub_h),
+      NNS_EDGE_ERROR_NONE);
+  nns_edge_set_event_callback (pub_h, _raw_pub_event_cb, &connected);
+  nns_edge_set_info (pub_h, "HOST", "127.0.0.1");
+  port_str = g_strdup_printf ("%u", port);
+  nns_edge_set_info (pub_h, "PORT", port_str);
+  g_free (port_str);
+  nns_edge_set_info (pub_h, "CAPS", EDGE_TEST_CAPS_4);
+  EXPECT_EQ (nns_edge_start (pub_h), NNS_EDGE_ERROR_NONE);
+
+  pipeline = g_strdup_printf ("edgesrc name=srcx dest-host=127.0.0.1 dest-port=%u max-buffers=%u ! %s ! "
+                              "fakesink name=sinkx signal-handoffs=true sync=false async=false",
+      port, max_buffers, EDGE_TEST_CAPS_4);
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  g_free (pipeline);
+  EXPECT_NE (gstpipe, nullptr);
+  if (!gstpipe) {
+    nns_edge_release_handle (pub_h);
+    gst_debug_unset_threshold_for_name ("edgesrc");
+    return 0;
+  }
+
+  element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  g_signal_connect (element, "handoff", (GCallback) _log_id, log);
+  gst_object_unref (element);
+
+  element = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+  pad = gst_element_get_static_pad (element, "src");
+  gst_object_unref (element);
+  probe_id = gst_pad_add_probe (pad,
+      (GstPadProbeType) (GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_BUFFER),
+      _block_buffers, nullptr, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  for (waited = 0; waited < 5000 && g_atomic_int_get (&connected) == 0; waited += 10)
+    g_usleep (10000);
+  EXPECT_GT (g_atomic_int_get (&connected), 0);
+
+  /* edgesrc takes one data and blocks pushing it; the others wait in its queue. */
+  for (i = 0; i < 10; i++) {
+    mem = (guint8 *) g_malloc0 (4);
+    mem[0] = (guint8) i;
+    EXPECT_EQ (nns_edge_data_create (&data_h), NNS_EDGE_ERROR_NONE);
+    nns_edge_data_add (data_h, mem, 4, g_free);
+    EXPECT_EQ (nns_edge_send (pub_h, data_h), NNS_EDGE_ERROR_NONE);
+    nns_edge_data_destroy (data_h);
+  }
+
+  timeout_ms = (max_buffers > 0) ? 5000U : 500U;
+  for (waited = 0; waited <= timeout_ms; waited += 10) {
+    if ((guint) g_atomic_int_get (&edgesrc_dropped) >= 10 - 1 - max_buffers)
+      break;
+    g_usleep (10000);
+  }
+  g_usleep (200000);
+  dropped = (guint) g_atomic_int_get (&edgesrc_dropped);
+
+  gst_pad_remove_probe (pad, probe_id);
+  gst_object_unref (pad);
+  _wait_ids (log, expected, 5000);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (gstpipe);
+  nns_edge_release_handle (pub_h);
+
+  gst_debug_unset_threshold_for_name ("edgesrc");
+
+  return dropped;
+}
+
+/**
+ * @brief Without max-buffers, edgesrc keeps every data that arrives while the pipeline is busy.
+ */
+TEST (edgeSinkSrc, keepsAllDataByDefault)
+{
+  IdLog log;
+  guint i;
+
+  g_mutex_init (&log.lock);
+  log.ids = g_array_new (FALSE, FALSE, sizeof (guint8));
+
+  EXPECT_EQ (_flood_edgesrc (0, &log, 10), 0U);
+
+  EXPECT_EQ (log.ids->len, 10U);
+  for (i = 0; i < log.ids->len; i++)
+    EXPECT_EQ (g_array_index (log.ids, guint8, i), i);
+
+  g_array_free (log.ids, TRUE);
+  g_mutex_clear (&log.lock);
+}
+
+/**
+ * @brief edgesrc with max-buffers keeps the latest data of a publisher out-running the pipeline.
+ */
+TEST (edgeSinkSrc, maxBuffersDropsOldest_n)
+{
+  IdLog log;
+  guint dropped, len;
+
+#ifdef GST_DISABLE_GST_DEBUG
+  GTEST_SKIP () << "The dropped data are counted with the GStreamer debug log.";
+#endif
+
+  g_mutex_init (&log.lock);
+  log.ids = g_array_new (FALSE, FALSE, sizeof (guint8));
+
+  /**
+   * Usually one data is taken before the pad blocks, 3 stay queued and 6 are dropped.
+   * If all ten arrive before the element waits on its queue, 7 are dropped and 3 pushed.
+   * Either way nothing is lost unaccounted and the last three pushed are the latest.
+   */
+  dropped = _flood_edgesrc (3, &log, 3);
+  EXPECT_GE (dropped, 6U);
+  EXPECT_LE (dropped, 7U);
+
+  len = log.ids->len;
+  EXPECT_EQ (len + dropped, 10U);
+  ASSERT_GE (len, 3U);
+  EXPECT_EQ (g_array_index (log.ids, guint8, len - 3), 7U);
+  EXPECT_EQ (g_array_index (log.ids, guint8, len - 2), 8U);
+  EXPECT_EQ (g_array_index (log.ids, guint8, len - 1), 9U);
+
+  g_array_free (log.ids, TRUE);
+  g_mutex_clear (&log.lock);
+}
+
+/**
  * @brief Main GTest
  */
 int

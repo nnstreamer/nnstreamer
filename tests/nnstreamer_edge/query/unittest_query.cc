@@ -772,6 +772,7 @@ TEST (tensorQueryValidate, configFromNonTensorCaps_n)
 typedef struct {
   GMutex lock;
   gchar *client_id; /**< client id of the last data the raw server received */
+  guint requests; /**< number of data the raw server received */
 } RawPeer;
 
 /**
@@ -794,6 +795,7 @@ _raw_peer_event_cb (nns_edge_event_h event_h, void *user_data)
       g_mutex_lock (&peer->lock);
       g_free (peer->client_id);
       peer->client_id = val;
+      peer->requests++;
       g_mutex_unlock (&peer->lock);
       nns_edge_data_destroy (data_h);
     }
@@ -1121,6 +1123,7 @@ _answer_client (const gchar *caps, GstBuffer *input, nns_edge_data_h answer, gui
 
   g_mutex_init (&peer.lock);
   peer.client_id = nullptr;
+  peer.requests = 0;
 
   port = get_available_port ();
   EXPECT_EQ (nns_edge_create_handle ("rawserver", NNS_EDGE_CONNECT_TYPE_TCP,
@@ -1276,6 +1279,595 @@ TEST (tensorQuery, clientRefusesTruncatedFlexibleData_n)
   EXPECT_TRUE (_answer_client (QUERY_TEST_CAPS_FLEX, _flex_input (),
       _make_flex_edge_data (10, -1), &received));
   EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief Create edge data holding one 4-byte memory whose first byte is @a id.
+ */
+static nns_edge_data_h
+_make_id_data (guint8 id)
+{
+  const gsize sizes[] = { 4 };
+  nns_edge_data_h data_h = _make_edge_data (sizes, 1);
+  void *data = nullptr;
+  nns_size_t len = 0;
+
+  if (data_h && nns_edge_data_get (data_h, 0, &data, &len) == NNS_EDGE_ERROR_NONE)
+    *((guint8 *) data) = id;
+
+  return data_h;
+}
+
+/**
+ * @brief Pop the edge data of a receive queue and check that they are @a expected, in order.
+ */
+static void
+_expect_queue (GAsyncQueue *queue, nns_edge_data_h *expected, guint num)
+{
+  nns_edge_data_h data_h;
+  guint i;
+
+  EXPECT_EQ (g_async_queue_length (queue), (gint) num);
+  for (i = 0; i < num; i++) {
+    data_h = g_async_queue_try_pop (queue);
+    EXPECT_EQ (data_h, expected[i]);
+    if (data_h)
+      nns_edge_data_destroy (data_h);
+  }
+  EXPECT_EQ (g_async_queue_length (queue), 0);
+}
+
+/**
+ * @brief Without a limit, the receive queue keeps every data in order.
+ */
+TEST (tensorQueryQueue, pushNoLimit)
+{
+  GAsyncQueue *queue = g_async_queue_new ();
+  nns_edge_data_h data[10];
+  guint i;
+
+  for (i = 0; i < 10; i++) {
+    data[i] = _make_id_data (i);
+    ASSERT_NE (data[i], nullptr);
+    EXPECT_EQ (gst_tensor_query_push_edge_data (queue, data[i], 0), 0U);
+  }
+
+  _expect_queue (queue, data, 10);
+  g_async_queue_unref (queue);
+}
+
+/**
+ * @brief A limit the queue does not exceed drops nothing, the largest limit included.
+ */
+TEST (tensorQueryQueue, pushWithinLimit)
+{
+  GAsyncQueue *queue = g_async_queue_new ();
+  nns_edge_data_h data[3];
+  guint i;
+
+  for (i = 0; i < 3; i++) {
+    data[i] = _make_id_data (i);
+    ASSERT_NE (data[i], nullptr);
+    EXPECT_EQ (gst_tensor_query_push_edge_data (queue, data[i], (i == 2) ? G_MAXUINT : 3U), 0U);
+  }
+
+  _expect_queue (queue, data, 3);
+  g_async_queue_unref (queue);
+}
+
+/**
+ * @brief A full receive queue drops its oldest data and keeps the latest ones.
+ */
+TEST (tensorQueryQueue, pushDropsOldest_n)
+{
+  GAsyncQueue *queue = g_async_queue_new ();
+  nns_edge_data_h data[10];
+  guint i, dropped = 0;
+
+  for (i = 0; i < 10; i++) {
+    data[i] = _make_id_data (i);
+    ASSERT_NE (data[i], nullptr);
+    dropped += gst_tensor_query_push_edge_data (queue, data[i], 3);
+    EXPECT_EQ (g_async_queue_length (queue), (gint) MIN (i + 1, 3U));
+  }
+  EXPECT_EQ (dropped, 7U);
+
+  _expect_queue (queue, &data[7], 3);
+  g_async_queue_unref (queue);
+}
+
+/**
+ * @brief A limit lowered while the queue holds more data drops all the excess oldest data at the next push.
+ */
+TEST (tensorQueryQueue, pushLoweredLimit_n)
+{
+  GAsyncQueue *queue = g_async_queue_new ();
+  nns_edge_data_h data[6];
+  guint i;
+
+  for (i = 0; i < 5; i++) {
+    data[i] = _make_id_data (i);
+    ASSERT_NE (data[i], nullptr);
+    EXPECT_EQ (gst_tensor_query_push_edge_data (queue, data[i], 0), 0U);
+  }
+
+  data[5] = _make_id_data (5);
+  ASSERT_NE (data[5], nullptr);
+  EXPECT_EQ (gst_tensor_query_push_edge_data (queue, data[5], 1), 5U);
+
+  _expect_queue (queue, &data[5], 1);
+  g_async_queue_unref (queue);
+}
+
+/**
+ * @brief Invalid parameters push nothing.
+ */
+TEST (tensorQueryQueue, pushInvalidParam_n)
+{
+  GAsyncQueue *queue = g_async_queue_new ();
+  nns_edge_data_h data_h = _make_id_data (0);
+
+  ASSERT_NE (data_h, nullptr);
+  EXPECT_EQ (gst_tensor_query_push_edge_data (nullptr, data_h, 1), 0U);
+  EXPECT_EQ (gst_tensor_query_push_edge_data (queue, nullptr, 1), 0U);
+  EXPECT_EQ (g_async_queue_length (queue), 0);
+
+  nns_edge_data_destroy (data_h);
+  g_async_queue_unref (queue);
+}
+
+/**
+ * @brief max-buffers of the query elements is 0 (no limit) by default and can be set.
+ */
+TEST (tensorQuery, maxBuffersProperty)
+{
+  const gchar *names[] = { "tensor_query_serversrc", "tensor_query_client" };
+  GstElement *element;
+  guint i, val;
+
+  for (i = 0; i < G_N_ELEMENTS (names); i++) {
+    element = gst_element_factory_make (names[i], nullptr);
+    ASSERT_NE (element, nullptr);
+
+    val = 1U;
+    g_object_get (element, "max-buffers", &val, NULL);
+    EXPECT_EQ (val, 0U);
+
+    g_object_set (element, "max-buffers", 5U, NULL);
+    g_object_get (element, "max-buffers", &val, NULL);
+    EXPECT_EQ (val, 5U);
+
+    gst_object_unref (element);
+  }
+}
+
+/**
+ * @brief The first bytes of the buffers a fakesink received, in order.
+ */
+typedef struct {
+  GMutex lock;
+  GArray *ids;
+} IdLog;
+
+/**
+ * @brief Record the first byte of a buffer a fakesink receives.
+ */
+static void
+_log_id (GstElement *element, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  IdLog *log = (IdLog *) user_data;
+  guint8 id = 0xff;
+
+  gst_buffer_extract (buffer, 0, &id, 1);
+  g_mutex_lock (&log->lock);
+  g_array_append_val (log->ids, id);
+  g_mutex_unlock (&log->lock);
+}
+
+/**
+ * @brief Wait until the id log has @a num entries, then a little longer to catch extra buffers.
+ */
+static void
+_wait_ids (IdLog *log, guint num, guint timeout_ms)
+{
+  guint len, waited;
+
+  for (waited = 0; waited <= timeout_ms; waited += 10) {
+    g_mutex_lock (&log->lock);
+    len = log->ids->len;
+    g_mutex_unlock (&log->lock);
+    if (len >= num)
+      break;
+    g_usleep (10000);
+  }
+
+  g_usleep (200000);
+}
+
+/**
+ * @brief Adds up the data the elements of a debug category report as dropped from their receive queue.
+ */
+typedef struct {
+  const gchar *category;
+  gint dropped;
+} DropCounter;
+
+static GMutex drop_counter_lock; /**< guards drop_counter */
+static DropCounter *drop_counter; /**< the counter in use, guarded by drop_counter_lock */
+
+/**
+ * @brief Debug log function adding up the "Dropped N ..." messages of the category being counted.
+ */
+static void
+_count_dropped (GstDebugCategory *category, GstDebugLevel level,
+    const gchar *file, const gchar *function, gint line, GObject *object,
+    GstDebugMessage *message, gpointer user_data)
+{
+  const gchar *text;
+  gint num;
+
+  g_mutex_lock (&drop_counter_lock);
+  if (drop_counter
+      && g_strcmp0 (gst_debug_category_get_name (category), drop_counter->category) == 0) {
+    text = gst_debug_message_get (message);
+    if (text && g_str_has_prefix (text, "Dropped ")) {
+      num = (gint) g_ascii_strtoull (text + 8, NULL, 10);
+      g_atomic_int_add (&drop_counter->dropped, num);
+    }
+  }
+  g_mutex_unlock (&drop_counter_lock);
+}
+
+/**
+ * @brief Start counting the data dropped by the elements of a debug category.
+ * The log function is added once and never removed, since removing one leaks the old list in GStreamer.
+ */
+static void
+_drop_counter_start (DropCounter *counter, const gchar *category)
+{
+  static gsize added = 0;
+
+  if (g_once_init_enter (&added)) {
+    gst_debug_add_log_function (_count_dropped, nullptr, nullptr);
+    g_once_init_leave (&added, 1);
+  }
+
+  counter->category = category;
+  counter->dropped = 0;
+  gst_debug_set_threshold_for_name (category, GST_LEVEL_DEBUG);
+
+  g_mutex_lock (&drop_counter_lock);
+  drop_counter = counter;
+  g_mutex_unlock (&drop_counter_lock);
+}
+
+/**
+ * @brief Stop counting the dropped data.
+ */
+static void
+_drop_counter_stop (DropCounter *counter)
+{
+  g_mutex_lock (&drop_counter_lock);
+  drop_counter = nullptr;
+  g_mutex_unlock (&drop_counter_lock);
+
+  gst_debug_unset_threshold_for_name (counter->category);
+}
+
+/**
+ * @brief Wait until the counter reaches @a num, then a little longer to catch extra drops.
+ * @return The number of dropped data.
+ */
+static guint
+_wait_dropped (DropCounter *counter, guint num, guint timeout_ms)
+{
+  guint waited;
+
+  for (waited = 0; waited <= timeout_ms; waited += 10) {
+    if ((guint) g_atomic_int_get (&counter->dropped) >= num)
+      break;
+    g_usleep (10000);
+  }
+
+  g_usleep (200000);
+  return (guint) g_atomic_int_get (&counter->dropped);
+}
+
+/**
+ * @brief Pad probe callback that keeps buffers blocked until the probe is removed.
+ */
+static GstPadProbeReturn
+_block_buffers (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  return GST_PAD_PROBE_OK;
+}
+
+/**
+ * @brief Send ten requests (ids 0 to 9) to tensor_query_serversrc while its src pad is blocked, then unblock it.
+ * @param max_buffers The max-buffers property of the serversrc.
+ * @param[out] log The ids of the requests the serversrc pushed, in order.
+ * @param expected The number of requests the serversrc is expected to push.
+ * @return The number of requests the serversrc reported as dropped.
+ */
+static guint
+_flood_serversrc (guint max_buffers, IdLog *log, guint expected)
+{
+  gchar *pipeline;
+  GstElement *gstpipe, *element;
+  GstPad *pad;
+  nns_edge_data_h data[10];
+  nns_edge_h client_h;
+  DropCounter counter;
+  gulong probe_id;
+  guint i, port, dropped;
+
+  _drop_counter_start (&counter, "tensor_query_serversrc");
+
+  port = get_available_port ();
+  pipeline = g_strdup_printf (
+      "tensor_query_serversrc name=srcx host=127.0.0.1 port=%u max-buffers=%u ! "
+      "capsfilter caps=\"%s\" ! tee name=t t. ! queue ! tensor_query_serversink async=false "
+      "t. ! queue ! fakesink name=sinkx signal-handoffs=true sync=false async=false",
+      port, max_buffers, QUERY_TEST_CAPS);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  g_free (pipeline);
+  EXPECT_NE (gstpipe, nullptr);
+  if (!gstpipe) {
+    _drop_counter_stop (&counter);
+    return 0;
+  }
+
+  element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  g_signal_connect (element, "handoff", (GCallback) _log_id, log);
+  gst_object_unref (element);
+
+  element = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+  pad = gst_element_get_static_pad (element, "src");
+  gst_object_unref (element);
+  probe_id = gst_pad_add_probe (pad,
+      (GstPadProbeType) (GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_BUFFER),
+      _block_buffers, nullptr, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  /* The serversrc takes one request and blocks pushing it; the others wait in its queue. */
+  for (i = 0; i < 10; i++)
+    data[i] = _make_id_data (i);
+  client_h = _raw_client_send (port, data, 10);
+
+  dropped = _wait_dropped (&counter, 10 - 1 - max_buffers, (max_buffers > 0) ? 5000 : 500);
+  gst_pad_remove_probe (pad, probe_id);
+  gst_object_unref (pad);
+  _wait_ids (log, expected, 5000);
+
+  nns_edge_release_handle (client_h);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (gstpipe);
+  _drop_counter_stop (&counter);
+
+  return dropped;
+}
+
+/**
+ * @brief Without max-buffers, tensor_query_serversrc keeps every request that arrives while the pipeline is busy.
+ */
+TEST (tensorQuery, serverSrcKeepsAllRequestsByDefault)
+{
+  IdLog log;
+  guint i;
+
+  g_mutex_init (&log.lock);
+  log.ids = g_array_new (FALSE, FALSE, sizeof (guint8));
+
+  EXPECT_EQ (_flood_serversrc (0, &log, 10), 0U);
+
+  EXPECT_EQ (log.ids->len, 10U);
+  for (i = 0; i < log.ids->len; i++)
+    EXPECT_EQ (g_array_index (log.ids, guint8, i), i);
+
+  g_array_free (log.ids, TRUE);
+  g_mutex_clear (&log.lock);
+}
+
+/**
+ * @brief tensor_query_serversrc with max-buffers keeps the latest requests of a client out-running the pipeline.
+ */
+TEST (tensorQuery, serverSrcMaxBuffersDropsOldest_n)
+{
+  IdLog log;
+  guint dropped, len;
+
+#ifdef GST_DISABLE_GST_DEBUG
+  GTEST_SKIP () << "The dropped requests are counted with the GStreamer debug log.";
+#endif
+
+  g_mutex_init (&log.lock);
+  log.ids = g_array_new (FALSE, FALSE, sizeof (guint8));
+
+  /**
+   * Usually one request is taken before the pad blocks, 3 stay queued and 6 are dropped.
+   * If all ten arrive before the element waits on its queue, 7 are dropped and 3 pushed.
+   * Either way nothing is lost unaccounted and the last three pushed are the latest.
+   */
+  dropped = _flood_serversrc (3, &log, 3);
+  EXPECT_GE (dropped, 6U);
+  EXPECT_LE (dropped, 7U);
+
+  len = log.ids->len;
+  EXPECT_EQ (len + dropped, 10U);
+  ASSERT_GE (len, 3U);
+  EXPECT_EQ (g_array_index (log.ids, guint8, len - 3), 7U);
+  EXPECT_EQ (g_array_index (log.ids, guint8, len - 2), 8U);
+  EXPECT_EQ (g_array_index (log.ids, guint8, len - 1), 9U);
+
+  g_array_free (log.ids, TRUE);
+  g_mutex_clear (&log.lock);
+}
+
+/**
+ * @brief Wait until the raw peer received @a num data.
+ * @return TRUE if it did before the timeout.
+ */
+static gboolean
+_wait_requests (RawPeer *peer, guint num, guint timeout_ms)
+{
+  guint waited, requests = 0;
+
+  for (waited = 0; waited <= timeout_ms; waited += 10) {
+    g_mutex_lock (&peer->lock);
+    requests = peer->requests;
+    g_mutex_unlock (&peer->lock);
+    if (requests >= num)
+      break;
+    g_usleep (10000);
+  }
+
+  return (requests >= num);
+}
+
+/**
+ * @brief Let two answers wait in the receive queue of tensor_query_client (max-request=1, no timeout).
+ * The client sends two requests before any answer, the raw server answers both (ids 1 and 2),
+ * then the client gets a third and a fourth input.
+ * @param max_buffers The max-buffers property of the client.
+ * @param[out] log The ids of the answers the client pushed, in order.
+ * @param[out] dropped The number of answers the client reported as dropped.
+ * @return TRUE if the client sent the third input to the server.
+ */
+static gboolean
+_answer_client_twice (guint max_buffers, IdLog *log, guint *dropped)
+{
+  gchar *pipeline, *caps_str, *port_str, *client_id;
+  GstElement *gstpipe, *element, *appsrc;
+  nns_edge_h server_h = nullptr;
+  nns_edge_data_h answer;
+  DropCounter counter;
+  RawPeer peer;
+  guint i, port;
+  gboolean third_request = FALSE;
+
+  g_mutex_init (&peer.lock);
+  peer.client_id = nullptr;
+  peer.requests = 0;
+  _drop_counter_start (&counter, "tensor_query_client");
+
+  port = get_available_port ();
+  EXPECT_EQ (nns_edge_create_handle ("rawserver", NNS_EDGE_CONNECT_TYPE_TCP,
+                 NNS_EDGE_NODE_TYPE_QUERY_SERVER, &server_h),
+      NNS_EDGE_ERROR_NONE);
+  nns_edge_set_event_callback (server_h, _raw_peer_event_cb, &peer);
+  nns_edge_set_info (server_h, "HOST", "127.0.0.1");
+  port_str = g_strdup_printf ("%u", port);
+  nns_edge_set_info (server_h, "PORT", port_str);
+  g_free (port_str);
+  caps_str = g_strdup_printf ("@query_server_src_caps@%s@query_server_sink_caps@%s",
+      QUERY_TEST_CAPS, QUERY_TEST_CAPS);
+  nns_edge_set_info (server_h, "CAPS", caps_str);
+  g_free (caps_str);
+  EXPECT_EQ (nns_edge_start (server_h), NNS_EDGE_ERROR_NONE);
+
+  pipeline = g_strdup_printf ("appsrc name=appsrc caps=\"%s\" ! "
+                              "tensor_query_client dest-host=127.0.0.1 dest-port=%u max-request=1 max-buffers=%u ! "
+                              "fakesink name=sinkx signal-handoffs=true sync=false async=false",
+      QUERY_TEST_CAPS, port, max_buffers);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  g_free (pipeline);
+  EXPECT_NE (gstpipe, nullptr);
+  if (!gstpipe)
+    goto done;
+
+  element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  g_signal_connect (element, "handoff", (GCallback) _log_id, log);
+  gst_object_unref (element);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  appsrc = gst_bin_get_by_name (GST_BIN (gstpipe), "appsrc");
+
+  /* Two requests are pending before any answer arrives. */
+  for (i = 1; i <= 2; i++) {
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), _static_input ()), GST_FLOW_OK);
+    EXPECT_TRUE (_wait_requests (&peer, i, 5000));
+  }
+
+  g_mutex_lock (&peer.lock);
+  client_id = g_strdup (peer.client_id);
+  g_mutex_unlock (&peer.lock);
+  for (i = 1; i <= 2; i++) {
+    answer = _make_id_data (i);
+    nns_edge_data_set_info (answer, "client_id", client_id);
+    EXPECT_EQ (nns_edge_send (server_h, answer), NNS_EDGE_ERROR_NONE);
+    nns_edge_data_destroy (answer);
+  }
+  g_free (client_id);
+
+  *dropped = _wait_dropped (&counter, 1, (max_buffers > 0) ? 5000 : 500);
+
+  /* The third input goes to the server only if the client counts no more than one pending request. */
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), _static_input ()), GST_FLOW_OK);
+  third_request = _wait_requests (&peer, 3, (max_buffers > 0) ? 5000 : 500);
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), _static_input ()), GST_FLOW_OK);
+  _wait_ids (log, 2, 1000);
+  gst_object_unref (appsrc);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (gstpipe);
+
+done:
+  nns_edge_release_handle (server_h);
+  _drop_counter_stop (&counter);
+  g_free (peer.client_id);
+  g_mutex_clear (&peer.lock);
+
+  return third_request;
+}
+
+/**
+ * @brief Without max-buffers, tensor_query_client keeps every answer and pushes them in order.
+ */
+TEST (tensorQuery, clientKeepsAllAnswersByDefault)
+{
+  IdLog log;
+  guint dropped = 1;
+
+  g_mutex_init (&log.lock);
+  log.ids = g_array_new (FALSE, FALSE, sizeof (guint8));
+
+  /* Both answers are pending, so max-request=1 holds the third input back. */
+  EXPECT_FALSE (_answer_client_twice (0, &log, &dropped));
+  EXPECT_EQ (dropped, 0U);
+
+  ASSERT_EQ (log.ids->len, 2U);
+  EXPECT_EQ (g_array_index (log.ids, guint8, 0), 1U);
+  EXPECT_EQ (g_array_index (log.ids, guint8, 1), 2U);
+
+  g_array_free (log.ids, TRUE);
+  g_mutex_clear (&log.lock);
+}
+
+/**
+ * @brief tensor_query_client with max-buffers keeps the latest answer and no longer counts a dropped one as pending.
+ */
+TEST (tensorQuery, clientMaxBuffersDropsOldest_n)
+{
+  IdLog log;
+  guint dropped = 0;
+
+#ifdef GST_DISABLE_GST_DEBUG
+  GTEST_SKIP () << "The dropped answers are counted with the GStreamer debug log.";
+#endif
+
+  g_mutex_init (&log.lock);
+  log.ids = g_array_new (FALSE, FALSE, sizeof (guint8));
+
+  /* The dropped answer is not pending anymore, so max-request=1 lets the third input go. */
+  EXPECT_TRUE (_answer_client_twice (1, &log, &dropped));
+  EXPECT_EQ (dropped, 1U);
+
+  ASSERT_GE (log.ids->len, 1U);
+  EXPECT_EQ (g_array_index (log.ids, guint8, 0), 2U);
+
+  g_array_free (log.ids, TRUE);
+  g_mutex_clear (&log.lock);
 }
 
 /**

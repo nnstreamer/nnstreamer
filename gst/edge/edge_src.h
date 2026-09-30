@@ -50,6 +50,7 @@ struct _GstEdgeSrc
   nns_edge_connect_type_e connect_type;
   nns_edge_h edge_h;
   GAsyncQueue *msg_queue;
+  guint max_buffers; /**< maximum number of data in msg_queue, 0 for no limit */
 
   gboolean playing;
 

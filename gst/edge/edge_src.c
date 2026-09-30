@@ -24,6 +24,11 @@
  * nnstreamer-edge handle, e.g. queue policy or options of a custom connection
  * library given by custom-lib. Only the first ':' separates a key from its
  * value, so a value itself may contain ':'.
+ *
+ * The max-buffers property bounds the data received but not yet pushed; when
+ * the publisher is faster than the pipeline, the oldest data is dropped.
+ * It is 0 (no limit) by default; set it if the publisher is not trusted,
+ * since without a limit a publisher that keeps sending can exhaust the memory.
  * </refsect2>
  */
 #ifdef HAVE_CONFIG_H
@@ -35,6 +40,8 @@
 
 GST_DEBUG_CATEGORY_STATIC (gst_edgesrc_debug);
 #define GST_CAT_DEFAULT gst_edgesrc_debug
+
+#define DEFAULT_MAX_BUFFERS 0
 
 /**
  * @brief the capabilities of the outputs
@@ -56,6 +63,7 @@ enum
   PROP_TOPIC,
   PROP_CUSTOM_LIB,
   PROP_CUSTOM_PROPS,
+  PROP_MAX_BUFFERS,
 
   PROP_LAST
 };
@@ -137,6 +145,12 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
       g_param_spec_string ("custom-props", "Custom connection props",
           "User defined custom connection properties. Set the options in key:value form and divide them by , for multiple options. The options are applied when the element starts, after the dedicated properties, so a key that duplicates one of them (e.g. TOPIC) overrides it.",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_MAX_BUFFERS,
+      g_param_spec_uint ("max-buffers", "Max buffers",
+          "The maximum number of received data waiting to be pushed. "
+          "If the publisher sends faster than the pipeline processes, the oldest data is dropped. "
+          "0 means no limit.", 0, G_MAXUINT, DEFAULT_MAX_BUFFERS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&srctemplate));
@@ -183,6 +197,7 @@ gst_edgesrc_init (GstEdgeSrc * self)
   self->dest_port = DEFAULT_PORT;
   self->topic = NULL;
   self->msg_queue = g_async_queue_new ();
+  self->max_buffers = DEFAULT_MAX_BUFFERS;
   self->connect_type = DEFAULT_CONNECT_TYPE;
   self->playing = FALSE;
   self->custom_lib = NULL;
@@ -231,6 +246,9 @@ gst_edgesrc_set_property (GObject * object, guint prop_id, const GValue * value,
       g_free (self->custom_props);
       self->custom_props = g_value_dup_string (value);
       break;
+    case PROP_MAX_BUFFERS:
+      self->max_buffers = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -270,6 +288,9 @@ gst_edgesrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_CUSTOM_PROPS:
       g_value_set_string (value, self->custom_props);
+      break;
+    case PROP_MAX_BUFFERS:
+      g_value_set_uint (value, self->max_buffers);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -355,10 +376,15 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
     case NNS_EDGE_EVENT_NEW_DATA_RECEIVED:
     {
       nns_edge_data_h data;
+      guint dropped;
 
       ret = nns_edge_event_parse_new_data (event_h, &data);
       if (NNS_EDGE_ERROR_NONE == ret) {
-        g_async_queue_push (self->msg_queue, data);
+        dropped = gst_tensor_query_push_edge_data (self->msg_queue, data,
+            self->max_buffers);
+        if (dropped > 0)
+          GST_DEBUG_OBJECT (self, "Dropped %u old data (max-buffers %u).",
+              dropped, self->max_buffers);
       }
       break;
     }
