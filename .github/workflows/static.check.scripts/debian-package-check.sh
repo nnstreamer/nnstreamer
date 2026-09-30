@@ -32,7 +32,7 @@
 #
 # A legacy-series build that lost nnstreamer-openvino altogether is not this
 # script's concern: dh_install fails on the package's unmatched .install
-# entry, and test_debian_rules_series.sh pins the option that enables it.
+# entry.
 #
 # The file lists come from the data tarball through tar rather than from the
 # columns of "dpkg-deb -c", so that a hard link is recorded under its own
