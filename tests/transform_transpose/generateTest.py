@@ -39,3 +39,5 @@ def save_test_data(filename, channel, height, width, batch, idx_i, idx_j, idx_k,
 save_test_data('test01_00.dat', 3, 50, 100, 1, 0, 2, 3, 1)
 save_test_data('test02_00.dat', 3, 100, 200, 1, 0, 2, 3, 1)
 save_test_data('test03_00.dat', 3, 100, 200, 1, 0, 1, 3, 2)
+# dimensions 3 and 4 (2:3) keep their place, so they transpose as a batch of 6
+save_test_data('test04_00.dat', 3, 50, 100, 6, 0, 2, 3, 1)

@@ -1662,7 +1662,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
  */
 #define transposeloop(cl,ck,cj,ci,sl,sk,sj,si,typesize) do { \
     size_t i, j, k, l;                                  \
-    int inidx = 0, outidx=0;                            \
+    size_t inidx = 0, outidx=0;                         \
     for(cl=0;cl<sl;cl++)                      \
       for(ci=0;ci<si;ci++)                    \
         for(cj=0;cj<sj;cj++)                  \
@@ -1716,7 +1716,10 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
 
   indexI = filter->data_transpose.trans_order[0];
   indexJ = filter->data_transpose.trans_order[1];
-  SL = fromDim[3] > 0 ? fromDim[3] : 1;
+  /* dimensions from 3 on keep their place, so they form one outer loop */
+  SL = 1;
+  for (i = 3; i < NNS_TENSOR_RANK_LIMIT && fromDim[i] > 0; i++)
+    SL *= fromDim[i];
   SI = fromDim[0] > 0 ? fromDim[0] : 1;
   SJ = fromDim[1] > 0 ? fromDim[1] : 1;
   SK = fromDim[2] > 0 ? fromDim[2] : 1;
