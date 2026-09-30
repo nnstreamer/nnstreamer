@@ -68,8 +68,13 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test01_%02d
 
 callCompareTest test01_00.dat.golden result06_00.log 6 "Compare 6" 1 0
 
-# transform_transpose now only support rank 4
+# The option takes four indices only, even for a tensor of a higher rank
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test01_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=10:50:3:1:10 input-type=float32 ! tensor_transform mode=transpose option=2:0:1:3:4 ! multifilesink location=\"./result07_%02d.log\" sync=true" 7_n 0 1 $PERFORMANCE
+
+# Dimensions 4 and above keep their place and are transposed as well
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test04_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=100:50:3:2:3 input-type=float32 ! tensor_transform mode=transpose option=2:0:1:3 ! other/tensor,dimension=3:100:50:2:3 ! multifilesink location=\"./result08_%02d.log\" sync=true" 8 0 0 $PERFORMANCE
+
+callCompareTest test04_00.dat.golden result08_00.log 8 "Compare 8" 1 0
 
 rm *.log *.bmp *.png *.golden *.raw *.dat
 

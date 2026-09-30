@@ -3951,6 +3951,221 @@ TEST (testTensorTransform, float16PerChannelArithmetic)
 #endif /* FLOAT16_SUPPORT */
 
 /**
+ * @brief Push a uint32 tensor through the transpose mode and compare the
+ *        result with the reference permutation of the first three dimensions.
+ * @param dim_str dimension of the input tensor
+ * @param option transpose option, NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3
+ * @param flex_in TRUE to push the tensor as a flexible one
+ */
+static void
+_test_transpose (const gchar *dim_str, const gchar *option, gboolean flex_in)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorInfo in_info, out_info;
+  GstTensorMetaInfo meta;
+  GstCaps *caps;
+  GstMemory *mem;
+  GstMapInfo info;
+  uint32_t *in_data, *out_data, *dim, out_dim[3];
+  guint order[3], x[3], y[3];
+  gsize count, outer, block, l, in_idx, out_idx, hsize = 0;
+
+  ASSERT_EQ (sscanf (option, "%u:%u:%u:3", &order[0], &order[1], &order[2]), 3);
+
+  gst_tensor_info_init (&in_info);
+  in_info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension (dim_str, in_info.dimension);
+  dim = in_info.dimension;
+  count = gst_tensor_get_element_count (dim);
+  ASSERT_GT (count, 0U);
+
+  if (flex_in) {
+    h = gst_harness_new ("tensor_transform");
+    ASSERT_TRUE (h != NULL);
+    g_object_set (h->element, "mode", GTT_TRANSPOSE, "option", option, NULL);
+
+    caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+    gst_harness_set_src_caps (h, caps);
+
+    mem = _new_flex_typed_memory (_NNS_UINT32, dim_str, TRUE, 0U);
+    gst_tensor_info_convert_to_meta (&in_info, &meta);
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+    in_buf = gst_buffer_new ();
+    gst_buffer_append_memory (in_buf, mem);
+  } else {
+    h = _new_transform_static_harness (
+        GTT_TRANSPOSE, option, FALSE, _NNS_UINT32, dim_str, FALSE);
+    ASSERT_TRUE (h != NULL);
+    in_buf = gst_harness_create_buffer (h, count * sizeof (uint32_t));
+    mem = gst_buffer_peek_memory (in_buf, 0);
+  }
+
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+  in_data = (uint32_t *) (info.data + hsize);
+  for (l = 0; l < count; l++)
+    in_data[l] = (uint32_t) l;
+  gst_memory_unmap (mem, &info);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+  out_buf = gst_harness_try_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
+
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+
+  /* the output dimension permutes the first three, the rest keep their place */
+  gst_tensor_info_init (&out_info);
+  if (flex_in) {
+    ASSERT_TRUE (gst_tensor_meta_info_parse_header (&meta, info.data));
+    ASSERT_TRUE (gst_tensor_meta_info_convert (&meta, &out_info));
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+  } else {
+    GstTensorsConfig config;
+
+    caps = gst_pad_get_current_caps (h->sinkpad);
+    ASSERT_TRUE (caps != NULL);
+    gst_tensors_config_init (&config);
+    ASSERT_TRUE (gst_tensors_config_from_structure (
+        &config, gst_caps_get_structure (caps, 0)));
+    gst_caps_unref (caps);
+    gst_tensor_info_copy (&out_info, &config.info.info[0]);
+    gst_tensors_config_free (&config);
+  }
+
+  for (l = 0; l < 3; l++) {
+    out_dim[l] = dim[order[l]];
+    EXPECT_EQ (out_info.dimension[l], out_dim[l]);
+  }
+  for (l = 3; l < NNS_TENSOR_RANK_LIMIT; l++)
+    EXPECT_EQ (out_info.dimension[l], dim[l]);
+
+  ASSERT_EQ (info.size, hsize + count * sizeof (uint32_t));
+  out_data = (uint32_t *) (info.data + hsize);
+
+  block = (gsize) dim[0] * dim[1] * dim[2];
+  outer = count / block;
+  for (l = 0; l < outer; l++) {
+    for (y[2] = 0; y[2] < out_dim[2]; y[2]++) {
+      for (y[1] = 0; y[1] < out_dim[1]; y[1]++) {
+        for (y[0] = 0; y[0] < out_dim[0]; y[0]++) {
+          x[order[0]] = y[0];
+          x[order[1]] = y[1];
+          x[order[2]] = y[2];
+          out_idx = y[0] + (gsize) out_dim[0] * (y[1] + (gsize) out_dim[1] * y[2]);
+          in_idx = x[0] + (gsize) dim[0] * (x[1] + (gsize) dim[1] * x[2]);
+          EXPECT_EQ (out_data[l * block + out_idx], (uint32_t) (l * block + in_idx));
+        }
+      }
+    }
+  }
+
+  gst_memory_unmap (mem, &info);
+  gst_buffer_unref (out_buf);
+  gst_tensor_info_free (&out_info);
+  gst_tensor_info_free (&in_info);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform transpose of tensors up to rank 4, whose
+ *        output has to stay as it was before dimensions 4 and above were
+ *        transposed (item G8 of #4960).
+ */
+TEST (testTensorTransform, transposeRank4)
+{
+  const gchar *options[]
+      = { "0:1:2:3", "0:2:1:3", "1:0:2:3", "1:2:0:3", "2:0:1:3", "2:1:0:3" };
+  guint o, f;
+
+  for (o = 0; o < G_N_ELEMENTS (options); o++) {
+    for (f = 0; f < 2U; f++) {
+      _test_transpose ("2:3:4:5", options[o], (gboolean) f);
+      _test_transpose ("3:4:5", options[o], (gboolean) f);
+      _test_transpose ("3:4:5:1", options[o], (gboolean) f);
+    }
+  }
+}
+
+/**
+ * @brief Test for tensor_transform transpose of tensors above rank 4, whose
+ *        dimensions 4 and above used to be skipped, leaving the tail of the
+ *        output uninitialised (item G8 of #4960).
+ */
+TEST (testTensorTransform, transposeAboveRank4)
+{
+  const gchar *options[]
+      = { "0:1:2:3", "0:2:1:3", "1:0:2:3", "1:2:0:3", "2:0:1:3", "2:1:0:3" };
+  guint o, f;
+
+  for (o = 0; o < G_N_ELEMENTS (options); o++) {
+    for (f = 0; f < 2U; f++) {
+      _test_transpose ("2:3:4:5:6", options[o], (gboolean) f);
+      _test_transpose ("2:3:4:1:2:1:3", options[o], (gboolean) f);
+      _test_transpose ("2:3:2:1:1:1:1:1:1:1:1:1:1:1:1:2", options[o], (gboolean) f);
+    }
+  }
+}
+
+/**
+ * @brief Test for tensor_transform transpose of a rank-5 tensor holding only
+ *        the data of its first four dimensions (item G8 of #4960). The whole
+ *        rank is transposed, so the short buffer is refused.
+ */
+TEST (testTensorTransform, transposeAboveRank4Short_n)
+{
+  GstHarness *h;
+
+  h = _new_transform_static_harness (
+      GTT_TRANSPOSE, "1:0:2:3", FALSE, _NNS_UINT8, "2:3:4:5:6", FALSE);
+  ASSERT_TRUE (h != NULL);
+
+  EXPECT_EQ (_push_tensor_of_size (h, 2U * 3U * 4U * 5U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform transpose of a flexible rank-5 tensor whose
+ *        header declares more data than the memory holds (item G8 of #4960).
+ */
+TEST (testTensorTransform, transposeAboveRank4FlexibleShort_n)
+{
+  GstHarness *h;
+  GstBuffer *buf;
+  GstCaps *caps;
+  GstTensorMetaInfo meta;
+  GstTensorInfo info;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (h != NULL);
+  g_object_set (h->element, "mode", GTT_TRANSPOSE, "option", "1:0:2:3", NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("2:3:4:5:6", info.dimension);
+  gst_tensor_info_convert_to_meta (&info, &meta);
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf,
+      _new_flex_memory ("2:3:4:5:6", TRUE,
+          gst_tensor_meta_info_get_header_size (&meta) + 2U * 3U * 4U * 5U));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_tensor_info_free (&info);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Push a uint8 tensor through the dimchg mode and compare the result
  *        with the reference permutation of the given dimension.
  * @param dim_str dimension of the input tensor

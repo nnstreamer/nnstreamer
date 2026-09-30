@@ -76,6 +76,7 @@ title: tensor_transform
     - (3): transpose
       - A mode for transposing shape of tensor
       - An option should be provided as D1':D2':D3':D4 (fixed to 3)
+      - In a tensor of rank 5 or higher, the dimensions after D4 keep their place as D4 does
       - Example: 3:640:480:1 (NHWC) ==> 640:480:3:1 (NCHW)
 
         ```bash
