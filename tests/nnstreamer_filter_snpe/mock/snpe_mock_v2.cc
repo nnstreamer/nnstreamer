@@ -14,6 +14,7 @@
  */
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -58,7 +59,6 @@ struct MockEncoding {
   Snpe_UserBufferEncoding_ElementType_t type;
   uint64_t step_exactly_0;
   float quantized_step_size;
-  bool owned;
 };
 
 /** @brief Mock of the buffer attributes of one tensor. */
@@ -104,15 +104,31 @@ struct MockSNPE {
 };
 
 /**
- * @brief The encoding a _Ref accessor hands out, owned by the mock itself.
+ * @brief The encodings a _Create call handed out and nobody released yet.
  *
- * The real SDK hands back a pointer into the attributes object. Keeping one
- * process-wide instance instead lets the mock survive a release call on a
- * handle the caller does not own. Such a call is therefore invisible to a
- * test; see the README of this directory for why that is deliberate.
+ * A release is looked up here before the handle is touched, so that one of a
+ * handle the caller does not own, such as the encoding a _Ref accessor points
+ * into, is counted without reading memory that may already be freed.
+ * snpe_mock_reset() leaves it alone: an encoding created before a reset may
+ * still be released, validly, after it.
  */
-MockEncoding referenced_encoding
-    = { SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT, 0, 1.0f, false };
+std::set<void *> owned_encodings;
+/** @brief Lock of owned_encodings; a pipeline may open a model off the test thread. */
+GMutex owned_encodings_lock;
+
+/**
+ * @brief Record a new encoding as owned by the caller.
+ */
+Snpe_UserBufferEncoding_Handle_t
+mock_encoding_own (MockEncoding *encoding)
+{
+  g_mutex_lock (&owned_encodings_lock);
+  owned_encodings.insert (encoding);
+  g_mutex_unlock (&owned_encodings_lock);
+  snpe_mock_obj_created (SNPE_MOCK_OBJ_ENCODING);
+
+  return encoding;
+}
 
 /**
  * @brief Get the element size in bytes of the given encoding element type.
@@ -400,10 +416,7 @@ Snpe_IBufferAttributes_GetEncoding_Ref (Snpe_IBufferAttributes_Handle_t handle)
   if (!attrs)
     return nullptr;
 
-  referenced_encoding = attrs->encoding;
-  referenced_encoding.owned = false;
-
-  return &referenced_encoding;
+  return &attrs->encoding;
 }
 
 /**
@@ -431,27 +444,31 @@ Snpe_UserBufferEncodingFloat_Create (void)
   encoding->type = SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT;
   encoding->step_exactly_0 = 0;
   encoding->quantized_step_size = 1.0f;
-  encoding->owned = true;
-  snpe_mock_obj_created (SNPE_MOCK_OBJ_ENCODING);
 
-  return encoding;
+  return mock_encoding_own (encoding);
 }
 
 /**
- * @brief Release a mock encoding, ignoring one the caller does not own.
+ * @brief Release a mock encoding, counting a release of one the caller does not own.
  */
 static Snpe_ErrorCode_t
 mock_encoding_delete (Snpe_UserBufferEncoding_Handle_t handle)
 {
-  MockEncoding *encoding = static_cast<MockEncoding *> (handle);
+  gboolean owned;
 
-  if (!encoding)
+  if (!handle)
     return SNPE_SUCCESS;
 
-  if (!encoding->owned)
-    return SNPE_SUCCESS;
+  g_mutex_lock (&owned_encodings_lock);
+  owned = (owned_encodings.erase (handle) > 0);
+  g_mutex_unlock (&owned_encodings_lock);
 
-  delete encoding;
+  if (!owned) {
+    snpe_mock_unowned_released ();
+    return SNPE_ERRORCODE_INTERNAL_ERROR;
+  }
+
+  delete static_cast<MockEncoding *> (handle);
   snpe_mock_obj_destroyed (SNPE_MOCK_OBJ_ENCODING);
 
   return SNPE_SUCCESS;
@@ -478,10 +495,8 @@ Snpe_UserBufferEncodingTfN_Create (uint64_t stepFor0, float stepSize, uint8_t bW
                                    SNPE_USERBUFFERENCODING_ELEMENTTYPE_TF16;
   encoding->step_exactly_0 = stepFor0;
   encoding->quantized_step_size = stepSize;
-  encoding->owned = true;
-  snpe_mock_obj_created (SNPE_MOCK_OBJ_ENCODING);
 
-  return encoding;
+  return mock_encoding_own (encoding);
 }
 
 /**
@@ -825,7 +840,6 @@ Snpe_SNPE_GetInputOutputBufferAttributes (Snpe_SNPE_Handle_t handle, const char 
   attrs->encoding.type = default_encoding (snpe->model);
   attrs->encoding.step_exactly_0 = 0;
   attrs->encoding.quantized_step_size = 1.0f;
-  attrs->encoding.owned = false;
   snpe_mock_obj_created (SNPE_MOCK_OBJ_BUFFER_ATTRIBUTES);
 
   return attrs;

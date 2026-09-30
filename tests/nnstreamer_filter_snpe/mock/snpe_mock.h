@@ -92,7 +92,13 @@ snpe_mock_failure snpe_mock_get_failure (void);
 guint snpe_mock_live_count (snpe_mock_obj_type type);
 /** @brief Get the number of live instances of every object kind. */
 guint snpe_mock_total_live_count (void);
-/** @brief Get how often an object was released more often than it was created. */
+/**
+ * @brief Get how often a release was invalid.
+ *
+ * Counts a release of an object kind that has no live instance left, and a
+ * release of a handle the caller does not own, such as the one a _Ref
+ * accessor returns.
+ */
 guint snpe_mock_over_release_count (void);
 
 /** @brief Count one more live instance of the given object kind. */
@@ -104,6 +110,8 @@ void snpe_mock_obj_created (snpe_mock_obj_type type);
  * snpe_mock_over_release_count().
  */
 void snpe_mock_obj_destroyed (snpe_mock_obj_type type);
+/** @brief Record a release of a handle the caller does not own. */
+void snpe_mock_unowned_released (void);
 
 /** @brief Describe the model the mock emulates for the given file. */
 gboolean snpe_mock_model_load (const char *path, snpe_mock_model *model);
