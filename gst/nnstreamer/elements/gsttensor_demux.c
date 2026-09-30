@@ -499,9 +499,13 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   UNUSED (pad);
   tensor_demux = GST_TENSOR_DEMUX (parent);
-  tensorpick = gst_tensor_demux_get_tensorpick (tensor_demux);
 
   buf = gst_tensor_buffer_from_config (buf, &tensor_demux->tensors_config);
+  if (buf == NULL) {
+    GST_ELEMENT_ERROR (tensor_demux, STREAM, WRONG_TYPE, (NULL),
+        ("The buffer does not fit the tensors configuration of the caps."));
+    return GST_FLOW_ERROR;
+  }
 
   /**
    * The number of tensors in the buffer:
@@ -509,8 +513,16 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
    * If given buffer is flexible tensor, we cannot get exact number of tensors from config.
    */
   num_tensors = gst_tensor_buffer_get_count (buf);
-  if (gst_tensors_config_is_static (&tensor_demux->tensors_config))
-    g_assert (tensor_demux->tensors_config.info.num_tensors == num_tensors);
+  if (gst_tensors_config_is_static (&tensor_demux->tensors_config) &&
+      tensor_demux->tensors_config.info.num_tensors != num_tensors) {
+    GST_ELEMENT_ERROR (tensor_demux, STREAM, WRONG_TYPE, (NULL),
+        ("The buffer has %u tensors, but the caps declare %u.", num_tensors,
+            tensor_demux->tensors_config.info.num_tensors));
+    gst_buffer_unref (buf);
+    return GST_FLOW_ERROR;
+  }
+
+  tensorpick = gst_tensor_demux_get_tensorpick (tensor_demux);
 
   GST_DEBUG_OBJECT (tensor_demux, " Number of Tensors: %d", num_tensors);
 
