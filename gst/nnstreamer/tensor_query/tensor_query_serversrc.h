@@ -53,6 +53,7 @@ struct _GstTensorQueryServerSrc
 
   nns_edge_connect_type_e connect_type;
   GAsyncQueue *msg_queue;
+  guint max_buffers; /**< maximum number of requests in msg_queue, 0 for no limit */
   gboolean playing;
 
   GstCaps *caps; /**< src pad caps the config below is parsed from */

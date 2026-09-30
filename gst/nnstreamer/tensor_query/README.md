@@ -15,12 +15,14 @@ Therefore, there is no need for cloud server by running AI on a local network.
 - The capability of the tensor_client sink must match the capability of the tensor_query_serversrc.
 - The capability of the tensor_client source must match the capability of the tensor_query_serversink.
 - If the source caps describe tensors, an answer from the server that does not carry them (a different number of tensors or a different size for static tensors, a missing or short header for flexible and sparse tensors) is refused with an error instead of being pushed.
+- `max-buffers` bounds the answers received from the server but not yet pushed. If the server sends faster than the client pipeline processes, the oldest answer is dropped. It is 0 (no limit) by default. Set it if the peer is not trusted: without a limit, a peer that keeps sending can exhaust the memory.
 
 ### tensor_query_serversrc
 - Used for heavyweight device.
 - Receive requests and data from clients.
 - The capability of tensor_query_serversrc is ```ANY```.
 - If the negotiated caps describe tensors, a request that does not carry them is refused with an error instead of being pushed, as in tensor_query_client.
+- `max-buffers` bounds the requests received from clients but not yet pushed. If clients send faster than the server pipeline processes, the oldest request is dropped and its client gets no answer. It is 0 (no limit) by default. Set it if the peer is not trusted: without a limit, a peer that keeps sending can exhaust the memory. A tensor_query_client counts a request as pending until its answer arrives, so a client with `max-request` stops sending once more than `max-request` of its requests are dropped. Keep `max-buffers` at least the sum of (`max-request` + 1) over the clients served, so that it only drops requests beyond what the clients are allowed to have pending. This does not hold for clients with `max-request=0`, which have no limit on pending requests.
 
 ### tensor_query_serversink
 - Used for heavyweight device.

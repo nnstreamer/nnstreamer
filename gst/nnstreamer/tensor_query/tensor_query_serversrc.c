@@ -28,6 +28,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 #define DEFAULT_MQTT_HOST "127.0.0.1"
 #define DEFAULT_MQTT_PORT 1883
 #define DEFAULT_DATA_POP_TIMEOUT 100000U
+#define DEFAULT_MAX_BUFFERS 0
 
 /**
  * @brief the capabilities of the outputs
@@ -51,7 +52,8 @@ enum
   PROP_TIMEOUT,
   PROP_TOPIC,
   PROP_ID,
-  PROP_IS_LIVE
+  PROP_IS_LIVE,
+  PROP_MAX_BUFFERS
 };
 
 #define gst_tensor_query_serversrc_parent_class parent_class
@@ -130,6 +132,12 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
       g_param_spec_boolean ("is-live", "Is Live",
           "Synchronize the incoming buffers' timestamp with the current running time",
           DEFAULT_IS_LIVE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_MAX_BUFFERS,
+      g_param_spec_uint ("max-buffers", "Max buffers",
+          "The maximum number of requests from clients waiting to be pushed. "
+          "If clients send faster than the pipeline processes, the oldest request is dropped. "
+          "0 means no limit.", 0, G_MAXUINT, DEFAULT_MAX_BUFFERS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&srctemplate));
@@ -159,6 +167,7 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
   src->src_id = DEFAULT_SERVER_ID;
   src->configured = FALSE;
   src->msg_queue = g_async_queue_new ();
+  src->max_buffers = DEFAULT_MAX_BUFFERS;
   src->playing = FALSE;
   src->caps = NULL;
   gst_tensors_config_init (&src->config);
@@ -215,13 +224,19 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
     case NNS_EDGE_EVENT_NEW_DATA_RECEIVED:
     {
       nns_edge_data_h data;
+      guint dropped;
 
       ret = nns_edge_event_parse_new_data (event_h, &data);
       if (NNS_EDGE_ERROR_NONE != ret) {
         nns_loge ("Failed to parse new data received from new data event");
         return ret;
       }
-      g_async_queue_push (src->msg_queue, data);
+
+      dropped = gst_tensor_query_push_edge_data (src->msg_queue, data,
+          src->max_buffers);
+      if (dropped > 0)
+        GST_DEBUG_OBJECT (src, "Dropped %u old requests (max-buffers %u).",
+            dropped, src->max_buffers);
       break;
     }
     default:
@@ -380,6 +395,9 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
       gst_base_src_set_live (GST_BASE_SRC (serversrc),
           g_value_get_boolean (value));
       break;
+    case PROP_MAX_BUFFERS:
+      serversrc->max_buffers = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -423,6 +441,9 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
     case PROP_IS_LIVE:
       g_value_set_boolean (value,
           gst_base_src_is_live (GST_BASE_SRC (serversrc)));
+      break;
+    case PROP_MAX_BUFFERS:
+      g_value_set_uint (value, serversrc->max_buffers);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

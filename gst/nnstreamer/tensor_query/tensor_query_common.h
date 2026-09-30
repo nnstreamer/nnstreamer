@@ -52,6 +52,12 @@ gst_tensor_query_config_from_caps (GstCaps * caps, GstTensorsConfig * config);
 gboolean
 gst_tensor_query_validate_edge_data (nns_edge_data_h data_h, GstTensorsConfig * config);
 
+/**
+ * @brief Push edge data received from a remote peer to the receive queue of an element, dropping the oldest data if the queue is full.
+ */
+guint
+gst_tensor_query_push_edge_data (GAsyncQueue * queue, nns_edge_data_h data_h, guint max_buffers);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

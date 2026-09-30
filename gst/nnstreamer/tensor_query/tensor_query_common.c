@@ -146,3 +146,37 @@ gst_tensor_query_validate_edge_data (nns_edge_data_h data_h,
 
   return TRUE;
 }
+
+/**
+ * @brief Push edge data received from a remote peer to the receive queue of an element.
+ * @param[in] queue The receive queue.
+ * @param[in] data_h The edge data to push (transfer full).
+ * @param[in] max_buffers The maximum number of data in the queue, 0 for no limit.
+ * @return The number of data dropped to keep the queue within @a max_buffers.
+ * @note If the queue is full, the oldest data are dropped, so the queue keeps the latest data.
+ */
+guint
+gst_tensor_query_push_edge_data (GAsyncQueue * queue, nns_edge_data_h data_h,
+    guint max_buffers)
+{
+  nns_edge_data_h old_h;
+  gint length;
+  guint dropped = 0;
+
+  g_return_val_if_fail (queue != NULL, 0);
+  g_return_val_if_fail (data_h != NULL, 0);
+
+  g_async_queue_lock (queue);
+  if (max_buffers > 0) {
+    while ((length = g_async_queue_length_unlocked (queue)) > 0
+        && (guint) length >= max_buffers
+        && (old_h = g_async_queue_try_pop_unlocked (queue)) != NULL) {
+      nns_edge_data_destroy (old_h);
+      dropped++;
+    }
+  }
+  g_async_queue_push_unlocked (queue, data_h);
+  g_async_queue_unlock (queue);
+
+  return dropped;
+}
