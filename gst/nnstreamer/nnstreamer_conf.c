@@ -28,6 +28,7 @@
 
 #include "nnstreamer_log.h"
 #include "nnstreamer_conf.h"
+#include "nnstreamer_plugin_api_util.h"
 #include "nnstreamer_subplugin.h"
 
 /**
@@ -668,16 +669,17 @@ nnsconf_dump (gchar * str, gulong size)
 #ifdef __TIZEN__
       "Not available (Tizen)",
 #else
-      g_getenv (NNSTREAMER_ENVVAR_CONF_FILE),
+      _STR_NULL (g_getenv (NNSTREAMER_ENVVAR_CONF_FILE)),
 #endif
       NNSTREAMER_CONF_FILE, NNSTREAMER_DEFAULT_CONF_FILE,
       /* 2. [Common] */
       STR_BOOL (conf.enable_envvar), STR_BOOL (conf.enable_symlink),
       /* 3. [Filter] */
-      conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_INI],
+      _STR_NULL (conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_INI]),
       (conf.enable_envvar) ?
-      conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_ENVVAR] : "<disabled>",
-      conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_HARDCODE]);
+      _STR_NULL (conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_ENVVAR]) :
+      "<disabled>",
+      _STR_NULL (conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_HARDCODE]));
 
   if (len <= 0)
     g_printerr ("Config dump is too large. The results show partially.\n");
