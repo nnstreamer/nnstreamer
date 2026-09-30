@@ -1114,7 +1114,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
          */
         size = offset = type * color * width;
 
-        g_assert (offset % 4); /** Internal logic error! */
         if (offset % 4) {
           offset += 4 - (offset % 4);
         }
@@ -1568,8 +1567,8 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
    * Emit Warning if RSTRIDE = RU4 (3BPP) && Width % 4 > 0
    * @todo Add more conditions!
    */
-  if (gst_tensor_converter_video_stride (format, width)) {
-    self->remove_padding = TRUE;
+  self->remove_padding = gst_tensor_converter_video_stride (format, width);
+  if (self->remove_padding) {
     silent_debug (self, "Set flag to remove padding, width = %d", width);
 
 #if GST_CHECK_VERSION(1, 20, 0)
