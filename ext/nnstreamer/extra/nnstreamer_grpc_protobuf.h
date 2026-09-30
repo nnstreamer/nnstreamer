@@ -79,7 +79,7 @@ class SyncServiceImplProtobuf final
     void _client_thread ();
 };
 
-class AsyncCallData;
+class AsyncCallDataProtobuf;
 
 /**
  * @brief NNStreamer gRPC protobuf async service impl.
@@ -94,7 +94,7 @@ class AsyncServiceImplProtobuf final
     ~AsyncServiceImplProtobuf ();
 
     /** @brief set the last call data */
-    void set_last_call (AsyncCallData * call) { last_call_ = call; }
+    void set_last_call (AsyncCallDataProtobuf * call) { last_call_ = call; }
 
   private:
     gboolean start_server (std::string address) override;
@@ -105,20 +105,20 @@ class AsyncServiceImplProtobuf final
     /** @brief thread body handling client events from the completion queue */
     void _client_thread ();
 
-    AsyncCallData * last_call_;
+    AsyncCallDataProtobuf * last_call_;
 };
 
 /** @brief Internal base class to serve a request */
-class AsyncCallData {
+class AsyncCallDataProtobuf {
   public:
-    /** @brief Constructor of AsyncCallData */
-    AsyncCallData (AsyncServiceImplProtobuf *service)
+    /** @brief Constructor of AsyncCallDataProtobuf */
+    AsyncCallDataProtobuf (AsyncServiceImplProtobuf *service)
       : service_ (service), state_ (CREATE), count_ (0)
     {
     }
 
-    /** @brief Destructor of AsyncCallData */
-    virtual ~AsyncCallData () {}
+    /** @brief Destructor of AsyncCallDataProtobuf */
+    virtual ~AsyncCallDataProtobuf () {}
 
     /** @brief FSM-based state handling function */
     virtual void RunState (bool ok) {}
