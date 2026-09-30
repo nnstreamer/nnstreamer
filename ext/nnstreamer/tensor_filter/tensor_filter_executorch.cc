@@ -21,8 +21,16 @@
 #include <vector>
 
 #include <executorch/extension/module/module.h>
+#include <executorch/extension/tensor/tensor.h>
 
-using namespace torch::executor;
+using executorch::aten::ScalarType;
+using executorch::aten::SizesType;
+using executorch::aten::TensorShapeDynamism;
+using executorch::extension::make_tensor_ptr;
+using executorch::extension::Module;
+using executorch::extension::TensorPtr;
+using executorch::runtime::Error;
+using executorch::runtime::EValue;
 
 namespace nnstreamer
 {
@@ -53,7 +61,9 @@ class executorch_subplugin final : public tensor_filter_subplugin
 
   /* executorch */
   std::unique_ptr<Module> module; /**< model module */
-  std::vector<TensorImpl> input_tensor_impl; /**< vector for input tensors */
+  std::vector<TensorPtr> input_tensors; /**< input tensors, re-pointed at each invoke */
+
+  static tensor_type convertType (ScalarType type);
 
   public:
   static void init_filter_executorch ();
@@ -120,13 +130,48 @@ executorch_subplugin::cleanup ()
   g_free (model_path);
   model_path = nullptr;
 
-  if (!configured)
-    return;
-
+  /* A refused model may have filled part of the infos before configured is set. */
   gst_tensors_info_free (std::addressof (inputInfo));
   gst_tensors_info_free (std::addressof (outputInfo));
 
   configured = false;
+}
+
+/**
+ * @brief Convert an ExecuTorch scalar type to the NNStreamer tensor type.
+ * @return _NNS_END if NNStreamer has no type with the same memory layout.
+ */
+tensor_type
+executorch_subplugin::convertType (ScalarType type)
+{
+  switch (type) {
+    case ScalarType::Byte:
+    case ScalarType::Bool:
+      return _NNS_UINT8;
+    case ScalarType::Char:
+      return _NNS_INT8;
+    case ScalarType::Short:
+      return _NNS_INT16;
+    case ScalarType::Int:
+      return _NNS_INT32;
+    case ScalarType::Long:
+      return _NNS_INT64;
+    case ScalarType::Float:
+      return _NNS_FLOAT32;
+    case ScalarType::Double:
+      return _NNS_FLOAT64;
+    case ScalarType::Half:
+#ifdef FLOAT16_SUPPORT
+      return _NNS_FLOAT16;
+#else
+      ml_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.");
+      break;
+#endif
+    default:
+      break;
+  }
+
+  return _NNS_END;
 }
 
 /**
@@ -161,16 +206,6 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     const auto forward_method_meta = module->method_meta ("forward");
     ET_CHECK_MSG (forward_method_meta.ok (), "Getting method meta failed");
 
-    /** @todo support more data types */
-    auto convertType = [] (ScalarType type) {
-      switch (type) {
-        case ScalarType::Float:
-          return _NNS_FLOAT32;
-        default:
-          return _NNS_END;
-      }
-    };
-
     /* parse input tensors info */
     size_t num_inputs = forward_method_meta->num_inputs ();
     inputInfo.num_tensors = num_inputs;
@@ -182,6 +217,10 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       /* get tensor data type */
       ScalarType type = input_meta->scalar_type ();
       info->type = convertType (type);
+      if (info->type == _NNS_END)
+        throw std::invalid_argument ("Unsupported data type of input tensor "
+                                     + std::to_string (i) + ": ScalarType "
+                                     + std::to_string ((int) type));
 
       /* get tensor dimension */
       auto sizes = input_meta->sizes ();
@@ -191,9 +230,9 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
         info->dimension[rank - 1 - d] = (uint32_t) dim;
       }
 
-      /* set tensor impl */
-      input_tensor_impl.push_back (TensorImpl (type, rank,
-          const_cast<TensorImpl::SizesType *> (sizes.data ()), nullptr));
+      input_tensors.push_back (
+          make_tensor_ptr (std::vector<SizesType> (sizes.begin (), sizes.end ()),
+              static_cast<void *> (nullptr), type, TensorShapeDynamism::STATIC));
     }
 
     /* parse output tensors info */
@@ -207,6 +246,10 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       /* get tensor data type */
       ScalarType type = output_meta->scalar_type ();
       info->type = convertType (type);
+      if (info->type == _NNS_END)
+        throw std::invalid_argument ("Unsupported data type of output tensor "
+                                     + std::to_string (i) + ": ScalarType "
+                                     + std::to_string ((int) type));
 
       /* get tensor dimension */
       auto sizes = output_meta->sizes ();
@@ -238,9 +281,8 @@ executorch_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
 
   std::vector<EValue> input_values;
   for (size_t i = 0; i < inputInfo.num_tensors; ++i) {
-    TensorImpl &impl = input_tensor_impl[i];
-    impl.set_data (input[i].data);
-    input_values.push_back (Tensor (&impl));
+    input_tensors[i]->unsafeGetTensorImpl ()->set_data (input[i].data);
+    input_values.push_back (*input_tensors[i]);
   }
 
   const auto result = module->forward (input_values);
