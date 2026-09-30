@@ -35,12 +35,17 @@ gboolean nnstreamer_watchdog_create (nns_watchdog_h *watchdog_h);
 void nnstreamer_watchdog_destroy (nns_watchdog_h watchdog_h);
 
 /**
- * @brief Release watchdog source. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
+ * @brief Release watchdog source.
+ * @note If the callback of the fed source is running, this waits for it to return.
+ *       Once this returns, the callback does not run until the next feed.
+ *       Do not call this while holding a lock the callback may wait for.
  */
 void nnstreamer_watchdog_release (nns_watchdog_h watchdog_h);
 
 /**
  * @brief Set watchdog timeout. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
+ * @note @a func runs in the watchdog thread with the handle locked, so it must not call the watchdog functions with the same handle.
+ *       Feeding again replaces the source that is still armed.
  */
 gboolean nnstreamer_watchdog_feed (nns_watchdog_h watchdog_h, GSourceFunc func, guint interval, void *user_data);
 
