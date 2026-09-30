@@ -138,6 +138,15 @@ snpe_mock_obj_destroyed (snpe_mock_obj_type type)
 }
 
 /**
+ * @brief Record a release of a handle the caller does not own.
+ */
+void
+snpe_mock_unowned_released (void)
+{
+  g_atomic_int_inc (&over_releases);
+}
+
+/**
  * @brief Get the number of live instances of the given object kind.
  */
 guint
@@ -148,7 +157,7 @@ snpe_mock_live_count (snpe_mock_obj_type type)
 }
 
 /**
- * @brief Get how often an object was released more often than it was created.
+ * @brief Get how often a release was invalid.
  */
 guint
 snpe_mock_over_release_count (void)

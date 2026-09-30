@@ -22,6 +22,8 @@
 
 #include "mock/snpe_mock.h"
 
+#include <DlSystem/IUserBuffer.h>
+
 /**
  * @brief Build the path of the sample model of the given element type.
  */
@@ -271,4 +273,60 @@ TEST (nnstreamerFilterSnpeMockV2, ledgerExtraTensorNames09)
 
   gst_tensors_info_free (&info);
   EXPECT_EQ (snpe_mock_ledger_live_count (), 0U);
+}
+
+/**
+ * @brief Positive case: a quantized model releases only what it owns.
+ *
+ * Regression test of issue #5032: every TF8 tensor used to release the
+ * encoding borrowed from its buffer attributes, after the attributes.
+ */
+TEST (nnstreamerFilterSnpeMockV2, quantizedModelEncoding10)
+{
+  snpe_mock_reset ();
+
+  EXPECT_EQ (_MockOpenClose (FALSE, NULL), 0);
+  EXPECT_EQ (snpe_mock_over_release_count (), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+}
+
+/**
+ * @brief Positive case: explicit TF8 types on a quantized model.
+ *
+ * Regression test of issue #5032, taking the TF8 branch through the element
+ * types the user gives rather than through the default of the model.
+ */
+TEST (nnstreamerFilterSnpeMockV2, quantizedModelExplicitType11)
+{
+  snpe_mock_reset ();
+
+  EXPECT_EQ (_MockOpenClose (FALSE, "InputType:TF8,OutputType:TF8"), 0);
+  EXPECT_EQ (snpe_mock_over_release_count (), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+}
+
+/**
+ * @brief Negative case: the mock counts a release of an encoding not owned.
+ *
+ * Regression test of the mock itself, which quantizedModelEncoding10 relies
+ * on: a release of a handle no _Create call handed out, or of one already
+ * released, must be counted and must not touch the handle.
+ */
+TEST (nnstreamerFilterSnpeMockV2, mockUnownedEncodingRelease12_n)
+{
+  guint8 not_an_encoding = 0;
+  Snpe_UserBufferEncoding_Handle_t owned;
+
+  snpe_mock_reset ();
+
+  EXPECT_NE (Snpe_UserBufferEncodingTfN_Delete (&not_an_encoding), SNPE_SUCCESS);
+  EXPECT_EQ (snpe_mock_over_release_count (), 1U);
+
+  owned = Snpe_UserBufferEncodingTfN_Create (0, 1.0f, 8);
+  ASSERT_TRUE (owned != nullptr);
+  EXPECT_EQ (Snpe_UserBufferEncodingTfN_Delete (owned), SNPE_SUCCESS);
+  EXPECT_EQ (snpe_mock_over_release_count (), 1U);
+  EXPECT_NE (Snpe_UserBufferEncodingTfN_Delete (owned), SNPE_SUCCESS);
+  EXPECT_EQ (snpe_mock_over_release_count (), 2U);
+  EXPECT_EQ (snpe_mock_live_count (SNPE_MOCK_OBJ_ENCODING), 0U);
 }

@@ -59,18 +59,11 @@ then never calls, so that predicate measures one duplication rather than
 assuming. For the same reason a test must duplicate a string it built at run
 time, the way both sub-plugins do, and not a literal.
 
-## A release the mock tolerates on purpose
-
-The SNPE 2.x sub-plugin releases the buffer attributes of a quantized tensor
-and then calls `Snpe_UserBufferEncodingTfN_Delete()` on the handle that
-`Snpe_IBufferAttributes_GetEncoding_Ref()` returned, which belongs to the
-attributes it has just released. Against the real SDK that is a use after free
-followed by a release of a handle the caller does not own. It is tracked in
-issue #5032 and is not fixed here, so the mock hands out one process-wide
-encoding for that accessor and ignores a release of it. A test therefore
-cannot see it, and `snpe_mock_over_release_count()` stays at zero. The fix of
-that issue removes this section, together with the `@todo` at the call, and
-makes the mock own that handle so a case can pin it.
+The 2.x mock keeps every encoding a `_Create` call handed out in a set, and
+looks a released handle up there before touching it. A release of a handle the
+caller does not own, such as the encoding `Snpe_IBufferAttributes_GetEncoding_Ref()`
+points into, is therefore counted by `snpe_mock_over_release_count()` without
+reading memory the attributes may already have freed.
 
 ## What is not emulated
 

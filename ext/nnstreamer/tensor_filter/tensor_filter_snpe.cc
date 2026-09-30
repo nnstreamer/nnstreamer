@@ -298,11 +298,6 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
           = Snpe_UserBufferEncodingTfN_GetQuantizedStepSize (ubeTfNHandle);
       ube_h = Snpe_UserBufferEncodingTfN_Create (stepEquivalentTo0, quantizedStepSize, 8);
       Snpe_IBufferAttributes_Delete (bufferAttributesOpt);
-      /**
-       * @todo Remove this call and this comment with the fix of issue #5032:
-       * ubeTfNHandle is owned by the attributes deleted above.
-       */
-      Snpe_UserBufferEncodingTfN_Delete (ubeTfNHandle);
     } else if (type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT) {
       ube_h = Snpe_UserBufferEncodingFloat_Create ();
     }
