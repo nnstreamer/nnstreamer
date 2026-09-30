@@ -211,7 +211,13 @@ Status
 SyncServiceImplFlatbuf::SendTensors (ServerContext *context,
     ServerReader<Message<Tensors>> *reader, Message<Empty> *replay)
 {
-  return _read_tensors (reader);
+  Status status = _read_tensors (reader);
+  MessageBuilder builder;
+
+  builder.Finish (nnstreamer::flatbuf::CreateEmpty (builder));
+  *replay = builder.ReleaseMessage<Empty> ();
+
+  return status;
 }
 
 /** @brief server-to-client streaming: a client receives tensors */
@@ -244,12 +250,11 @@ gboolean
 SyncServiceImplFlatbuf::start_client (std::string address)
 {
   /* create a gRPC channel */
-  std::shared_ptr<Channel> channel
-      = grpc::CreateChannel (address, grpc::InsecureChannelCredentials ());
+  channel_ = grpc::CreateChannel (address, grpc::InsecureChannelCredentials ());
 
   /* connect the server */
   try {
-    client_stub_ = TensorService::NewStub (channel);
+    client_stub_ = TensorService::NewStub (channel_);
   } catch (...) {
     ml_loge ("Failed to connect the server");
     return FALSE;
@@ -268,22 +273,23 @@ SyncServiceImplFlatbuf::_client_thread ()
   _set_client_context (&context);
 
   if (direction_ == GRPC_DIRECTION_TENSORS_TO_BUFFER) {
-    Message<Empty> empty;
+    /* Finish () aborts on a reply that is no valid flatbuf, as older servers send; take it raw */
+    ByteBuffer reply;
+    /* the path the generated stub uses for SendTensors in nnstreamer.fbs */
+    grpc::internal::RpcMethod method ("/nnstreamer.flatbuf.TensorService/SendTensors",
+        grpc::internal::RpcMethod::CLIENT_STREAMING, channel_);
 
     /* initiate the RPC call */
     std::unique_ptr<ClientWriter<Message<Tensors>>> writer (
-        client_stub_->SendTensors (&context, &empty));
+        grpc::internal::ClientWriterFactory<Message<Tensors>>::Create (
+            channel_.get (), method, &context, &reply));
 
     _write_tensors (writer.get ());
 
     writer->WritesDone ();
-    /**
-     * TODO: The below incurs assertion failure but it seems like a bug.
-     * Let's check it later with the latest gRPC version.
-     *
-     * writer->Finish ();
-     */
-    g_usleep (G_USEC_PER_SEC / 100);
+    Status status = writer->Finish ();
+    if (!status.ok ())
+      ml_logw ("The gRPC call ended with an error: %s", status.error_message ().c_str ());
   } else if (direction_ == GRPC_DIRECTION_BUFFER_TO_TENSORS) {
     MessageBuilder builder;
 
