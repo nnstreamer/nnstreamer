@@ -1164,7 +1164,7 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
 static GstFlowReturn
 gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
-  guint num_tensors, i;
+  guint num_tensors, num_mems, i;
   GstFlowReturn res = GST_FLOW_OK;
   GstTensorIf *tensor_if = GST_TENSOR_IF (parent);
   gboolean condition_result = FALSE;
@@ -1181,8 +1181,14 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   num_tensors = tensor_if->in_config.info.num_tensors;
   GST_DEBUG_OBJECT (tensor_if, " Number of Tensors: %u", num_tensors);
-  /* supposed n memory blocks in buffer */
-  g_assert (gst_tensor_buffer_get_count (buf) == num_tensors);
+  num_mems = gst_tensor_buffer_get_count (buf);
+  if (num_mems != num_tensors) {
+    GST_ELEMENT_ERROR (tensor_if, STREAM, WRONG_TYPE, (NULL),
+        ("The buffer has %u tensors, but the caps declare %u.", num_mems,
+            num_tensors));
+    gst_buffer_unref (buf);
+    return GST_FLOW_ERROR;
+  }
 
   if (!gst_tensor_if_check_condition (tensor_if, buf, &condition_result)) {
     GST_ELEMENT_ERROR (tensor_if, STREAM, WRONG_TYPE, (NULL),

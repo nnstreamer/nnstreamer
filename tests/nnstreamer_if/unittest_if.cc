@@ -1689,6 +1689,151 @@ TEST (tensorIfExtraTensors, passthroughBuffer)
 }
 
 /**
+ * @brief Chain a buffer into a standalone tensor_if negotiated with the given
+ *        caps, and tell whether the element posted an error message.
+ * @param caps the caps to negotiate, or NULL to chain before any caps
+ * @param buffer the buffer to chain, which this function takes
+ * @param posted set to TRUE if the element posted an error message
+ * @return the flow return of the chain
+ */
+static GstFlowReturn
+_chain_tensor_if (GstCaps *caps, GstBuffer *buffer, gboolean *posted)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  GstBus *bus;
+  GstMessage *msg;
+  GstSegment segment;
+  GstFlowReturn ret;
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  if (sinkpad == NULL) {
+    gst_buffer_unref (buffer);
+    return GST_FLOW_CUSTOM_ERROR;
+  }
+
+  bus = gst_bus_new ();
+  gst_element_set_bus (tensor_if, bus);
+
+  if (caps) {
+    EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  }
+
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_segment (&segment)));
+
+  ret = gst_pad_chain (sinkpad, buffer);
+
+  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  *posted = (msg != NULL);
+  if (msg)
+    gst_message_unref (msg);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_element_set_bus (tensor_if, NULL);
+  gst_object_unref (bus);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+  return ret;
+}
+
+/**
+ * @brief Build a buffer of the given number of zeroed memories.
+ * @param num_mems the number of memories
+ * @param size the size of each memory
+ * @return the buffer, which the caller should unref
+ */
+static GstBuffer *
+_buffer_with_memories (guint num_mems, gsize size)
+{
+  GstBuffer *buffer = gst_buffer_new ();
+  guint i;
+
+  for (i = 0; i < num_mems; i++)
+    gst_buffer_append_memory (buffer, gst_allocator_alloc (NULL, size, NULL));
+
+  gst_buffer_memset (buffer, 0, 0, gst_buffer_get_size (buffer));
+  return buffer;
+}
+
+/**
+ * @brief Chain a buffer holding as many tensors as the caps declare.
+ */
+TEST (tensorIfTensorCount, matchingBuffer)
+{
+  GstCaps *caps = caps_with_tensors (2, 2);
+  gboolean posted = TRUE;
+
+  /* the then-pad is created by the chain and has no peer to push to */
+  EXPECT_EQ (_chain_tensor_if (caps, _buffer_with_memories (2, 4), &posted), GST_FLOW_NOT_LINKED);
+  EXPECT_FALSE (posted);
+
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Chain a buffer holding more tensors than NNS_TENSOR_MEMORY_MAX, as
+ *        many as the caps declare.
+ */
+TEST (tensorIfTensorCount, matchingExtraBuffer)
+{
+  GstCaps *caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  GstTensorsConfig config;
+  GstBuffer *buffer;
+  gboolean posted = TRUE;
+
+  ASSERT_TRUE (gst_tensors_config_from_caps (&config, caps, TRUE));
+  buffer = _buffer_with_tensors (&config.info);
+  gst_tensors_config_free (&config);
+  ASSERT_EQ (gst_tensor_buffer_get_count (buffer), EXTRA_NUM_TENSORS);
+
+  EXPECT_EQ (_chain_tensor_if (caps, buffer, &posted), GST_FLOW_NOT_LINKED);
+  EXPECT_FALSE (posted);
+
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Chain a buffer carrying the two tensors of the caps in one memory,
+ *        which used to abort the process.
+ */
+TEST (tensorIfTensorCount, fewerMemories_n)
+{
+  GstCaps *caps = caps_with_tensors (2, 2);
+  gboolean posted = FALSE;
+
+  EXPECT_EQ (_chain_tensor_if (caps, _buffer_with_memories (1, 8), &posted), GST_FLOW_ERROR);
+  EXPECT_TRUE (posted);
+
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Chain a buffer of more memories than the caps declare tensors.
+ */
+TEST (tensorIfTensorCount, moreMemories_n)
+{
+  GstCaps *caps = caps_with_tensors (2, 2);
+  gboolean posted = FALSE;
+
+  EXPECT_EQ (_chain_tensor_if (caps, _buffer_with_memories (3, 4), &posted), GST_FLOW_ERROR);
+  EXPECT_TRUE (posted);
+
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Chain a buffer before the caps are negotiated.
+ */
+TEST (tensorIfTensorCount, bufferBeforeCaps_n)
+{
+  gboolean posted = FALSE;
+
+  EXPECT_EQ (_chain_tensor_if (NULL, _buffer_with_memories (1, 4), &posted), GST_FLOW_ERROR);
+  EXPECT_TRUE (posted);
+}
+
+/**
  * @brief Main GTest
  */
 int
