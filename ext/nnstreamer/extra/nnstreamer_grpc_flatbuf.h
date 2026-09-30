@@ -78,6 +78,8 @@ class SyncServiceImplFlatbuf final
 
     /** @brief thread body streaming tensors to or from the sync server */
     void _client_thread ();
+
+    std::shared_ptr<Channel> channel_;
 };
 
 class AsyncCallDataFlatbuf;
