@@ -1,7 +1,7 @@
 /**
  * @file        unittest_aggregator.cc
  * @date        17 Sep 2026
- * @brief       Unit test for tensor_aggregator buffer ownership, input size and property races
+ * @brief       Unit test for tensor_aggregator buffer ownership, input size, property races and caps
  * @see         https://github.com/nnstreamer/nnstreamer
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
@@ -37,27 +37,40 @@ static const gint aggr_concat[AGGR_NUM_ELEMENTS]
         2113, 2114, 2115, 2116, 2117, 2118, 2119, 2120, 2121, 2122, 2123, 2124 };
 
 /**
+ * @brief Create the caps of a single int32 tensor with the given dimension.
+ */
+static GstCaps *
+_aggr_caps_new (const gchar *dim)
+{
+  GstCaps *caps;
+  GstTensorsConfig config;
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension (dim, config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  caps = gst_tensors_caps_from_config (&config);
+  gst_tensors_config_free (&config);
+
+  return caps;
+}
+
+/**
  * @brief Create a harness for tensor_aggregator with a 3:4:2:2 int32 input.
  */
 static GstHarness *
 _aggr_harness_new (guint frames_in, guint frames_out, gboolean concat)
 {
   GstHarness *h;
-  GstTensorsConfig config;
 
   h = gst_harness_new ("tensor_aggregator");
   g_object_set (h->element, "frames-in", frames_in, "frames-out", frames_out,
       "frames-dim", 2, "concat", concat, NULL);
 
-  gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
-  config.info.info[0].type = _NNS_INT32;
-  gst_tensor_parse_dimension ("3:4:2:2", config.info.info[0].dimension);
-  config.rate_n = 0;
-  config.rate_d = 1;
-
-  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
-  gst_tensors_config_free (&config);
+  gst_harness_set_src_caps (h, _aggr_caps_new ("3:4:2:2"));
 
   return h;
 }
@@ -646,6 +659,192 @@ TEST (testTensorAggregatorOwnership, concatSourceMapFailure_n)
   _aggr_test_concat_map_failure (TRUE);
 }
 #endif /* __TIZEN__ */
+
+/**
+ * @brief Send a caps event with the tensor caps of @a dim to the sink pad of
+ * the element, return whether the element accepted it.
+ */
+static gboolean
+_aggr_send_caps (GstHarness *h, const gchar *dim)
+{
+  GstPad *sinkpad;
+  GstCaps *caps;
+  gboolean handled;
+
+  sinkpad = gst_element_get_static_pad (h->element, "sink");
+  caps = _aggr_caps_new (dim);
+  handled = gst_pad_send_event (sinkpad, gst_event_new_caps (caps));
+  gst_caps_unref (caps);
+  gst_object_unref (sinkpad);
+
+  return handled;
+}
+
+/**
+ * @brief Push a time segment, for a harness without source caps.
+ */
+static void
+_aggr_push_segment (GstHarness *h)
+{
+  GstSegment segment;
+
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (gst_harness_push_event (h, gst_event_new_segment (&segment)));
+}
+
+/**
+ * @brief Check whether the current caps of @a pad can intersect the tensor caps of @a dim.
+ */
+static gboolean
+_aggr_pad_caps_match (GstPad *pad, const gchar *dim)
+{
+  GstCaps *caps, *expected;
+  gboolean match;
+
+  caps = gst_pad_get_current_caps (pad);
+  if (caps == NULL)
+    return FALSE;
+
+  expected = _aggr_caps_new (dim);
+  match = gst_caps_can_intersect (caps, expected);
+  gst_caps_unref (expected);
+  gst_caps_unref (caps);
+
+  return match;
+}
+
+/**
+ * @brief Push a buffer to an aggregator whose caps are not negotiated, and
+ * check the element refuses and releases it instead of aborting.
+ */
+static void
+_aggr_test_refused_buffer (GstHarness *h)
+{
+  GstBuffer *in;
+
+  _aggr_push_segment (h);
+
+  in = _aggr_buffer_new (h, AGGR_NUM_ELEMENTS);
+  gst_buffer_ref (in);
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (GST_MINI_OBJECT_REFCOUNT_VALUE (in), 1);
+  gst_buffer_unref (in);
+}
+
+/**
+ * @brief Send caps of @a dim to an aggregator that cannot parse them, and check
+ * the element refuses them without configuring its source pad.
+ */
+static void
+_aggr_test_refused_first_caps (guint frames_in, guint frames_flush, const gchar *dim)
+{
+  GstHarness *h;
+  GstCaps *caps;
+
+  h = gst_harness_new ("tensor_aggregator");
+  g_object_set (h->element, "frames-in", frames_in, "frames-out", frames_in,
+      "frames-flush", frames_flush, "frames-dim", 2, NULL);
+
+  EXPECT_FALSE (_aggr_send_caps (h, dim));
+  caps = gst_pad_get_current_caps (h->sinkpad);
+  EXPECT_TRUE (caps == NULL);
+  if (caps)
+    gst_caps_unref (caps);
+
+  _aggr_test_refused_buffer (h);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Caps whose frames-dim does not divide by frames-in are refused, not forwarded (#4960 G6).
+ */
+TEST (testTensorAggregatorCaps, indivisibleFramesDim_n)
+{
+  _aggr_test_refused_first_caps (3, 0, "3:4:2:2");
+}
+
+/**
+ * @brief Caps are refused, not forwarded, when frames-flush exceeds what the element can flush.
+ */
+TEST (testTensorAggregatorCaps, invalidFramesFlush_n)
+{
+  _aggr_test_refused_first_caps (2, 5, "3:4:2:2");
+}
+
+/**
+ * @brief A buffer arriving before any caps is refused instead of aborting.
+ */
+TEST (testTensorAggregatorCaps, bufferWithoutCaps_n)
+{
+  GstHarness *h;
+
+  h = gst_harness_new ("tensor_aggregator");
+  _aggr_test_refused_buffer (h);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Valid caps configure the source pad with the aggregated dimension.
+ */
+TEST (testTensorAggregatorCaps, validCaps)
+{
+  GstHarness *h;
+
+  h = gst_harness_new ("tensor_aggregator");
+  g_object_set (h->element, "frames-in", 2, "frames-out", 4, "frames-dim", 2, NULL);
+
+  EXPECT_TRUE (_aggr_send_caps (h, "3:4:2:2"));
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:4:2"));
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Refused renegotiation keeps the negotiated configuration, and valid
+ * caps still renegotiate afterwards.
+ */
+TEST (testTensorAggregatorCaps, refusedRenegotiation_n)
+{
+  GstHarness *h;
+  GstCaps *caps, *expected;
+  GstBuffer *out;
+
+  h = _aggr_harness_new (2, 4, FALSE);
+  ASSERT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:4:2"));
+
+  /* dimension[2] = 3 does not divide by frames-in 2. */
+  EXPECT_FALSE (_aggr_send_caps (h, "3:4:3:2"));
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:4:2"));
+  EXPECT_FALSE (_aggr_pad_caps_match (h->sinkpad, "3:4:3:2"));
+
+  /* The sink pad still offers the negotiated input, not the refused one. */
+  caps = gst_pad_peer_query_caps (h->srcpad, NULL);
+  ASSERT_TRUE (caps != NULL);
+  expected = _aggr_caps_new ("3:4:2:2");
+  EXPECT_TRUE (gst_caps_can_intersect (caps, expected));
+  gst_caps_unref (expected);
+  expected = _aggr_caps_new ("3:4:3:2");
+  EXPECT_FALSE (gst_caps_can_intersect (caps, expected));
+  gst_caps_unref (expected);
+  gst_caps_unref (caps);
+
+  /* Input of the negotiated caps still aggregates. */
+  EXPECT_EQ (gst_harness_push (h, _aggr_buffer_new (h, AGGR_NUM_ELEMENTS)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_push (h, _aggr_buffer_new (h, AGGR_NUM_ELEMENTS)), GST_FLOW_OK);
+  ASSERT_EQ (gst_harness_buffers_received (h), 1U);
+
+  out = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_get_size (out), 2 * sizeof (aggr_input));
+  gst_buffer_unref (out);
+
+  /* The refusal is not sticky: valid caps renegotiate afterwards. */
+  EXPECT_TRUE (_aggr_send_caps (h, "3:4:4:2"));
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:8:2"));
+
+  gst_harness_teardown (h);
+}
 
 /**
  * @brief Main GTest

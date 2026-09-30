@@ -413,7 +413,9 @@ gst_tensor_aggregator_sink_event (GstPad * pad, GstObject * parent,
 
         return ret;
       }
-      break;
+
+      gst_event_unref (event);
+      return FALSE;
     }
     case GST_EVENT_FLUSH_STOP:
       gst_tensor_aggregator_reset (self);
@@ -860,7 +862,11 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   UNUSED (pad);
 
   self = GST_TENSOR_AGGREGATOR (parent);
-  g_assert (self->tensor_configured);
+  if (!self->tensor_configured) {
+    GST_ERROR_OBJECT (self, "Received a buffer before the caps are negotiated");
+    gst_buffer_unref (buf);
+    return GST_FLOW_NOT_NEGOTIATED;
+  }
 
   buf_size = gst_buffer_get_size (buf);
   in_size = gst_tensors_info_get_size (&self->in_config.info, 0);
@@ -1076,9 +1082,6 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
     return FALSE;
   }
 
-  gst_tensors_config_free (&self->in_config);
-  gst_tensors_config_copy (&self->in_config, &config);
-
   /* tensor-aggregator now handles single tensor. */
   _info = gst_tensors_info_get_nth_info (&config.info, 0);
 
@@ -1093,6 +1096,9 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
     GST_ERROR_OBJECT (self, "Cannot update dimension in output tensor");
     return FALSE;
   }
+
+  gst_tensors_config_free (&self->in_config);
+  gst_tensors_config_copy (&self->in_config, &config);
 
   per_frame = _info->dimension[self->frames_dim] / self->frames_in;
   _info->dimension[self->frames_dim] = per_frame * self->frames_out;
