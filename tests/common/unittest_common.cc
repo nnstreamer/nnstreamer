@@ -2958,6 +2958,113 @@ TEST (confCustom, subpluginPrefix_n)
 }
 
 /**
+ * @brief Test nnsconf_dump () prints the configured paths as they are.
+ */
+TEST (confCustom, dumpPaths_p)
+{
+  gchar *fullpath = g_build_path ("/", g_get_tmp_dir (), "nns-tizen-XXXXXX", NULL);
+  gchar *dir = g_mkdtemp (fullpath);
+  gchar *filename = g_build_path ("/", dir, "nnstreamer.ini", NULL);
+  gchar *confenv = g_strdup (g_getenv ("NNSTREAMER_CONF"));
+  gchar *filterenv = g_strdup (g_getenv ("NNSTREAMER_FILTERS"));
+  gchar *expected;
+  gchar dump[4096];
+
+  FILE *fp = g_fopen (filename, "w");
+  ASSERT_TRUE (fp != NULL);
+  g_fprintf (fp, "[common]\n");
+  g_fprintf (fp, "enable_envvar=True\n");
+  g_fprintf (fp, "[filter]\n");
+  g_fprintf (fp, "filters=/nns/ini/filters\n");
+  fclose (fp);
+
+  EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", filename, TRUE));
+  EXPECT_TRUE (g_setenv ("NNSTREAMER_FILTERS", "/nns/env/filters", TRUE));
+  EXPECT_TRUE (nnsconf_loadconf (TRUE));
+
+  nnsconf_dump (dump, sizeof (dump));
+
+  expected = g_strdup_printf ("Configuration file path: %s\n", filename);
+  EXPECT_TRUE (strstr (dump, expected) != NULL);
+  g_free (expected);
+#ifndef __TIZEN__
+  expected = g_strdup_printf ("envvar(NNSTREAMER_CONF): %s\n", filename);
+  EXPECT_TRUE (strstr (dump, expected) != NULL);
+  g_free (expected);
+#endif
+  EXPECT_TRUE (strstr (dump, "  Enable envvar: TRUE\n") != NULL);
+  EXPECT_TRUE (strstr (dump, "  Filter paths from .ini: /nns/ini/filters\n") != NULL);
+  EXPECT_TRUE (strstr (dump, "             from envvar: /nns/env/filters\n") != NULL);
+  EXPECT_TRUE (strstr (dump, "(NULL)") == NULL);
+
+  removeTempFile (&filename);
+  g_rmdir (dir);
+  g_free (fullpath);
+
+  if (confenv) {
+    EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", confenv, TRUE));
+    g_free (confenv);
+  } else {
+    g_unsetenv ("NNSTREAMER_CONF");
+  }
+  if (filterenv) {
+    EXPECT_TRUE (g_setenv ("NNSTREAMER_FILTERS", filterenv, TRUE));
+    g_free (filterenv);
+  } else {
+    g_unsetenv ("NNSTREAMER_FILTERS");
+  }
+  EXPECT_TRUE (nnsconf_loadconf (TRUE));
+}
+
+/**
+ * @brief Test nnsconf_dump () prints unset paths as "(NULL)" (#4960 B7).
+ */
+TEST (confCustom, dumpNullPaths_n)
+{
+  gchar *fullpath = g_build_path ("/", g_get_tmp_dir (), "nns-tizen-XXXXXX", NULL);
+  gchar *dir = g_mkdtemp (fullpath);
+  gchar *filename = g_build_path ("/", dir, "nnstreamer.ini", NULL);
+  gchar *confenv = g_strdup (g_getenv ("NNSTREAMER_CONF"));
+  gchar *filterenv = g_strdup (g_getenv ("NNSTREAMER_FILTERS"));
+  gchar dump[4096];
+
+  FILE *fp = g_fopen (filename, "w");
+  ASSERT_TRUE (fp != NULL);
+  g_fprintf (fp, "[common]\n");
+  g_fprintf (fp, "enable_envvar=True\n");
+  fclose (fp);
+
+  EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", filename, TRUE));
+  g_unsetenv ("NNSTREAMER_FILTERS");
+  EXPECT_TRUE (nnsconf_loadconf (TRUE));
+  g_unsetenv ("NNSTREAMER_CONF");
+
+  nnsconf_dump (dump, sizeof (dump));
+
+#ifndef __TIZEN__
+  EXPECT_TRUE (strstr (dump, "envvar(NNSTREAMER_CONF): (NULL)\n") != NULL);
+#endif
+  EXPECT_TRUE (strstr (dump, "  Enable envvar: TRUE\n") != NULL);
+  EXPECT_TRUE (strstr (dump, "  Filter paths from .ini: (NULL)\n") != NULL);
+  EXPECT_TRUE (strstr (dump, "             from envvar: (NULL)\n") != NULL);
+  EXPECT_TRUE (strstr (dump, "(null)") == NULL);
+
+  removeTempFile (&filename);
+  g_rmdir (dir);
+  g_free (fullpath);
+
+  if (confenv) {
+    EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", confenv, TRUE));
+    g_free (confenv);
+  }
+  if (filterenv) {
+    EXPECT_TRUE (g_setenv ("NNSTREAMER_FILTERS", filterenv, TRUE));
+    g_free (filterenv);
+  }
+  EXPECT_TRUE (nnsconf_loadconf (TRUE));
+}
+
+/**
  * @brief Test version control (positive)
  */
 TEST (versionControl, getVer01)
