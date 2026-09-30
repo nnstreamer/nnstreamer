@@ -1103,18 +1103,24 @@ TEST (tensorQuery, serverSrcFollowsNewCaps)
 }
 
 /**
- * @brief Answer one request of tensor_query_client from a raw nnstreamer-edge server.
- * @param caps The caps of the client input and of the server answers.
+ * @brief Run tensor_query_client against a raw nnstreamer-edge server, and answer its request if it sends one.
+ * @param caps The caps of the client input.
+ * @param caps_info The CAPS info the server announces, or nullptr to announce @a caps for both server pads.
+ * @param timeout_ms The timeout of the client, which is also how long to wait for its request.
  * @param input The request buffer the client sends (transfer full).
  * @param answer The answer to send back (transfer full).
  * @param[out] received The number of buffers the client pushed downstream.
+ * @param[out] requested TRUE if the client connected and sent its request.
  * @return TRUE if the client pipeline posted an error.
  */
 static gboolean
-_answer_client (const gchar *caps, GstBuffer *input, nns_edge_data_h answer, guint *received)
+_run_client (const gchar *caps, const gchar *caps_info, guint timeout_ms,
+    GstBuffer *input, nns_edge_data_h answer, guint *received, gboolean *requested)
 {
   gchar *pipeline, *caps_str, *port_str;
   GstElement *gstpipe, *sink, *appsrc;
+  GstBus *bus;
+  GstMessage *msg = nullptr;
   nns_edge_h server_h = nullptr;
   RawPeer peer;
   guint port, count = 0, waited = 0;
@@ -1134,16 +1140,20 @@ _answer_client (const gchar *caps, GstBuffer *input, nns_edge_data_h answer, gui
   port_str = g_strdup_printf ("%u", port);
   nns_edge_set_info (server_h, "PORT", port_str);
   g_free (port_str);
-  caps_str = g_strdup_printf (
-      "@query_server_src_caps@%s@query_server_sink_caps@%s", caps, caps);
-  nns_edge_set_info (server_h, "CAPS", caps_str);
-  g_free (caps_str);
+  if (caps_info) {
+    nns_edge_set_info (server_h, "CAPS", caps_info);
+  } else {
+    caps_str = g_strdup_printf (
+        "@query_server_src_caps@%s@query_server_sink_caps@%s", caps, caps);
+    nns_edge_set_info (server_h, "CAPS", caps_str);
+    g_free (caps_str);
+  }
   EXPECT_EQ (nns_edge_start (server_h), NNS_EDGE_ERROR_NONE);
 
   pipeline = g_strdup_printf ("appsrc name=appsrc caps=\"%s\" ! "
-                              "tensor_query_client dest-host=127.0.0.1 dest-port=%u timeout=10000 ! "
+                              "tensor_query_client port=0 dest-host=127.0.0.1 dest-port=%u timeout=%u ! "
                               "tensor_sink name=sinkx async=false",
-      caps, port);
+      caps, port, timeout_ms);
   gstpipe = gst_parse_launch (pipeline, nullptr);
   g_free (pipeline);
   EXPECT_NE (gstpipe, nullptr);
@@ -1158,24 +1168,31 @@ _answer_client (const gchar *caps, GstBuffer *input, nns_edge_data_h answer, gui
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), input), GST_FLOW_OK);
   gst_object_unref (appsrc);
 
-  /* Wait for the request, then answer it. */
-  while (waited < 5000) {
+  /* Wait for the request or for the client to fail, then answer the request. */
+  bus = gst_element_get_bus (gstpipe);
+  while (waited < timeout_ms && !msg) {
     g_mutex_lock (&peer.lock);
     client_id = g_strdup (peer.client_id);
     g_mutex_unlock (&peer.lock);
     if (client_id)
       break;
-    g_usleep (10000);
+    msg = gst_bus_timed_pop_filtered (bus, 10 * GST_MSECOND, GST_MESSAGE_ERROR);
     waited += 10;
   }
-  EXPECT_NE (client_id, nullptr);
+  gst_object_unref (bus);
 
-  nns_edge_data_set_info (answer, "client_id", client_id);
-  g_free (client_id);
-  EXPECT_EQ (nns_edge_send (server_h, answer), NNS_EDGE_ERROR_NONE);
+  *requested = (client_id != nullptr);
+  if (client_id) {
+    nns_edge_data_set_info (answer, "client_id", client_id);
+    g_free (client_id);
+    EXPECT_EQ (nns_edge_send (server_h, answer), NNS_EDGE_ERROR_NONE);
+    error = _wait_data_or_error (gstpipe, &count, 3000);
+  } else {
+    error = (msg != nullptr);
+  }
   nns_edge_data_destroy (answer);
-
-  error = _wait_data_or_error (gstpipe, &count, 3000);
+  if (msg)
+    gst_message_unref (msg);
   *received = (guint) g_atomic_int_get (&count);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
@@ -1185,6 +1202,24 @@ _answer_client (const gchar *caps, GstBuffer *input, nns_edge_data_h answer, gui
   g_free (peer.client_id);
   g_mutex_clear (&peer.lock);
 
+  return error;
+}
+
+/**
+ * @brief Answer one request of tensor_query_client from a raw nnstreamer-edge server.
+ * @param caps The caps of the client input and of the server answers.
+ * @param input The request buffer the client sends (transfer full).
+ * @param answer The answer to send back (transfer full).
+ * @param[out] received The number of buffers the client pushed downstream.
+ * @return TRUE if the client pipeline posted an error.
+ */
+static gboolean
+_answer_client (const gchar *caps, GstBuffer *input, nns_edge_data_h answer, guint *received)
+{
+  gboolean requested = FALSE;
+  gboolean error = _run_client (caps, nullptr, 10000, input, answer, received, &requested);
+
+  EXPECT_TRUE (requested);
   return error;
 }
 
@@ -1278,6 +1313,184 @@ TEST (tensorQuery, clientRefusesTruncatedFlexibleData_n)
 
   EXPECT_TRUE (_answer_client (QUERY_TEST_CAPS_FLEX, _flex_input (),
       _make_flex_edge_data (10, -1), &received));
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief Count the critical messages logged to the GStreamer domain.
+ */
+static void
+_count_gst_critical (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer user_data)
+{
+  g_atomic_int_inc ((gint *) user_data);
+}
+
+/**
+ * @brief Run tensor_query_client (one 4-byte uint8 tensor) against a raw server announcing @a caps_info.
+ * @param caps_info The CAPS info the server announces.
+ * @param timeout_ms The timeout of the client.
+ * @param[out] requested TRUE if the client accepted the server caps and sent its request.
+ * @param[out] received The number of buffers the client pushed downstream.
+ * @return The number of critical messages logged to the GStreamer domain meanwhile.
+ */
+static guint
+_client_with_server_caps (const gchar *caps_info, guint timeout_ms,
+    gboolean *requested, guint *received)
+{
+  const gsize sizes[] = { 4 };
+  guint handler, critical = 0;
+
+  handler = g_log_set_handler ("GStreamer",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      _count_gst_critical, &critical);
+
+  _run_client (QUERY_TEST_CAPS, caps_info, timeout_ms, _static_input (),
+      _make_edge_data (sizes, 1), received, requested);
+
+  g_log_remove_handler ("GStreamer", handler);
+
+  return (guint) g_atomic_int_get ((gint *) &critical);
+}
+
+/**
+ * @brief tensor_query_client accepts a server whose src caps are ANY, as every client stream fits them.
+ */
+TEST (tensorQuery, clientAcceptsAnyServerCaps)
+{
+  gboolean requested = FALSE;
+  guint received = 0;
+
+  EXPECT_EQ (_client_with_server_caps ("@query_server_src_caps@ANY"
+                                       "@query_server_sink_caps@" QUERY_TEST_CAPS,
+                 10000, &requested, &received),
+      0U);
+  EXPECT_TRUE (requested);
+  EXPECT_EQ (received, 1U);
+}
+
+/**
+ * @brief tensor_query_client accepts unfixed server src caps with several structures if one of them fits.
+ */
+TEST (tensorQuery, clientAcceptsUnfixedServerCaps)
+{
+  gboolean requested = FALSE;
+  guint received = 0;
+
+  EXPECT_EQ (_client_with_server_caps ("@query_server_src_caps@other/tensors,format=flexible;"
+                                       "other/tensor,dimension=(string)4,type=(string){uint8,int8},"
+                                       "framerate=(fraction)[0/1,2147483647/1]"
+                                       "@query_server_sink_caps@" QUERY_TEST_CAPS,
+                 10000, &requested, &received),
+      0U);
+  EXPECT_TRUE (requested);
+  EXPECT_EQ (received, 1U);
+}
+
+/**
+ * @brief tensor_query_client refuses a server that announces no caps.
+ */
+TEST (tensorQuery, clientRefusesNoServerCaps_n)
+{
+  gboolean requested = TRUE;
+  guint received = 0;
+
+  EXPECT_EQ (_client_with_server_caps ("", 1000, &requested, &received), 0U);
+  EXPECT_FALSE (requested);
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief tensor_query_client refuses a server that announces no src caps.
+ */
+TEST (tensorQuery, clientRefusesMissingServerSrcCaps_n)
+{
+  gboolean requested = TRUE;
+  guint received = 0;
+
+  EXPECT_EQ (_client_with_server_caps ("@query_server_sink_caps@" QUERY_TEST_CAPS,
+                 1000, &requested, &received),
+      0U);
+  EXPECT_FALSE (requested);
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief tensor_query_client refuses server src caps that cannot be parsed.
+ */
+TEST (tensorQuery, clientRefusesInvalidServerSrcCaps_n)
+{
+  gboolean requested = TRUE;
+  guint received = 0;
+
+  EXPECT_EQ (_client_with_server_caps ("@query_server_src_caps@other/tensor,dimension=(int)"
+                                       "@query_server_sink_caps@" QUERY_TEST_CAPS,
+                 1000, &requested, &received),
+      0U);
+  EXPECT_FALSE (requested);
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief tensor_query_client refuses EMPTY server src caps.
+ */
+TEST (tensorQuery, clientRefusesEmptyServerSrcCaps_n)
+{
+  gboolean requested = TRUE;
+  guint received = 0;
+
+  EXPECT_EQ (_client_with_server_caps ("@query_server_src_caps@EMPTY"
+                                       "@query_server_sink_caps@" QUERY_TEST_CAPS,
+                 1000, &requested, &received),
+      0U);
+  EXPECT_FALSE (requested);
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief tensor_query_client refuses a server that announces no sink caps.
+ */
+TEST (tensorQuery, clientRefusesMissingServerSinkCaps_n)
+{
+  gboolean requested = TRUE;
+  guint received = 0;
+
+  EXPECT_EQ (_client_with_server_caps ("@query_server_src_caps@" QUERY_TEST_CAPS,
+                 1000, &requested, &received),
+      0U);
+  EXPECT_FALSE (requested);
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief tensor_query_client refuses EMPTY server sink caps.
+ */
+TEST (tensorQuery, clientRefusesEmptyServerSinkCaps_n)
+{
+  gboolean requested = TRUE;
+  guint received = 0;
+
+  EXPECT_EQ (_client_with_server_caps ("@query_server_src_caps@" QUERY_TEST_CAPS
+                                       "@query_server_sink_caps@EMPTY",
+                 1000, &requested, &received),
+      0U);
+  EXPECT_FALSE (requested);
+  EXPECT_EQ (received, 0U);
+}
+
+/**
+ * @brief tensor_query_client refuses server sink caps that cannot be parsed.
+ */
+TEST (tensorQuery, clientRefusesInvalidServerSinkCaps_n)
+{
+  gboolean requested = TRUE;
+  guint received = 0;
+
+  EXPECT_EQ (_client_with_server_caps ("@query_server_src_caps@" QUERY_TEST_CAPS
+                                       "@query_server_sink_caps@other/tensor,dimension=(int)",
+                 1000, &requested, &received),
+      0U);
+  EXPECT_FALSE (requested);
   EXPECT_EQ (received, 0U);
 }
 
