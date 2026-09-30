@@ -1238,11 +1238,12 @@ _repo_seq (guint n, guint64 first, guint64 step)
  * @brief Write the JSON of a flexible repository with the given arrays.
  */
 static void
-_write_flexible_json (const gchar *path, guint total_samples,
+_write_flexible_json (const gchar *path, guint64 total_samples,
     const gchar *sample_offset, const gchar *tensor_size, const gchar *tensor_count)
 {
-  g_autofree gchar *json = g_strdup_printf ("{\"gst_caps\":\"%s\",\"total_samples\":%u,\"sample_offset\":[%s],"
-                                            "\"tensor_size\":[%s],\"tensor_count\":[%s]}",
+  g_autofree gchar *json = g_strdup_printf (
+      "{\"gst_caps\":\"%s\",\"total_samples\":%" G_GUINT64_FORMAT ",\"sample_offset\":[%s],"
+      "\"tensor_size\":[%s],\"tensor_count\":[%s]}",
       REPO_FLEX_CAPS, total_samples, sample_offset, tensor_size, tensor_count);
 
   EXPECT_TRUE (g_file_set_contents (path, json, -1, NULL));
@@ -1869,6 +1870,178 @@ TEST (datareposrc, readTensorsNoJSONSampleLargerThanFile_n)
   _run_repo_pipeline (pipeline, &run);
   gst_object_unref (pipeline);
   _expect_refused (&run);
+}
+
+/**
+ * @brief Expect that datareposrc refused its sample range before pushing anything.
+ */
+static void
+_expect_range_refused (repo_run_s *run)
+{
+  EXPECT_EQ (run->type, GST_MESSAGE_ERROR);
+  EXPECT_STREQ (run->error_src, "src0");
+  EXPECT_EQ (run->error_domain, GST_RESOURCE_ERROR);
+  EXPECT_EQ (run->error_code, GST_RESOURCE_ERROR_SETTINGS);
+  EXPECT_EQ (run->buffers, 0U);
+  EXPECT_EQ (run->json_logs, 0U);
+  g_clear_pointer (&run->error_src, g_free);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A range in the middle of the repository reads exactly its samples.
+ */
+TEST (datareposrc, readCraftedSubRange)
+{
+  repo_run_s run = {};
+
+  _write_flexible_repo (4, 2);
+  _write_valid_flexible_json (REPO_JSON, 4, 2);
+
+  run.tensors = 2;
+  _read_crafted_repo (1, 2, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 2U);
+  EXPECT_EQ (run.mismatches, 0U);
+  EXPECT_EQ (run.json_logs, 0U);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief Every epoch of a shuffled range reads as many samples as the range holds.
+ */
+TEST (datareposrc, readCraftedSubRangeShuffleEpochs)
+{
+  repo_run_s run = {};
+  GstElement *pipeline;
+
+  _write_flexible_repo (4, 2);
+  _write_valid_flexible_json (REPO_JSON, 4, 2);
+
+  pipeline = gst_parse_launch ("datareposrc name=src0 location=" REPO_DATA " json=" REPO_JSON
+                               " is-shuffle=true epochs=3 start-sample-index=1 stop-sample-index=2 ! "
+                               "fakesink name=sink0",
+      NULL);
+  ASSERT_NE (pipeline, nullptr);
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 6U);
+  EXPECT_EQ (run.last_mems, 2U);
+  EXPECT_EQ (run.json_logs, 0U);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A start-sample-index larger than stop-sample-index is refused.
+ */
+TEST (datareposrc, readCraftedStartAfterStop_n)
+{
+  repo_run_s run = {};
+
+  _write_flexible_repo (4, 2);
+  _write_valid_flexible_json (REPO_JSON, 4, 2);
+
+  _read_crafted_repo (2, 1, &run);
+  _expect_range_refused (&run);
+}
+
+/**
+ * @brief A reversed range set while READY is refused when the element starts.
+ */
+TEST (datareposrc, readCraftedStartAfterStopSetInReady_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_flexible_repo (4, 2);
+  _write_valid_flexible_json (REPO_JSON, 4, 2);
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "is-shuffle",
+      FALSE, "start-sample-index", 0U, "stop-sample-index", 3U, NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (src, "start-sample-index", 3U, "stop-sample-index", 1U, NULL);
+
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  _expect_range_refused (&run);
+}
+
+/**
+ * @brief A reversed range is refused without a JSON, where the total is unknown.
+ */
+TEST (datareposrc, readTensorsNoJSONStartAfterStop_n)
+{
+  repo_run_s run = {};
+  g_autofree gchar *file_path = get_file_path (filename);
+  g_autofree gchar *str_pipeline = g_strdup_printf (
+      "datareposrc name=src0 location=%s start-sample-index=5 stop-sample-index=3 "
+      "caps=\"other/tensors, format=(string)static, framerate=(fraction)0/1, "
+      "num_tensors=(int)2, dimensions=(string)1:1:784:1.1:1:10:1, types=(string)float32.float32\" ! "
+      "fakesink name=sink0",
+      file_path);
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+
+  ASSERT_NE (pipeline, nullptr);
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (pipeline);
+  _expect_range_refused (&run);
+}
+
+/**
+ * @brief The largest total_samples a sample index can address is accepted.
+ */
+TEST (datareposrc, readCraftedTotalSamplesMaxUint)
+{
+  repo_run_s run = {};
+  g_autofree gchar *sizes = _repo_seq (8, REPO_TENSOR_SIZE, 0);
+
+  _write_flexible_repo (4, 2);
+  _write_flexible_json (REPO_JSON, G_MAXUINT, "0,264,528,792", sizes, "0,2,4,6");
+
+  run.tensors = 2;
+  _read_crafted_repo (0, 3, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 4U);
+  EXPECT_EQ (run.mismatches, 0U);
+  EXPECT_EQ (run.json_logs, 0U);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A total_samples that does not fit in 32 bits is refused instead of truncated.
+ * 4294967296 truncates to 0 and G_MAXINT64 to G_MAXUINT, both of which pass the range check.
+ */
+TEST (datareposrc, readCraftedTotalSamplesBeyondUint_n)
+{
+  const guint64 totals[] = { (guint64) G_MAXUINT + 1, (guint64) G_MAXINT64 };
+  g_autofree gchar *sizes = _repo_seq (8, REPO_TENSOR_SIZE, 0);
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (totals); i++) {
+    repo_run_s run = {};
+
+    _write_flexible_repo (4, 2);
+    _write_flexible_json (REPO_JSON, totals[i], "0,264,528,792", sizes, "0,2,4,6");
+
+    _read_crafted_repo (0, 3, &run);
+    EXPECT_EQ (run.type, GST_MESSAGE_ANY);
+    EXPECT_EQ (run.buffers, 0U);
+    EXPECT_EQ (run.json_logs, 0U);
+    g_remove (REPO_DATA);
+    g_remove (REPO_JSON);
+  }
 }
 
 /**

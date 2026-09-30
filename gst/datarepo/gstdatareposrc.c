@@ -148,7 +148,8 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
       g_param_spec_uint ("start-sample-index", "Start index of samples",
           "Start index of sample to read, in case of image, "
           "the starting index of the numbered files. start at 0."
-          "Set start index of range of samples or files to read",
+          "Set start index of range of samples or files to read. "
+          "It must not be larger than stop-sample-index.",
           0, G_MAXINT, DEFAULT_INDEX,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
@@ -157,7 +158,8 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
       g_param_spec_uint ("stop-sample-index", "Stop index of samples",
           "Stop index of sample to read, in case of image, "
           "the stopping index of the numbered files. start at 0."
-          "Set stop index of range of samples or files to read",
+          "Set stop index of range of samples or files to read. "
+          "It must not be smaller than start-sample-index.",
           0, G_MAXINT, DEFAULT_INDEX,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
@@ -1145,6 +1147,9 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
   if (src->filename == NULL || src->filename[0] == '\0')
     goto no_filename;
 
+  if (src->start_sample_index > src->stop_sample_index)
+    goto invalid_range;
+
   src->current_sample_index = src->start_sample_index;
   src->num_samples = src->stop_sample_index - src->start_sample_index + 1;
   GST_INFO_OBJECT (src,
@@ -1253,6 +1258,13 @@ sample_too_large:
         ("A sample of %zu bytes is larger than \"%s\".", src->sample_size,
             src->filename));
     goto error_close;
+  }
+invalid_range:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, (NULL),
+        ("start-sample-index %u is larger than stop-sample-index %u.",
+            src->start_sample_index, src->stop_sample_index));
+    goto error_exit;
   }
 
 error_close:
@@ -1583,7 +1595,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   }
 
   val = json_object_get_int_member (object, "total_samples");
-  if (val <= 0) {
+  if (val <= 0 || val > G_MAXUINT) {
     GST_ERROR_OBJECT (src, "Invalid total_samples: %" G_GINT64_FORMAT, val);
     goto error;
   }
