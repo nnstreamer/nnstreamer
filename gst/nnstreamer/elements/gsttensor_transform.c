@@ -1922,12 +1922,19 @@ gst_tensor_transform_padding (GstTensorTransform * filter,
 {
   gsize element_size, in_loop_size, out_loop_size, copy_block_size;
   guint i, j, k, left, top, front, loop_limit = 1;
+  guint in_dim1, in_dim2, out_dim1, out_dim2;
   element_size = gst_tensor_get_element_size (in_info->type);
 
-  in_loop_size = (gsize) in_info->dimension[2] * in_info->dimension[1]
-      * in_info->dimension[0] * element_size;
-  out_loop_size = (gsize) out_info->dimension[2] * out_info->dimension[1]
-      * out_info->dimension[0] * element_size;
+  /* a rank < 3 tensor is padded as if its missing dimensions were 1 */
+  in_dim1 = MAX (in_info->dimension[1], 1U);
+  in_dim2 = MAX (in_info->dimension[2], 1U);
+  out_dim1 = MAX (out_info->dimension[1], 1U);
+  out_dim2 = MAX (out_info->dimension[2], 1U);
+
+  in_loop_size = (gsize) in_info->dimension[0] * in_dim1 * in_dim2
+      * element_size;
+  out_loop_size = (gsize) out_info->dimension[0] * out_dim1 * out_dim2
+      * element_size;
   copy_block_size = in_info->dimension[0] * element_size;
 
   for (i = NNS_TENSOR_PADDING_RANK_LIMIT; i < NNS_TENSOR_RANK_LIMIT; i++) {
@@ -1944,15 +1951,15 @@ gst_tensor_transform_padding (GstTensorTransform * filter,
   memset (outptr, 0, out_loop_size * loop_limit);
 
   for (i = 0; i < loop_limit; i++)
-    for (j = 0; j < in_info->dimension[2]; j++)
-      for (k = 0; k < in_info->dimension[1]; k++) {
-        guint in_idx = j * in_info->dimension[1] * in_info->dimension[0]
+    for (j = 0; j < in_dim2; j++)
+      for (k = 0; k < in_dim1; k++) {
+        guint in_idx = j * in_dim1 * in_info->dimension[0]
             + k * in_info->dimension[0];
-        guint out_idx = j * out_info->dimension[1] * out_info->dimension[0]
+        guint out_idx = j * out_dim1 * out_info->dimension[0]
             + k * out_info->dimension[0];
 
         out_idx += left + top * out_info->dimension[0]
-            + front * out_info->dimension[1] * out_info->dimension[0];
+            + front * out_dim1 * out_info->dimension[0];
 
         memcpy (outptr + out_idx * element_size + out_loop_size * i,
             inptr + in_idx * element_size + in_loop_size * i, copy_block_size);
@@ -2427,6 +2434,23 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
 
     case GTT_PADDING:
       if (direction == GST_PAD_SINK) {
+        guint padded_rank = 0;
+
+        if (filter->data_padding.pad[PADDING_FRONT] +
+            filter->data_padding.pad[PADDING_BACK] > 0)
+          padded_rank = 3;
+        else if (filter->data_padding.pad[PADDING_TOP] +
+            filter->data_padding.pad[PADDING_BOTTOM] > 0)
+          padded_rank = 2;
+
+        /* pad a rank < 3 tensor as if its missing dimensions were 1 */
+        if (out_info->dimension[0] > 0) {
+          for (i = 1; i < padded_rank; i++) {
+            if (out_info->dimension[i] == 0)
+              out_info->dimension[i] = 1;
+          }
+        }
+
         out_info->dimension[0] +=
             filter->data_padding.pad[PADDING_LEFT] +
             filter->data_padding.pad[PADDING_RIGHT];
