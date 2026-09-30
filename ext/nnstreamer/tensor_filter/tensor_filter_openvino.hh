@@ -40,6 +40,7 @@
 #endif /* __OPENVINO_CPU_EXT__ */
 #include <inference_engine.hpp>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -112,12 +113,16 @@ class TensorFilterOpenvino
   /** @brief Hidden default constructor; the model paths are mandatory */
   TensorFilterOpenvino ();
 
-  InferenceEngine::Core _ieCore;
+  /** @brief Get the Inference Engine core shared by every instance */
+  static InferenceEngine::Core &getIECore ();
+
   InferenceEngine::CNNNetReader _networkReaderCNN;
   InferenceEngine::CNNNetwork _networkCNN;
   InferenceEngine::ExecutableNetwork _executableNet;
   InferenceEngine::InferRequest _inferRequest;
   static std::map<accl_hw, std::string> _nnsAcclHwToOVDevMap;
+  static std::mutex _ieCoreLock;
+  static bool _cpuExtAdded;
 
   std::string _pathModelXml;
   std::string _pathModelBin;
