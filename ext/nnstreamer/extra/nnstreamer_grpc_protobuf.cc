@@ -361,9 +361,8 @@ class AsyncCallDataServer : public AsyncCallDataProtobuf
     }
 
     if (state_ == PROCESS && !ok) {
+      /* a failed read carries no message; the last one was parsed when it arrived */
       if (count_ != 0) {
-        if (reader_.get () != nullptr)
-          service_->parse_tensors (rpc_tensors_);
         state_ = FINISH;
       } else {
         return;
@@ -471,9 +470,8 @@ class AsyncCallDataClient : public AsyncCallDataProtobuf
   void RunState (bool ok = true) override
   {
     if (state_ == PROCESS && !ok) {
+      /* a failed read carries no message; the last one was parsed when it arrived */
       if (count_ != 0) {
-        if (reader_.get () != nullptr)
-          service_->parse_tensors (rpc_tensors_);
         state_ = FINISH;
       } else {
         /* nothing was read or written; no batch is outstanding */
