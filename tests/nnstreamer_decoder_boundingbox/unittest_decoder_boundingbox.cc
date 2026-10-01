@@ -2805,6 +2805,40 @@ TEST (tensorDecoderBoundingBox, messageOvDetectionShape_n)
 }
 
 /**
+ * @brief The yolov5 decoder takes float32 tensors and refuses every other type.
+ * @details decode () reads the tensor as float and used to abort on any other
+ *          type, which the caps did not refuse.
+ */
+TEST (tensorDecoderBoundingBox, yoloV5RejectsIntegerInput_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const dims[] = { "6:63:1" };
+  gchar *labels = writeLabelFile ("object\n");
+  GstTensorsConfig config;
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (labels != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov5"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, YOLO_SMALL_MODEL));
+
+  setFloatConfig (&config, 1, dims);
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+
+  config.info.info[0].type = _NNS_INT32;
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "YoloV5", "float32 input tensors only", "int32 (6:63:1)");
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+  removeTempFile (&labels);
+}
+
+/**
  * @brief Streams every mode accepts are set up without a critical or a warning.
  * @details The messages of the refusals must not reach a stream that decodes.
  *          A probe proves the capture sees criticals first, since a count of
