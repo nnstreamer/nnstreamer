@@ -128,7 +128,7 @@ OVDetection::checkCompatible (const GstTensorsConfig *config)
   if (!valid) {
     g_autofree gchar *info_str = gst_tensors_info_to_string (&config->info);
 
-    nns_loge ("ov-person-detection bounding-box decoder requires the input tensor to be %d:%u:1:1. The given input tensors are: %s.",
+    nns_loge ("ov-person-detection / ov-face-detection bounding-box decoder requires the input tensor to be %d:%u:1:1. The given input tensors are: %s.",
         DEFAULT_SIZE_DETECTION_DESC, DETECTION_MAX, info_str);
     return FALSE;
   }
@@ -177,9 +177,14 @@ create_properties_ovdetection (void)
   return new OVDetection ();
 }
 
-/** @brief Register the ov-person-detection box properties for tensor decoder bounding box */
+/**
+ * @brief Register the OpenVINO detection box properties for tensor decoder bounding box
+ * @details The face detection models of OpenVINO describe their detections
+ *          as the person detection models do, so both modes take these.
+ */
 void
 init_properties_ovdetection ()
 {
   BoundingBox::addProperties ("ov-person-detection", create_properties_ovdetection);
+  BoundingBox::addProperties ("ov-face-detection", create_properties_ovdetection);
 }
