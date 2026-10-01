@@ -769,6 +769,143 @@ _wait_for_stream_end (RecvData &data)
 }
 
 /**
+ * @brief A client that sends its messages over one call to the given address and finishes the call.
+ */
+typedef std::function<void (const std::string &)> FinishingSendFunc;
+
+/**
+ * @brief Run tensor_src_grpc as a non-blocking server and count the buffers it produces for one client call.
+ * @param idl the IDL of the server
+ * @param send the client; it returns once the server has ended the call
+ * @return the number of buffers, G_MAXUINT if the server did not start
+ */
+static guint
+_count_at_async_server (const gchar *idl, const FinishingSendFunc &send)
+{
+  GstElement *pipeline, *src, *sink;
+  RecvData data;
+  gchar *str;
+  gint port = 0;
+  guint received = G_MAXUINT;
+
+  str = g_strdup_printf (
+      "tensor_src_grpc name=src server=TRUE blocking=FALSE idl=%s host=localhost port=0 ! " RECV_STATIC_CAPS
+      " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
+      idl);
+  pipeline = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!pipeline)
+    return G_MAXUINT;
+
+  g_mutex_init (&data.lock);
+  data.received = 0;
+
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), &data);
+  gst_object_unref (sink);
+
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  src = gst_bin_get_by_name (GST_BIN (pipeline), "src");
+  if (_wait_for_caps (src))
+    g_object_get (src, "port", &port, NULL);
+  gst_object_unref (src);
+
+  if (port > 0) {
+    send ("localhost:" + std::to_string (port));
+    _wait_for_stream_end (data);
+    g_mutex_lock (&data.lock);
+    received = data.received;
+    g_mutex_unlock (&data.lock);
+  }
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (pipeline);
+  g_mutex_clear (&data.lock);
+
+  return received;
+}
+
+/**
+ * @brief Stream @a num buffers from a blocking tensor_sink_grpc server to a non-blocking tensor_src_grpc client, then end the stream.
+ * @param idl the IDL both ends use
+ * @param num the number of buffers the server sends
+ * @return the number of buffers the client produced, G_MAXUINT if a pipeline did not build or start
+ */
+static guint
+_count_at_async_client (const gchar *idl, guint num)
+{
+  GstElement *server, *client, *grpc, *src, *sink;
+  RecvData data;
+  gchar *str;
+  gint port = 0;
+  guint received = G_MAXUINT;
+
+  str = g_strdup_printf (
+      "videotestsrc num-buffers=%u ! " STREAM_VIDEO_CAPS " ! tensor_converter ! "
+      "tensor_sink_grpc name=grpc server=TRUE blocking=TRUE idl=%s host=localhost port=0 async=FALSE",
+      num, idl);
+  server = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!server)
+    return G_MAXUINT;
+
+  /* the server listens from PAUSED on, but sends nothing before PLAYING */
+  gst_element_set_state (server, GST_STATE_PAUSED);
+  gst_element_get_state (server, NULL, NULL, 10 * GST_SECOND);
+  grpc = gst_bin_get_by_name (GST_BIN (server), "grpc");
+  g_object_get (grpc, "port", &port, NULL);
+  gst_object_unref (grpc);
+
+  g_mutex_init (&data.lock);
+  data.received = 0;
+
+  client = NULL;
+  if (port > 0) {
+    str = g_strdup_printf (
+        "tensor_src_grpc name=src server=FALSE blocking=FALSE idl=%s host=localhost port=%d ! " STREAM_TENSOR_CAPS
+        " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
+        idl, port);
+    client = gst_parse_launch (str, NULL);
+    g_free (str);
+  }
+
+  if (client) {
+    sink = gst_bin_get_by_name (GST_BIN (client), "sink");
+    g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), &data);
+    gst_object_unref (sink);
+    gst_element_set_state (client, GST_STATE_PLAYING);
+
+    /* a message that arrives before the client has its caps is dropped */
+    src = gst_bin_get_by_name (GST_BIN (client), "src");
+    EXPECT_TRUE (_wait_for_caps (src));
+    gst_object_unref (src);
+    gst_element_set_state (server, GST_STATE_PLAYING);
+
+    if (num > 0)
+      _wait_for_buffers (data, num);
+    else
+      g_usleep (G_USEC_PER_SEC / 2); /* let the call reach the server */
+
+    /* stopping the server ends the stream the client reads */
+    gst_element_set_state (server, GST_STATE_NULL);
+    _wait_for_stream_end (data);
+
+    g_mutex_lock (&data.lock);
+    received = data.received;
+    g_mutex_unlock (&data.lock);
+
+    gst_element_set_state (client, GST_STATE_NULL);
+    gst_object_unref (client);
+  }
+
+  gst_element_set_state (server, GST_STATE_NULL);
+  gst_object_unref (server);
+  g_mutex_clear (&data.lock);
+
+  return received;
+}
+
+/**
  * @brief Stream tensors between a blocking server and a non-blocking (async) client.
  * @param idl the IDL both ends use
  * @param client_src TRUE to let tensor_src_grpc be the client, FALSE to let tensor_sink_grpc be it
@@ -1094,6 +1231,63 @@ TEST (nnstreamerGrpc, recvProtobufExtraTensorSizeMismatch_n)
 }
 
 /**
+ * @brief Send @a msgs over one client-streaming call of the protobuf service and finish the call.
+ */
+static void
+_pb_send_finish (const std::string &address, const std::vector<PbTensors> &msgs)
+{
+  auto stub = nnstreamer::protobuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  google::protobuf::Empty reply;
+  auto writer = stub->SendTensors (&context, &reply);
+
+  for (const PbTensors &msg : msgs)
+    writer->Write (msg);
+  writer->WritesDone ();
+  EXPECT_TRUE (writer->Finish ().ok ());
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) server produces each message of a call once.
+ */
+TEST (nnstreamerGrpc, asyncServerRecvProtobuf)
+{
+  const std::vector<PbTensors> msgs
+      = { _pb_valid_static (), _pb_valid_static (), _pb_valid_static () };
+
+  EXPECT_EQ (_count_at_async_server ("protobuf",
+                 [&] (const std::string &addr) { _pb_send_finish (addr, msgs); }),
+      3U);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) server produces nothing for a call that carries no message.
+ */
+TEST (nnstreamerGrpc, asyncServerRecvNothingProtobuf_n)
+{
+  EXPECT_EQ (_count_at_async_server ("protobuf",
+                 [] (const std::string &addr) { _pb_send_finish (addr, {}); }),
+      0U);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) client produces each message of the server's stream once.
+ */
+TEST (nnstreamerGrpc, asyncClientRecvProtobuf)
+{
+  EXPECT_EQ (_count_at_async_client ("protobuf", 5), 5U);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) client produces nothing for a stream that carries no message.
+ */
+TEST (nnstreamerGrpc, asyncClientRecvNothingProtobuf_n)
+{
+  EXPECT_EQ (_count_at_async_client ("protobuf", 0), 0U);
+}
+
+/**
  * @brief A non-blocking tensor_src_grpc (protobuf) client receives tensors and ends its call.
  */
 TEST (nnstreamerGrpc, nonBlockingClientSrcProtobuf)
@@ -1251,6 +1445,64 @@ TEST (nnstreamerGrpc, recvFlatbufNoData_n)
 
   EXPECT_EQ (received, 1U);
   ASSERT_EQ (sizes.size (), 2U);
+}
+
+/**
+ * @brief Send flatbuf messages that fit RECV_STATIC_CAPS over one client-streaming call and finish the call.
+ * @param num the number of messages
+ */
+static void
+_fb_send_finish (const std::string &address, guint num)
+{
+  auto stub = nnstreamer::flatbuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  flatbuffers::grpc::Message<nnstreamer::flatbuf::Empty> reply;
+  const std::vector<gint> valid = { 4, 2 };
+  auto writer = stub->SendTensors (&context, &reply);
+  guint i;
+
+  for (i = 0; i < num; i++)
+    writer->Write (_fb_build (2, &valid));
+  writer->WritesDone ();
+  /* unlike the sync server _fb_send () talks to, the async server replies with a valid Empty */
+  EXPECT_TRUE (writer->Finish ().ok ());
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) server produces each message of a call once.
+ */
+TEST (nnstreamerGrpc, asyncServerRecvFlatbuf)
+{
+  EXPECT_EQ (_count_at_async_server ("flatbuf",
+                 [] (const std::string &addr) { _fb_send_finish (addr, 3); }),
+      3U);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) server produces nothing for a call that carries no message.
+ */
+TEST (nnstreamerGrpc, asyncServerRecvNothingFlatbuf_n)
+{
+  EXPECT_EQ (_count_at_async_server ("flatbuf",
+                 [] (const std::string &addr) { _fb_send_finish (addr, 0); }),
+      0U);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) client produces each message of the server's stream once.
+ */
+TEST (nnstreamerGrpc, asyncClientRecvFlatbuf)
+{
+  EXPECT_EQ (_count_at_async_client ("flatbuf", 5), 5U);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) client produces nothing for a stream that carries no message.
+ */
+TEST (nnstreamerGrpc, asyncClientRecvNothingFlatbuf_n)
+{
+  EXPECT_EQ (_count_at_async_client ("flatbuf", 0), 0U);
 }
 
 /**
