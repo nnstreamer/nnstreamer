@@ -161,6 +161,19 @@ typedef struct _tensor_transform_padding {
 } tensor_transform_padding;
 
 /**
+ * @brief Index of the element (x, y, z) in a tensor whose first two dimensions
+ *        are dim0 and dim1.
+ * @details The padding mode addresses its input and output with this. A padded
+ *          tensor may have more than G_MAXUINT elements, so the index is a gsize.
+ */
+static inline gsize
+gst_tensor_transform_padding_index (guint dim0, guint dim1, guint x, guint y,
+    guint z)
+{
+  return x + dim0 * (y + dim1 * (gsize) z);
+}
+
+/**
  * @brief Internal data structure for tensor_transform instances.
  */
 struct _GstTensorTransform

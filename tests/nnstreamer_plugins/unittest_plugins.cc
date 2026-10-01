@@ -4285,6 +4285,436 @@ TEST (testTensorTransform, float16PerChannelArithmetic)
 #endif /* FLOAT16_SUPPORT */
 
 /**
+ * @brief Value of the element idx of a padding test input, never zero so that
+ *        a copied element is told apart from a padded one.
+ */
+static guint32
+_padding_test_value (gsize idx)
+{
+  return (guint32) (idx % 255U) + 1U;
+}
+
+/**
+ * @brief Count the elements of a padded uint8/int32 tensor that differ from
+ *        the reference padding of the input filled by _padding_test_value().
+ * @param data padded tensor
+ * @param type element type, _NNS_UINT8 or _NNS_INT32
+ * @param in_dim dimension of the input tensor
+ * @param pads left, right, top, bottom, front and back
+ * @return the number of wrong elements
+ */
+static gsize
+_count_padding_mismatch (const uint8_t *data, tensor_type type,
+    const tensor_dim in_dim, const guint pads[6])
+{
+  /* a missing dimension is padded as 1 */
+  gsize d1 = MAX (in_dim[1], 1U), d2 = MAX (in_dim[2], 1U);
+  gsize o0 = (gsize) in_dim[0] + pads[0] + pads[1];
+  gsize o1 = d1 + pads[2] + pads[3];
+  gsize o2 = d2 + pads[4] + pads[5];
+  gsize outer = 1, n, x, y, z, mismatch = 0;
+  guint i;
+
+  for (i = 3; i < NNS_TENSOR_RANK_LIMIT && in_dim[i] > 0; i++)
+    outer *= in_dim[i];
+
+  for (n = 0; n < outer; n++)
+    for (z = 0; z < o2; z++)
+      for (y = 0; y < o1; y++)
+        for (x = 0; x < o0; x++) {
+          gsize out_idx = x + o0 * (y + o1 * (z + o2 * n));
+          guint32 expected = 0, value;
+
+          if (x >= pads[0] && x < pads[0] + in_dim[0] && y >= pads[2]
+              && y < pads[2] + d1 && z >= pads[4] && z < pads[4] + d2)
+            expected = _padding_test_value (
+                (x - pads[0])
+                + in_dim[0] * ((y - pads[2]) + d1 * ((z - pads[4]) + d2 * n)));
+
+          if (type == _NNS_UINT8)
+            value = data[out_idx];
+          else
+            value = (guint32) ((const int32_t *) data)[out_idx];
+
+          if (value != expected)
+            mismatch++;
+        }
+
+  return mismatch;
+}
+
+/**
+ * @brief Push a static tensor through the padding mode and compare the
+ *        negotiated dimension and the data with the reference padding.
+ * @param option padding option
+ * @param dim_str dimension of the input tensor, whose rank the pads keep
+ * @param type element type, _NNS_UINT8 or _NNS_INT32
+ * @param pads left, right, top, bottom, front and back the option means
+ */
+static void
+_test_padding (const gchar *option, const gchar *dim_str, tensor_type type,
+    const guint pads[6])
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config, out_config;
+  GstCaps *caps;
+  GstMapInfo info;
+  uint32_t *dim, *out_dim;
+  gsize in_size, out_size, element_size, i;
+
+  h = _new_transform_static_harness (GTT_PADDING, option, FALSE, type, dim_str, FALSE);
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = type;
+  gst_tensor_parse_dimension (dim_str, config.info.info[0].dimension);
+  dim = config.info.info[0].dimension;
+  element_size = gst_tensor_get_element_size (type);
+  in_size = gst_tensors_info_get_size (&config.info, 0);
+
+  in_buf = gst_harness_create_buffer (h, in_size);
+  ASSERT_TRUE (gst_buffer_map (in_buf, &info, GST_MAP_WRITE));
+  for (i = 0; i < in_size / element_size; i++) {
+    if (type == _NNS_UINT8)
+      info.data[i] = (uint8_t) _padding_test_value (i);
+    else
+      ((int32_t *) info.data)[i] = (int32_t) _padding_test_value (i);
+  }
+  gst_buffer_unmap (in_buf, &info);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK) << option;
+  out_buf = gst_harness_try_pull (h);
+  ASSERT_TRUE (out_buf != NULL) << option;
+
+  /* the negotiated output grows the first three dimensions only */
+  caps = gst_pad_get_current_caps (h->sinkpad);
+  ASSERT_TRUE (caps != NULL);
+  gst_tensors_config_init (&out_config);
+  ASSERT_TRUE (gst_tensors_config_from_structure (
+      &out_config, gst_caps_get_structure (caps, 0)));
+  gst_caps_unref (caps);
+  out_dim = out_config.info.info[0].dimension;
+  EXPECT_EQ (out_dim[0], dim[0] + pads[0] + pads[1]) << option;
+  EXPECT_EQ (out_dim[1], dim[1] + pads[2] + pads[3]) << option;
+  EXPECT_EQ (out_dim[2], dim[2] + pads[4] + pads[5]) << option;
+  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
+    EXPECT_EQ (out_dim[i], dim[i]) << option;
+  out_size = gst_tensors_info_get_size (&out_config.info, 0);
+  gst_tensors_config_free (&out_config);
+
+  ASSERT_TRUE (gst_buffer_map (out_buf, &info, GST_MAP_READ));
+  EXPECT_EQ (info.size, out_size) << option;
+  if (info.size == out_size) {
+    EXPECT_EQ (_count_padding_mismatch (info.data, type, dim, pads), 0U) << option;
+  }
+  gst_buffer_unmap (out_buf, &info);
+  gst_buffer_unref (out_buf);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform padding with single-digit pads, which the
+ *        option always accepted. The data is the same as the reference.
+ */
+TEST (testTensorTransform, paddingSingleDigit)
+{
+  const guint pads_lr[6] = { 1, 1, 0, 0, 0, 0 };
+  const guint pads_all[6] = { 1, 2, 3, 4, 5, 6 };
+  const guint pads_nhwc[6] = { 5, 6, 3, 4, 1, 2 };
+  const guint pads_zero[6] = { 0, 0, 0, 0, 0, 0 };
+
+  _test_padding ("left:1,right:1", "3:4:2", _NNS_UINT8, pads_lr);
+  _test_padding ("left:1,right:2,top:3,bottom:4,front:5,back:6", "3:4:2:2",
+      _NNS_UINT8, pads_all);
+  _test_padding ("left:1,right:2,top:3,bottom:4,front:5,back:6", "3:4:2:2",
+      _NNS_INT32, pads_all);
+  _test_padding ("left:1,right:2,top:3,bottom:4,front:5,back:6,layout:NCHW",
+      "3:4:2", _NNS_UINT8, pads_all);
+  /* NHWC swaps left/right with front/back */
+  _test_padding ("left:1,right:2,top:3,bottom:4,front:5,back:6,layout:NHWC",
+      "3:4:2:2", _NNS_UINT8, pads_nhwc);
+  _test_padding ("left:0,top:0,back:0", "3:4:2", _NNS_UINT8, pads_zero);
+  /* the last value of a repeated key wins */
+  _test_padding ("left:9,left:1,right:1", "3:4:2", _NNS_UINT8, pads_lr);
+}
+
+/**
+ * @brief Test for tensor_transform padding with pads of more than one digit,
+ *        which the option refused before.
+ */
+TEST (testTensorTransform, paddingMultiDigit)
+{
+  const guint pads_lr[6] = { 10, 12, 0, 0, 0, 0 };
+  const guint pads_all[6] = { 10, 11, 12, 13, 14, 15 };
+  const guint pads_nhwc[6] = { 14, 15, 12, 13, 10, 11 };
+  const guint pads_zeros[6] = { 7, 10, 0, 0, 0, 0 };
+  const guint pads_mixed[6] = { 0, 0, 15, 0, 11, 20 };
+  const guint pads_large[6] = { 100, 0, 0, 0, 300, 0 };
+  const guint pads_rank2[6] = { 10, 0, 12, 0, 0, 0 };
+
+  _test_padding ("left:10,right:12", "3:4:2", _NNS_UINT8, pads_lr);
+  _test_padding ("left:10,right:11,top:12,bottom:13,front:14,back:15",
+      "3:4:2:2", _NNS_UINT8, pads_all);
+  _test_padding ("left:10,right:11,top:12,bottom:13,front:14,back:15",
+      "3:4:2:2", _NNS_INT32, pads_all);
+  _test_padding ("left:10,right:11,top:12,bottom:13,front:14,back:15,layout:NHWC",
+      "3:4:2", _NNS_UINT8, pads_nhwc);
+  _test_padding ("LEFT:10,Right:12", "3:4:2", _NNS_UINT8, pads_lr);
+  /* leading zeros are decimal, not octal */
+  _test_padding ("left:007,right:010", "3:4:2", _NNS_UINT8, pads_zeros);
+  _test_padding ("top:15,bottom:0,front:11,back:20", "2:3:2:3", _NNS_UINT8, pads_mixed);
+  _test_padding ("left:100,front:300", "3:4:2", _NNS_UINT8, pads_large);
+  _test_padding ("left:10,top:12", "3:4", _NNS_UINT8, pads_rank2);
+}
+
+/**
+ * @brief Test for tensor_transform padding, a flexible tensor padded with
+ *        pads of more than one digit
+ */
+TEST (testTensorTransform, paddingMultiDigitFlexible)
+{
+  const guint pads[6] = { 10, 0, 0, 11, 12, 0 };
+  GstHarness *h;
+  GstBuffer *buf, *out_buf;
+  GstTensorMetaInfo meta;
+  GstCaps *caps;
+  GstMemory *mem;
+  GstMapInfo info;
+  tensor_dim in_dim;
+  gsize hsize, i;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_PADDING, "option",
+      "left:10,bottom:11,front:12", NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensor_parse_dimension ("3:4:2", in_dim);
+  mem = _new_flex_memory ("3:4:2", TRUE, 0U);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+  ASSERT_TRUE (gst_tensor_meta_info_parse_header (&meta, info.data));
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  for (i = 0; i < 24U; i++)
+    info.data[hsize + i] = (uint8_t) _padding_test_value (i);
+  gst_memory_unmap (mem, &info);
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, mem);
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_try_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_TRUE (gst_buffer_map (out_buf, &info, GST_MAP_READ));
+  ASSERT_TRUE (gst_tensor_meta_info_parse_header (&meta, info.data));
+  EXPECT_EQ (meta.dimension[0], 13U);
+  EXPECT_EQ (meta.dimension[1], 15U);
+  EXPECT_EQ (meta.dimension[2], 14U);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  ASSERT_EQ (info.size, hsize + 13U * 15U * 14U);
+  EXPECT_EQ (_count_padding_mismatch (info.data + hsize, _NNS_UINT8, in_dim, pads), 0U);
+  gst_buffer_unmap (out_buf, &info);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform padding, the index of an element beyond
+ *        G_MAXUINT. A uint8 2:2:2 tensor with left:2147483648 becomes
+ *        2147483650:2:2, too large to allocate here, so the index the padding
+ *        copies each row to is checked by itself.
+ */
+TEST (testTensorTransform, paddingIndexAboveUintMax)
+{
+  const guint out_dim0 = 2147483650U, out_dim1 = 2U, left = 2147483648U;
+  const guint64 expected[2][2] = {
+    { G_GUINT64_CONSTANT (2147483648), G_GUINT64_CONSTANT (4294967298) },
+    { G_GUINT64_CONSTANT (6442450948), G_GUINT64_CONSTANT (8589934598) },
+  };
+  guint j, k;
+
+  if (sizeof (gsize) < 8)
+    GTEST_SKIP () << "needs a 64-bit gsize";
+
+  for (j = 0; j < 2U; j++)
+    for (k = 0; k < 2U; k++)
+      EXPECT_EQ ((guint64) gst_tensor_transform_padding_index (
+                     out_dim0, out_dim1, left, k, j),
+          expected[j][k]);
+
+  /* the last element of the largest plane */
+  EXPECT_EQ ((guint64) gst_tensor_transform_padding_index (
+                 G_MAXUINT, G_MAXUINT, G_MAXUINT - 1U, G_MAXUINT - 1U, 0U),
+      G_GUINT64_CONSTANT (18446744065119617024));
+  /* an index below G_MAXUINT is what it always was */
+  EXPECT_EQ (gst_tensor_transform_padding_index (5U, 7U, 4U, 6U, 2U), 104U);
+}
+
+/**
+ * @brief Test for tensor_transform padding, a pad or a pair of pads that does
+ *        not fit in a dimension refuses the option.
+ */
+TEST (testTensorTransform, paddingOptionOutOfRange_n)
+{
+  const gchar *options[] = {
+    "left:4294967296",
+    "back:18446744073709551616",
+    "top:99999999999999999999999999",
+    "left:4294967295,right:1",
+    "top:2147483648,bottom:2147483648",
+    "front:4294967295,back:4294967295",
+    "left:1,right:2,front:4294967295,back:1,layout:NHWC",
+  };
+  GstHarness *h;
+  GString *log;
+  guint c;
+
+  for (c = 0; c < G_N_ELEMENTS (options); c++) {
+    h = _new_transform_static_harness (
+        GTT_PADDING, options[c], FALSE, _NNS_UINT8, "2:2:2", FALSE);
+    ASSERT_TRUE (h != NULL);
+
+    log = g_string_new (NULL);
+    gst_debug_add_log_function (_collect_transform_log, log, NULL);
+    gst_debug_set_threshold_for_name ("tensor_transform", GST_LEVEL_WARNING);
+
+    EXPECT_EQ (_push_tensor_of_size (h, 8U), GST_FLOW_NOT_NEGOTIATED) << options[c];
+    EXPECT_EQ (gst_harness_buffers_received (h), 0U) << options[c];
+
+    gst_debug_remove_log_function (_collect_transform_log);
+    gst_debug_unset_threshold_for_name ("tensor_transform");
+
+#ifndef GST_DISABLE_GST_DEBUG
+    EXPECT_TRUE (strstr (log->str, "Transform is not configured") != NULL) << options[c];
+#endif
+
+    g_string_free (log, TRUE);
+    gst_harness_teardown (h);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform padding, a padded dimension larger than
+ *        G_MAXUINT refuses the caps. It wrapped to a smaller dimension and the
+ *        padding wrote far beyond the output.
+ */
+TEST (testTensorTransform, paddingDimensionOverflow_n)
+{
+  const struct {
+    const gchar *option;
+    const gchar *dim;
+    gsize size;
+  } cases[] = {
+    { "left:4294967295", "2:2:2", 8U },
+    { "right:4294967295", "2:2:2", 8U },
+    { "top:4294967290,bottom:5", "2:2:2", 8U },
+    { "front:4294967295,back:0", "2:2:2", 8U },
+    { "back:4294967294", "2:2:3:2", 24U },
+    { "left:2147483648,right:2147483647", "3:2:2", 12U },
+    /* NHWC moves left to the third dimension */
+    { "left:4294967295,layout:NHWC", "2:2:2", 8U },
+    /* a missing dimension counts as 1 */
+    { "top:4294967294,bottom:1", "2", 2U },
+    { "front:4294967295", "2:2", 4U },
+  };
+  GstHarness *h;
+  GString *log;
+  guint c;
+
+  for (c = 0; c < G_N_ELEMENTS (cases); c++) {
+    h = _new_transform_static_harness (
+        GTT_PADDING, cases[c].option, FALSE, _NNS_UINT8, cases[c].dim, FALSE);
+    ASSERT_TRUE (h != NULL);
+
+    log = g_string_new (NULL);
+    gst_debug_add_log_function (_collect_transform_log, log, NULL);
+    gst_debug_set_threshold_for_name ("tensor_transform", GST_LEVEL_WARNING);
+
+    EXPECT_EQ (_push_tensor_of_size (h, cases[c].size), GST_FLOW_NOT_NEGOTIATED)
+        << cases[c].option;
+    EXPECT_EQ (gst_harness_buffers_received (h), 0U) << cases[c].option;
+
+    gst_debug_remove_log_function (_collect_transform_log);
+    gst_debug_unset_threshold_for_name ("tensor_transform");
+
+#ifndef GST_DISABLE_GST_DEBUG
+    /* the option is accepted, the input dimension does not fit it */
+    EXPECT_TRUE (strstr (log->str, "Cannot derive the output info") != NULL)
+        << cases[c].option;
+    EXPECT_TRUE (strstr (log->str, "Transform is not configured") == NULL)
+        << cases[c].option;
+#endif
+
+    g_string_free (log, TRUE);
+    gst_harness_teardown (h);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform padding, a flexible tensor whose padded
+ *        dimension is larger than G_MAXUINT is refused.
+ */
+TEST (testTensorTransform, paddingDimensionOverflowFlexible_n)
+{
+  GstHarness *h;
+  GstBuffer *buf;
+  GstCaps *caps;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_PADDING, "option", "top:4294967290,bottom:5", NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, _new_flex_memory ("2:2:2", TRUE, 0U));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform padding, changing the option while
+ *        streaming to pads that do not fit the dimension stops the stream
+ *        instead of writing beyond the output.
+ */
+TEST (testTensorTransform, paddingDimensionOverflowWhileStreaming_n)
+{
+  GstHarness *h;
+  GstBuffer *out_buf;
+
+  h = _new_transform_static_harness (
+      GTT_PADDING, "left:10", FALSE, _NNS_UINT8, "2:2:2", FALSE);
+  ASSERT_TRUE (h != NULL);
+
+  EXPECT_EQ (_push_tensor_of_size (h, 8U), GST_FLOW_OK);
+  out_buf = gst_harness_try_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), 48U);
+  gst_buffer_unref (out_buf);
+
+  g_object_set (h->element, "option", "left:4294967295", NULL);
+
+  EXPECT_NE (_push_tensor_of_size (h, 8U), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Push a uint32 tensor through the transpose mode and compare the
  *        result with the reference permutation of the first three dimensions.
  * @param dim_str dimension of the input tensor

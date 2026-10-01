@@ -73,7 +73,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define REGEX_STAND_OPTION "^(default|dc-average)(:([u]?int(8|16|32|64)|float(16|32|64)))?(,per-channel:(true|false))?$"
 #define REGEX_CLAMP_OPTION "^((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))):"\
     "((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)))$"
-#define REGEX_PADDING_OPTION "^((left|right|top|bottom|front|back):(\\d)(,)?)+(layout:(NCHW|NHWC))?$"
+#define REGEX_PADDING_OPTION "^((left|right|top|bottom|front|back):(\\d+)(,)?)+(layout:(NCHW|NHWC))?$"
 #define REGEX_ARITH_OPTION "^(typecast:([u]?int(8|16|32|64)|float(16|32|64)),)?"\
     "(per-channel:(false|true@(0*([0-9]|1[0-5]))),)?"\
     "(((add|mul|div)(:([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))+(@[0-9]+)?)(,|))+$"
@@ -1001,6 +1001,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     {
       gchar **options = NULL;
       guint i, num_options;
+      gboolean valid = TRUE;
 
       if (!g_regex_match_simple (REGEX_PADDING_OPTION, filter->option,
               G_REGEX_CASELESS, 0)) {
@@ -1017,26 +1018,22 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       options = g_strsplit (filter->option, ",", -1);
       num_options = g_strv_length (options);
 
-      for (i = 0; i < num_options; i++) {
+      for (i = 0; i < num_options && valid; i++) {
         gchar **strv = g_strsplit (options[i], ":", 2);
+        gint axis = -1;
+
         if (g_ascii_strcasecmp (strv[0], "left") == 0) {
-          filter->data_padding.pad[PADDING_LEFT] =
-              (guint) g_ascii_strtoull (strv[1], NULL, 10);
+          axis = PADDING_LEFT;
         } else if (g_ascii_strcasecmp (strv[0], "right") == 0) {
-          filter->data_padding.pad[PADDING_RIGHT] =
-              (guint) g_ascii_strtoull (strv[1], NULL, 10);
+          axis = PADDING_RIGHT;
         } else if (g_ascii_strcasecmp (strv[0], "top") == 0) {
-          filter->data_padding.pad[PADDING_TOP] =
-              (guint) g_ascii_strtoull (strv[1], NULL, 10);
+          axis = PADDING_TOP;
         } else if (g_ascii_strcasecmp (strv[0], "bottom") == 0) {
-          filter->data_padding.pad[PADDING_BOTTOM] =
-              (guint) g_ascii_strtoull (strv[1], NULL, 10);
+          axis = PADDING_BOTTOM;
         } else if (g_ascii_strcasecmp (strv[0], "front") == 0) {
-          filter->data_padding.pad[PADDING_FRONT] =
-              (guint) g_ascii_strtoull (strv[1], NULL, 10);
+          axis = PADDING_FRONT;
         } else if (g_ascii_strcasecmp (strv[0], "back") == 0) {
-          filter->data_padding.pad[PADDING_BACK] =
-              (guint) g_ascii_strtoull (strv[1], NULL, 10);
+          axis = PADDING_BACK;
         } else if (g_ascii_strcasecmp (strv[0], "layout") == 0) {
           if (g_ascii_strcasecmp (strv[1], "NHWC") == 0)
             filter->data_padding.layout = _NNS_LAYOUT_NHWC;
@@ -1045,9 +1042,43 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
         } else {
           ml_logw ("Unknown option for padding mode: %s", strv[0]);
         }
+
+        if (axis >= 0) {
+          /* the regex allows digits only, an out-of-range value saturates */
+          guint64 value = g_ascii_strtoull (strv[1], NULL, 10);
+
+          if (value > G_MAXUINT) {
+            ml_loge ("%s: padding: %s:%s is larger than %u.\n", filter_name,
+                strv[0], strv[1], G_MAXUINT);
+            valid = FALSE;
+          } else {
+            filter->data_padding.pad[axis] = (guint) value;
+          }
+        }
         g_strfreev (strv);
       }
       g_strfreev (options);
+
+      if (!valid)
+        break;
+
+      /**
+       * The pads of the axis i are pad[2 * i] and pad[2 * i + 1]. The padded
+       * dimension is a guint, so each pair has to fit in it.
+       */
+      for (i = 0; i < NNS_TENSOR_PADDING_RANK_LIMIT; i++) {
+        if ((guint64) filter->data_padding.pad[2 * i] +
+            filter->data_padding.pad[2 * i + 1] > G_MAXUINT) {
+          ml_loge ("%s: padding: the sum of the pads %u and %u is larger "
+              "than %u.\n", filter_name, filter->data_padding.pad[2 * i],
+              filter->data_padding.pad[2 * i + 1], G_MAXUINT);
+          valid = FALSE;
+          break;
+        }
+      }
+
+      if (!valid)
+        break;
 
       if (filter->data_padding.layout == _NNS_LAYOUT_NHWC) {
         guint prev_left = filter->data_padding.pad[PADDING_LEFT],
@@ -1924,8 +1955,8 @@ gst_tensor_transform_padding (GstTensorTransform * filter,
     uint8_t * outptr)
 {
   gsize element_size, in_loop_size, out_loop_size, copy_block_size;
-  guint i, j, k, left, top, front, loop_limit = 1;
-  guint in_dim1, in_dim2, out_dim1, out_dim2;
+  gsize in_plane, out_plane, i, loop_limit = 1;
+  guint j, k, left, top, front, in_dim1, in_dim2, out_dim1, out_dim2;
   element_size = gst_tensor_get_element_size (in_info->type);
 
   /* a rank < 3 tensor is padded as if its missing dimensions were 1 */
@@ -1934,16 +1965,16 @@ gst_tensor_transform_padding (GstTensorTransform * filter,
   out_dim1 = MAX (out_info->dimension[1], 1U);
   out_dim2 = MAX (out_info->dimension[2], 1U);
 
-  in_loop_size = (gsize) in_info->dimension[0] * in_dim1 * in_dim2
-      * element_size;
-  out_loop_size = (gsize) out_info->dimension[0] * out_dim1 * out_dim2
-      * element_size;
+  in_plane = (gsize) in_info->dimension[0] * in_dim1;
+  out_plane = (gsize) out_info->dimension[0] * out_dim1;
+  in_loop_size = in_plane * in_dim2 * element_size;
+  out_loop_size = out_plane * out_dim2 * element_size;
   copy_block_size = in_info->dimension[0] * element_size;
 
-  for (i = NNS_TENSOR_PADDING_RANK_LIMIT; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (in_info->dimension[i] == 0)
+  for (j = NNS_TENSOR_PADDING_RANK_LIMIT; j < NNS_TENSOR_RANK_LIMIT; j++) {
+    if (in_info->dimension[j] == 0)
       break;
-    loop_limit *= in_info->dimension[i];
+    loop_limit *= in_info->dimension[j];
   }
 
   left = filter->data_padding.pad[PADDING_LEFT];
@@ -1954,19 +1985,19 @@ gst_tensor_transform_padding (GstTensorTransform * filter,
   memset (outptr, 0, out_loop_size * loop_limit);
 
   for (i = 0; i < loop_limit; i++)
-    for (j = 0; j < in_dim2; j++)
+    for (j = 0; j < in_dim2; j++) {
+      gsize in_idx = gst_tensor_transform_padding_index
+          (in_info->dimension[0], in_dim1, 0, 0, j);
+      gsize out_idx = gst_tensor_transform_padding_index
+          (out_info->dimension[0], out_dim1, left, top, front + j);
+
       for (k = 0; k < in_dim1; k++) {
-        guint in_idx = j * in_dim1 * in_info->dimension[0]
-            + k * in_info->dimension[0];
-        guint out_idx = j * out_dim1 * out_info->dimension[0]
-            + k * out_info->dimension[0];
-
-        out_idx += left + top * out_info->dimension[0]
-            + front * out_dim1 * out_info->dimension[0];
-
         memcpy (outptr + out_idx * element_size + out_loop_size * i,
             inptr + in_idx * element_size + in_loop_size * i, copy_block_size);
+        in_idx += in_info->dimension[0];
+        out_idx += out_info->dimension[0];
       }
+    }
 
   return GST_FLOW_OK;
 }
@@ -2437,6 +2468,7 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
 
     case GTT_PADDING:
       if (direction == GST_PAD_SINK) {
+        guint64 dim[NNS_TENSOR_PADDING_RANK_LIMIT];
         guint padded_rank = 0;
 
         if (filter->data_padding.pad[PADDING_FRONT] +
@@ -2446,23 +2478,29 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
             filter->data_padding.pad[PADDING_BOTTOM] > 0)
           padded_rank = 2;
 
-        /* pad a rank < 3 tensor as if its missing dimensions were 1 */
-        if (out_info->dimension[0] > 0) {
-          for (i = 1; i < padded_rank; i++) {
-            if (out_info->dimension[i] == 0)
-              out_info->dimension[i] = 1;
+        for (i = 0; i < NNS_TENSOR_PADDING_RANK_LIMIT; i++) {
+          dim[i] = in_info->dimension[i];
+
+          /* pad a rank < 3 tensor as if its missing dimensions were 1 */
+          if (dim[i] == 0 && i > 0 && i < padded_rank
+              && in_info->dimension[0] > 0)
+            dim[i] = 1;
+
+          /* refuse a padded dimension that does not fit, do not wrap it */
+          dim[i] += (guint64) filter->data_padding.pad[2 * i] +
+              filter->data_padding.pad[2 * i + 1];
+
+          if (dim[i] > G_MAXUINT) {
+            ml_loge ("Cannot pad the dimension %u (%u) by %u and %u, the "
+                "padded dimension is larger than %u.\n", i,
+                in_info->dimension[i], filter->data_padding.pad[2 * i],
+                filter->data_padding.pad[2 * i + 1], G_MAXUINT);
+            return FALSE;
           }
         }
 
-        out_info->dimension[0] +=
-            filter->data_padding.pad[PADDING_LEFT] +
-            filter->data_padding.pad[PADDING_RIGHT];
-        out_info->dimension[1] +=
-            filter->data_padding.pad[PADDING_TOP] +
-            filter->data_padding.pad[PADDING_BOTTOM];
-        out_info->dimension[2] +=
-            filter->data_padding.pad[PADDING_FRONT] +
-            filter->data_padding.pad[PADDING_BACK];
+        for (i = 0; i < NNS_TENSOR_PADDING_RANK_LIMIT; i++)
+          out_info->dimension[i] = (guint) dim[i];
       }
       break;
     default:

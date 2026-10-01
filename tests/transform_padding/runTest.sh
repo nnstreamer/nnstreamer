@@ -53,6 +53,19 @@ callCompareTest result_03_0.dat test_02.dat.golden 4 "Golden test comparison 4-0
 callCompareTest result_03_1.dat test_02.dat.golden 4 "Golden test comparison 4-1" 1 0
 callCompareTest result_03_2.dat test_02.dat.golden 4 "Golden test comparison 4-2" 1 0
 
+# Pads of more than one digit
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_03.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=20:30:4:2 input-type=uint8 ! tensor_transform mode=padding option=left:11,bottom:15,front:12,back:10 ! filesink location=\"./result_05.dat\" sync=true" 5 0 0 $PERFORMANCE
+callCompareTest result_05.dat test_03.dat.golden 5 "Golden test comparison 5" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_04.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=10:50:3:2 input-type=int8 ! tensor_transform mode=padding option=left:10,right:12,layout:NHWC ! filesink location=\"./result_06.dat\" sync=true" 6 0 0 $PERFORMANCE
+callCompareTest result_06.dat test_04.dat.golden 6 "Golden test comparison 6" 1 0
+
+# A padded dimension larger than G_MAXUINT is refused
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_03.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=20:30:4:2 input-type=uint8 ! tensor_transform mode=padding option=left:4294967295 ! filesink location=\"./result_07.dat\" sync=true" 7_n 0 1 $PERFORMANCE
+
+# A pair of pads larger than G_MAXUINT is refused
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_03.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=20:30:4:2 input-type=uint8 ! tensor_transform mode=padding option=top:4294967295,bottom:1 ! filesink location=\"./result_08.dat\" sync=true" 8_n 0 1 $PERFORMANCE
+
 rm *.golden *.dat
 
 report
