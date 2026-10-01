@@ -2839,6 +2839,80 @@ TEST (tensorDecoderBoundingBox, yoloV5RejectsIntegerInput_n)
 }
 
 /**
+ * @brief Tensor indices of mobilenet-ssd-postprocess option3 outside the tensors are refused.
+ * @details A negative index, or one past the tensor info table, used to
+ *          dereference the NULL the tensor info lookup returns for it. A
+ *          refused option3 must also leave the mapping it replaces intact:
+ *          the indices it did hold used to be written before the refusal.
+ */
+TEST (tensorDecoderBoundingBox, ssdPpTensorIndicesOutOfRange_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const dims[] = { "1", "1:1", "1:1", "4:1" };
+  const gchar *const reordered[] = { "4:1", "1:1", "1:1", "1" };
+  GstTensorsConfig config;
+  void *pdata = NULL;
+  LogCapture log;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "mobilenet-ssd-postprocess"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+  setFloatConfig (&config, 4, dims);
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "-1:1:2:0,50"));
+  EXPECT_LOGGED (log, "[0, 256)", "\"-1:1:2:0,50\"", "has -1");
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "3:1:2:300,50"));
+  EXPECT_LOGGED (log, "[0, 256)", "\"3:1:2:300,50\"", "has 300");
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0:1:2"));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+
+  gst_tensors_config_free (&config);
+  setFloatConfig (&config, 4, reordered);
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, "0:1:2:3,50"));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "3:1:2"));
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "3:1:2:-1,50"));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, "3:1:2:7,50"));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_LOGGED (log, "3:1:2:7", "less than the number of input tensors, 4");
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief A mobilenet-ssd-postprocess option3 given after the caps may not reach past the tensors.
+ * @details option3 is writable while the stream runs, and decode () used to
+ *          take the tensor at an index the negotiated stream does not have.
+ */
+TEST (tensorDecoderBoundingBox, ssdPpTensorIndicesChangedWhileDecoding_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeLabelFile ("X\nY\n");
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  void *pdata = NULL;
+  SsdPpBoxes t;
+  LogCapture log;
+
+  t.add (1.0f, TRACK_LEFT);
+  ASSERT_TRUE (initSsdPpDecoder (decoder, &pdata, labels, "0", "0"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, "3:1:2:0,50"));
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &pdata, &t, frame));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, "3:1:2:200,50"));
+  EXPECT_FALSE (decodeFrame (decoder, &pdata, &t.config, t.input, frame));
+  EXPECT_LOGGED (log, "3:1:2:200", "less than the number of input tensors, 4");
+  EXPECT_LOGGED (log, "could not decode the input tensors");
+
+  decoder->exit (&pdata);
+  removeTempFile (&labels);
+}
+
+/**
  * @brief Streams every mode accepts are set up without a critical or a warning.
  * @details The messages of the refusals must not reach a stream that decodes.
  *          A probe proves the capture sees criticals first, since a count of

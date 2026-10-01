@@ -1168,7 +1168,7 @@ BoundingBox::decode (const GstTensorsConfig *config,
 
   results = bdata->decode (config, input);
   if (results == NULL) {
-    GST_ERROR ("Failed to get output buffer, unknown mode %d.", mode);
+    nns_loge ("The box decoding mode of option1 of boundingbox could not decode the input tensors.");
     goto error_unmap;
   }
 

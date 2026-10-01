@@ -39,6 +39,7 @@ class MobilenetSSDPP : public BoxProperties
   public:
   MobilenetSSDPP ();
   int get_mobilenet_ssd_pp_tensor_idx (int idx);
+  int checkTensorMapping (const GstTensorsConfig *config);
 
   int setOptionInternal (const char *param);
   int checkCompatible (const GstTensorsConfig *config);
@@ -147,16 +148,26 @@ MobilenetSSDPP::get_mobilenet_ssd_pp_tensor_idx (int idx)
 int
 MobilenetSSDPP::setOptionInternal (const char *param)
 {
-  int threshold_percent;
-  int ret = sscanf (param, "%i:%i:%i:%i,%i", &tensor_mapping[LOCATIONS_IDX],
-      &tensor_mapping[CLASSES_IDX], &tensor_mapping[SCORES_IDX],
-      &tensor_mapping[NUM_IDX], &threshold_percent);
+  int threshold_percent, i;
+  gint mapping[MAX_TENSORS];
+  int ret = sscanf (param, "%i:%i:%i:%i,%i", &mapping[LOCATIONS_IDX],
+      &mapping[CLASSES_IDX], &mapping[SCORES_IDX], &mapping[NUM_IDX], &threshold_percent);
 
   if ((ret == EOF) || (ret < 5)) {
     nns_loge ("option3 of boundingbox for mobilenet-ssd-postprocess has to be \"LOCATIONS_IDX:CLASSES_IDX:SCORES_IDX:NUM_IDX,THRESHOLD_PERCENT\" (e.g., \"3:1:2:0,50\"), but \"%s\" is given.",
         param);
     return FALSE;
   }
+
+  for (i = 0; i < (int) MAX_TENSORS; i++) {
+    if (mapping[i] < 0 || mapping[i] >= NNS_TENSOR_SIZE_LIMIT) {
+      nns_loge ("The tensor indices of option3 of boundingbox for mobilenet-ssd-postprocess have to be in the range [0, %d), but \"%s\" has %d.",
+          NNS_TENSOR_SIZE_LIMIT, param, mapping[i]);
+      return FALSE;
+    }
+  }
+
+  memcpy (tensor_mapping, mapping, sizeof (tensor_mapping));
 
   GST_INFO ("MOBILENET SSD POST PROCESS output tensors mapping: "
             "locations idx (%d), classes idx (%d), scores idx (%d), num detections idx (%d)",
@@ -175,6 +186,27 @@ MobilenetSSDPP::setOptionInternal (const char *param)
   return TRUE;
 }
 
+/** @brief Check that every tensor index of option3 is one of the given tensors */
+int
+MobilenetSSDPP::checkTensorMapping (const GstTensorsConfig *config)
+{
+  int i;
+
+  for (i = 0; i < (int) MAX_TENSORS; i++) {
+    if ((guint) tensor_mapping[i] >= config->info.num_tensors) {
+      g_autofree gchar *info_str = gst_tensors_info_to_string (&config->info);
+
+      nns_loge ("The tensor indices of option3 of boundingbox for mobilenet-ssd-postprocess (LOCATIONS_IDX:CLASSES_IDX:SCORES_IDX:NUM_IDX = %d:%d:%d:%d) have to be less than the number of input tensors, %u. The given input tensors are: %s.",
+          tensor_mapping[LOCATIONS_IDX], tensor_mapping[CLASSES_IDX],
+          tensor_mapping[SCORES_IDX], tensor_mapping[NUM_IDX],
+          config->info.num_tensors, info_str);
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
 /** @brief Check compatibility of given tensors config */
 int
 MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
@@ -185,7 +217,7 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
   GstTensorInfo *info = nullptr;
   g_autofree gchar *info_str = NULL;
 
-  if (!check_tensors (config, MAX_TENSORS))
+  if (!check_tensors (config, MAX_TENSORS) || !checkTensorMapping (config))
     return FALSE;
 
   locations_idx = get_mobilenet_ssd_pp_tensor_idx (LOCATIONS_IDX);
@@ -271,6 +303,10 @@ MobilenetSSDPP::decode (const GstTensorsConfig *config, const GstTensorMemory *i
 
   /* Already checked with getOutCaps. Thus, this is an internal bug */
   g_assert (num_tensors >= MAX_TENSORS);
+
+  /* option3 may have been given again since getOutCaps () approved the stream */
+  if (!checkTensorMapping (config))
+    return NULL;
 
   locations_idx = get_mobilenet_ssd_pp_tensor_idx (LOCATIONS_IDX);
   classes_idx = get_mobilenet_ssd_pp_tensor_idx (CLASSES_IDX);
