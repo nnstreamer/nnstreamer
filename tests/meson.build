@@ -92,6 +92,16 @@ if gtest_dep.found()
 
   test('unittest_subplugin', unittest_subplugin, env: testenv)
 
+  # Run unittest_conf
+  unittest_conf = executable('unittest_conf',
+    join_paths('nnstreamer_conf', 'unittest_conf.cc'),
+    dependencies: [nnstreamer_unittest_deps, libdl_dep],
+    install: get_option('install-test'),
+    install_dir: unittest_install_dir
+  )
+
+  test('unittest_conf', unittest_conf, env: testenv)
+
   # Run unittest_sink
   gst18_dep = dependency('gstreamer-' + gst_api_version, version : '>=1.8', required : false)
   if gst18_dep.found()
