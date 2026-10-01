@@ -1582,8 +1582,8 @@ TEST (tensorDecoderBoundingBox, createEveryMode)
 {
   const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
   const gchar *const modes[] = { "mobilenet-ssd", "mobilenet-ssd-postprocess",
-    "ov-person-detection", "tflite-ssd", "tf-ssd", "yolov5",
-    "mp-palm-detection", "yolov8", "yolov8-obb", "yolov10" };
+    "ov-person-detection", "ov-face-detection", "tflite-ssd", "tf-ssd",
+    "yolov5", "mp-palm-detection", "yolov8", "yolov8-obb", "yolov10" };
   void *pdata = NULL;
   guint i;
 
@@ -2386,7 +2386,8 @@ TEST (tensorDecoderBoundingBox, messageUnknownMode_n)
     LogCapture log;
 
     EXPECT_FALSE (decoder->setOption (&pdata, 0, "yolov9"));
-    EXPECT_LOGGED (log, "\"yolov9\"", "mp-palm-detection, ov-person-detection, yolov10");
+    EXPECT_LOGGED (log, "\"yolov9\"",
+        "mp-palm-detection, ov-face-detection, ov-person-detection, yolov10");
   }
 
   decoder->exit (&pdata);
@@ -2914,8 +2915,9 @@ TEST (tensorDecoderBoundingBox, ssdPpTensorIndicesChangedWhileDecoding_n)
 }
 
 /**
- * @brief The option1 description names every mode option1 takes.
- * @details yolov10 was registered but left out of the description. The
+ * @brief The option1 description names every mode option1 takes, and only those.
+ * @details yolov10 was registered but left out of the description, and
+ *          ov-face-detection was described but no longer registered. The
  *          registered modes are the ones an unknown option1 lists.
  */
 TEST (tensorDecoderBoundingBox, optionOneDescriptionListsModes)
@@ -2923,7 +2925,7 @@ TEST (tensorDecoderBoundingBox, optionOneDescriptionListsModes)
   const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
   GData *desc_list
       = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "bounding_boxes");
-  const gchar *desc;
+  const gchar *desc, *begin, *end;
   LogCapture log;
 
   ASSERT_TRUE (decoder != NULL);
@@ -2931,6 +2933,24 @@ TEST (tensorDecoderBoundingBox, optionOneDescriptionListsModes)
   desc = (const gchar *) g_datalist_get_data (&desc_list, "option1");
   ASSERT_TRUE (desc != NULL);
   EXPECT_TRUE (strstr (desc, "|yolov10") != NULL) << desc;
+
+  begin = strchr (desc, '[');
+  end = strchr (desc, ']');
+  ASSERT_TRUE (begin != NULL && end != NULL && begin < end) << desc;
+  {
+    g_autofree gchar *list = g_strndup (begin + 1, end - begin - 1);
+    gchar **described = g_strsplit (list, "|", -1);
+    guint i;
+
+    for (i = 0; described[i] != NULL; i++) {
+      void *pdata = NULL;
+
+      ASSERT_TRUE (decoder->init (&pdata));
+      EXPECT_TRUE (decoder->setOption (&pdata, 0, described[i])) << described[i];
+      decoder->exit (&pdata);
+    }
+    g_strfreev (described);
+  }
 
 #ifndef __TIZEN__
   {
@@ -2960,6 +2980,50 @@ TEST (tensorDecoderBoundingBox, optionOneDescriptionListsModes)
     g_strfreev (modes);
   }
 #endif
+}
+
+/**
+ * @brief ov-face-detection decodes a detection as ov-person-detection does.
+ * @details The face detection models of OpenVINO describe their detections
+ *          as the person detection models do, and the mode used to be refused
+ *          since the box properties were registered by name.
+ */
+TEST (tensorDecoderBoundingBox, ovFaceDetectionDecodesAsPersonDetection)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const modes[] = { "ov-person-detection", "ov-face-detection" };
+  float tensor[OV_TENSOR_ELEMENTS] = { 0.0f };
+  uint32_t frames[2][BOX_OUT_PIXELS] = { { 0U } };
+  GstTensorsConfig config;
+  GstTensorMemory input;
+  guint i;
+
+  ASSERT_TRUE (decoder != NULL);
+  setOvDetectionConfig (&config);
+  setDetection (tensor, 0.25f, 0.25f, 0.75f, 0.75f);
+  input.data = tensor;
+  input.size = sizeof (tensor);
+
+  for (i = 0; i < G_N_ELEMENTS (modes); i++) {
+    void *pdata = NULL;
+
+    ASSERT_TRUE (decoder->init (&pdata));
+    if (!decoder->setOption (&pdata, 0, modes[i])) {
+      decoder->exit (&pdata);
+      gst_tensors_config_free (&config);
+      FAIL () << modes[i] << " is not a box decoding mode";
+    }
+    EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+    EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+    EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config)) << modes[i];
+    EXPECT_TRUE (decodeFrame (decoder, &pdata, &config, &input, frames[i])) << modes[i];
+    decoder->exit (&pdata);
+  }
+
+  EXPECT_GT (countDrawnPixels (frames[0], BOX_OUT_PIXELS), 0U);
+  EXPECT_EQ (memcmp (frames[0], frames[1], sizeof (frames[0])), 0);
+
+  gst_tensors_config_free (&config);
 }
 
 /**
