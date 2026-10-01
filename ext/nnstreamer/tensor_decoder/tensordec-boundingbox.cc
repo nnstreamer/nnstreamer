@@ -76,6 +76,7 @@ static const char *bb_modes[] = {
   [MP_PALM_DETECTION_BOUNDING_BOX] = "mp-palm-detection",
   [YOLOV8_BOUNDING_BOX] = "yolov8",
   [YOLOV8_ORIENTED_BOUNDING_BOX] = "yolov8-obb",
+  [YOLOV10_BOUNDING_BOX] = "yolov10",
   NULL,
 };
 
