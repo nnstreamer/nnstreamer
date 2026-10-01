@@ -153,6 +153,8 @@ typedef enum {
 
   YOLOV8_ORIENTED_BOUNDING_BOX = 9,
 
+  YOLOV10_BOUNDING_BOX = 10,
+
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
 

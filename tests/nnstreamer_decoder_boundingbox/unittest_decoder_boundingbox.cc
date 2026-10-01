@@ -24,6 +24,7 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api_util.h>
+#include <nnstreamer_subplugin.h>
 #include <nnstreamer_util.h>
 
 #define OV_DESC_SIZE (7U)
@@ -2910,6 +2911,55 @@ TEST (tensorDecoderBoundingBox, ssdPpTensorIndicesChangedWhileDecoding_n)
 
   decoder->exit (&pdata);
   removeTempFile (&labels);
+}
+
+/**
+ * @brief The option1 description names every mode option1 takes.
+ * @details yolov10 was registered but left out of the description. The
+ *          registered modes are the ones an unknown option1 lists.
+ */
+TEST (tensorDecoderBoundingBox, optionOneDescriptionListsModes)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  GData *desc_list
+      = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "bounding_boxes");
+  const gchar *desc;
+  LogCapture log;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (desc_list != NULL);
+  desc = (const gchar *) g_datalist_get_data (&desc_list, "option1");
+  ASSERT_TRUE (desc != NULL);
+  EXPECT_TRUE (strstr (desc, "|yolov10") != NULL) << desc;
+
+#ifndef __TIZEN__
+  {
+    const gchar *line, *names;
+    void *pdata = NULL;
+    gchar **modes;
+    guint i;
+
+    ASSERT_TRUE (decoder->init (&pdata));
+    EXPECT_FALSE (decoder->setOption (&pdata, 0, "no-such-decoding-mode"));
+    decoder->exit (&pdata);
+
+    ASSERT_EQ (log.lines->len, 1U) << log.dump ();
+    line = (const gchar *) g_ptr_array_index (log.lines, 0);
+    names = strstr (line, "The modes are: ");
+    ASSERT_TRUE (names != NULL) << line;
+    modes = g_strsplit_set (names + strlen ("The modes are: "), ",. ", -1);
+    for (i = 0; modes[i] != NULL; i++) {
+      g_autofree gchar *listed = g_strdup_printf ("%s|", modes[i]);
+      g_autofree gchar *last = g_strdup_printf ("|%s]", modes[i]);
+
+      if (modes[i][0] == '\0')
+        continue;
+      EXPECT_TRUE (strstr (desc, listed) != NULL || strstr (desc, last) != NULL)
+          << modes[i] << " is missing in " << desc;
+    }
+    g_strfreev (modes);
+  }
+#endif
 }
 
 /**
