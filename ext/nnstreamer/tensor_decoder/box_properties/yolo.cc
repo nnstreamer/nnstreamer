@@ -155,6 +155,14 @@ YoloV5::checkCompatible (const GstTensorsConfig *config)
   if (!check_tensors (config, 1U))
     return FALSE;
 
+  /** Only support for float type model */
+  if (info->type != _NNS_FLOAT32) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("YoloV5 bounding-box decoder accepts float32 input tensors only. The given input tensor is: %s.",
+        info_str);
+    return FALSE;
+  }
+
   max_detection = ((i_width / 32) * (i_height / 32) + (i_width / 16) * (i_height / 16)
                       + (i_width / 8) * (i_height / 8))
                   * 3;
