@@ -265,9 +265,9 @@ TEST (NnstWatchdog, feed)
   EXPECT_EQ (TRUE, ret);
 
   g_usleep (1000000);
+  nnstreamer_watchdog_destroy (watchdog_h);
   EXPECT_EQ (10U, *received);
 
-  nnstreamer_watchdog_destroy (watchdog_h);
   g_free (received);
 }
 
@@ -608,9 +608,8 @@ TEST (NnstWatchdog, releaseTwice)
 
   ASSERT_EQ (TRUE, nnstreamer_watchdog_feed (watchdog_h, _watchdog_trigger, 10, &received));
   g_usleep (1000000);
-  EXPECT_EQ (10U, received);
-
   nnstreamer_watchdog_destroy (watchdog_h);
+  EXPECT_EQ (10U, received);
 }
 
 /**
