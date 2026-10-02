@@ -122,7 +122,7 @@ NNStreamerRPC::stop ()
     return;
 
   /* notify to the worker */
-  stop_ = true;
+  g_atomic_int_set (&stop_, TRUE);
 
   if (queue_) {
     GstDataQueueSize level;
@@ -242,6 +242,24 @@ NNStreamerRPC::_start_client ()
   address += ":" + std::to_string (port_);
 
   return start_client (address);
+}
+
+/** @brief wait until config_ is negotiated before a received message is parsed */
+gboolean
+NNStreamerRPC::_wait_configured ()
+{
+  /* only a receiving element negotiates what it receives */
+  if (direction_ != GRPC_DIRECTION_BUFFER_TO_TENSORS)
+    return TRUE;
+
+  while (!g_atomic_int_get (&configured_)) {
+    /* an async server call held here keeps its completion queue from shutting down and stop () from joining the thread */
+    if (g_atomic_int_get (&stop_))
+      return FALSE;
+    g_usleep (G_USEC_PER_SEC / 100);
+  }
+
+  return TRUE;
 }
 
 /** @brief check the number of tensors a received message declares */
@@ -393,6 +411,19 @@ grpc_get_listening_port (void *instance)
   NNStreamerRPC *self = static_cast<NNStreamerRPC *> (instance);
 
   return self->getListeningPort ();
+}
+
+/**
+ * @brief tell the gRPC instance that the tensors config is negotiated
+ */
+void
+grpc_set_configured (void *instance)
+{
+  g_return_if_fail (instance != NULL);
+
+  NNStreamerRPC *self = static_cast<NNStreamerRPC *> (instance);
+
+  self->setConfigured ();
 }
 
 #define silent_debug(...)                   \

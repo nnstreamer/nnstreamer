@@ -106,6 +106,8 @@ void grpc_stop (void * instance);
 gboolean grpc_send (void * instance, GstBuffer * buffer);
 /** @brief Get the server's listening port, or -EINVAL for a client instance */
 int grpc_get_listening_port (void * instance);
+/** @brief Tell the instance that the tensors config is negotiated; received messages are held until then */
+void grpc_set_configured (void * instance);
 
 /** @brief Check whether the string is "localhost" or an IP address */
 gboolean _check_hostname (gchar * str);
