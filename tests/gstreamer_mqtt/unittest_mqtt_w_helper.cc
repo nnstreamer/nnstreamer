@@ -1619,7 +1619,7 @@ _churn_string_properties (GstElement *sink, MQTTAsync_deliveryComplete *dc, void
     g_free (p);
     i++;
     churn_rounds++;
-    g_thread_yield ();
+    g_usleep (10);
   }
 
   churn_finished = true;
