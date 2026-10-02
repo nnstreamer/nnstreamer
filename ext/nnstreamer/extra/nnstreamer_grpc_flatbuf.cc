@@ -48,6 +48,9 @@ ServiceImplFlatbuf::parse_tensors (Message<Tensors> &tensors)
 {
   GstBuffer *buffer;
 
+  if (!_wait_configured ())
+    return;
+
   if (!_get_buffer_from_tensors (tensors, &buffer))
     return;
 

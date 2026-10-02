@@ -452,15 +452,19 @@ static gboolean
 gst_tensor_src_grpc_set_caps (GstBaseSrc * src, GstCaps * caps)
 {
   GstTensorSrcGRPC *self;
+  grpc_private *grpc;
   gboolean ret;
 
   self = GST_TENSOR_SRC_GRPC (src);
+  grpc = GET_GRPC_PRIVATE (self);
 
   GST_OBJECT_LOCK (self);
 
   ret = gst_tensors_config_from_caps (&self->config, caps, TRUE);
   if (ret) {
     GST_OBJECT_FLAG_SET (self, GST_TENSOR_SRC_GRPC_CONFIGURED);
+    if (grpc->instance)
+      grpc_set_configured (grpc->instance);
   }
 
   GST_OBJECT_UNLOCK (self);

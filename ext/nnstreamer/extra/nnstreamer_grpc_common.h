@@ -64,6 +64,11 @@ class NNStreamerRPC {
         return -EINVAL;
     }
 
+    /** @brief tell that the element has negotiated the tensors config_ describes */
+    void setConfigured () {
+      g_atomic_int_set (&configured_, 1);
+    }
+
     /** @brief set library module handle */
     void setModuleHandle (void * handle) {
       if (handle_ == NULL)
@@ -98,6 +103,7 @@ class NNStreamerRPC {
     void * cb_data_;
 
     GstTensorsConfig *config_;
+    gint configured_ = 0;
     GstDataQueue *queue_;
 
     std::unique_ptr<Server> server_instance_;
@@ -108,6 +114,8 @@ class NNStreamerRPC {
     void * handle_;
     gboolean stop_;
 
+    /** @brief wait until config_ is negotiated before a received message is parsed; FALSE once stopping */
+    gboolean _wait_configured ();
     /** @brief check the tensor count of a received message; FALSE to drop it */
     gboolean _check_tensor_count (gint64 declared, gint64 carried);
     /** @brief check the data size of a received tensor; FALSE to drop the message */
