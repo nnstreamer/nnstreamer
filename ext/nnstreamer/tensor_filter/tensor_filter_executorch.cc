@@ -62,6 +62,8 @@ class executorch_subplugin final : public tensor_filter_subplugin
   /* executorch */
   std::unique_ptr<Module> module; /**< model module */
   std::vector<TensorPtr> input_tensors; /**< input tensors, re-pointed at each invoke */
+  std::vector<TensorPtr> output_tensors; /**< outputs ExecuTorch writes into the caller's buffers; null if memory-planned */
+  std::vector<size_t> output_nbytes; /**< byte size of each output, from the method meta */
 
   static tensor_type convertType (ScalarType type);
 
@@ -133,6 +135,9 @@ executorch_subplugin::cleanup ()
   /* A refused model may have filled part of the infos before configured is set. */
   gst_tensors_info_free (std::addressof (inputInfo));
   gst_tensors_info_free (std::addressof (outputInfo));
+  input_tensors.clear ();
+  output_tensors.clear ();
+  output_nbytes.clear ();
 
   configured = false;
 }
@@ -258,6 +263,16 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
         const int dim = output_meta->sizes ()[d];
         info->dimension[rank - 1 - d] = (uint32_t) dim;
       }
+
+      output_nbytes.push_back (output_meta->nbytes ());
+
+      /* A memory-planned output lives in the method's arena and cannot be redirected. */
+      if (output_meta->is_memory_planned ())
+        output_tensors.push_back (nullptr);
+      else
+        output_tensors.push_back (
+            make_tensor_ptr (std::vector<SizesType> (sizes.begin (), sizes.end ()),
+                static_cast<void *> (nullptr), type, TensorShapeDynamism::STATIC));
     }
 
     configured = true;
@@ -285,12 +300,32 @@ executorch_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
     input_values.push_back (*input_tensors[i]);
   }
 
+  for (size_t i = 0; i < outputInfo.num_tensors; ++i) {
+    if (output[i].size < output_nbytes[i])
+      throw std::runtime_error ("Output buffer " + std::to_string (i) + " is too small.");
+  }
+
+  /* The caller passes new output buffers on every invoke, so they are re-pointed each time. */
+  for (size_t i = 0; i < outputInfo.num_tensors; ++i) {
+    TensorPtr &tensor = output_tensors[i];
+
+    if (!tensor)
+      continue;
+
+    tensor->unsafeGetTensorImpl ()->set_data (output[i].data);
+    if (module->set_output (*tensor, i) != Error::Ok)
+      throw std::runtime_error ("Failed to set output buffer " + std::to_string (i));
+  }
+
   const auto result = module->forward (input_values);
   ET_CHECK_MSG (result.ok (), "Failed to execute the model");
 
-  /** @todo Remove memcpy of output tensor */
   for (size_t i = 0; i < outputInfo.num_tensors; ++i) {
     const auto result_tensor = result->at (i).toTensor ();
+
+    if (result_tensor.const_data_ptr () == output[i].data)
+      continue;
+
     std::memcpy (output[i].data, result_tensor.const_data_ptr (), result_tensor.nbytes ());
   }
 }
