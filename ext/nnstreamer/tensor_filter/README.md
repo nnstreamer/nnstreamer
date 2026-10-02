@@ -56,6 +56,8 @@ ExecuTorch has no distro package and publishes no prebuilt binaries for desktop 
 
 That script exists because the pkg-config file ExecuTorch generates links the runtime alone, without the operator kernels; a subplugin built against the stock file links cleanly and then fails on the first invoke with an unregistered operator.
 
+Outputs are written straight into the output buffers of ```tensor_filter``` when the model leaves them out of memory planning, i.e., when it is exported with ```to_executorch(ExecutorchBackendConfig(memory_planning_pass=MemoryPlanningPass(alloc_graph_output=False)))```. With the default export, outputs live in the memory-planned arena of the model and are copied out after each invoke.
+
 Input and output tensor types are taken from the model and mapped as follows:
 
 | ExecuTorch ```ScalarType``` | NNStreamer type |

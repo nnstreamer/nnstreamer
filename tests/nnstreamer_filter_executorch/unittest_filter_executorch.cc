@@ -24,6 +24,15 @@
  * exist to pin the tensor type mapping. sample_3x4_bfloat16_add_one.pte and
  * sample_17_input_bfloat16_output.pte (17 float32 inputs summed into one
  * bfloat16 output) have a type NNStreamer lacks and must be refused at open.
+ *
+ * sample_3x4_two_input_two_output_unplanned_output.pte computes the same as
+ * sample_3x4_two_input_two_output.pte, but its outputs are left out of memory
+ * planning, so ExecuTorch writes them straight into the caller's buffers.
+ * sample_3x4_aliased_outputs_unplanned_output.pte returns x + 1 twice, a
+ * constant tensor of ones and x itself, with the same export setting; the
+ * constant is the only output ExecuTorch reports as memory-planned.
+ * sample_3x4_scalar_output_unplanned_output.pte sums its input into a rank-0
+ * output, also unplanned.
  */
 
 #include <gtest/gtest.h>
@@ -751,6 +760,451 @@ TEST (nnstreamerFilterExecutorch, openCloseBfloat16Output_n)
 
   ret = sp->open (&prop, &data);
   EXPECT_NE (ret, 0);
+}
+
+/**
+ * @brief Outputs left out of memory planning are written by ExecuTorch itself.
+ *
+ * Such outputs have no storage of their own, so the right values can only
+ * appear in the caller's buffers if the sub-plugin handed those buffers to
+ * ExecuTorch before running the model.
+ */
+TEST (nnstreamerFilterExecutorch, invokeUnplannedOutput)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input[2], output[2];
+  g_autofree gchar *model_file
+      = _GetModelFilePath ("sample_3x4_two_input_two_output_unplanned_output.pte");
+
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_IS_REGULAR));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, model_files);
+
+  const gsize num_elems = 3 * 4;
+  const gsize tensor_size = sizeof (float) * num_elems;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  for (int i = 0; i < 2; i++) {
+    input[i].size = tensor_size;
+    input[i].data = g_malloc0 (tensor_size);
+    output[i].size = tensor_size;
+    output[i].data = g_malloc0 (tensor_size);
+  }
+
+  for (gsize i = 0; i < num_elems; i++) {
+    ((float *) input[0].data)[i] = (float) i;
+    ((float *) input[1].data)[i] = (float) i;
+  }
+
+  ret = sp->invoke (NULL, &prop, data, input, output);
+  EXPECT_EQ (ret, 0);
+
+  for (gsize i = 0; i < num_elems; i++) {
+    EXPECT_FLOAT_EQ (((float *) output[0].data)[i], (float) i + 1.0f);
+    EXPECT_FLOAT_EQ (((float *) output[1].data)[i], (float) i + 2.0f);
+  }
+
+  for (int i = 0; i < 2; i++) {
+    g_free (input[i].data);
+    g_free (output[i].data);
+  }
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Each invoke writes into the output buffers given to that invoke.
+ *
+ * Two sets of output buffers alternate, as pooled buffers do in a pipeline.
+ * A pointer kept from an earlier invoke would leave the current set stale and
+ * overwrite the other one.
+ */
+TEST (nnstreamerFilterExecutorch, invokeUnplannedOutputRepeated)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input[2], output[2][2];
+  g_autofree gchar *model_file
+      = _GetModelFilePath ("sample_3x4_two_input_two_output_unplanned_output.pte");
+
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_IS_REGULAR));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, model_files);
+
+  const gsize num_elems = 3 * 4;
+  const gsize tensor_size = sizeof (float) * num_elems;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  for (int i = 0; i < 2; i++) {
+    input[i].size = tensor_size;
+    input[i].data = g_malloc0 (tensor_size);
+    for (int s = 0; s < 2; s++) {
+      output[s][i].size = tensor_size;
+      output[s][i].data = g_malloc0 (tensor_size);
+    }
+  }
+
+  for (int round = 0; round < 4; round++) {
+    const int cur = round % 2;
+    const int other = 1 - cur;
+
+    for (gsize i = 0; i < num_elems; i++) {
+      ((float *) input[0].data)[i] = (float) (i + 10 * round);
+      ((float *) input[1].data)[i] = (float) (i + 10 * round);
+    }
+
+    ret = sp->invoke (NULL, &prop, data, input, output[cur]);
+    EXPECT_EQ (ret, 0) << "invoke failed on round " << round;
+    if (ret != 0)
+      break;
+
+    for (gsize i = 0; i < num_elems; i++) {
+      /* the other set holds the previous round, or zeros before it was used */
+      const float prev = (round == 0) ? 0.0f : (float) (i + 10 * (round - 1));
+
+      EXPECT_FLOAT_EQ (((float *) output[cur][0].data)[i], (float) (i + 10 * round) + 1.0f);
+      EXPECT_FLOAT_EQ (((float *) output[cur][1].data)[i], (float) (i + 10 * round) + 2.0f);
+      EXPECT_FLOAT_EQ (((float *) output[other][0].data)[i], round == 0 ? 0.0f : prev + 1.0f);
+      EXPECT_FLOAT_EQ (((float *) output[other][1].data)[i], round == 0 ? 0.0f : prev + 2.0f);
+    }
+  }
+
+  for (int i = 0; i < 2; i++) {
+    g_free (input[i].data);
+    for (int s = 0; s < 2; s++)
+      g_free (output[s][i].data);
+  }
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief ExecuTorch writes exactly the caller's region, at any element offset.
+ *
+ * The output buffers start one element into a larger allocation, so they are
+ * not 16-byte aligned, and the bytes around them must stay untouched.
+ */
+TEST (nnstreamerFilterExecutorch, invokeUnplannedOutputOffset)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input[2], output[2];
+  guint8 *block[2];
+  g_autofree gchar *model_file
+      = _GetModelFilePath ("sample_3x4_two_input_two_output_unplanned_output.pte");
+
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_IS_REGULAR));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, model_files);
+
+  const gsize num_elems = 3 * 4;
+  const gsize tensor_size = sizeof (float) * num_elems;
+  const gsize pad = sizeof (float);
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  for (int i = 0; i < 2; i++) {
+    input[i].size = tensor_size;
+    input[i].data = g_malloc0 (tensor_size);
+    block[i] = (guint8 *) g_malloc (tensor_size + 2 * pad);
+    memset (block[i], 0xA5, tensor_size + 2 * pad);
+    output[i].size = tensor_size;
+    output[i].data = block[i] + pad;
+  }
+
+  for (gsize i = 0; i < num_elems; i++) {
+    ((float *) input[0].data)[i] = (float) i;
+    ((float *) input[1].data)[i] = (float) i;
+  }
+
+  ret = sp->invoke (NULL, &prop, data, input, output);
+  EXPECT_EQ (ret, 0);
+
+  for (int t = 0; t < 2; t++) {
+    for (gsize i = 0; i < num_elems; i++)
+      EXPECT_FLOAT_EQ (((float *) output[t].data)[i], (float) i + 1.0f + t);
+    for (gsize b = 0; b < pad; b++) {
+      EXPECT_EQ (block[t][b], 0xA5);
+      EXPECT_EQ (block[t][pad + tensor_size + b], 0xA5);
+    }
+  }
+
+  for (int i = 0; i < 2; i++) {
+    g_free (input[i].data);
+    g_free (block[i]);
+  }
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Outputs that share a tensor, are constant or echo the input.
+ *
+ * sample_3x4_aliased_outputs_unplanned_output.pte returns x + 1 twice, a
+ * constant tensor of ones and x itself. The two x + 1 outputs are one tensor,
+ * so redirecting both leaves the result in the second buffer only; x is the
+ * caller's input buffer; and the constant counts as memory-planned, so it
+ * cannot be redirected. Every buffer must still end up with its value, on
+ * each invoke with its own buffers.
+ */
+TEST (nnstreamerFilterExecutorch, invokeUnplannedAliasedOutputs)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output[2][4];
+  g_autofree gchar *model_file
+      = _GetModelFilePath ("sample_3x4_aliased_outputs_unplanned_output.pte");
+
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_IS_REGULAR));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, model_files);
+
+  const gsize num_elems = 3 * 4;
+  const gsize tensor_size = sizeof (float) * num_elems;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  input.size = tensor_size;
+  input.data = g_malloc0 (tensor_size);
+  for (int s = 0; s < 2; s++) {
+    for (int t = 0; t < 4; t++) {
+      output[s][t].size = tensor_size;
+      output[s][t].data = g_malloc0 (tensor_size);
+    }
+  }
+
+  for (int round = 0; round < 2; round++) {
+    for (gsize i = 0; i < num_elems; i++)
+      ((float *) input.data)[i] = (float) (i + 10 * round);
+
+    ret = sp->invoke (NULL, &prop, data, &input, output[round]);
+    EXPECT_EQ (ret, 0) << "invoke failed on round " << round;
+    if (ret != 0)
+      break;
+
+    for (gsize i = 0; i < num_elems; i++) {
+      const float x = (float) (i + 10 * round);
+
+      EXPECT_FLOAT_EQ (((float *) output[round][0].data)[i], x + 1.0f);
+      EXPECT_FLOAT_EQ (((float *) output[round][1].data)[i], x + 1.0f);
+      EXPECT_FLOAT_EQ (((float *) output[round][2].data)[i], 1.0f);
+      EXPECT_FLOAT_EQ (((float *) output[round][3].data)[i], x);
+    }
+  }
+
+  g_free (input.data);
+  for (int s = 0; s < 2; s++) {
+    for (int t = 0; t < 4; t++)
+      g_free (output[s][t].data);
+  }
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief A rank-0 output is written into a buffer of its real size.
+ *
+ * The tensor info of a rank-0 tensor has no dimension at all, so its size
+ * there is 0; the buffer check has to use the size ExecuTorch reports. Such a
+ * model does not negotiate in a pipeline for the same reason, so only a direct
+ * caller of the filter API reaches this path.
+ */
+TEST (nnstreamerFilterExecutorch, invokeUnplannedScalarOutput)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file
+      = _GetModelFilePath ("sample_3x4_scalar_output_unplanned_output.pte");
+
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_IS_REGULAR));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, model_files);
+
+  const gsize num_elems = 3 * 4;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  input.size = sizeof (float) * num_elems;
+  input.data = g_malloc0 (input.size);
+  output.size = sizeof (float);
+  output.data = g_malloc0 (output.size);
+
+  for (gsize i = 0; i < num_elems; i++)
+    ((float *) input.data)[i] = (float) i;
+
+  ret = sp->invoke (NULL, &prop, data, &input, &output);
+  EXPECT_EQ (ret, 0);
+  EXPECT_FLOAT_EQ (*(float *) output.data, 66.0f);
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief A rank-0 output is not written into a buffer claimed to be empty.
+ */
+TEST (nnstreamerFilterExecutorch, invokeUnplannedScalarShortOutput_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file
+      = _GetModelFilePath ("sample_3x4_scalar_output_unplanned_output.pte");
+
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_IS_REGULAR));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, model_files);
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  input.size = sizeof (float) * 3 * 4;
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc0 (sizeof (float));
+  output.size = 0;
+  *(float *) output.data = -1.0f;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0);
+  EXPECT_FLOAT_EQ (*(float *) output.data, -1.0f);
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief A memory-planned output is not copied into a buffer that is too small.
+ *
+ * The second output buffer claims one element less than the tensor needs. The
+ * allocation behind it is full size, so a copy past the claimed size shows up
+ * in its last element instead of corrupting the heap. The invoke is refused
+ * before the model runs, so the first output is not written either.
+ */
+TEST (nnstreamerFilterExecutorch, invokeShortOutput_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input[2], output[2];
+  g_autofree gchar *model_file = _GetModelFilePath ("sample_3x4_two_input_two_output.pte");
+
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_IS_REGULAR));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, model_files);
+
+  const gsize num_elems = 3 * 4;
+  const gsize tensor_size = sizeof (float) * num_elems;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  for (int i = 0; i < 2; i++) {
+    input[i].size = tensor_size;
+    input[i].data = g_malloc0 (tensor_size);
+    output[i].size = tensor_size;
+    output[i].data = g_malloc0 (tensor_size);
+  }
+  output[1].size = tensor_size - sizeof (float);
+  ((float *) output[1].data)[num_elems - 1] = -1.0f;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, input, output), 0);
+  EXPECT_FLOAT_EQ (((float *) output[1].data)[num_elems - 1], -1.0f);
+  for (gsize i = 0; i < num_elems; i++)
+    EXPECT_FLOAT_EQ (((float *) output[0].data)[i], 0.0f);
+
+  for (int i = 0; i < 2; i++) {
+    g_free (input[i].data);
+    g_free (output[i].data);
+  }
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief An output buffer too small for an unplanned output is refused.
+ *
+ * ExecuTorch would write the whole tensor into it, so it must not be handed
+ * over at all.
+ */
+TEST (nnstreamerFilterExecutorch, invokeUnplannedShortOutput_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input[2], output[2];
+  g_autofree gchar *model_file
+      = _GetModelFilePath ("sample_3x4_two_input_two_output_unplanned_output.pte");
+
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_IS_REGULAR));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, model_files);
+
+  const gsize num_elems = 3 * 4;
+  const gsize tensor_size = sizeof (float) * num_elems;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  for (int i = 0; i < 2; i++) {
+    input[i].size = tensor_size;
+    input[i].data = g_malloc0 (tensor_size);
+    output[i].size = tensor_size;
+    output[i].data = g_malloc0 (tensor_size);
+  }
+  output[1].size = tensor_size - sizeof (float);
+  ((float *) output[1].data)[num_elems - 1] = -1.0f;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, input, output), 0);
+  EXPECT_FLOAT_EQ (((float *) output[1].data)[num_elems - 1], -1.0f);
+
+  for (int i = 0; i < 2; i++) {
+    g_free (input[i].data);
+    g_free (output[i].data);
+  }
+  sp->close (&prop, &data);
 }
 
 /**
