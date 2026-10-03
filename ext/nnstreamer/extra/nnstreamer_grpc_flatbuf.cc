@@ -48,6 +48,9 @@ ServiceImplFlatbuf::parse_tensors (Message<Tensors> &tensors)
 {
   GstBuffer *buffer;
 
+  if (!_wait_configured ())
+    return;
+
   if (!_get_buffer_from_tensors (tensors, &buffer))
     return;
 
@@ -211,7 +214,13 @@ Status
 SyncServiceImplFlatbuf::SendTensors (ServerContext *context,
     ServerReader<Message<Tensors>> *reader, Message<Empty> *replay)
 {
-  return _read_tensors (reader);
+  Status status = _read_tensors (reader);
+  MessageBuilder builder;
+
+  builder.Finish (nnstreamer::flatbuf::CreateEmpty (builder));
+  *replay = builder.ReleaseMessage<Empty> ();
+
+  return status;
 }
 
 /** @brief server-to-client streaming: a client receives tensors */
@@ -244,12 +253,11 @@ gboolean
 SyncServiceImplFlatbuf::start_client (std::string address)
 {
   /* create a gRPC channel */
-  std::shared_ptr<Channel> channel
-      = grpc::CreateChannel (address, grpc::InsecureChannelCredentials ());
+  channel_ = grpc::CreateChannel (address, grpc::InsecureChannelCredentials ());
 
   /* connect the server */
   try {
-    client_stub_ = TensorService::NewStub (channel);
+    client_stub_ = TensorService::NewStub (channel_);
   } catch (...) {
     ml_loge ("Failed to connect the server");
     return FALSE;
@@ -265,23 +273,26 @@ SyncServiceImplFlatbuf::_client_thread ()
 {
   ClientContext context;
 
+  _set_client_context (&context);
+
   if (direction_ == GRPC_DIRECTION_TENSORS_TO_BUFFER) {
-    Message<Empty> empty;
+    /* Finish () aborts on a reply that is no valid flatbuf, as older servers send; take it raw */
+    ByteBuffer reply;
+    /* the path the generated stub uses for SendTensors in nnstreamer.fbs */
+    grpc::internal::RpcMethod method ("/nnstreamer.flatbuf.TensorService/SendTensors",
+        grpc::internal::RpcMethod::CLIENT_STREAMING, channel_);
 
     /* initiate the RPC call */
     std::unique_ptr<ClientWriter<Message<Tensors>>> writer (
-        client_stub_->SendTensors (&context, &empty));
+        grpc::internal::ClientWriterFactory<Message<Tensors>>::Create (
+            channel_.get (), method, &context, &reply));
 
     _write_tensors (writer.get ());
 
     writer->WritesDone ();
-    /**
-     * TODO: The below incurs assertion failure but it seems like a bug.
-     * Let's check it later with the latest gRPC version.
-     *
-     * writer->Finish ();
-     */
-    g_usleep (G_USEC_PER_SEC / 100);
+    Status status = writer->Finish ();
+    if (!status.ok ())
+      ml_logw ("The gRPC call ended with an error: %s", status.error_message ().c_str ());
   } else if (direction_ == GRPC_DIRECTION_BUFFER_TO_TENSORS) {
     MessageBuilder builder;
 
@@ -298,6 +309,8 @@ SyncServiceImplFlatbuf::_client_thread ()
   } else {
     g_assert (0); /* internal logic error */
   }
+
+  _set_client_context (nullptr);
 }
 
 /** @brief Constructor of AsyncServiceImplFlatbuf */
@@ -357,13 +370,17 @@ AsyncServiceImplFlatbuf::start_client (std::string address)
   return TRUE;
 }
 
+/* the call data classes are local: the other IDL sub-plugin defines classes of the same names */
+namespace
+{
+
 /** @brief Internal derived class for server */
-class AsyncCallDataServer : public AsyncCallData
+class AsyncCallDataServer : public AsyncCallDataFlatbuf
 {
   public:
   /** @brief Constructor of AsyncCallDataServer */
   AsyncCallDataServer (AsyncServiceImplFlatbuf *service, ServerCompletionQueue *cq)
-      : AsyncCallData (service), cq_ (cq), writer_ (nullptr), reader_ (nullptr)
+      : AsyncCallDataFlatbuf (service), cq_ (cq), writer_ (nullptr), reader_ (nullptr)
   {
     RunState ();
   }
@@ -371,10 +388,21 @@ class AsyncCallDataServer : public AsyncCallData
   /** @brief implemented RunState () of AsyncCallDataServer */
   void RunState (bool ok = true) override
   {
+    /**
+     * The queue may be shut down now: start no operation, even after a
+     * successful completion. Only PROCESS starts one on an event; FINISH comes
+     * from it and DESTROY only frees.
+     */
+    if (state_ == PROCESS && service_->isShuttingDown ()) {
+      /* the call waiting for a new client is the last call, freed by the service */
+      if (count_ != 0)
+        delete this;
+      return;
+    }
+
     if (state_ == PROCESS && !ok) {
+      /* a failed read carries no message; the last one was parsed when it arrived */
       if (count_ != 0) {
-        if (reader_.get () != nullptr)
-          service_->parse_tensors (rpc_tensors_);
         state_ = FINISH;
       } else {
         return;
@@ -445,14 +473,14 @@ static gint client_calls_live = 0;
 static gint client_calls_unfinished = 0;
 
 /** @brief Internal derived class for client */
-class AsyncCallDataClient : public AsyncCallData
+class AsyncCallDataClient : public AsyncCallDataFlatbuf
 {
   public:
   /** @brief Constructor of AsyncCallDataClient */
   AsyncCallDataClient (AsyncServiceImplFlatbuf *service,
       TensorService::Stub *stub, CompletionQueue *cq)
-      : AsyncCallData (service), stub_ (stub), cq_ (cq), writer_ (nullptr),
-        reader_ (nullptr), done_ (false), drained_ (false)
+      : AsyncCallDataFlatbuf (service), stub_ (stub), cq_ (cq),
+        writer_ (nullptr), reader_ (nullptr), done_ (false), drained_ (false)
   {
     g_atomic_int_inc (&client_calls_live);
     RunState ();
@@ -488,9 +516,8 @@ class AsyncCallDataClient : public AsyncCallData
   void RunState (bool ok = true) override
   {
     if (state_ == PROCESS && !ok) {
+      /* a failed read carries no message; the last one was parsed when it arrived */
       if (count_ != 0) {
-        if (reader_.get () != nullptr)
-          service_->parse_tensors (rpc_tensors_);
         state_ = FINISH;
       } else {
         /* nothing was read or written; no batch is outstanding */
@@ -555,6 +582,8 @@ class AsyncCallDataClient : public AsyncCallData
   bool done_;
   bool drained_;
 };
+
+} /* namespace */
 
 /** @brief gRPC client thread */
 void
