@@ -308,28 +308,28 @@ _count_glib_critical (const gchar *, GLogLevelFlags, const gchar *, gpointer)
   glib_critical_cnt++;
 }
 
-static guint overflow_log_cnt = 0;
+static guint invalid_index_log_cnt = 0;
 
 /**
- * @brief Log handler counting the overflow reports of the option parsers
+ * @brief Log handler counting the invalid index reports of the option parsers
  */
 static void
-_count_overflow_log (const gchar *, GLogLevelFlags, const gchar *message, gpointer)
+_count_invalid_index_log (const gchar *, GLogLevelFlags, const gchar *message, gpointer)
 {
-  if (message && g_strrstr (message, "Overflow occurred"))
-    overflow_log_cnt++;
+  if (message && g_strrstr (message, "Invalid tensor index"))
+    invalid_index_log_cnt++;
 }
 
 /**
- * @brief Set the option properties of @a tif and count the overflow reports.
+ * @brief Set the option properties of @a tif and count the invalid index reports.
  */
 static guint
 _set_options_with_errno (GstElement *tif, const gchar *cv_option, const gchar *option, int err)
 {
   GLogFunc prev_handler;
 
-  overflow_log_cnt = 0;
-  prev_handler = g_log_set_default_handler (_count_overflow_log, NULL);
+  invalid_index_log_cnt = 0;
+  prev_handler = g_log_set_default_handler (_count_invalid_index_log, NULL);
 
   errno = err;
   g_object_set (tif, "then-option", option, NULL);
@@ -340,7 +340,7 @@ _set_options_with_errno (GstElement *tif, const gchar *cv_option, const gchar *o
 
   g_log_set_default_handler (prev_handler, NULL);
 
-  return overflow_log_cnt;
+  return invalid_index_log_cnt;
 }
 
 /**
@@ -348,7 +348,7 @@ _set_options_with_errno (GstElement *tif, const gchar *cv_option, const gchar *o
  * @details ml_loge () is g_critical () in a Linux distro build, but dlog on
  *          Tizen and logcat on Android, where the handler counts nothing. The
  *          decision is made at compile time on purpose: asking the parser under
- *          test would let a future loss of the overflow report skip the cases
+ *          test would let a future loss of the index report skip the cases
  *          below instead of failing them.
  */
 #if defined(__TIZEN__) || defined(__ANDROID__)
@@ -389,6 +389,7 @@ TEST (tensorIfProp, optionStaleErrno)
 
 /**
  * @brief Test that the option parsers of tensor_if still report a real overflow (negative)
+ * @note compared-value-option may name a custom callback, so it is not reported.
  */
 TEST (tensorIfProp, optionOverflow_n)
 {
@@ -396,11 +397,157 @@ TEST (tensorIfProp, optionOverflow_n)
   GTEST_SKIP () << "ml_loge () does not reach the GLib log domain here";
 #endif
   GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  gchar *str_val = NULL;
 
   ASSERT_NE (tif, nullptr);
 
-  EXPECT_EQ (3U, _set_options_with_errno (tif, "1:2:1:1,99999999999999999999",
+  EXPECT_EQ (0U, _set_options_with_errno (tif, "1:2:1:1,1", "0,1", 0));
+  EXPECT_EQ (2U, _set_options_with_errno (tif, "1:2:1:1,99999999999999999999",
                      "99999999999999999999", 0));
+
+  g_object_get (tif, "then-option", &str_val, NULL);
+  EXPECT_STREQ ("0,1", str_val);
+  g_free (str_val);
+
+  g_object_get (tif, "else-option", &str_val, NULL);
+  EXPECT_STREQ ("0,1", str_val);
+  g_free (str_val);
+
+  g_object_get (tif, "compared-value-option", &str_val, NULL);
+  EXPECT_STREQ ("", str_val);
+  g_free (str_val);
+
+  gst_object_unref (tif);
+}
+
+/**
+ * @brief Test that the name of a custom callback is not reported as an invalid index
+ */
+TEST (tensorIfProp, optionCustomName)
+{
+#if !ML_LOGE_REACHES_GLIB
+  GTEST_SKIP () << "ml_loge () does not reach the GLib log domain here";
+#endif
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  gchar *str_val = NULL;
+
+  ASSERT_NE (tif, nullptr);
+
+  EXPECT_EQ (0U, _set_options_with_errno (tif, "tifx", "0", 0));
+
+  g_object_get (tif, "compared-value-option", &str_val, NULL);
+  EXPECT_STREQ ("", str_val);
+  g_free (str_val);
+
+  gst_object_unref (tif);
+}
+
+/**
+ * @brief Check that @a option of tensor_if refuses @a value and keeps "0,1".
+ */
+static void
+_expect_refused_option (GstElement *tif, const gchar *option, const gchar *value)
+{
+  gchar *str_val = NULL;
+
+  g_object_set (tif, option, "0,1", NULL);
+  g_object_set (tif, option, value, NULL);
+  g_object_get (tif, option, &str_val, NULL);
+  EXPECT_STREQ ("0,1", str_val) << option << "=" << value;
+  g_free (str_val);
+}
+
+/**
+ * @brief Test that tensor_if keeps a tensorpick option with a token that is not an index (negative)
+ */
+TEST (tensorIfProp, optionNotIndex_n)
+{
+  const gchar *invalid[] = { "0,abc", "0,1,", ",1", "1x", "4294967297",
+    "2147483648", "-1", "+1", "0x1", "1 2", NULL };
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  guint i;
+
+  ASSERT_NE (tif, nullptr);
+
+  for (i = 0; invalid[i] != NULL; i++) {
+    _expect_refused_option (tif, "then-option", invalid[i]);
+    _expect_refused_option (tif, "else-option", invalid[i]);
+  }
+
+  gst_object_unref (tif);
+}
+
+/**
+ * @brief Test that tensor_if accepts the bounds of a tensorpick index and blanks around it
+ */
+TEST (tensorIfProp, optionIndexBounds)
+{
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  gchar *str_val = NULL;
+
+  ASSERT_NE (tif, nullptr);
+
+  g_object_set (tif, "then-option", " 2 , 0 ", NULL);
+  g_object_get (tif, "then-option", &str_val, NULL);
+  EXPECT_STREQ ("2,0", str_val);
+  g_free (str_val);
+
+  g_object_set (tif, "else-option", "2147483647,007", NULL);
+  g_object_get (tif, "else-option", &str_val, NULL);
+  EXPECT_STREQ ("2147483647,7", str_val);
+  g_free (str_val);
+
+  g_object_set (tif, "then-option", "", NULL);
+  g_object_get (tif, "then-option", &str_val, NULL);
+  EXPECT_STREQ ("", str_val);
+  g_free (str_val);
+
+  gst_object_unref (tif);
+}
+
+/**
+ * @brief Test that a compared-value option that is not an index list leaves no index (negative)
+ */
+TEST (tensorIfProp, cvOptionNotIndex_n)
+{
+  const gchar *invalid[] = { "1:2:x:1,1", "1:2:1:1,x", "1:2:1:1,", "1:2:1:1,-1",
+    "1::1:1,1", "1:2:1:1,4294967297", "", "x", ",1", " ,1", NULL };
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  gchar *str_val = NULL;
+  guint i;
+
+  ASSERT_NE (tif, nullptr);
+
+  for (i = 0; invalid[i] != NULL; i++) {
+    g_object_set (tif, "compared-value-option", "1:2:1:1,1", NULL);
+    g_object_set (tif, "compared-value-option", invalid[i], NULL);
+    g_object_get (tif, "compared-value-option", &str_val, NULL);
+    EXPECT_STREQ ("", str_val) << invalid[i];
+    g_free (str_val);
+  }
+
+  gst_object_unref (tif);
+}
+
+/**
+ * @brief Test that a compared-value option allows blanks around its indices
+ */
+TEST (tensorIfProp, cvOptionBlanks)
+{
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  gchar *str_val = NULL;
+
+  ASSERT_NE (tif, nullptr);
+
+  g_object_set (tif, "compared-value-option", " 1 : 2 : 1 : 1 , 1 ", NULL);
+  g_object_get (tif, "compared-value-option", &str_val, NULL);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal ("1:2:1:1,1", str_val));
+  g_free (str_val);
+
+  g_object_set (tif, "compared-value-option", " 1 ", NULL);
+  g_object_get (tif, "compared-value-option", &str_val, NULL);
+  EXPECT_STREQ ("1", str_val);
+  g_free (str_val);
 
   gst_object_unref (tif);
 }
@@ -519,6 +666,79 @@ TEST (tensorIfProp, suppliedValue1_n)
   gst_object_unref (tif_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
+}
+
+/**
+ * @brief Test for tensor_if supplied value with a token that is not a number (negative)
+ */
+TEST (tensorIfProp, suppliedValueNotNumber_n)
+{
+  const gchar *invalid[] = { "10,abc", "abc", "1x", "10,", ",10", "1.5x", "1.5,abc", "1e",
+    "e1", "9223372036854775808", "0x10", "1 0", "1e999", "-1e999", "1e-999", NULL };
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  gchar *str_val = NULL;
+  guint i;
+
+  ASSERT_NE (tif, nullptr);
+
+  for (i = 0; invalid[i] != NULL; i++) {
+    g_object_set (tif, "supplied-value", "10,100", NULL);
+    g_object_set (tif, "supplied-value", invalid[i], NULL);
+    g_object_get (tif, "supplied-value", &str_val, NULL);
+    EXPECT_STREQ ("10,100", str_val) << invalid[i];
+    g_free (str_val);
+  }
+
+  gst_object_unref (tif);
+}
+
+/**
+ * @brief Test for tensor_if supplied value at the bounds of its types and with blanks
+ */
+TEST (tensorIfProp, suppliedValueBounds)
+{
+  GstElement *tif = gst_element_factory_make ("tensor_if", NULL);
+  gchar *str_val = NULL;
+  gchar **strv;
+
+  ASSERT_NE (tif, nullptr);
+
+  g_object_set (tif, "supplied-value", " -10 , 100 ", NULL);
+  g_object_get (tif, "supplied-value", &str_val, NULL);
+  EXPECT_STREQ ("-10,100", str_val);
+  g_free (str_val);
+
+  /* the getter prints a long, which cannot hold these on a 32-bit target */
+  g_object_set (tif, "supplied-value", "-9223372036854775808,9223372036854775807", NULL);
+  g_object_get (tif, "supplied-value", &str_val, NULL);
+  EXPECT_STRNE ("-10,100", str_val);
+  g_free (str_val);
+
+  g_object_set (tif, "supplied-value", " -1.5 , 2e3 ", NULL);
+  g_object_get (tif, "supplied-value", &str_val, NULL);
+  strv = g_strsplit (str_val, ",", -1);
+  ASSERT_EQ (2U, g_strv_length (strv));
+  EXPECT_DOUBLE_EQ (-1.5, g_ascii_strtod (strv[0], NULL));
+  EXPECT_DOUBLE_EQ (2000.0, g_ascii_strtod (strv[1], NULL));
+  g_strfreev (strv);
+  g_free (str_val);
+
+  /* an exponent alone makes the values floating-point */
+  g_object_set (tif, "supplied-value", "2E3,3e-1", NULL);
+  g_object_get (tif, "supplied-value", &str_val, NULL);
+  strv = g_strsplit (str_val, ",", -1);
+  ASSERT_EQ (2U, g_strv_length (strv));
+  EXPECT_DOUBLE_EQ (2000.0, g_ascii_strtod (strv[0], NULL));
+  EXPECT_DOUBLE_EQ (0.3, g_ascii_strtod (strv[1], NULL));
+  g_strfreev (strv);
+  g_free (str_val);
+
+  g_object_set (tif, "supplied-value", "1.7e308", NULL);
+  g_object_get (tif, "supplied-value", &str_val, NULL);
+  EXPECT_DOUBLE_EQ (1.7e308, g_ascii_strtod (str_val, NULL));
+  g_free (str_val);
+
+  gst_object_unref (tif);
 }
 
 /**
@@ -1458,6 +1678,54 @@ TEST (tensorIfAppsrc, comparedValueIndexOverRank_n)
 TEST (tensorIfAppsrc, comparedValueNegativeIndex_n)
 {
   _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, "-1:0:0:0,0");
+}
+
+/**
+ * @brief An element index that is not a number used to be read as index 0.
+ */
+TEST (tensorIfAppsrc, comparedValueNotIndex_n)
+{
+  _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, "2:3:x:1,0");
+  _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, "2:3:1:1,x");
+  _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, ",0");
+}
+
+/**
+ * @brief Blanks around the element indices select the same element.
+ */
+TEST (tensorIfAppsrc, comparedValueBlanks)
+{
+  gchar *error_src = NULL;
+  GError *error = NULL;
+  guint received = 0;
+
+  EXPECT_EQ (GST_MESSAGE_EOS,
+      _push_a_value_frame (TEST_FRAME_CAPS, TEST_FRAME_SIZE,
+          "\" 2 : 3 : 1 : 1 , 0 \"", "1224", &error_src, &error, &received));
+  EXPECT_EQ (1U, received);
+
+  g_clear_error (&error);
+  g_free (error_src);
+}
+
+/**
+ * @brief A tensor index of TENSOR_AVERAGE_VALUE that is not a number used to be read as tensor 0.
+ */
+TEST (tensorIfAppsrc, tensorAverageNotIndex_n)
+{
+  gchar *error_src = NULL;
+  GError *error = NULL;
+  guint received = 0;
+
+  EXPECT_EQ (GST_MESSAGE_ERROR, _push_if_frame (TEST_FRAME_CAPS, TEST_FRAME_SIZE,
+                                    "compared-value=TENSOR_AVERAGE_VALUE compared-value-option=x "
+                                    "supplied-value=0 operator=GE then=PASSTHROUGH else=SKIP",
+                                    &error_src, &error, &received));
+  EXPECT_STREQ ("tif", error_src);
+  EXPECT_EQ (0U, received);
+
+  g_clear_error (&error);
+  g_free (error_src);
 }
 
 /**
