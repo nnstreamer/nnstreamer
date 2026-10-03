@@ -8,10 +8,13 @@
  */
 
 #include <gtest/gtest.h>
+#include <fcntl.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api_util.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <unittest_util.h>
 
 static const gchar filename[] = "mnist.data";
@@ -1013,6 +1016,118 @@ TEST (datareposink, writeFlexibleTensorShortMemory_n)
 
   EXPECT_EQ (_write_short_flexible_memory (8, &type), 0);
   EXPECT_EQ (type, GST_MESSAGE_ERROR);
+}
+
+/**
+ * @brief Run @a pipeline until EOS or ERROR; the caller sets it to NULL.
+ * @return the first EOS or ERROR message type.
+ */
+static GstMessageType
+_run_to_eos (GstElement *pipeline)
+{
+  GstMessageType type = GST_MESSAGE_UNKNOWN;
+  GstBus *bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  guint i;
+
+  gst_bus_add_signal_watch (bus);
+  g_signal_connect (bus, "message", G_CALLBACK (_short_bus_cb), &type);
+
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  for (i = 0; i < 500 && type == GST_MESSAGE_UNKNOWN; i++) {
+    g_main_context_iteration (NULL, FALSE);
+    g_usleep (10000);
+  }
+
+  gst_bus_remove_signal_watch (bus);
+  gst_object_unref (bus);
+
+  return type;
+}
+
+/**
+ * @brief An image sink never opens a data file, so its stop must not close fd 0.
+ */
+TEST (datareposink, imageStopKeepsFd0_n)
+{
+  struct stat marker, st;
+  gint saved = dup (0);
+  gint fd = g_open ("fd0.marker", O_RDWR | O_CREAT | O_TRUNC, 0644);
+  GstElement *pipeline;
+  gint i;
+
+  EXPECT_GE (fd, 0);
+  if (fd > 0) {
+    EXPECT_EQ (dup2 (fd, 0), 0);
+    close (fd);
+  }
+  EXPECT_EQ (fstat (0, &marker), 0);
+
+  pipeline = gst_parse_launch ("videotestsrc num-buffers=2 ! pngenc ! "
+                               "datareposink location=fd0_%02d.png json=fd0.json",
+      NULL);
+  EXPECT_NE (pipeline, nullptr);
+  if (pipeline) {
+    EXPECT_EQ (_run_to_eos (pipeline), GST_MESSAGE_EOS);
+    gst_element_set_state (pipeline, GST_STATE_NULL);
+    gst_object_unref (pipeline);
+  }
+
+  EXPECT_EQ (fstat (0, &st), 0);
+  EXPECT_EQ (st.st_dev, marker.st_dev);
+  EXPECT_EQ (st.st_ino, marker.st_ino);
+
+  if (saved >= 0) {
+    dup2 (saved, 0);
+    close (saved);
+  } else {
+    close (0);
+  }
+
+  g_remove ("fd0.marker");
+  g_remove ("fd0.json");
+  for (i = 0; i < 2; i++) {
+    gchar *name = g_strdup_printf ("fd0_%02d.png", i);
+    g_remove (name);
+    g_free (name);
+  }
+}
+
+/**
+ * @brief A data file opened on fd 0 (stdin closed by the process) is written.
+ */
+TEST (datareposink, writeVideoRawOnFd0)
+{
+  struct stat st, fd0;
+  gint saved;
+  GstElement *pipeline = gst_parse_launch ("videotestsrc num-buffers=3 ! "
+                                           "video/x-raw,format=RGB,width=4,height=4 ! "
+                                           "datareposink location=fd0.raw json=fd0raw.json",
+      NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  /* Close fd 0 after the pipeline has its own descriptors, so the data file takes it. */
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PAUSED, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  saved = dup (0);
+  close (0);
+
+  EXPECT_EQ (_run_to_eos (pipeline), GST_MESSAGE_EOS);
+  EXPECT_EQ (fstat (0, &fd0), 0);
+  EXPECT_EQ (stat ("fd0.raw", &st), 0);
+  EXPECT_EQ (fd0.st_dev, st.st_dev);
+  EXPECT_EQ (fd0.st_ino, st.st_ino);
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (pipeline);
+
+  if (saved >= 0) {
+    dup2 (saved, 0);
+    close (saved);
+  }
+
+  ASSERT_EQ (stat ("fd0.raw", &st), 0);
+  EXPECT_EQ (st.st_size, 3 * 4 * 4 * 3);
+
+  g_remove ("fd0.raw");
+  g_remove ("fd0raw.json");
 }
 
 /**

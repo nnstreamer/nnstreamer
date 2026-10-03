@@ -175,7 +175,7 @@ gst_data_repo_sink_init (GstDataRepoSink * sink)
 {
   sink->filename = NULL;
   sink->is_valid_image_location = FALSE;
-  sink->fd = 0;
+  sink->fd = -1;
   sink->fd_offset = 0;
   sink->data_type = GST_DATA_REPO_DATA_UNKNOWN;
   sink->is_static_tensors = FALSE;
@@ -200,9 +200,9 @@ gst_data_repo_sink_finalize (GObject * object)
   g_free (sink->filename);
   g_free (sink->json_filename);
 
-  if (sink->fd) {
+  if (sink->fd >= 0) {
     g_close (sink->fd, NULL);
-    sink->fd = 0;
+    sink->fd = -1;
   }
 
   if (sink->fixed_caps)
@@ -285,7 +285,7 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
-  g_return_val_if_fail (sink->fd != 0, GST_FLOW_ERROR);
+  g_return_val_if_fail (sink->fd >= 0, GST_FLOW_ERROR);
 
   if (!gst_buffer_map (buffer, &info, GST_MAP_READ)) {
     GST_ERROR_OBJECT (sink, "Failed to map the incoming buffer.");
@@ -331,7 +331,7 @@ gst_data_repo_sink_write_flexible_or_sparse_tensors (GstDataRepoSink * sink,
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
-  g_return_val_if_fail (sink->fd != 0, GST_FLOW_ERROR);
+  g_return_val_if_fail (sink->fd >= 0, GST_FLOW_ERROR);
   g_return_val_if_fail (sink->json_object != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (sink->sample_offset_array != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (sink->tensor_size_array != NULL, GST_FLOW_ERROR);
@@ -673,8 +673,10 @@ gst_data_repo_sink_stop (GstBaseSink * basesink)
 
   sink = GST_DATA_REPO_SINK_CAST (basesink);
 
-  g_close (sink->fd, NULL);
-  sink->fd = 0;
+  if (sink->fd >= 0) {
+    g_close (sink->fd, NULL);
+    sink->fd = -1;
+  }
 
   return TRUE;
 }
