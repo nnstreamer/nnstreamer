@@ -12,12 +12,15 @@
 #include <gtest/gtest.h>
 #include <cstring>
 #include <glib.h>
+#include <gst/base/gstbasetransform.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
+#include <gst/video/video.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <tensor_typedef.h>
+#include <vector>
 
 /**
  * @brief Bytes kept behind the video frame to see a write running past it.
@@ -600,6 +603,220 @@ TEST (testDecoderDirectVideo, decodeRowSizeOverflow_n)
   gst_buffer_unref (outbuf);
   g_free (block);
   g_free (in);
+}
+
+/**
+ * @brief Exercise the output allocation query as a downstream video sink does.
+ */
+class DecoderAllocation : public testing::Test
+{
+  protected:
+  GstHarness *h = nullptr;
+  GstCaps *caps = nullptr;
+  GstBuffer *output = nullptr;
+  std::vector<GstBufferPool *> pools;
+  guint queries = 0;
+  gboolean video = TRUE;
+
+  /** @brief Install the allocation responder before negotiating caps. */
+  void SetUp () override
+  {
+    GstPad *srcpad;
+    GstElement *decoder = gst_element_factory_make ("tensor_decoder", NULL);
+
+    ASSERT_NE (decoder, nullptr);
+    gst_object_ref_sink (decoder);
+    g_object_set (decoder, "mode", "direct_video", "option1", "BGRx", NULL);
+    h = gst_harness_new_with_element (decoder, "sink", "src");
+    gst_object_unref (decoder);
+    ASSERT_NE (h, nullptr);
+    caps = gst_caps_from_string ("video/x-raw,format=BGRx,width=6,height=4,framerate=0/1");
+    srcpad = gst_element_get_static_pad (h->element, "src");
+    gst_pad_add_probe (srcpad, GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM, proposePools, this, NULL);
+    gst_object_unref (srcpad);
+  }
+
+  /** @brief Stop streaming before releasing the proposed pools. */
+  void TearDown () override
+  {
+    if (output)
+      gst_buffer_unref (output);
+    if (h)
+      gst_harness_teardown (h);
+    for (auto pool : pools)
+      if (pool)
+        gst_object_unref (pool);
+    if (caps)
+      gst_caps_unref (caps);
+  }
+
+  /** @brief Propose the configured pools without altering their layout. */
+  static GstPadProbeReturn proposePools (GstPad *, GstPadProbeInfo *info, gpointer data)
+  {
+    auto *self = static_cast<DecoderAllocation *> (data);
+    GstQuery *query = GST_PAD_PROBE_INFO_QUERY (info);
+
+    if (GST_QUERY_TYPE (query) != GST_QUERY_ALLOCATION)
+      return GST_PAD_PROBE_OK;
+
+    self->queries++;
+    for (auto pool : self->pools) {
+      guint size = 96;
+      if (pool) {
+        GstStructure *config = gst_buffer_pool_get_config (pool);
+        gst_buffer_pool_config_get_params (config, NULL, &size, NULL, NULL);
+        gst_structure_free (config);
+      }
+      gst_query_add_allocation_pool (query, pool, size, 0, 0);
+    }
+    if (self->video)
+      gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
+    return GST_PAD_PROBE_HANDLED;
+  }
+
+  /** @brief Prepare a real video pool, or an ordinary pool for non-video output. */
+  void addPool (const GstVideoAlignment *alignment = nullptr)
+  {
+    GstBufferPool *pool = video ? gst_video_buffer_pool_new () : gst_buffer_pool_new ();
+    GstStructure *config = gst_buffer_pool_get_config (pool);
+
+    pools.push_back (pool);
+    gst_buffer_pool_config_set_params (config, caps, 96, 0, 0);
+    if (video)
+      gst_buffer_pool_config_add_option (config, GST_BUFFER_POOL_OPTION_VIDEO_META);
+    if (alignment) {
+      gst_buffer_pool_config_add_option (config, GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
+      gst_buffer_pool_config_set_video_alignment (config, alignment);
+    }
+    ASSERT_TRUE (gst_buffer_pool_set_config (pool, config));
+  }
+
+  /** @brief Check pixel positions through the output layout, not just the raw bytes. */
+  void checkOutput (GstBufferPool *expected_pool = nullptr)
+  {
+    GstBufferPool *selected;
+    guint mismatched = 0;
+
+    gst_harness_set_sink_caps (h, gst_caps_ref (caps));
+    gst_harness_set_src_caps_str (h, "other/tensors,num_tensors=1,format=static,types=uint8,"
+                                     "dimensions=4:6:4:1,framerate=0/1");
+    ASSERT_EQ (gst_harness_push (h, new_pattern_buffer (96)), GST_FLOW_OK);
+    output = gst_harness_try_pull (h);
+    ASSERT_NE (output, nullptr);
+    EXPECT_GT (queries, 0U);
+
+    selected = gst_base_transform_get_buffer_pool (GST_BASE_TRANSFORM (h->element));
+    if (expected_pool) {
+      EXPECT_EQ (selected, expected_pool);
+    }
+    for (auto pool : pools) {
+      if (!pool)
+        continue;
+      GstStructure *config = gst_buffer_pool_get_config (pool);
+      if (gst_buffer_pool_config_has_option (config, GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT)) {
+        EXPECT_NE (selected, pool);
+      }
+      gst_structure_free (config);
+    }
+    if (selected)
+      gst_object_unref (selected);
+
+    if (video) {
+      GstVideoInfo info;
+      GstVideoFrame frame;
+      ASSERT_TRUE (gst_video_info_from_caps (&info, caps));
+      ASSERT_TRUE (gst_video_frame_map (&frame, &info, output, GST_MAP_READ));
+      const auto *pixels
+          = static_cast<const guint8 *> (GST_VIDEO_FRAME_PLANE_DATA (&frame, 0));
+      for (guint y = 0; y < 4; y++)
+        for (guint x = 0; x < 24; x++)
+          mismatched += pixels[y * GST_VIDEO_FRAME_PLANE_STRIDE (&frame, 0) + x]
+                        != y * 24 + x + 1;
+      gst_video_frame_unmap (&frame);
+    } else {
+      guint8 bytes[96];
+      ASSERT_EQ (gst_buffer_extract (output, 0, bytes, sizeof (bytes)), sizeof (bytes));
+      for (guint i = 0; i < sizeof (bytes); i++)
+        mismatched += bytes[i] != i + 1;
+    }
+    EXPECT_EQ (mismatched, 0U);
+  }
+};
+
+/** @brief Decoding still works when downstream proposes no pool. */
+TEST_F (DecoderAllocation, noPool)
+{
+  checkOutput ();
+}
+
+/** @brief A pool with the ordinary video layout is retained. */
+TEST_F (DecoderAllocation, unalignedVideoPool)
+{
+  ASSERT_NO_FATAL_FAILURE (addPool ());
+  checkOutput (pools[0]);
+}
+
+/** @brief A NULL pool proposal still lets the base class create a pool. */
+TEST_F (DecoderAllocation, nullPool)
+{
+  pools.push_back (nullptr);
+  checkOutput ();
+}
+
+/** @brief Non-video decoders continue using an ordinary downstream pool. */
+TEST_F (DecoderAllocation, nonVideoPool)
+{
+  video = FALSE;
+  gst_caps_unref (caps);
+  caps = gst_caps_from_string ("application/octet-stream");
+  g_object_set (h->element, "mode", "octet_stream", NULL);
+  ASSERT_NO_FATAL_FAILURE (addPool ());
+  checkOutput (pools[0]);
+}
+
+/** @brief A pool adding two pixels to every row cannot be used by the decoder. */
+TEST_F (DecoderAllocation, paddedRows_n)
+{
+  GstVideoAlignment alignment;
+  gst_video_alignment_reset (&alignment);
+  alignment.padding_right = 2;
+  ASSERT_NO_FATAL_FAILURE (addPool (&alignment));
+  checkOutput ();
+}
+
+/** @brief A larger row stride must not change where the visible pixels are read. */
+TEST_F (DecoderAllocation, largerStride_n)
+{
+  GstVideoAlignment alignment;
+  gst_video_alignment_reset (&alignment);
+  alignment.stride_align[0] = 63;
+  ASSERT_NO_FATAL_FAILURE (addPool (&alignment));
+  checkOutput ();
+}
+
+/** @brief Top and left padding must not shift the visible origin of the output. */
+TEST_F (DecoderAllocation, paddedOrigin_n)
+{
+  GstVideoAlignment alignment;
+  gst_video_alignment_reset (&alignment);
+  alignment.padding_top = 1;
+  alignment.padding_left = 2;
+  alignment.padding_bottom = 1;
+  ASSERT_NO_FATAL_FAILURE (addPool (&alignment));
+  checkOutput ();
+}
+
+/** @brief Skip consecutive incompatible pools and retain a later compatible one. */
+TEST_F (DecoderAllocation, consecutiveAlignedPools_n)
+{
+  GstVideoAlignment alignment;
+  gst_video_alignment_reset (&alignment);
+  alignment.padding_right = 2;
+  ASSERT_NO_FATAL_FAILURE (addPool (&alignment));
+  alignment.padding_right = 10;
+  ASSERT_NO_FATAL_FAILURE (addPool (&alignment));
+  ASSERT_NO_FATAL_FAILURE (addPool ());
+  checkOutput (pools[2]);
 }
 
 /**

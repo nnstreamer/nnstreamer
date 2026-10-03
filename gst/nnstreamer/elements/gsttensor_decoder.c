@@ -44,6 +44,7 @@
 #include <config.h>
 #endif
 
+#include <gst/video/video.h>
 #include <string.h>
 #include "gsttensor_decoder.h"
 
@@ -123,6 +124,8 @@ static GstCaps *gst_tensordec_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps);
 static gboolean gst_tensordec_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps);
+static gboolean gst_tensordec_decide_allocation (GstBaseTransform * trans,
+    GstQuery * query);
 static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
@@ -599,6 +602,8 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
   trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensordec_set_caps);
 
   /** Allocation units */
+  trans_class->decide_allocation =
+      GST_DEBUG_FUNCPTR (gst_tensordec_decide_allocation);
   trans_class->transform_size =
       GST_DEBUG_FUNCPTR (gst_tensordec_transform_size);
 }
@@ -1238,6 +1243,42 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   }
 
   return FALSE;
+}
+
+/**
+ * @brief Exclude pools whose video layout the decoder cannot write.
+ * @details Decoder subplugins write the default layout from the output caps.
+ *          A downstream pool with video alignment can add padding or change
+ *          the row stride without telling the subplugin. Leave compatible
+ *          pools to the base class, which also handles allocating without one.
+ */
+static gboolean
+gst_tensordec_decide_allocation (GstBaseTransform * trans, GstQuery * query)
+{
+  guint i = 0;
+
+  while (i < gst_query_get_n_allocation_pools (query)) {
+    GstBufferPool *pool = NULL;
+    gboolean aligned = FALSE;
+
+    gst_query_parse_nth_allocation_pool (query, i, &pool, NULL, NULL, NULL);
+    if (pool) {
+      GstStructure *config = gst_buffer_pool_get_config (pool);
+
+      aligned = gst_buffer_pool_config_has_option (config,
+          GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
+      gst_structure_free (config);
+      gst_object_unref (pool);
+    }
+
+    if (aligned)
+      gst_query_remove_nth_allocation_pool (query, i);
+    else
+      i++;
+  }
+
+  return GST_BASE_TRANSFORM_CLASS (parent_class)->decide_allocation (trans,
+      query);
 }
 
 /**
