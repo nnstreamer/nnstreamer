@@ -74,6 +74,7 @@ PATH_TO_CLASS1="class1.out.log"
 PATH_TO_CLASS2="class2.out.log"
 PATH_TO_DYNAMIC_MODEL="../test_models/models/dynamic_batch_add_one.tflite"
 PATH_TO_DYNAMIC_OUT="dynamic.out.log"
+PATH_TO_GST_LOG="gst.debug.log"
 
 # Test 1: Positive. Golden classification result, same model and golden label
 # as the tensorflow2-lite SSAT tests; cross-runtime divergence fails here.
@@ -89,7 +90,18 @@ class=$(cat ${PATH_TO_CLASS})
 testResult $? 2 "Golden test comparison with Accelerators:cpu" 0 1
 
 # Test 3: Negative. Mismatched input dimensions must fail.
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=42,height=42,framerate=0/1 ! tensor_converter ! tensor_filter framework=litert model=${PATH_TO_MODEL} ! fakesink" 3_n 0 1 $PERFORMANCE
+# Cases 3 and 8 fail with an error posted from the streaming thread during
+# preroll. gst-launch quits its main loop from that thread, and the quit is
+# lost if it comes before g_main_loop_run () starts, leaving gst-launch hung
+# after it has already reported the error (#5091). The timeout ends such a
+# run with the non-zero exit these cases expect. It must be the 6th argument;
+# an unquoted empty $PERFORMANCE would vanish and shift it to the 5th.
+# A pipeline that stalls without failing is killed the same way, so the error
+# itself is looked up in the GStreamer log; stderr is discarded in silent mode.
+rm -f ${PATH_TO_GST_LOG}
+GST_DEBUG=2 GST_DEBUG_NO_COLOR=1 GST_DEBUG_FILE=${PATH_TO_GST_LOG} gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=42,height=42,framerate=0/1 ! tensor_converter ! tensor_filter framework=litert model=${PATH_TO_MODEL} ! fakesink" 3_n 0 1 ${PERFORMANCE:-0} 30
+grep -q "error: streaming stopped, reason not-negotiated" ${PATH_TO_GST_LOG}
+testResult $? 3_n "Refused by negotiation, not ended by the timeout" 0 1
 
 # Test 4: Negative. Invalid model path must fail.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=litert model=invalid_model_path.tflite ! fakesink" 4_n 0 1 $PERFORMANCE
@@ -119,8 +131,12 @@ testResult $? 6 "Golden test comparison with two concurrent litert instances" 0 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=1 ! other/tensors,format=static,num_tensors=1,dimensions=4:1:1:1,types=float32,framerate=16000/1 ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=flexible ! fakesink" 7 0 0 $PERFORMANCE
 
 # Test 8: Negative. invoke-dynamic demands a flexible output; a static one
-# must be refused rather than silently reinterpreted.
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=1 ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=static ! fakesink" 8_n 0 1 $PERFORMANCE
+# must be refused rather than silently reinterpreted. See case 3 for the timeout
+# and the log check.
+rm -f ${PATH_TO_GST_LOG}
+GST_DEBUG=2 GST_DEBUG_NO_COLOR=1 GST_DEBUG_FILE=${PATH_TO_GST_LOG} gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=1 ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=static ! fakesink" 8_n 0 1 ${PERFORMANCE:-0} 30
+grep -q "<tensorfilter0> error:" ${PATH_TO_GST_LOG}
+testResult $? 8_n "Refused by tensor_filter, not ended by the timeout" 0 1
 
 # Test 9: Positive. Case 7 holds the model's own shape for the whole run, so
 # every buffer takes the skip path and reshapeTo() is never reached by a

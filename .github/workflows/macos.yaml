@@ -100,6 +100,7 @@ jobs:
         meson test -C build unittest_filter_litert -v
     - name: SSAT run on filter-litert
       if: env.rebuild == '1'
+      timeout-minutes: 10
       run: |
         git clone --depth 1 https://github.com/myungjoo/SSAT.git $HOME/ssat
         export PATH=$PATH:$HOME/ssat
