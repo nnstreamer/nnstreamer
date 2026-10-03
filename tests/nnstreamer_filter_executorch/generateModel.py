@@ -27,6 +27,10 @@
 # from folding the boundary quantize/dequantize ops into the I/O with the
 # QuantizeInputs/QuantizeOutputs passes in executorch.exir.passes.
 #
+# The *_unplanned_output.pte fixtures are exported with
+# MemoryPlanningPass(alloc_graph_output=False), so their outputs have no place
+# in the planned arena and are written straight into the caller's buffers.
+#
 # Usage: python3 generateModel.py [output-directory]   (in this directory)
 
 """Regenerate the ExecuTorch .pte fixtures used by runTest.sh."""
@@ -35,7 +39,8 @@ import os
 import sys
 
 import torch
-from executorch.exir import to_edge_transform_and_lower
+from executorch.exir import ExecutorchBackendConfig, to_edge_transform_and_lower
+from executorch.exir.passes import MemoryPlanningPass
 from torch.export import export
 
 
@@ -83,9 +88,37 @@ class SumToBfloat16(torch.nn.Module):
         return torch.stack(inputs).sum(0).to(torch.bfloat16)
 
 
-def save_model(path, model, example_args):
-    """Export model to the ExecuTorch program format and write it to path."""
-    program = to_edge_transform_and_lower(export(model.eval(), example_args)).to_executorch()
+class AliasedOutputs(torch.nn.Module):
+    """Returns one result twice, a constant and its input as four outputs."""
+
+    def __init__(self):
+        """Hold the constant output as a buffer, so that it stays a constant."""
+        super().__init__()
+        self.register_buffer('ones', torch.ones(3, 4))
+
+    def forward(self, x):
+        """Return x + 1 twice, the constant tensor of ones and x itself."""
+        y = x + 1
+        return y, y, self.ones, x
+
+
+class SumToScalar(torch.nn.Module):
+    """Sums its input into a rank-0 tensor."""
+
+    def forward(self, x):
+        """Return the sum of every element of x."""
+        return x.sum()
+
+
+def save_model(path, model, example_args, plan_outputs=True):
+    """Export model to the ExecuTorch program format and write it to path.
+
+    With plan_outputs=False the outputs are left out of memory planning.
+    """
+    config = ExecutorchBackendConfig(
+        memory_planning_pass=MemoryPlanningPass(alloc_graph_output=plan_outputs))
+    program = to_edge_transform_and_lower(
+        export(model.eval(), example_args)).to_executorch(config)
     with open(path, 'wb') as file:
         file.write(program.buffer)
     print(f'wrote {path} ({os.path.getsize(path)} bytes)')
@@ -114,6 +147,13 @@ def main():
     # inline by the time the output type is refused.
     save_model(os.path.join(out_dir, 'sample_17_input_bfloat16_output.pte'),
                SumToBfloat16(), tuple(torch.zeros(3, 4) for _ in range(17)))
+
+    save_model(os.path.join(out_dir, 'sample_3x4_two_input_two_output_unplanned_output.pte'),
+               TwoInputTwoOutput(), (torch.rand(3, 4), torch.rand(3, 4)), plan_outputs=False)
+    save_model(os.path.join(out_dir, 'sample_3x4_aliased_outputs_unplanned_output.pte'),
+               AliasedOutputs(), (torch.rand(3, 4),), plan_outputs=False)
+    save_model(os.path.join(out_dir, 'sample_3x4_scalar_output_unplanned_output.pte'),
+               SumToScalar(), (torch.rand(3, 4),), plan_outputs=False)
 
 
 if __name__ == '__main__':

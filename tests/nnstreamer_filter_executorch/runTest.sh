@@ -127,6 +127,13 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_3x4.dat\" b
 PATH_TO_MODEL="../test_models/models/sample_3x4_bfloat16_add_one.pte"
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_3x4_uint8.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:3 input-type=uint8 ! tensor_filter framework=executorch model=${PATH_TO_MODEL} ! tensor_sink" 12_n 0 1 $PERFORMANCE
 
+# The same model with its outputs left out of memory planning, which ExecuTorch
+# writes straight into the output buffers of tensor_filter.
+PATH_TO_MODEL="../test_models/models/sample_3x4_two_input_two_output_unplanned_output.pte"
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_3x4.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:3 input-type=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=executorch model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 13 0 0 $PERFORMANCE
+callCompareTest test_3x4.golden tensorfilter.out.log 14 "Compare 13" 0 0
+
 # Cleanup
 rm *.log *.golden *.dat
 
