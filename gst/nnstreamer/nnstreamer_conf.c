@@ -97,7 +97,6 @@ typedef struct
 
 typedef struct
 {
-  gboolean loaded;            /**< TRUE if loaded at least once */
   gboolean enable_envvar;     /**< TRUE to parse env variables */
   gboolean enable_symlink;    /**< TRUE to allow symbolic link file */
 
@@ -108,6 +107,17 @@ typedef struct
 } confdata;
 
 static confdata conf = { 0 };
+
+/**
+ * @brief TRUE if conf is loaded. Kept out of conf, which a reload resets with
+ *        memset, because it is read without conf_lock; access it atomically.
+ */
+static gint conf_loaded = FALSE;
+
+/**
+ * @brief Lock serializing the (re)load of conf.
+ */
+G_LOCK_DEFINE_STATIC (conf_lock);
 
 /**
  * @brief Parse string to get boolean value.
@@ -156,13 +166,14 @@ _strdup_getenv (const gchar * name)
  * @brief Private function to validate .so file can be added to the list.
  */
 static gboolean
-_validate_file (nnsconf_type_path type, const gchar * fullpath)
+_validate_file (nnsconf_type_path type, const gchar * fullpath,
+    gboolean enable_symlink)
 {
   /* ignore directory */
   if (!fullpath || !g_file_test (fullpath, G_FILE_TEST_IS_REGULAR))
     return FALSE;
   /* ignore symbol link file */
-  if (!conf.enable_symlink && g_file_test (fullpath, G_FILE_TEST_IS_SYMLINK))
+  if (!enable_symlink && g_file_test (fullpath, G_FILE_TEST_IS_SYMLINK))
     return FALSE;
   if (type < 0 || type >= NNSCONF_PATH_END)
     return FALSE;
@@ -203,7 +214,7 @@ _get_filenames (nnsconf_type_path type, const gchar * dir, GSList ** listF,
         g_str_has_suffix (entry, NNSTREAMER_SO_FILE_EXTENSION)) {
       fullpath = g_build_filename (dir, entry, NULL);
 
-      if (_validate_file (type, fullpath)) {
+      if (_validate_file (type, fullpath, conf.enable_symlink)) {
         basename = g_path_get_basename (entry);
         len = strlen (basename) - prefix - extension;
         name = g_strndup (basename + prefix, len);
@@ -236,7 +247,7 @@ _get_subplugin_with_type (nnsconf_type_path type, gchar *** name,
     return FALSE;
   }
 
-  if (!conf.loaded) {
+  if (!g_atomic_int_get (&conf_loaded)) {
     ml_loge ("Configuration file is not loaded.");
     return FALSE;
   }
@@ -349,19 +360,22 @@ _fill_subplugin_path (confdata * cdata, GKeyFile * key_file, conf_sources src)
       g_key_file_get_string (key_file, "trainer", "trainer", NULL);
 }
 
-/** @brief Public function defined in the header */
-gboolean
-nnsconf_loadconf (gboolean force_reload)
+/**
+ * @brief Private function to (re)load the configuration. Hold conf_lock.
+ */
+static gboolean
+_nnsconf_loadconf_locked (gboolean force_reload)
 {
   const gchar root_path_prefix[] = NNSTREAMER_SYS_ROOT_PATH_PREFIX;
   GKeyFile *key_file = NULL;
   guint i, t;
 
-  if (!force_reload && conf.loaded)
+  if (!force_reload && g_atomic_int_get (&conf_loaded))
     return TRUE;
 
-  if (force_reload && conf.loaded) {
+  if (force_reload && g_atomic_int_get (&conf_loaded)) {
     /* Do Clean Up */
+    g_atomic_int_set (&conf_loaded, FALSE);
     g_free (conf.conffile);
     conf.conffile = NULL;
     g_free (conf.extra_conffile);
@@ -492,8 +506,24 @@ nnsconf_loadconf (gboolean force_reload)
         conf.conf[t].path, t);
   }
 
-  conf.loaded = TRUE;
+  g_atomic_int_set (&conf_loaded, TRUE);
   return TRUE;
+}
+
+/** @brief Public function defined in the header */
+gboolean
+nnsconf_loadconf (gboolean force_reload)
+{
+  gboolean ret;
+
+  if (!force_reload && g_atomic_int_get (&conf_loaded))
+    return TRUE;
+
+  G_LOCK (conf_lock);
+  ret = _nnsconf_loadconf_locked (force_reload);
+  G_UNLOCK (conf_lock);
+
+  return ret;
 }
 
 /** @brief Public function defined in the header */
@@ -520,9 +550,15 @@ nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type)
 gboolean
 nnsconf_validate_file (nnsconf_type_path type, const gchar * fullpath)
 {
+  gboolean enable_symlink;
+
   nnsconf_loadconf (FALSE);
 
-  return _validate_file (type, fullpath);
+  G_LOCK (conf_lock);
+  enable_symlink = conf.enable_symlink;
+  G_UNLOCK (conf_lock);
+
+  return _validate_file (type, fullpath, enable_symlink);
 }
 
 /**
@@ -567,6 +603,11 @@ nnsconf_get_subplugin_info (nnsconf_type_path type, subplugin_info_s * info)
 static GHashTable *custom_table = NULL;
 
 /**
+ * @brief Lock for custom_table.
+ */
+G_LOCK_DEFINE_STATIC (custom_lock);
+
+/**
  * @brief Public function defined in the header.
  * @note This function is included in nnstreamer internal header for native APIs.
  *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
@@ -579,15 +620,22 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
 
   nnsconf_loadconf (FALSE);     /* Load .ini file path */
 
-  if (NULL == custom_table)
-    custom_table =
-        g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-
-  value = g_hash_table_lookup (custom_table, hashkey);
+  G_LOCK (custom_lock);
+  if (custom_table)
+    value = g_strdup (g_hash_table_lookup (custom_table, hashkey));
+  G_UNLOCK (custom_lock);
 
   if (NULL == value) {
+    g_autofree gchar *conffile = NULL;
+    gboolean enable_envvar;
+
+    G_LOCK (conf_lock);
+    enable_envvar = conf.enable_envvar;
+    conffile = g_strdup (conf.conffile);
+    G_UNLOCK (conf_lock);
+
     /* 1. Read envvar */
-    if (conf.enable_envvar) {
+    if (enable_envvar) {
       gchar *envkey = g_strdup_printf ("NNSTREAMER_%s_%s", group, key);
 
       value = _strdup_getenv (envkey);
@@ -595,7 +643,7 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
     }
 
     /* 2. Read ini */
-    if (NULL == value && conf.conffile) {
+    if (NULL == value && conffile) {
       g_autoptr (GKeyFile) key_file = g_key_file_new ();
 
       if (key_file == NULL) {
@@ -603,18 +651,24 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
         return NULL;
       }
 
-      if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
-              NULL)) {
+      if (g_key_file_load_from_file (key_file, conffile, G_KEY_FILE_NONE, NULL)) {
         value = g_key_file_get_string (key_file, group, key, NULL);
       }
     }
 
     if (value) {
-      g_hash_table_insert (custom_table, g_steal_pointer (&hashkey), value);
+      G_LOCK (custom_lock);
+      if (NULL == custom_table)
+        custom_table =
+            g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+
+      g_hash_table_insert (custom_table, g_steal_pointer (&hashkey),
+          g_strdup (value));
+      G_UNLOCK (custom_lock);
     }
   }
 
-  return g_strdup (value);
+  return value;
 }
 
 /**
@@ -648,8 +702,7 @@ nnsconf_dump (gchar * str, gulong size)
   gulong _size = size;
   gint len;
 
-  if (!conf.loaded)
-    nnsconf_loadconf (FALSE);
+  nnsconf_loadconf (FALSE);
 
   len = g_snprintf (cur, _size,
       "Configuration Loaded: %s\n"
@@ -663,7 +716,8 @@ nnsconf_dump (gchar * str, gulong size)
       "[Filter]\n"
       "  Filter paths from .ini: %s\n"
       "             from envvar: %s\n"
-      "         from hard-coded: %s\n", STR_BOOL (conf.loaded),
+      "         from hard-coded: %s\n",
+      STR_BOOL (g_atomic_int_get (&conf_loaded)),
       /* 1. Configuration file path */
       (conf.conffile ? conf.conffile : "<error> config file not loaded"),
 #ifdef __TIZEN__
@@ -724,8 +778,7 @@ nnsconf_subplugin_dump (gchar * str, gulong size)
   subplugin_info_s info;
   guint i, j, ret;
 
-  if (!conf.loaded)
-    nnsconf_loadconf (FALSE);
+  nnsconf_loadconf (FALSE);
 
   buf.base = str;
   buf.size = size;
