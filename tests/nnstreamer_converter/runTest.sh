@@ -18,6 +18,10 @@ fi
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
+# gstTest takes its timeout as the 6th argument; an empty, unquoted $PERFORMANCE
+# would vanish and shift the timeout into the 5th, where it is ignored.
+PERFORMANCE=${PERFORMANCE:-0}
+
 if [ "$SKIPGEN" == "YES" ]; then
     echo "Test Case Generation Skipped"
     sopath=$2
