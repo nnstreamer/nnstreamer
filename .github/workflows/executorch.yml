@@ -2,27 +2,17 @@ name: Build and test the ExecuTorch tensor_filter
 
 # ExecuTorch has to be built from source (no distro package, no prebuilt
 # desktop binary, and its pip wheel is headers only), which is far too slow to
-# put on every pull request. The install tree is therefore cached, and the job
-# runs only when something that can break it changes -- plus daily, which also
-# keeps the cache from being evicted for inactivity.
+# put on every pull request. The install tree is therefore cached, and the
+# build jobs run only when something that can break them changes -- plus
+# daily, which also keeps the cache from being evicted for inactivity.
+#
+# The workflow itself starts on every pull request, so that its last job,
+# "ExecuTorch gate", always reports and can be a required status check: a
+# workflow filtered with "paths:" reports nothing for an unrelated pull
+# request, and a required check that never reports blocks the merge forever.
 on:
   pull_request:
     branches: [ main ]
-    paths:
-      - '.github/workflows/executorch.yml'
-      - 'ext/nnstreamer/tensor_filter/tensor_filter_executorch.cc'
-      - 'ext/nnstreamer/tensor_filter/meson.build'
-      # the tensor_filter API and core the subplugin is built against
-      - 'gst/nnstreamer/include/**'
-      - 'gst/nnstreamer/tensor_filter/**'
-      - 'meson.build'
-      - 'meson_options.txt'
-      - 'tests/meson.build'
-      - 'tests/nnstreamer_filter_executorch/**'
-      # the fixtures and the generator that SSAT suite runs on
-      - 'tests/nnstreamer_converter/generateTest.py'
-      - 'tests/test_models/models/*.pte'
-      - 'tools/executorch-install.sh'
   schedule:
     # 04:00 AM (KST) Mon-Fri
     - cron: "00 19 * * 0-4"
@@ -33,8 +23,55 @@ env:
   EXECUTORCH_PREFIX: /home/runner/executorch-install
 
 jobs:
+  changes:
+    name: Check whether the ExecuTorch build is needed
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+    - name: look for changes that can break the ExecuTorch subplugin
+      id: filter
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -e -o pipefail
+        # The files API below stops at 3000 files, so a pull request that large
+        # is taken as relevant rather than judged on a truncated list.
+        if [ '${{ github.event_name }}' != 'pull_request' ] \
+            || [ '${{ github.event.pull_request.changed_files }}' -ge 3000 ]; then
+          echo "relevant=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        # A renamed file counts under both of its names. A failure to list the
+        # files fails this job, and with it the gate.
+        files=$(gh api --paginate \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)')
+        # - this workflow, the subplugin and its build recipe
+        # - the tensor_filter API and core the subplugin is built against
+        # - the fixtures and the generator that SSAT suite runs on
+        pattern='^\.github/workflows/executorch\.yml$'
+        pattern+='|^ext/nnstreamer/tensor_filter/(tensor_filter_executorch\.cc|meson\.build)$'
+        pattern+='|^gst/nnstreamer/(include|tensor_filter)/'
+        pattern+='|^(meson\.build|meson_options\.txt|tests/meson\.build)$'
+        pattern+='|^tests/nnstreamer_filter_executorch/'
+        pattern+='|^tests/nnstreamer_converter/generateTest\.py$'
+        pattern+='|^tests/test_models/models/[^/]*\.pte$'
+        pattern+='|^tools/executorch-install\.sh$'
+        # Not a pipe: grep -q leaves at the first match, and under pipefail a
+        # writer killed by SIGPIPE would turn that match into "not relevant".
+        if grep -qE "${pattern}" <<< "${files}"; then
+          echo "relevant=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "relevant=false" >> "$GITHUB_OUTPUT"
+        fi
+
   build:
     name: Build against ExecuTorch and run its SSAT suite (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -132,3 +169,31 @@ jobs:
         export GST_PLUGIN_PATH="$(pwd)/build/gst"
         export NNSTREAMER_CONF="$(pwd)/build/nnstreamer-test.ini"
         cd tests/nnstreamer_filter_executorch && ssat -n -p=1 --summary summary.txt
+
+  # The one check of this workflow meant to be required. It passes when the
+  # build jobs passed, or when they were skipped because the pull request
+  # touches nothing they depend on.
+  gate:
+    name: ExecuTorch gate
+    needs: [ changes, build ]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+    - name: check the results of the jobs above
+      run: |
+        changes='${{ needs.changes.result }}'
+        relevant='${{ needs.changes.outputs.relevant }}'
+        build='${{ needs.build.result }}'
+        echo "changes=${changes} relevant=${relevant} build=${build}"
+        if [ "${changes}" != 'success' ]; then
+          echo "::error::Could not tell whether the ExecuTorch build is needed."
+          exit 1
+        fi
+        if [ "${relevant}" == 'true' ] && [ "${build}" != 'success' ]; then
+          echo "::error::The ExecuTorch build or its tests did not pass."
+          exit 1
+        fi
+        if [ "${relevant}" != 'true' ] && [ "${build}" != 'skipped' ]; then
+          echo "::error::Unexpected result of the ExecuTorch build: ${build}"
+          exit 1
+        fi
