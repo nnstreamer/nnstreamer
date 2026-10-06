@@ -105,6 +105,8 @@ title: tensor_transform
 
 - acceleration (readable, writable): A flat indicating whether to enable ```orc``` acceleration
 
+- apply (readable, writable): The indices of the tensors to transform, separated with ',' (e.g., `apply=0,2`). The other tensors pass through unchanged, and an empty value transforms every tensor. Each index is written in decimal digits only, without a sign; a value with any other token is rejected and the previous value is kept.
+
 ## Changing properties while streaming
 
 - `mode`, `option` and `apply` can be changed while the pipeline is in PLAYING state. Each change takes effect from the next buffer.

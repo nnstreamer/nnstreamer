@@ -329,12 +329,60 @@ TEST (testTensorTransform, applyPropertyInvalid_n)
 
   h = gst_harness_new ("tensor_transform");
 
-  g_object_set (h->element, "apply", "1,invalid,3", NULL);
+  const gchar *invalid[] = { "1,invalid,3", "invalid", "1x", "0,1,", ",1", "-1",
+    "+1", "0x1", "1 2", "2147483648", "4294967297", "99999999999999999999", NULL };
+  guint i;
+
+  /* a refused value keeps the previous one, here the default */
+  g_object_set (h->element, "apply", "invalid", NULL);
   g_object_get (h->element, "apply", &str, NULL);
-  EXPECT_STREQ (str, "1,3");
+  EXPECT_STREQ (str, "");
   g_free (str);
 
-  g_object_set (h->element, "apply", "invalid", NULL);
+  g_object_set (h->element, "apply", "0,2", NULL);
+
+  for (i = 0; invalid[i] != NULL; i++) {
+    g_object_set (h->element, "apply", invalid[i], NULL);
+    g_object_get (h->element, "apply", &str, NULL);
+    EXPECT_STREQ (str, "0,2") << invalid[i];
+    g_free (str);
+  }
+
+  g_object_set (h->element, "apply", NULL, NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "0,2");
+  g_free (str);
+
+  /* a refused value does not block the next one */
+  g_object_set (h->element, "apply", "1", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "1");
+  g_free (str);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test that the 'apply' property accepts the bounds of an index, blanks around it and an empty value
+ */
+TEST (testTensorTransform, applyPropertyBounds)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "apply", " 2 , 0 ", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "2,0");
+  g_free (str);
+
+  g_object_set (h->element, "apply", "2147483647,007", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "2147483647,7");
+  g_free (str);
+
+  g_object_set (h->element, "apply", "", NULL);
   g_object_get (h->element, "apply", &str, NULL);
   EXPECT_STREQ (str, "");
   g_free (str);
@@ -349,9 +397,10 @@ TEST (testTensorTransform, applyChangedWhileStreaming)
 {
   const guint num_tensors = 2U;
   const guint array_size = 64U;
-  const gchar *apply_values[] = { "1", "0", "invalid" };
-  /* the operator is applied to the tensor selected by each value above */
-  const gboolean applied[3][2] = { { FALSE, TRUE }, { TRUE, FALSE }, { TRUE, TRUE } };
+  const gchar *apply_values[] = { "1", "invalid", "0", "" };
+  /* the operator is applied to the tensor selected by each value above: a refused value keeps the selection, an empty one selects all */
+  const gboolean applied[4][2]
+      = { { FALSE, TRUE }, { FALSE, TRUE }, { TRUE, FALSE }, { TRUE, TRUE } };
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -6637,6 +6686,77 @@ TEST (testTensorTransform, arithmeticExtraTensorsApply)
   for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
     /* the operator is applied to the tensor 0, 16 and 17 */
     float diff = (i == 0U || i >= 16U) ? 1.0f : 0.0f;
+
+    mem = gst_tensor_buffer_get_nth_memory (out_buf, i);
+    ASSERT_TRUE (mem != NULL);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    ASSERT_EQ (map.size, dsize);
+
+    _data = (float *) map.data;
+    for (j = 0; j < TEST_EXTRA_TENSORS_SIZE; j++)
+      EXPECT_FLOAT_EQ (_data[j], (float) (i * 100 + j) + diff);
+
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
+  }
+
+  gst_buffer_unref (out_buf);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test that a refused 'apply' value does not make tensor_transform apply the operator to every tensor (negative)
+ */
+TEST (testTensorTransform, arithmeticApplyRefused_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstMemory *mem;
+  GstMapInfo map;
+  guint i, j;
+  gsize dsize;
+  float *_data;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", "apply", "0", NULL);
+
+  /* the list used to be emptied, which selects every tensor */
+  g_object_set (h->element, "apply", "invalid", NULL);
+  g_object_set (h->element, "apply", "0,1x", NULL);
+
+  _setup_extra_tensors_config (&config);
+  dsize = gst_tensors_info_get_size (&config.info, 0);
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  in_buf = gst_buffer_new ();
+
+  for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
+    mem = gst_allocator_alloc (NULL, dsize, NULL);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+
+    _data = (float *) map.data;
+    for (j = 0; j < TEST_EXTRA_TENSORS_SIZE; j++)
+      _data[j] = (float) (i * 100 + j);
+
+    gst_memory_unmap (mem, &map);
+    ASSERT_TRUE (gst_tensor_buffer_append_memory (
+        in_buf, mem, gst_tensors_info_get_nth_info (&config.info, i)));
+  }
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_pull (h);
+
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_tensor_buffer_get_count (out_buf), TEST_EXTRA_TENSORS_NUM);
+
+  for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
+    /* the operator is still applied to the tensor 0 only */
+    float diff = (i == 0U) ? 1.0f : 0.0f;
 
     mem = gst_tensor_buffer_get_nth_memory (out_buf, i);
     ASSERT_TRUE (mem != NULL);
