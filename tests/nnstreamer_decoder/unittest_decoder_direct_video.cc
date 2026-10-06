@@ -735,7 +735,10 @@ class DecoderAllocation : public testing::Test
       gst_video_frame_unmap (&frame);
     } else {
       guint8 bytes[96];
-      ASSERT_EQ (gst_buffer_extract (output, 0, bytes, sizeof (bytes)), sizeof (bytes));
+      /* octet_stream appends the payload after the untouched pool memory. */
+      ASSERT_EQ (gst_buffer_get_size (output), 2 * sizeof (bytes));
+      ASSERT_EQ (gst_buffer_extract (output, sizeof (bytes), bytes, sizeof (bytes)),
+          sizeof (bytes));
       for (guint i = 0; i < sizeof (bytes); i++)
         mismatched += bytes[i] != i + 1;
     }
@@ -775,7 +778,7 @@ TEST_F (DecoderAllocation, nonVideoPool)
 }
 
 /** @brief A pool adding two pixels to every row cannot be used by the decoder. */
-TEST_F (DecoderAllocation, paddedRows_n)
+TEST_F (DecoderAllocation, paddedRows)
 {
   GstVideoAlignment alignment;
   gst_video_alignment_reset (&alignment);
@@ -785,7 +788,7 @@ TEST_F (DecoderAllocation, paddedRows_n)
 }
 
 /** @brief A larger row stride must not change where the visible pixels are read. */
-TEST_F (DecoderAllocation, largerStride_n)
+TEST_F (DecoderAllocation, largerStride)
 {
   GstVideoAlignment alignment;
   gst_video_alignment_reset (&alignment);
@@ -795,7 +798,7 @@ TEST_F (DecoderAllocation, largerStride_n)
 }
 
 /** @brief Top and left padding must not shift the visible origin of the output. */
-TEST_F (DecoderAllocation, paddedOrigin_n)
+TEST_F (DecoderAllocation, paddedOrigin)
 {
   GstVideoAlignment alignment;
   gst_video_alignment_reset (&alignment);
@@ -807,7 +810,7 @@ TEST_F (DecoderAllocation, paddedOrigin_n)
 }
 
 /** @brief Skip consecutive incompatible pools and retain a later compatible one. */
-TEST_F (DecoderAllocation, consecutiveAlignedPools_n)
+TEST_F (DecoderAllocation, consecutiveAlignedPools)
 {
   GstVideoAlignment alignment;
   gst_video_alignment_reset (&alignment);
