@@ -264,7 +264,8 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
           DEFAULT_ACCELERATION, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_APPLY,
       g_param_spec_string ("apply", "Apply", "Select tensors to apply, "
-          "separated with ',' in case of multiple tensors. Default to apply all tensors.",
+          "separated with ',' in case of multiple tensors. Default to apply all tensors. "
+          "A value with a token other than decimal digits is rejected.",
           "", G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
           G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TRANSPOSE_RANK_LIMIT,
@@ -1193,22 +1194,32 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       break;
     case PROP_APPLY:
     {
-      gint64 val;
+      guint64 val;
       const gchar *param = g_value_get_string (value);
-      gchar **strv = g_strsplit_set (param, ",", -1);
-      guint i, num = g_strv_length (strv);
-      gchar *endptr = NULL;
+      gchar **strv;
+      guint i, num;
       GList *apply = NULL;
       GList *prev, *next;
+      GError *error = NULL;
 
+      if (!param) {
+        ml_loge ("Invalid 'apply' property. The value is NULL.");
+        break;
+      }
+
+      strv = g_strsplit_set (param, ",", -1);
+      num = g_strv_length (strv);
       for (i = 0; i < num; i++) {
-        errno = 0;
-        val = g_ascii_strtoll (strv[i], &endptr, 10);
-        if (errno == ERANGE || errno == EINVAL || (endptr == strv[i])) {
-          ml_loge ("Cannot convert string %s to a gint64 value", strv[i]);
-          continue;
+        if (!g_ascii_string_to_unsigned (g_strstrip (strv[i]), 10, 0,
+                G_MAXINT, &val, &error)) {
+          ml_loge ("Invalid tensor index in 'apply' (%s): %s", param,
+              error->message);
+          g_error_free (error);
+          g_list_free (apply);
+          g_strfreev (strv);
+          return;
         }
-        apply = g_list_append (apply, GINT_TO_POINTER (val));
+        apply = g_list_append (apply, GINT_TO_POINTER ((gint) val));
       }
       g_strfreev (strv);
 

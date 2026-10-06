@@ -2142,8 +2142,36 @@ TEST (testTensorSrcIio, channelsCustom)
   EXPECT_STREQ (ret_channels, "6");
   g_free (ret_channels);
 
+  /** blanks around an index are ignored */
+  g_object_set (src_iio, "channels", " 7 , 8 ", NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  strv = g_strsplit (ret_channels, ",", -1);
+  EXPECT_EQ (g_strv_length (strv), 2U);
+  EXPECT_TRUE (g_strv_contains ((const gchar *const *) strv, "7"));
+  EXPECT_TRUE (g_strv_contains ((const gchar *const *) strv, "8"));
+  g_strfreev (strv);
+  g_free (ret_channels);
+
+  /** the largest index the table can hold */
+  g_object_set (src_iio, "channels", "2147483647", NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, "2147483647");
+  g_free (ret_channels);
+
   /** the enum values are still accepted */
   g_object_set (src_iio, "channels", channels[1], NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, channels[1]);
+  g_free (ret_channels);
+
+  /** in any letter case */
+  g_object_set (src_iio, "channels", "AUTO", NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, channels[0]);
+  g_free (ret_channels);
+
+  /** and with blanks around, as the indices are */
+  g_object_set (src_iio, "channels", " All ", NULL);
   g_object_get (src_iio, "channels", &ret_channels, NULL);
   EXPECT_STREQ (ret_channels, channels[1]);
   g_free (ret_channels);
@@ -2163,7 +2191,9 @@ TEST (testTensorSrcIio, channelsCustomInvalid_n)
   gchar *ret_channels;
   guint critical_count = 0;
   guint log_id;
-  const gchar *invalid[] = { "abc", "-1", "2,abc", "99999999999999999999", "4294967297" };
+  const gchar *invalid[] = { "abc", "-1", "2,abc", "99999999999999999999",
+    "4294967297", "1x", "2,", ",2", "2;;3", "+1", "0x1", "1 2", "2147483648",
+    "allx", "all,1", "automatic", "auto1", "" };
   guint idx;
 
   /** setup */
@@ -2183,6 +2213,11 @@ TEST (testTensorSrcIio, channelsCustomInvalid_n)
     EXPECT_STREQ (ret_channels, "7") << "with the value " << invalid[idx];
     g_free (ret_channels);
   }
+
+  g_object_set (src_iio, "channels", NULL, NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, "7") << "with the null value";
+  g_free (ret_channels);
 
   /** a refused value does not block the next one */
   g_object_set (src_iio, "channels", "8", NULL);
