@@ -1,3 +1,41 @@
+2.7.0 -> 2.7.1
+        - 2.7.1 is a devel snapshot for the 2.8.0 release. It closes most of the memory-safety and security audits of the core elements and the sub-plugins.
+
+        - NEW tensor_filter sub-plugin: LiteRT
+                - tensor_filter framework=litert runs models with LiteRT 2.x (the CompiledModel API), the successor of TensorFlow Lite.
+                - Supports dynamic input dimensions, shares one LiteRT environment across the filter instances, and writes outputs directly into the caller's tensor.
+                - Built and tested in CI on Ubuntu and macOS.
+
+        - Updated tensor_filter sub-plugins
+                - ncnn: dimension and type properties are optional; enabled for Tizen 9.0+.
+                - ExecuTorch: buildable with a documented recipe; supports non-float32 tensor types.
+                - llama.cpp: more properties and LoRA loading.
+                - C++ sub-plugins are given the properties of the calling element.
+                - Removed the tensorflow2-lite-custom sub-plugin.
+
+        - Element behavior
+                - join forwards EOS only after every sink pad ends, ends the output when the last awaited sink pad is unlinked, and supports releasing request pads.
+                - tensor_transform renegotiates the output caps when mode, option or apply changes at run time, transposes above rank 4, and pads rank-1/rank-2 tensors.
+                - The query and edge elements have a max-buffers property to bound the receive queues; the edge elements accept custom properties.
+                - tensor_transform and the bounding-box decoders explain why caps, an option or a tensor is refused.
+
+        - Bug fixes
+                - Elements, converters, decoders and the network elements (MQTT, gRPC, query, edge) validate buffers, headers and peer data, and report an error instead of aborting or reading out of bounds.
+                - Fixed leaks, crashes and out-of-bounds accesses in the tensor_filter sub-plugins, mostly on open and failure paths.
+                - Fixed races and use-after-free in the sub-plugin registry, the configuration, the filter watchdog, the query server and run-time property changes.
+                - Fixed caps and renegotiation defects of tensor_filter, tensor_split and tensor_mux.
+
+        - Build and packaging
+                - The meson floor is 0.57.0, a version Ubuntu 22.04 ships.
+                - Ubuntu 26.04 (resolute) is added to the PPA build.
+                - float16 can be enabled on arm64 builds.
+
+        - Tests, CI and documentation
+                - Valgrind memcheck runs over every unit-test binary and fails a PR on a memcheck error or a definite leak of this repository.
+                - CI builds and tests the ncnn, llama.cpp, armnn and ExecuTorch sub-plugins, runs an SSAT suite from the installed tree, and builds dependent Tizen packages daily.
+                - The per-function Doxygen, pylint, shellcheck and prohibited-words checks are effective again.
+                - Added CLAUDE.md and AGENTS.md for AI coding agents.
+
 2.6.0 -> 2.7.0
 	- 2.7.0 is a devel version for 2.8.0 release. Experimental features may be added to 2.7.x.
 
