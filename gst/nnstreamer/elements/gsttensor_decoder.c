@@ -1251,6 +1251,8 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
  *          A downstream pool with video alignment can add padding or change
  *          the row stride without telling the subplugin. Leave compatible
  *          pools to the base class, which also handles allocating without one.
+ *          Only pools declaring GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT are
+ *          excluded; custom layouts without this option are not detected.
  */
 static gboolean
 gst_tensordec_decide_allocation (GstBaseTransform * trans, GstQuery * query)

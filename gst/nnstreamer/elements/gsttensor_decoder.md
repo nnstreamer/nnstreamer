@@ -39,7 +39,11 @@ One always source pad.
 
 ## Performance Characteristics
 
-TBD.
+Downstream pools configured with `GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT` are
+not used, since decoder subplugins write the default layout described by the
+output caps. A sink requiring aligned storage may therefore copy the decoded
+output into its own pool. Custom pools that change the layout without declaring
+this option are not detected.
 
 ## Properties
 
