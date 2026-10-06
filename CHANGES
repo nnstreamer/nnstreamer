@@ -1,3 +1,6 @@
+2.7.1 -> 2.7.2
+        - 2.7.2 is a devel version for 2.8.0 release. Experimental features may be added to 2.7.x.
+
 2.7.0 -> 2.7.1
         - 2.7.1 is a devel snapshot for the 2.8.0 release. It closes most of the memory-safety and security audits of the core elements and the sub-plugins.
 
