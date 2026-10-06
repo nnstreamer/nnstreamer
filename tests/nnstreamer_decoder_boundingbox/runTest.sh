@@ -101,9 +101,40 @@ callCompareTest palm_detection_result_golden.0 palm_detection_result_0.log 5-3 "
 callCompareTest palm_detection_result_golden.1 palm_detection_result_1.log 5-4 "palm detection Decode 1 (option3 with the threshold only)" 0
 rm palm_detection_result_*.log
 
+## @brief Run a pipeline the decoder must refuse, failing if it does anything else
+## @details gstTest cannot tell a refusal from a crash: it only asks for a non-zero
+##          exit, which a SIGFPE gives just as a refusal does. gst-launch-1.0
+##          reports a refusal as 1 or as 255 (its -1), and everything else here is
+##          a failure: 0 is a pipeline that ran, 128 + n is a signal, and 126/127
+##          is a launcher that could not be started at all.
+##          The run is bounded because gst-launch-1.0 can lose the quit of a
+##          refusal posted before its main loop runs, and then waits forever
+##          (#5004, #5091). SIGINT makes it shut the pipeline down and return
+##          its own code, which is still 1 after a refusal and 0 without one,
+##          and it lets valgrind finish with the summary of a complete run.
+## @param $1 gst-launch-1.0 arguments
+## @param $2 test case ID
+function refusedTest() {
+    local prefix=""
+    local limit=60
+    if [[ "$VALGRIND" -eq "1" ]]; then
+        prefix="valgrind --track-origins=yes ${VALGRIND_SUPPRESSION}"
+    fi
+    if command -v timeout &> /dev/null; then
+        prefix="timeout --preserve-status -s INT -k 30 ${limit} ${prefix}"
+    fi
+    eval $prefix gst-launch-1.0 -f -q "$1" &> /dev/null
+    retcode=$?
+    if [[ "${retcode}" -eq "1" || "${retcode}" -eq "255" ]]; then
+        testResult 1 "$2" "gst-launch of case $2, ret(${retcode})"
+    else
+        testResult 0 "$2" "gst-launch of case $2, ret(${retcode})"
+    fi
+}
+
 # yolov5 decoder test
 ## wrong tensor dimension
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=0 caps=application/octet-stream ! tensor_converter input-dim=85:10647:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "6 yolov5 decoder_n" 0 1
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=0 caps=application/octet-stream ! tensor_converter input-dim=85:10647:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "6 yolov5 decoder_n"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=0 caps=application/octet-stream ! tensor_converter input-dim=85:6300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov5_result_%1d.log" "6 yolov5 decoder" 0 0
 
@@ -111,7 +142,7 @@ callCompareTest yolov5_result_golden.raw yolov5_result_0.log "6 diff" "yolov5 go
 
 # test track mode
 ## wrong tensor dimension
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=0 caps=application/octet-stream ! tensor_converter input-dim=85:10647:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=1 option7=1 ! fakesink" "7 yolov5 decoder_n" 0 1
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=0 caps=application/octet-stream ! tensor_converter input-dim=85:10647:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=1 option7=1 ! fakesink" "7 yolov5 decoder_n"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=2 caps=application/octet-stream ! tensor_converter input-dim=85:6300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=1 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov5_track_result_%1d.log" "7 yolov5 decoder with track mode" 0 0
 
@@ -121,7 +152,7 @@ callCompareTest yolov5_track_result_golden.raw yolov5_track_result_2.log "7 diff
 
 # yolov8 decoder test
 ## wrong tensor dimension
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=84:8400:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "8 yolov8 decoder_n" 0 1
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=84:8400:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "8 yolov8 decoder_n"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=84:2100:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov8_result_%1d.log" "8 yolov8 decoder" 0 0
 
@@ -134,18 +165,12 @@ callCompareTest yolov8_result_golden.raw yolov8_two_decoders_result_0.log "8-2 d
 
 # yolov10 decoder test
 ## wrong tensor dimension
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=4:300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "9 yolov10 decoder dim_n" 0 1
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=4:300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "9 yolov10 decoder dim_n"
 
 ## wrong tensor type
-## Under valgrind this pipeline sometimes never returns, and every stall of
-## the memory-checked run of this suite has been this one case. Left
-## unbounded on purpose: gstTest's timeout terminates, and on TERM valgrind
-## still writes the summaries that make check_valgrind_log.sh read a killed
-## run as a clean one, so a bound here would turn the stall into a green run
-## with nothing to show for it. The step's own budget bounds the cost. The
-## refusal is pinned without a pipeline by
+## The refusal is also pinned without a pipeline by
 ## tensorDecoderBoundingBox.yoloV10RejectsIntegerInput_n.
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=6:300:1 input-type=float32 ! tensor_transform mode=typecast option=int32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 ! fakesink" "9 yolov10 decoder type_n" 0 1
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=6:300:1 input-type=float32 ! tensor_transform mode=typecast option=int32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 ! fakesink" "9 yolov10 decoder type_n"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=6:300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25 option4=320:320 option5=320:320 option6=0 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov10_result_%1d.log" "9 yolov10 decoder" 0 0
 
@@ -171,9 +196,9 @@ soccer ball field
 swimming pool" > dota8-obb-label.txt
 
 ## wrong tensor dimension
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_obb_decoder_input.raw caps=application/octet-stream num-buffers=1 ! tensor_converter input-dim=22:8400:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8-obb option2=dota8-obb-label.txt option4=640:640 option5=640:640 ! fakesink" "10 yolov8-obb inputdim_n" 0 1
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_obb_decoder_input.raw caps=application/octet-stream num-buffers=1 ! tensor_converter input-dim=22:8400:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8-obb option2=dota8-obb-label.txt option4=640:640 option5=640:640 ! fakesink" "10 yolov8-obb inputdim_n"
 ## wrong tensor type
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_obb_decoder_input.raw caps=application/octet-stream num-buffers=1 ! tensor_converter input-dim=20:8400:1 input-type=uint8 ! tensor_decoder mode=bounding_boxes option1=yolov8-obb option2=dota8-obb-label.txt option4=640:640 option5=640:640 ! fakesink" "10 yolov8-obb inputtype_n" 0 1
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_obb_decoder_input.raw caps=application/octet-stream num-buffers=1 ! tensor_converter input-dim=20:8400:1 input-type=uint8 ! tensor_decoder mode=bounding_boxes option1=yolov8-obb option2=dota8-obb-label.txt option4=640:640 option5=640:640 ! fakesink" "10 yolov8-obb inputtype_n"
 
 ## golden test
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_obb_decoder_input.raw caps=application/octet-stream num-buffers=1 ! tensor_converter input-dim=20:8400:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8-obb option2=dota8-obb-label.txt option3=0:0.25:0.45 option4=640:640 option5=640:640 ! video/x-raw,format=RGBA ! filesink location=yolo11n-obb_result.log" "10 yolov8-obb" 0 0
@@ -194,29 +219,6 @@ rm yolov*.log
 # so a missing or unparsable one used to divide by zero on the first box.
 MODELSIZE_SRC="multifilesrc name=fs1 location=mobilenetssd_tensors.0.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=4:1:1917:1 input-type=float32 ! mux.sink_0  multifilesrc name=fs2 location=mobilenetssd_tensors.1.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=91:1917:1 input-type=float32 ! mux.sink_1"
 MODELSIZE_DEC="tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option1=mobilenet-ssd option2=coco_labels_list.txt option3=box_priors.txt option4=160:120"
-
-
-## @brief Run a pipeline the decoder must refuse, failing if it does anything else
-## @details gstTest cannot tell a refusal from a crash: it only asks for a non-zero
-##          exit, which a SIGFPE gives just as a refusal does. gst-launch-1.0
-##          reports a refusal as 1 or as 255 (its -1), and everything else here is
-##          a failure: 0 is a pipeline that ran, 128 + n is a signal, and 126/127
-##          is a launcher that could not be started at all.
-## @param $1 gst-launch-1.0 arguments
-## @param $2 test case ID
-function refusedTest() {
-    local prefix=""
-    if [[ "$VALGRIND" -eq "1" ]]; then
-        prefix="valgrind --track-origins=yes ${VALGRIND_SUPPRESSION}"
-    fi
-    eval $prefix gst-launch-1.0 -f -q "$1" &> /dev/null
-    retcode=$?
-    if [[ "${retcode}" -eq "1" || "${retcode}" -eq "255" ]]; then
-        testResult 1 "$2" "gst-launch of case $2, ret(${retcode})"
-    else
-        testResult 0 "$2" "gst-launch of case $2, ret(${retcode})"
-    fi
-}
 
 refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${MODELSIZE_DEC} ! fakesink ${MODELSIZE_SRC}" 13_n
 

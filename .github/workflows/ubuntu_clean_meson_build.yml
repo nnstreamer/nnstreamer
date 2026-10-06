@@ -257,8 +257,9 @@ jobs:
     # never finished.
     #
     # The step runs in a little over two minutes - 103 to 137 s over ten
-    # measured runs - and every stall of it seen so far has been total, so
-    # the budget is what a stall costs rather than what the work needs.
+    # measured runs. The stalls seen so far were refusal cases in which
+    # gst-launch lost its quit (#5004); the suite now ends such a case after
+    # 60 s, so the budget covers a few of those and bounds any other stall.
     # Ten minutes is four times the slowest run and a third of the price.
     - name: SSAT run with Valgrind on decoder-bounding-box
       if: env.rebuild == '1'
