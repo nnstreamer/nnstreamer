@@ -228,7 +228,7 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->json_filename = NULL;
   src->tensors_seq_str = NULL;
   src->file_size = 0;
-  src->fd = 0;
+  src->fd = -1;
   src->data_type = GST_DATA_REPO_DATA_UNKNOWN;
   src->fd_offset = 0;
   src->start_offset = 0;
@@ -271,13 +271,13 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
 static void
 gst_data_repo_src_safe_close_fd (GstDataRepoSrc * src)
 {
-  if (src->fd) {
+  if (src->fd >= 0) {
     if (!g_close (src->fd, NULL)) {
       GST_WARNING_OBJECT (src, "Failed to close file descriptor %d: %s",
           src->fd, g_strerror (errno));
       return;
     }
-    src->fd = 0;
+    src->fd = -1;
   }
 }
 
@@ -522,7 +522,7 @@ gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, guint sample_index)
 
   g_return_val_if_fail (src != NULL, 0);
   g_return_val_if_fail (src->data_type != GST_DATA_REPO_DATA_IMAGE, 0);
-  g_return_val_if_fail (src->fd != 0, 0);
+  g_return_val_if_fail (src->fd >= 0, 0);
 
   offset = (guint64) src->sample_size * sample_index;
 
@@ -596,7 +596,7 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
   guint64 sample_offset = 0;
   guint64 offset = 0;           /* offset from 0 */
 
-  g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
+  g_return_val_if_fail (src->fd >= 0, GST_FLOW_ERROR);
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
   if (gst_data_repo_src_epoch_is_done (src)) {
@@ -781,7 +781,7 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
   guint tensor_count;
   gsize tensor_size, hsize;
 
-  g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
+  g_return_val_if_fail (src->fd >= 0, GST_FLOW_ERROR);
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
   if (gst_data_repo_src_epoch_is_done (src)) {
@@ -1048,7 +1048,7 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   guint shuffled_index = 0;
   guint64 offset = 0;
 
-  g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
+  g_return_val_if_fail (src->fd >= 0, GST_FLOW_ERROR);
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
   if (gst_data_repo_src_epoch_is_done (src)) {

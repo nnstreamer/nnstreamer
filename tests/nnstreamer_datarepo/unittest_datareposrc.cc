@@ -12,6 +12,8 @@
 #include <glib/gstdio.h>
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api_util.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <unittest_util.h>
 
 static const gchar filename[] = "mnist.data";
@@ -2142,6 +2144,256 @@ TEST (datareposrc, readCraftedTotalSamplesBeyondUint_n)
     g_remove (REPO_DATA);
     g_remove (REPO_JSON);
   }
+}
+
+/**
+ * @brief Bus callback recording the first EOS or ERROR.
+ */
+static gboolean
+_fd0_bus_cb (GstBus *bus, GstMessage *message, gpointer user_data)
+{
+  GstMessageType *type = (GstMessageType *) user_data;
+
+  if (*type == GST_MESSAGE_UNKNOWN
+      && (GST_MESSAGE_TYPE (message) == GST_MESSAGE_EOS
+          || GST_MESSAGE_TYPE (message) == GST_MESSAGE_ERROR))
+    *type = GST_MESSAGE_TYPE (message);
+
+  return TRUE;
+}
+
+/**
+ * @brief Keep the first buffer a fakesink hands off.
+ */
+static void
+_fd0_handoff_cb (GstElement *element, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  GstBuffer **first = (GstBuffer **) user_data;
+
+  if (*first == NULL)
+    *first = gst_buffer_ref (buffer);
+}
+
+/**
+ * @brief Run @a launch, of which datareposrc reads @a data_path, with the data
+ * file opened on fd 0 (stdin closed by the process).
+ * @param first if not NULL, gets the first buffer of the fakesink named fsink.
+ * @return the first EOS or ERROR message type.
+ */
+static GstMessageType
+_read_on_fd0 (const gchar *launch, const gchar *data_path, GstBuffer **first)
+{
+  struct stat st = {}, fd0 = {};
+  GstMessageType type = GST_MESSAGE_UNKNOWN;
+  GstBus *bus;
+  gint saved;
+  guint i;
+  GstElement *pipeline = gst_parse_launch (launch, NULL);
+
+  EXPECT_NE (pipeline, nullptr);
+  if (!pipeline)
+    return type;
+
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  gst_bus_add_signal_watch (bus);
+  g_signal_connect (bus, "message", G_CALLBACK (_fd0_bus_cb), &type);
+  if (first) {
+    GstElement *fsink = gst_bin_get_by_name (GST_BIN (pipeline), "fsink");
+
+    g_signal_connect (fsink, "handoff", G_CALLBACK (_fd0_handoff_cb), first);
+    gst_object_unref (fsink);
+  }
+
+  /* The first create() opens the data file, so it takes the fd 0 closed here. */
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_READY, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_main_context_iteration (NULL, FALSE);
+  saved = dup (0);
+  close (0);
+
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  for (i = 0; i < 1000 && type == GST_MESSAGE_UNKNOWN; i++) {
+    g_main_context_iteration (NULL, FALSE);
+    g_usleep (10000);
+  }
+
+  EXPECT_EQ (fstat (0, &fd0), 0);
+  EXPECT_EQ (stat (data_path, &st), 0);
+  EXPECT_EQ (fd0.st_dev, st.st_dev);
+  EXPECT_EQ (fd0.st_ino, st.st_ino);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  if (saved >= 0) {
+    dup2 (saved, 0);
+    close (saved);
+  }
+
+  gst_bus_remove_signal_watch (bus);
+  gst_object_unref (bus);
+  gst_object_unref (pipeline);
+
+  return type;
+}
+
+/**
+ * @brief A raw video data file opened on fd 0 is read.
+ */
+TEST (datareposrc, readVideoRawOnFd0)
+{
+  create_video_test_file ();
+  EXPECT_EQ (_read_on_fd0 ("datareposrc location=video1.raw json=video1.json ! fakesink",
+                 "video1.raw", NULL),
+      GST_MESSAGE_EOS);
+  g_remove ("video1.json");
+  g_remove ("video1.raw");
+}
+
+/**
+ * @brief A static tensor data file opened on fd 0 is read, from the offset of the start sample.
+ */
+TEST (datareposrc, readTensorsOnFd0)
+{
+  const guint start = 3;
+  g_autofree gchar *file_path = get_file_path (filename);
+  g_autofree gchar *json_path = get_file_path (json);
+  g_autofree gchar *launch = g_strdup_printf (
+      "datareposrc location=%s json=%s start-sample-index=%u stop-sample-index=9 "
+      "is-shuffle=false ! fakesink name=fsink signal-handoffs=true",
+      file_path, json_path, start);
+  g_autofree gchar *contents = NULL;
+  gsize length = 0;
+  GstBuffer *first = NULL;
+  GstMapInfo map;
+
+  EXPECT_EQ (_read_on_fd0 (launch, file_path, &first), GST_MESSAGE_EOS);
+  ASSERT_NE (first, nullptr);
+  EXPECT_TRUE (g_file_get_contents (file_path, &contents, &length, NULL));
+  ASSERT_TRUE (gst_buffer_map (first, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, 3176U);
+  if (contents && (start + 1) * map.size <= length) {
+    EXPECT_EQ (memcmp (map.data, contents + start * map.size, map.size), 0);
+  } else {
+    ADD_FAILURE () << "the data file is shorter than the start sample";
+  }
+  gst_buffer_unmap (first, &map);
+  gst_buffer_unref (first);
+}
+
+/**
+ * @brief A flexible tensor data file opened on fd 0 is read.
+ */
+TEST (datareposrc, readFlexibleTensorsOnFd0)
+{
+  create_flexible_tensors_test_file (10, 0);
+  EXPECT_EQ (_read_on_fd0 ("datareposrc location=flexible0.data json=flexible0.json ! fakesink",
+                 "flexible0.data", NULL),
+      GST_MESSAGE_EOS);
+  g_remove ("flexible0.json");
+  g_remove ("flexible0.data");
+}
+
+/**
+ * @brief An image source closes the file it opened to check it, also when that file is on fd 0.
+ */
+TEST (datareposrc, readImageFilesOnFd0)
+{
+  struct stat st = {}, fd0 = {};
+  gint buffer_count = 0, saved, i;
+  GstElement *tensor_sink;
+  GstBus *bus;
+  GMainLoop *loop;
+  const gchar *str_pipeline
+      = "datareposrc location=img_%02d.png json=img.json start-sample-index=0 stop-sample-index=4 !"
+        "pngdec ! tensor_converter ! tensor_sink name=tensor_sink0";
+
+  create_image_test_file ();
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
+  ASSERT_NE (tensor_sink, nullptr);
+  g_signal_connect (tensor_sink, "new-data", G_CALLBACK (new_data_cb), &buffer_count);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  g_clear_pointer (&bus, gst_object_unref);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_READY, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  saved = dup (0);
+  close (0);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+
+  EXPECT_NE (buffer_count, 0);
+  /* Without the close, fd 0 still is the first image. */
+  EXPECT_EQ (stat ("img_00.png", &st), 0);
+  if (fstat (0, &fd0) == 0) {
+    EXPECT_FALSE (fd0.st_dev == st.st_dev && fd0.st_ino == st.st_ino);
+  }
+
+  if (saved >= 0) {
+    dup2 (saved, 0);
+    close (saved);
+  }
+
+  g_clear_pointer (&tensor_sink, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
+  g_main_loop_unref (loop);
+
+  g_remove ("img.json");
+  for (i = 0; i < 5; i++) {
+    g_autofree gchar *filename = g_strdup_printf ("img_%02d.png", i);
+    g_remove (filename);
+  }
+}
+
+/**
+ * @brief Count the messages logged to a GLib log domain.
+ */
+static void
+_count_log_cb (const gchar *domain, GLogLevelFlags level, const gchar *message, gpointer user_data)
+{
+  (*((guint *) user_data))++;
+}
+
+/**
+ * @brief A data file that cannot be opened leaves no descriptor to close.
+ * GLib 2.76 and later report g_close () on an invalid descriptor as a critical.
+ */
+TEST (datareposrc, openFailureClosesNothing_n)
+{
+  guint n_critical = 0;
+  guint handler;
+  GstBus *bus;
+  GMainLoop *loop;
+
+  create_video_test_file ();
+  g_remove ("video1.raw");
+
+  GstElement *pipeline = gst_parse_launch (
+      "datareposrc location=video1.raw json=video1.json ! fakesink", NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  g_clear_pointer (&bus, gst_object_unref);
+
+  handler = g_log_set_handler ("GLib", G_LOG_LEVEL_CRITICAL, _count_log_cb, &n_critical);
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (loop);
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  g_log_remove_handler ("GLib", handler);
+
+  EXPECT_EQ (n_critical, 0U);
+
+  g_clear_pointer (&pipeline, gst_object_unref);
+  g_main_loop_unref (loop);
+  g_remove ("video1.json");
 }
 
 /**
