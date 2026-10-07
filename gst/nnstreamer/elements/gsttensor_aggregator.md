@@ -44,6 +44,10 @@ Please be informed that, to ensure the tensor configuration, you have to change 
 With larger ```frames-in``` values and smaller ```frames-out``` values, the output stream may have more frames than its input stream: ```dis-aggregation```.
 For example, if a neural network model multiplies picture frames of a video stream, generating 120FPS from 30FPS video, aggregated in a single video (in tensor format) stream output, we can generate a 120FPS stream from a 30FPS (4 frames per buffer) stream. If the model generates 4 video (tensor format) streams with other/tensors, we may merge them first and apply aggregator for the same effect.
 
+### Multiple clients on a query server
+
+When the incoming buffers carry a client ID (see [tensor_query](../tensor_query/README.md)), the frames of each client are aggregated separately. The element keeps the pending frames of at most 1023 client IDs at a time. When data of a new client ID arrives beyond that, the element first releases the IDs that have no pending data, and if every ID has some, it drops the pending data of the least recently used ID; the next buffer of that client then starts a new output frame. The output of that client stays shifted by the dropped data from then on. A negative client ID is handled like any other ID.
+
 ## Sink Pads
 
 One "Always" sink pad exists. The capability of sink pad is ```other/tensor```.

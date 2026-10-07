@@ -753,6 +753,8 @@ error:
 typedef struct
 {
   GstAdapter *adapter;
+  guint64 stamp; /**< last use of the adapter, the default data counts the uses of the table */
+  gboolean warned; /**< set in the default data when the table has dropped pending data */
 } gst_tensor_aggregation_data_s;
 
 /**
@@ -802,6 +804,52 @@ gst_tensor_aggregation_get_data (GHashTable * table, const gint64 key)
   g_return_val_if_fail (table != NULL, NULL);
 
   return (gst_tensor_aggregation_data_s *) g_hash_table_lookup (table, &key);
+}
+
+/**
+ * @brief Internal function to make room in a full table.
+ * Every adapter holding no data goes first since dropping it loses no data, then the least recently used one if none was empty.
+ * The default adapter always stays.
+ */
+static void
+gst_tensor_aggregation_evict (GHashTable * table)
+{
+  GHashTableIter iter;
+  gpointer key, value;
+  gst_tensor_aggregation_data_s *aggr, *base = NULL, *oldest = NULL;
+  gint64 *oldest_key = NULL;
+
+  g_hash_table_iter_init (&iter, table);
+  while (g_hash_table_iter_next (&iter, &key, &value)) {
+    aggr = (gst_tensor_aggregation_data_s *) value;
+
+    if (*((gint64 *) key) == 0) {
+      base = aggr;
+      continue;
+    }
+
+    if (gst_adapter_available (aggr->adapter) == 0) {
+      g_hash_table_iter_remove (&iter);
+    } else if (!oldest || aggr->stamp < oldest->stamp) {
+      oldest = aggr;
+      oldest_key = (gint64 *) key;
+    }
+  }
+
+  if (oldest && g_hash_table_size (table) >= NNS_TENSOR_AGGREGATION_MAX) {
+    if (base && !base->warned) {
+      base->warned = TRUE;
+      nns_logw ("Too many aggregation ids (max %u), dropping the pending "
+          "data of the least recently used one. Its next data starts a new "
+          "aggregate. Further drops of this table are logged at info level.",
+          NNS_TENSOR_AGGREGATION_MAX);
+    }
+
+    nns_logi ("Dropping %" G_GSIZE_FORMAT " bytes of the aggregation id %"
+        G_GINT64_FORMAT ".", gst_adapter_available (oldest->adapter),
+        *oldest_key);
+    g_hash_table_remove (table, oldest_key);
+  }
 }
 
 /**
@@ -858,7 +906,6 @@ gst_tensor_aggregation_clear (GHashTable * table, const gint64 key)
   gst_tensor_aggregation_data_s *aggr;
 
   g_return_if_fail (table != NULL);
-  g_return_if_fail (key >= 0);
 
   aggr = gst_tensor_aggregation_get_data (table, key);
   gst_tensor_aggregation_clear_internal (NULL, aggr, NULL);
@@ -879,19 +926,28 @@ gst_tensor_aggregation_clear_all (GHashTable * table)
  * @param table a hash table instance initialized with gst_tensor_aggregation_init()
  * @param key the key to look up (set 0 to get default adapter)
  * @return gst-adapter instance. DO NOT release this instance.
+ * @note The table keeps at most NNS_TENSOR_AGGREGATION_MAX adapters. Asking for a new key when it is full releases the empty adapters, or the least recently used one, so use the returned adapter before calling this with another key. The data pending in a released adapter is dropped, and the next data of its key starts a new aggregate.
  */
 GstAdapter *
 gst_tensor_aggregation_get_adapter (GHashTable * table, const gint64 key)
 {
-  gst_tensor_aggregation_data_s *aggr;
+  gst_tensor_aggregation_data_s *aggr, *base;
 
   g_return_val_if_fail (table != NULL, NULL);
-  g_return_val_if_fail (key >= 0, NULL);
 
   aggr = gst_tensor_aggregation_get_data (table, key);
   if (!aggr) {
+    if (g_hash_table_size (table) >= NNS_TENSOR_AGGREGATION_MAX)
+      gst_tensor_aggregation_evict (table);
+
     /*append new data */
     aggr = gst_tensor_aggregation_add_data (table, key);
+  }
+
+  if (key != 0) {
+    base = gst_tensor_aggregation_get_data (table, 0);
+    if (base)
+      aggr->stamp = ++base->stamp;
   }
 
   return aggr->adapter;
