@@ -48,6 +48,8 @@ title: tensor_converter
   - The converter gets input capability from the peer pad of the sink pad, or you can specify the capability.
   - You don't need to specify the option because the sub-plugin is registered using the capability.
 
+When the incoming buffers carry a client ID (see [tensor_query](../tensor_query/README.md)) and ```frames-per-tensor``` or the input size makes the converter collect more than one buffer per tensor, the data of each client is collected separately. The element keeps the pending data of at most 1023 client IDs at a time. When data of a new client ID arrives beyond that, the element first releases the IDs that have no pending data, and if every ID has some, it drops the pending data of the least recently used ID; the next buffer of that client then starts a new output frame. The output of that client stays shifted by the dropped data from then on. A negative client ID is handled like any other ID.
+
 ## Planned features
 
 From higher priority
