@@ -475,6 +475,86 @@ TEST_F (NNStreamerFilterVivanteTest, reopenAnotherModel)
 }
 
 /**
+ * @brief Keep the opened model when the same pair of model files is given
+ */
+TEST_F (NNStreamerFilterVivanteTest, reopenSameModel)
+{
+  GstTensorsInfo info;
+  void *opened;
+
+  ASSERT_EQ (sp->open (&prop, &private_data), 0);
+  opened = private_data;
+
+  /* A positive value tells that the model is already loaded. */
+  EXPECT_EQ (sp->open (&prop, &private_data), 1);
+  EXPECT_EQ (private_data, opened);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 1);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 0);
+
+  gst_tensors_info_init (&info);
+  EXPECT_EQ (sp->getInputDimension (&prop, &private_data, &info), 0);
+  EXPECT_EQ (info.num_tensors, 1U);
+  ExpectMockDimension (&info, 0);
+  gst_tensors_info_free (&info);
+
+  freed_tensor_name = 0;
+  sp->close (&prop, &private_data);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (freed_tensor_name, 2U);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 0);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+}
+
+/**
+ * @brief Load the model again when only the network binary is another one
+ */
+TEST_F (NNStreamerFilterVivanteTest, reopenAnotherNetwork)
+{
+  ASSERT_EQ (sp->open (&prop, &private_data), 0);
+
+  SetFilterProperty ("another_" MOCK_MODEL_NB, MOCK_VIVANTE_MODEL_PATH);
+  EXPECT_EQ (sp->open (&prop, &private_data), 0);
+  ASSERT_NE (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 1);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+
+  sp->close (&prop, &private_data);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 2);
+}
+
+/**
+ * @brief Load the model again when only the model library is another one
+ */
+TEST_F (NNStreamerFilterVivanteTest, reopenAnotherLibrary)
+{
+  ASSERT_EQ (sp->open (&prop, &private_data), 0);
+
+  SetFilterProperty (MOCK_MODEL_NB, MOCK_VIVANTE_MODEL_ALT_PATH);
+  EXPECT_EQ (sp->open (&prop, &private_data), 0);
+  ASSERT_NE (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 1);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+
+  sp->close (&prop, &private_data);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 2);
+}
+
+/**
+ * @brief Release the opened model when the model library given next is unusable
+ */
+TEST_F (NNStreamerFilterVivanteTest, reopenUnknownLibrary_n)
+{
+  ASSERT_EQ (sp->open (&prop, &private_data), 0);
+
+  /* The network binary is the same, yet this is not the opened model. */
+  SetFilterProperty (MOCK_MODEL_NB, "there_is_no_such_library.so");
+  EXPECT_LT (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 0);
+  EXPECT_EQ (mock_ovxlib_get_model_unload (), 1);
+}
+
+/**
  * @brief Fail to invoke the model when the mock reports a failure
  */
 TEST_F (NNStreamerFilterVivanteTest, invokeFail_n)
