@@ -403,7 +403,7 @@ if gtest_dep.found()
 
     unittest_converter_config = executable('unittest_converter_config',
       join_paths('nnstreamer_converter', 'unittest_converter_config.cc'),
-      dependencies: [nnstreamer_unittest_deps],
+      dependencies: [nnstreamer_unittest_deps, libdl_dep],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )

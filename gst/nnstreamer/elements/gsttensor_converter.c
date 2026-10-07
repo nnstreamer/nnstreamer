@@ -470,37 +470,52 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
     {
       const gchar *param = g_value_get_string (value);
       const converter_custom_cb_s *ptr = NULL;
+      converter_custom_cb_s custom = { NULL, NULL };
+      tensor_converter_mode mode = _CONVERTER_MODE_NONE;
+      gchar *mode_option = NULL, *ext_fw = NULL;
+      gchar *old_option = NULL, *old_fw = NULL;
       gchar **strv = g_strsplit_set (param, ":", -1);
-      self->custom.func = NULL;
 
       if (g_strv_length (strv) < 2) {
         nns_logw
             ("Tensor converter mode option is incorrect. Please specify mode option as <MODE>:<MODE_OPTION>. Refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter for detail.");
-        g_strfreev (strv);
-        break;
-      }
-
-      g_free (self->mode_option);
-      self->mode_option = g_strdup (strv[1]);
-      if (g_ascii_strcasecmp (strv[0], "custom-code") == 0) {
-        self->mode = _CONVERTER_MODE_CUSTOM_CODE;
-        ptr = get_subplugin (NNS_CUSTOM_CONVERTER, self->mode_option);
-        if (!ptr) {
-          nns_logw
-              ("Failed to find custom subplugin of the tensor_converter. The custom-code for tensor_converter, \"%s\" is not registered by nnstreamer_converter_custom_register() function. Refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter for detail.",
-              strv[1]);
-          g_strfreev (strv);
-          break;
+      } else {
+        mode_option = g_strdup (strv[1]);
+        if (g_ascii_strcasecmp (strv[0], "custom-code") == 0) {
+          mode = _CONVERTER_MODE_CUSTOM_CODE;
+          ptr = get_subplugin (NNS_CUSTOM_CONVERTER, mode_option);
+          if (ptr) {
+            custom = *ptr;
+          } else {
+            nns_logw
+                ("Failed to find custom subplugin of the tensor_converter. The custom-code for tensor_converter, \"%s\" is not registered by nnstreamer_converter_custom_register() function. Refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter for detail.",
+                strv[1]);
+          }
+        } else if (g_ascii_strcasecmp (strv[0], "custom-script") == 0) {
+          mode = _CONVERTER_MODE_CUSTOM_SCRIPT;
+          /** @todo detects framework based on the script extension */
+          ext_fw = g_strdup ("python3");
         }
-        self->custom.func = ptr->func;
-        self->custom.data = ptr->data;
-      } else if (g_ascii_strcasecmp (strv[0], "custom-script") == 0) {
-        self->mode = _CONVERTER_MODE_CUSTOM_SCRIPT;
-        /** @todo detects framework based on the script extension */
-        g_free (self->ext_fw);
-        self->ext_fw = g_strdup ("python3");
       }
       g_strfreev (strv);
+
+      /* the streaming thread takes the callback and its data as one */
+      GST_OBJECT_LOCK (self);
+      self->custom = custom;
+      if (mode_option) {
+        old_option = self->mode_option;
+        self->mode_option = mode_option;
+      }
+      if (mode != _CONVERTER_MODE_NONE)
+        self->mode = mode;
+      if (ext_fw) {
+        old_fw = self->ext_fw;
+        self->ext_fw = ext_fw;
+      }
+      GST_OBJECT_UNLOCK (self);
+
+      g_free (old_option);
+      g_free (old_fw);
 
       break;
     }
@@ -1317,18 +1332,36 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     case _NNS_MEDIA_ANY:
     {
       if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
-        if (self->custom.func == NULL) {
+        converter_custom_cb_s custom;
+
+        GST_OBJECT_LOCK (self);
+        custom = self->custom;
+        GST_OBJECT_UNLOCK (self);
+
+        if (custom.func == NULL) {
+          gchar *name;
+
+          GST_OBJECT_LOCK (self);
+          name = g_strdup (self->mode_option);
+          GST_OBJECT_UNLOCK (self);
           nns_loge
               ("Tensor converter is in custom/code mode (mode=custom-code:${funcname}), where a user code as a callback function is required. However, the required information to configure the tensor converter is not given or incorrectly given. For detail, please refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter. The given ${funcname} is \"%s\", which is an invalid/unregistered name.",
-              self->mode_option);
+              name);
+          g_free (name);
           goto error;
         }
-        inbuf = self->custom.func (buf, self->custom.data, &new_config);
+        inbuf = custom.func (buf, custom.data, &new_config);
 
         if (inbuf == NULL) {
+          gchar *name;
+
+          GST_OBJECT_LOCK (self);
+          name = g_strdup (self->mode_option);
+          GST_OBJECT_UNLOCK (self);
           nns_loge
               ("Failed to convert input streams to tensors: the converted result of the incoming buffer is NULL. The converter is custom-func with %s function, which is available and loaded, but has returned NULL buffer after the conversion.",
-              self->mode_option);
+              name);
+          g_free (name);
           goto error;
         }
       } else if (self->externalConverter && self->externalConverter->convert) {
@@ -1343,10 +1376,16 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
           goto error;
         }
       } else if (self->mode == _CONVERTER_MODE_CUSTOM_SCRIPT) {
+        gchar *name;
+
+        GST_OBJECT_LOCK (self);
+        name = g_strdup (self->mode_option);
+        GST_OBJECT_UNLOCK (self);
         /* self->externalConverter->converter should've been available! */
         GST_ERROR_OBJECT (self,
             "Tensor converter is in custom/script mode (mode=custom-script:${scriptpath}), where a path to a script file is required. However, it is not properly configured. The given ${scriptpath} is \"%s\".",
-            self->mode_option);
+            name);
+        g_free (name);
         goto error;
       } else {
         /** @todo identify and printout the given input stream caps. */
