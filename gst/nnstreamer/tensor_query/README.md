@@ -177,3 +177,5 @@ $ ssat # or $ bash runTest.sh
 ### Available elements on query server.
 Multiple `tensor_query_client` can connect to the query server. The `query_serversrc` add a unique client ID (given by the query server) to the meta of the GstBuffer to distinguish clients. If there is an element that does not copy meta information, the `tensor_query_serversink` cannot send it to the client because it does not know which client receive the buffer.  
 Please check list [here](https://github.com/nnstreamer/nnstreamer/wiki/Available-elements-on-query-server)
+
+`tensor_converter` and `tensor_aggregator` collect the incoming data of each client separately until an output frame is complete, and each of them keeps the pending data of at most 1023 client IDs at a time. When data of a new client ID arrives beyond that, the element first releases the IDs that have no pending data, and if every ID has some, it drops the pending data of the least recently used ID; the next buffer of that client then starts a new output frame. The output of that client stays shifted by the dropped data from then on. A negative client ID is handled like any other ID.
