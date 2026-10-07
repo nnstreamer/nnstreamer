@@ -2102,6 +2102,833 @@ TEST (tensorIfTensorCount, bufferBeforeCaps_n)
 }
 
 /**
+ * @brief Size of the tensors of the allocator below, which is not less than the
+ *        header of a flexible tensor so that picking such a tensor maps it.
+ */
+#define IF_MAP_HOOK_TENSOR_SIZE (128U)
+
+/**
+ * @brief Memory of the allocator below, a uint8 tensor.
+ */
+typedef struct {
+  GstMemory mem;
+  guint8 data[IF_MAP_HOOK_TENSOR_SIZE];
+} IfMapHookMemory;
+
+/**
+ * @brief Allocator calling a hook from one of the maps of its memories, or refusing one.
+ */
+typedef struct {
+  GstAllocator parent;
+  guint maps; /**< number of maps so far */
+  guint hook_at; /**< the map to call the hook from, counted from 1 */
+  guint refuse_at; /**< the map to refuse, counted from 1 */
+  GFunc hook; /**< called with hook_data as its first argument */
+  gpointer hook_data;
+} IfMapHookAllocator;
+
+/**
+ * @brief Class of IfMapHookAllocator.
+ */
+typedef struct {
+  GstAllocatorClass parent_class;
+} IfMapHookAllocatorClass;
+
+G_DEFINE_TYPE (IfMapHookAllocator, if_map_hook_allocator, GST_TYPE_ALLOCATOR);
+
+/**
+ * @brief Map a memory of IfMapHookAllocator.
+ */
+static gpointer
+if_map_hook_memory_map (GstMemory *mem, gsize, GstMapFlags)
+{
+  IfMapHookAllocator *self = (IfMapHookAllocator *) mem->allocator;
+
+  if (++self->maps == self->hook_at && self->hook)
+    self->hook (self->hook_data, NULL);
+
+  if (self->maps == self->refuse_at)
+    return NULL;
+
+  return ((IfMapHookMemory *) mem)->data;
+}
+
+/**
+ * @brief Unmap a memory of IfMapHookAllocator.
+ */
+static void
+if_map_hook_memory_unmap (GstMemory *)
+{
+}
+
+/**
+ * @brief Free a memory of IfMapHookAllocator.
+ */
+static void
+if_map_hook_allocator_free (GstAllocator *, GstMemory *mem)
+{
+  g_free (mem);
+}
+
+/**
+ * @brief Initialize the class of IfMapHookAllocator.
+ */
+static void
+if_map_hook_allocator_class_init (IfMapHookAllocatorClass *klass)
+{
+  GST_ALLOCATOR_CLASS (klass)->free = if_map_hook_allocator_free;
+}
+
+/**
+ * @brief Initialize an IfMapHookAllocator.
+ */
+static void
+if_map_hook_allocator_init (IfMapHookAllocator *self)
+{
+  GstAllocator *allocator = GST_ALLOCATOR_CAST (self);
+
+  allocator->mem_type = "IfMapHook";
+  allocator->mem_map = if_map_hook_memory_map;
+  allocator->mem_unmap = if_map_hook_memory_unmap;
+  GST_OBJECT_FLAG_SET (allocator, GST_ALLOCATOR_FLAG_CUSTOM_ALLOC);
+}
+
+/**
+ * @brief Build a buffer of two zeroed tensors of the given allocator.
+ */
+static GstBuffer *
+_buffer_with_hook_memories (IfMapHookAllocator *allocator)
+{
+  GstBuffer *buffer = gst_buffer_new ();
+  guint i;
+
+  for (i = 0; i < 2; i++) {
+    IfMapHookMemory *mem = g_new0 (IfMapHookMemory, 1);
+
+    gst_memory_init (GST_MEMORY_CAST (mem), GST_MEMORY_FLAG_NO_SHARE,
+        GST_ALLOCATOR_CAST (allocator), NULL, sizeof (mem->data), 0, 0,
+        sizeof (mem->data));
+    gst_buffer_append_memory (buffer, GST_MEMORY_CAST (mem));
+  }
+
+  return buffer;
+}
+
+/**
+ * @brief A property access made while tensor_if handles a buffer, from the
+ *        allocator mapping one of its memories.
+ */
+typedef struct {
+  GstElement *tensor_if;
+  const gchar *name; /**< the string property to access */
+  const gchar *value; /**< the value to set, NULL to get the property */
+  guint times; /**< how many times to access the property */
+  guint done; /**< number of the accesses that returned */
+  guint retired; /**< number of the option lists kept for the chain after the last access */
+} IfPropAccess;
+
+/**
+ * @brief Map hook accessing the property of IfPropAccess on the streaming
+ *        thread, which blocks forever if tensor_if maps with its lock held.
+ */
+static void
+_prop_access_hook (gpointer user_data, gpointer)
+{
+  IfPropAccess *access = (IfPropAccess *) user_data;
+  guint i;
+
+  for (i = 0; i < access->times; i++) {
+    if (access->value) {
+      g_object_set (access->tensor_if, access->name, access->value, NULL);
+    } else {
+      gchar *value = NULL;
+
+      g_object_get (access->tensor_if, access->name, &value, NULL);
+      g_free (value);
+    }
+    access->done++;
+  }
+
+  access->retired = g_slist_length (GST_TENSOR_IF (access->tensor_if)->retired_options);
+}
+
+/**
+ * @brief Negotiate two uint8 tensors of the given size on the sink pad of a
+ *        standalone tensor_if.
+ */
+static void
+_negotiate_two_tensors (GstPad *sinkpad, guint size)
+{
+  gchar *dimensions = g_strdup_printf ("%u:1:1:1,%u:1:1:1", size, size);
+  GstCaps *caps = gst_caps_new_simple ("other/tensors", "format", G_TYPE_STRING, "static",
+      "num_tensors", G_TYPE_INT, 2, "dimensions", G_TYPE_STRING, dimensions, "types",
+      G_TYPE_STRING, "uint8,uint8", "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  GstSegment segment;
+
+  g_free (dimensions);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  gst_caps_unref (caps);
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_segment (&segment)));
+}
+
+/**
+ * @brief Check that no buffer is being handled and no replaced option list is kept.
+ */
+static void
+_expect_chains_released (GstElement *tensor_if)
+{
+  EXPECT_EQ (GST_TENSOR_IF (tensor_if)->num_chains, 0U);
+  EXPECT_EQ (GST_TENSOR_IF (tensor_if)->retired_options, nullptr);
+}
+
+/**
+ * @brief Chain a buffer of two tensors into a tensor_if picking tensors, and
+ *        access a property from the allocator in the middle of the chain.
+ * @param hook_at the map to access the property from: 1 is the map reading the
+ *        compared value, 2 and later are the maps of the picked tensors
+ * @param then_option the then-option the element starts with
+ * @param name the string property to access
+ * @param value the value to set, NULL to get the property
+ * @param times how many times to access the property
+ * @param retired set to the number of the replaced option lists the chain kept
+ * @param picked set to the number of tensors the chain picked
+ * @param after set to the value of the property after the chain, which the caller frees
+ * @return TRUE if every access ran in the middle of the chain
+ */
+static gboolean
+_prop_access_during_chain (guint hook_at, const gchar *then_option, const gchar *name,
+    const gchar *value, guint times, guint *retired, guint *picked, gchar **after)
+{
+  IfPropAccess access = { NULL, name, value, times, 0, 0 };
+  IfMapHookAllocator *allocator;
+  GstPad *sinkpad;
+
+  *retired = 0;
+  *picked = 0;
+  *after = NULL;
+
+  sinkpad = _start_tensor_if (&access.tensor_if);
+  if (sinkpad == NULL)
+    return FALSE;
+
+  g_object_set (access.tensor_if, "then", TIFB_TENSORPICK, "then-option", then_option, NULL);
+
+  allocator = (IfMapHookAllocator *) g_object_new (if_map_hook_allocator_get_type (), NULL);
+  allocator->hook_at = hook_at;
+  allocator->hook = _prop_access_hook;
+  allocator->hook_data = &access;
+
+  _negotiate_two_tensors (sinkpad, IF_MAP_HOOK_TENSOR_SIZE);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_hook_memories (allocator)), GST_FLOW_NOT_LINKED);
+
+  /* the hook should have run, or the result tells nothing */
+  EXPECT_GE (allocator->maps, hook_at);
+  _expect_chains_released (access.tensor_if);
+
+  *retired = access.retired;
+  *picked = GST_TENSOR_IF (access.tensor_if)->out_config[TIFSP_THEN_PAD].info.num_tensors;
+  g_object_get (access.tensor_if, name, after, NULL);
+
+  gst_element_set_state (access.tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (access.tensor_if);
+  gst_object_unref (allocator);
+
+  return access.done == times;
+}
+
+/**
+ * @brief Set the properties from the allocator mapping the compared value;
+ *        the buffer keeps the values it started with.
+ */
+TEST (tensorIfPropRace, setWhileCheckingCondition)
+{
+  /* property, value to set, then-option to start with, lists kept, tensors picked */
+  const struct {
+    const gchar *name;
+    const gchar *value;
+    const gchar *then_option;
+    guint retired;
+    guint picked;
+  } cases[] = {
+    /* both tensors are zero, so this row only checks that the set returns */
+    { "compared-value-option", "0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0,1", "0", 1, 1 },
+    { "supplied-value", "1", "0", 0, 1 },
+    { "then-option", "1", "0,1", 1, 2 },
+    /* else-option starts empty, so there is no list to keep */
+    { "else-option", "1", "0", 0, 1 },
+  };
+  guint i, retired, picked;
+  gchar *after;
+
+  for (i = 0; i < G_N_ELEMENTS (cases); i++) {
+    EXPECT_TRUE (_prop_access_during_chain (1, cases[i].then_option,
+        cases[i].name, cases[i].value, 1, &retired, &picked, &after))
+        << cases[i].name;
+    EXPECT_EQ (retired, cases[i].retired) << cases[i].name;
+    EXPECT_EQ (picked, cases[i].picked) << cases[i].name;
+    EXPECT_STREQ (after, cases[i].value) << cases[i].name;
+    g_free (after);
+  }
+}
+
+/**
+ * @brief Replace then-option from the allocator while the chain walks it to
+ *        pick the tensors, which used to free the list under the walk.
+ */
+TEST (tensorIfPropRace, setWhilePickingTensors)
+{
+  guint retired, picked;
+  gchar *after;
+
+  /* at the first picked tensor, the buffer keeps the option it started with */
+  EXPECT_TRUE (_prop_access_during_chain (
+      2, "0,1", "then-option", "1", 1, &retired, &picked, &after));
+  EXPECT_EQ (retired, 1U);
+  EXPECT_EQ (picked, 2U);
+  EXPECT_STREQ (after, "1");
+  g_free (after);
+
+  /* at the last picked tensor, replaced twice */
+  EXPECT_TRUE (_prop_access_during_chain (
+      3, "0,1", "then-option", "0", 2, &retired, &picked, &after));
+  EXPECT_EQ (retired, 2U);
+  EXPECT_EQ (picked, 2U);
+  EXPECT_STREQ (after, "0");
+  g_free (after);
+}
+
+/**
+ * @brief Read the properties from the allocator while the chain uses them,
+ *        which deadlocks if the element maps a memory with its lock held.
+ */
+TEST (tensorIfPropRace, getWhileStreaming)
+{
+  guint retired, picked;
+  gchar *after;
+
+  EXPECT_TRUE (_prop_access_during_chain (
+      1, "0,1", "compared-value-option", NULL, 1, &retired, &picked, &after));
+  EXPECT_EQ (retired, 0U);
+  EXPECT_STREQ (after, "0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0,0");
+  g_free (after);
+
+  EXPECT_TRUE (_prop_access_during_chain (
+      2, "0,1", "then-option", NULL, 1, &retired, &picked, &after));
+  EXPECT_EQ (retired, 0U);
+  EXPECT_EQ (picked, 2U);
+  EXPECT_STREQ (after, "0,1");
+  g_free (after);
+}
+
+/**
+ * @brief Set an invalid then-option from the allocator while the chain walks
+ *        the list, which leaves the option as it was.
+ */
+TEST (tensorIfPropRace, setInvalidWhilePickingTensors_n)
+{
+  guint retired, picked;
+  gchar *after;
+
+  EXPECT_TRUE (_prop_access_during_chain (
+      2, "0,1", "then-option", "0,x", 1, &retired, &picked, &after));
+  EXPECT_EQ (retired, 0U);
+  EXPECT_EQ (picked, 2U);
+  EXPECT_STREQ (after, "0,1");
+  g_free (after);
+}
+
+/**
+ * @brief Skip a buffer whose then-option is replaced from the allocator, which
+ *        releases the kept list on the skip path as well.
+ */
+TEST (tensorIfPropRace, setWhileSkipping)
+{
+  IfPropAccess access = { NULL, "then-option", "1", 1, 0, 0 };
+  IfMapHookAllocator *allocator;
+  GstPad *sinkpad;
+
+  sinkpad = _start_tensor_if (&access.tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  g_object_set (access.tensor_if, "then", TIFB_SKIP, "then-option", "0", NULL);
+
+  allocator = (IfMapHookAllocator *) g_object_new (if_map_hook_allocator_get_type (), NULL);
+  allocator->hook_at = 1;
+  allocator->hook = _prop_access_hook;
+  allocator->hook_data = &access;
+
+  _negotiate_two_tensors (sinkpad, IF_MAP_HOOK_TENSOR_SIZE);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_hook_memories (allocator)), GST_FLOW_OK);
+  EXPECT_EQ (access.done, 1U);
+  EXPECT_EQ (access.retired, 1U);
+  _expect_chains_released (access.tensor_if);
+
+  gst_element_set_state (access.tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (access.tensor_if);
+  gst_object_unref (allocator);
+}
+
+/**
+ * @brief Custom condition changing and reading the properties of its tensor_if.
+ */
+static gboolean
+_custom_cb_touching_props (const GstTensorsInfo *, const GstTensorMemory *,
+    void *user_data, gboolean *result)
+{
+  GstElement *tensor_if = *(GstElement **) user_data;
+  gchar *value = NULL;
+
+  g_object_set (tensor_if, "then-option", "1", NULL);
+  g_object_get (tensor_if, "then-option", &value, NULL);
+  *result = (g_strcmp0 (value, "1") == 0);
+  g_free (value);
+
+  return TRUE;
+}
+
+/**
+ * @brief Let the custom condition change then-option of its own element; the
+ *        callback runs without the lock and the buffer takes the new option.
+ */
+TEST (tensorIfPropRace, customCallbackSetsProperty)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+
+  ASSERT_EQ (0, nnstreamer_if_custom_register (
+                    "tif_touch_props", _custom_cb_touching_props, &tensor_if));
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  g_object_set (tensor_if, "compared-value", TIFCV_CUSTOM, "compared-value-option",
+      "tif_touch_props", "then", TIFB_TENSORPICK, "then-option", "0,1", NULL);
+
+  _negotiate_two_tensors (sinkpad, 4);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_memories (2, 4)), GST_FLOW_NOT_LINKED);
+  EXPECT_EQ (GST_TENSOR_IF (tensor_if)->out_config[TIFSP_THEN_PAD].info.num_tensors, 1U);
+  _expect_chains_released (tensor_if);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+  EXPECT_EQ (0, nnstreamer_if_custom_unregister ("tif_touch_props"));
+}
+
+/**
+ * @brief Custom condition which is always true.
+ */
+static gboolean
+_custom_cb_true (const GstTensorsInfo *, const GstTensorMemory *, void *, gboolean *result)
+{
+  *result = TRUE;
+  return TRUE;
+}
+
+/**
+ * @brief Tell whether the properties of a tensor_if can still be written and
+ *        read after a failed chain, and the chain released what it took.
+ */
+static gboolean
+_props_are_released (GstElement *tensor_if)
+{
+  gchar *value = NULL;
+  gboolean released;
+
+  g_object_set (tensor_if, "else-option", "1", NULL);
+  g_object_get (tensor_if, "else-option", &value, NULL);
+  released = (g_strcmp0 (value, "1") == 0);
+  g_free (value);
+  _expect_chains_released (tensor_if);
+
+  return released;
+}
+
+/**
+ * @brief Chain a buffer into a tensor_if whose custom condition is not registered.
+ */
+TEST (tensorIfPropRace, customNotConfigured_n)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  g_object_set (tensor_if, "compared-value", TIFCV_CUSTOM,
+      "compared-value-option", "tif_not_registered", NULL);
+
+  _negotiate_two_tensors (sinkpad, 4);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_memories (2, 4)), GST_FLOW_ERROR);
+  EXPECT_TRUE (_props_are_released (tensor_if));
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+}
+
+/**
+ * @brief Chain a buffer whose second tensor cannot be mapped for the custom condition.
+ */
+TEST (tensorIfPropRace, customMapFailure_n)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  IfMapHookAllocator *allocator;
+
+  ASSERT_EQ (0, nnstreamer_if_custom_register ("tif_true", _custom_cb_true, NULL));
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  g_object_set (tensor_if, "compared-value", TIFCV_CUSTOM,
+      "compared-value-option", "tif_true", NULL);
+
+  allocator = (IfMapHookAllocator *) g_object_new (if_map_hook_allocator_get_type (), NULL);
+  allocator->refuse_at = 2;
+
+  _negotiate_two_tensors (sinkpad, IF_MAP_HOOK_TENSOR_SIZE);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_hook_memories (allocator)), GST_FLOW_ERROR);
+  EXPECT_EQ (allocator->maps, 2U);
+  EXPECT_TRUE (_props_are_released (tensor_if));
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+  gst_object_unref (allocator);
+  EXPECT_EQ (0, nnstreamer_if_custom_unregister ("tif_true"));
+}
+
+/**
+ * @brief Custom condition counting its calls in its data, always true.
+ */
+static gboolean
+_custom_cb_count (const GstTensorsInfo *, const GstTensorMemory *,
+    void *user_data, gboolean *result)
+{
+  (*(guint *) user_data)++;
+  *result = TRUE;
+  return TRUE;
+}
+
+/**
+ * @brief Switch the custom condition from the allocator while the chain maps
+ *        the input for it; the buffer is still judged by the callback and the
+ *        data it started with, and the next buffer by the new ones.
+ */
+TEST (tensorIfPropRace, customSwitchWhileMapping)
+{
+  IfPropAccess access = { NULL, "compared-value-option", "tif_count_b", 1, 0, 0 };
+  IfMapHookAllocator *allocator;
+  GstPad *sinkpad;
+  guint calls_a = 0, calls_b = 0;
+  gchar *value = NULL;
+
+  ASSERT_EQ (0, nnstreamer_if_custom_register ("tif_count_a", _custom_cb_count, &calls_a));
+  ASSERT_EQ (0, nnstreamer_if_custom_register ("tif_count_b", _custom_cb_count, &calls_b));
+
+  sinkpad = _start_tensor_if (&access.tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  g_object_set (access.tensor_if, "compared-value", TIFCV_CUSTOM,
+      "compared-value-option", "tif_count_a", NULL);
+
+  allocator = (IfMapHookAllocator *) g_object_new (if_map_hook_allocator_get_type (), NULL);
+  allocator->hook_at = 1;
+  allocator->hook = _prop_access_hook;
+  allocator->hook_data = &access;
+
+  _negotiate_two_tensors (sinkpad, IF_MAP_HOOK_TENSOR_SIZE);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_hook_memories (allocator)), GST_FLOW_NOT_LINKED);
+  EXPECT_EQ (access.done, 1U);
+  EXPECT_EQ (calls_a, 1U);
+  EXPECT_EQ (calls_b, 0U);
+  _expect_chains_released (access.tensor_if);
+
+  g_object_get (access.tensor_if, "compared-value-option", &value, NULL);
+  EXPECT_STREQ (value, "tif_count_b");
+  g_free (value);
+
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_memories (2, IF_MAP_HOOK_TENSOR_SIZE)),
+      GST_FLOW_NOT_LINKED);
+  EXPECT_EQ (calls_a, 1U);
+  EXPECT_EQ (calls_b, 1U);
+
+  gst_element_set_state (access.tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (access.tensor_if);
+  gst_object_unref (allocator);
+  EXPECT_EQ (0, nnstreamer_if_custom_unregister ("tif_count_a"));
+  EXPECT_EQ (0, nnstreamer_if_custom_unregister ("tif_count_b"));
+}
+
+/**
+ * @brief Change a property of tensor_if when it adds its source pad.
+ */
+static void
+_pad_added_sets_property (GstElement *tensor_if, GstPad *, gpointer user_data)
+{
+  g_object_set (tensor_if, "then-option", "1", NULL);
+  (*(guint *) user_data)++;
+}
+
+/**
+ * @brief Change then-option from the pad-added signal, which the chain emits
+ *        after it is done with the properties.
+ */
+TEST (tensorIfPropRace, padAddedSetsProperty)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  guint added = 0;
+  gchar *value = NULL;
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  g_object_set (tensor_if, "then", TIFB_TENSORPICK, "then-option", "0,1", NULL);
+  g_signal_connect (tensor_if, "pad-added", G_CALLBACK (_pad_added_sets_property), &added);
+
+  _negotiate_two_tensors (sinkpad, 4);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_memories (2, 4)), GST_FLOW_NOT_LINKED);
+  EXPECT_EQ (added, 1U);
+  EXPECT_EQ (GST_TENSOR_IF (tensor_if)->out_config[TIFSP_THEN_PAD].info.num_tensors, 2U);
+  g_object_get (tensor_if, "then-option", &value, NULL);
+  EXPECT_STREQ (value, "1");
+  g_free (value);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+}
+
+/**
+ * @brief Buffer probe changing a property of the tensor_if pushing the buffer.
+ */
+static GstPadProbeReturn
+_push_probe_sets_property (GstPad *pad, GstPadProbeInfo *, gpointer user_data)
+{
+  GstElement *tensor_if = gst_pad_get_parent_element (pad);
+
+  g_object_set (tensor_if, "then-option", "1", NULL);
+  gst_object_unref (tensor_if);
+  (*(guint *) user_data)++;
+
+  return GST_PAD_PROBE_OK;
+}
+
+/**
+ * @brief Add the probe above to the source pad a tensor_if adds.
+ */
+static void
+_pad_added_adds_probe (GstElement *, GstPad *pad, gpointer user_data)
+{
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, _push_probe_sets_property,
+      user_data, NULL);
+}
+
+/**
+ * @brief Change then-option from a probe on the buffer tensor_if pushes, as an
+ *        element downstream may do; the buffer is pushed without the lock.
+ */
+TEST (tensorIfPropRace, pushProbeSetsProperty)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  guint pushed = 0;
+  gchar *value = NULL;
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  g_object_set (tensor_if, "then", TIFB_TENSORPICK, "then-option", "0,1", NULL);
+  g_signal_connect (tensor_if, "pad-added", G_CALLBACK (_pad_added_adds_probe), &pushed);
+
+  _negotiate_two_tensors (sinkpad, 4);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_memories (2, 4)), GST_FLOW_NOT_LINKED);
+  EXPECT_EQ (pushed, 1U);
+  g_object_get (tensor_if, "then-option", &value, NULL);
+  EXPECT_STREQ (value, "1");
+  g_free (value);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+}
+
+/**
+ * @brief The properties a pad-removed handler read from its tensor_if.
+ */
+typedef struct {
+  guint removed; /**< number of the pads removed */
+  gchar *then_option; /**< then-option at the last removal */
+  gchar *cv_option; /**< compared-value-option at the last removal */
+} IfPadRemovedProps;
+
+/**
+ * @brief Read the properties of tensor_if when it removes a pad.
+ */
+static void
+_pad_removed_reads_property (GstElement *tensor_if, GstPad *, gpointer user_data)
+{
+  IfPadRemovedProps *props = (IfPadRemovedProps *) user_data;
+
+  g_free (props->then_option);
+  g_free (props->cv_option);
+  g_object_get (tensor_if, "then-option", &props->then_option,
+      "compared-value-option", &props->cv_option, NULL);
+  props->removed++;
+}
+
+/**
+ * @brief Read the properties from the pad-removed signal of a tensor_if being
+ *        disposed. The source pad goes before the options are freed and the
+ *        sink pad after, when the lock still works and the options read empty.
+ */
+TEST (tensorIfPropRace, padRemovedReadsProperty)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  IfPadRemovedProps props = { 0, NULL, NULL };
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  g_object_set (tensor_if, "then", TIFB_TENSORPICK, "then-option", "0,1", NULL);
+  g_signal_connect (tensor_if, "pad-removed",
+      G_CALLBACK (_pad_removed_reads_property), &props);
+
+  _negotiate_two_tensors (sinkpad, 4);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_memories (2, 4)), GST_FLOW_NOT_LINKED);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+
+  EXPECT_EQ (props.removed, 2U);
+  EXPECT_STREQ (props.then_option, "");
+  EXPECT_STREQ (props.cv_option, "");
+  g_free (props.then_option);
+  g_free (props.cv_option);
+}
+
+/**
+ * @brief Bus sync handler reading a property of the element posting an error.
+ */
+static GstBusSyncReply
+_sync_handler_reads_property (GstBus *, GstMessage *message, gpointer user_data)
+{
+  if (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ERROR) {
+    gchar *value = NULL;
+
+    g_object_get (GST_MESSAGE_SRC (message), "compared-value-option", &value, NULL);
+    g_free (value);
+    (*(guint *) user_data)++;
+  }
+
+  return GST_BUS_PASS;
+}
+
+/**
+ * @brief Fail the condition with a bus sync handler reading the properties;
+ *        the error is posted after the chain released the properties.
+ */
+TEST (tensorIfPropRace, errorHandlerReadsProperty_n)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  GstBus *bus;
+  guint errors = 0;
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  /* the caps declare 4 elements in the first dimension */
+  g_object_set (tensor_if, "compared-value-option", "4:0:0:0,0", NULL);
+
+  bus = gst_bus_new ();
+  gst_bus_set_sync_handler (bus, _sync_handler_reads_property, &errors, NULL);
+  gst_element_set_bus (tensor_if, bus);
+
+  _negotiate_two_tensors (sinkpad, 4);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_memories (2, 4)), GST_FLOW_ERROR);
+  EXPECT_EQ (errors, 1U);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_element_set_bus (tensor_if, NULL);
+  gst_object_unref (bus);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+}
+
+/**
+ * @brief Number of the buffers of the test changing the properties from another thread.
+ */
+#define PROP_RACE_BUFFERS (300U)
+
+static gint prop_toggle_stop = 0;
+static gint prop_toggle_count = 0;
+
+/**
+ * @brief Thread replacing the properties of a tensor_if until it is told to stop.
+ */
+static gpointer
+_prop_toggle_thread (gpointer user_data)
+{
+  GstElement *tensor_if = (GstElement *) user_data;
+  guint i = 0;
+
+  while (!g_atomic_int_get (&prop_toggle_stop)) {
+    gboolean odd = (++i % 2 != 0);
+
+    g_object_set (tensor_if, "then-option", odd ? "1,0" : "0", "else-option",
+        odd ? "0" : "0,1", "compared-value-option",
+        odd ? "1:0:0:0,1" : "0:0:0:0,0", "supplied-value", odd ? "1" : "0", NULL);
+    g_atomic_int_inc (&prop_toggle_count);
+    /* yield, a spinning thread starves the streaming one under valgrind */
+    g_usleep (10);
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief Keep replacing the option lists and the supplied value from another
+ *        thread while buffers flow.
+ */
+TEST (tensorIfPropRace, setFromAnotherThread)
+{
+  GstElement *tensor_if = NULL;
+  GstPad *sinkpad;
+  GThread *thread;
+  guint i;
+
+  sinkpad = _start_tensor_if (&tensor_if);
+  ASSERT_NE (sinkpad, nullptr);
+  g_object_set (tensor_if, "then", TIFB_TENSORPICK, "then-option", "0", "else",
+      TIFB_TENSORPICK, "else-option", "0,1", NULL);
+
+  _negotiate_two_tensors (sinkpad, 4);
+
+  g_atomic_int_set (&prop_toggle_stop, 0);
+  g_atomic_int_set (&prop_toggle_count, 0);
+  thread = g_thread_new ("tif-toggle", _prop_toggle_thread, tensor_if);
+  while (g_atomic_int_get (&prop_toggle_count) == 0)
+    g_usleep (1000);
+
+  for (i = 0; i < PROP_RACE_BUFFERS; i++) {
+    GstFlowReturn ret = gst_pad_chain (sinkpad, _buffer_with_memories (2, 4));
+
+    if (ret != GST_FLOW_NOT_LINKED) {
+      ADD_FAILURE () << "buffer " << i << " returned " << gst_flow_get_name (ret);
+      break;
+    }
+  }
+
+  g_atomic_int_set (&prop_toggle_stop, 1);
+  g_thread_join (thread);
+  _expect_chains_released (tensor_if);
+
+  gst_element_set_state (tensor_if, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (tensor_if);
+}
+
+/**
  * @brief Main GTest
  */
 int
