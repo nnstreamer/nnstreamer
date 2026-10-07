@@ -1919,7 +1919,7 @@ _gtfc_setprop_INPUTCOMBINATION (GstTensorFilterPrivate * priv,
 {
   guint64 val;
   const gchar *param = g_value_get_string (value);
-  gchar **strv = g_strsplit_set (param, ",", -1);
+  gchar **strv = g_strsplit_set (param ? param : "", ",", -1);
   gint i, ret = 0, num = g_strv_length (strv);
 
   /* release old list */
@@ -1927,10 +1927,9 @@ _gtfc_setprop_INPUTCOMBINATION (GstTensorFilterPrivate * priv,
   *prop_list = NULL;
 
   for (i = 0; i < num; i++) {
-    errno = 0;
-    val = g_ascii_strtoull (strv[i], NULL, 10);
-    if (errno == ERANGE || val >= NNS_TENSOR_SIZE_LIMIT) {
-      ml_loge ("Invalid value %s, cannot set combination option.", strv[i]);
+    if (!g_ascii_string_to_unsigned (g_strstrip (strv[i]), 10, 0,
+            NNS_TENSOR_SIZE_LIMIT - 1, &val, NULL)) {
+      ml_loge ("Invalid value '%s', cannot set combination option.", strv[i]);
       ret = ERANGE;
       break;
     }
@@ -1938,8 +1937,12 @@ _gtfc_setprop_INPUTCOMBINATION (GstTensorFilterPrivate * priv,
   }
   g_strfreev (strv);
 
-  if (ret == 0 && num > 0)
-    priv->combi.in_combi_defined = TRUE;
+  if (ret != 0) {
+    g_list_free (*prop_list);
+    *prop_list = NULL;
+  }
+
+  priv->combi.in_combi_defined = (*prop_list != NULL);
 
   return ret;
 }
@@ -1951,7 +1954,7 @@ _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
 {
   guint64 val;
   const gchar *param = g_value_get_string (value);
-  gchar **strv = g_strsplit_set (param, ",", -1);
+  gchar **strv = g_strsplit_set (param ? param : "", ",", -1);
   gint i, ret = 0, num = g_strv_length (strv);
 
   /* release old list */
@@ -1960,15 +1963,13 @@ _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
   *prop_list1 = *prop_list2 = NULL;
 
   for (i = 0; i < num; i++) {
-    errno = 0;
-    if (strv[i][0] == 'i') {
-      val = g_ascii_strtoull (&strv[i][1], NULL, 10);
-      *prop_list1 = g_list_append (*prop_list1, GUINT_TO_POINTER (val));
-      priv->combi.out_combi_i_defined = TRUE;
-    } else if (strv[i][0] == 'o') {
-      val = g_ascii_strtoull (&strv[i][1], NULL, 10);
-      *prop_list2 = g_list_append (*prop_list2, GUINT_TO_POINTER (val));
-      priv->combi.out_combi_o_defined = TRUE;
+    gchar *token = g_strstrip (strv[i]);
+    GList **prop_list;
+
+    if (token[0] == 'i') {
+      prop_list = prop_list1;
+    } else if (token[0] == 'o') {
+      prop_list = prop_list2;
     } else {
       ml_loge ("Wrong format for output combination properties. "
           "Please specify for input tensor(s): i#num, for output tensor(s): o#num "
@@ -1977,13 +1978,24 @@ _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
       break;
     }
 
-    if (errno == ERANGE || val >= NNS_TENSOR_SIZE_LIMIT) {
-      ml_loge ("Invalid value %s, cannot set combination option.", strv[i]);
+    if (!g_ascii_string_to_unsigned (g_strchug (token + 1), 10, 0,
+            NNS_TENSOR_SIZE_LIMIT - 1, &val, NULL)) {
+      ml_loge ("Invalid value '%s', cannot set combination option.", token);
       ret = ERANGE;
       break;
     }
+    *prop_list = g_list_append (*prop_list, GUINT_TO_POINTER (val));
   }
   g_strfreev (strv);
+
+  if (ret != 0) {
+    g_list_free (*prop_list1);
+    g_list_free (*prop_list2);
+    *prop_list1 = *prop_list2 = NULL;
+  }
+
+  priv->combi.out_combi_i_defined = (*prop_list1 != NULL);
+  priv->combi.out_combi_o_defined = (*prop_list2 != NULL);
 
   return ret;
 }

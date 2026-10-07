@@ -5264,6 +5264,253 @@ TEST (tensorStreamTest, filterCombinationIndexOverflow_n)
 }
 
 /**
+ * @brief Internal util function to set a combination property of the given filter data.
+ * @param param the value to set, NULL to set a NULL string
+ */
+static gboolean
+_set_combination (GstTensorFilterPrivate *priv, guint prop_id, const gchar *param)
+{
+  GValue value = G_VALUE_INIT;
+  gboolean ret;
+
+  g_value_init (&value, G_TYPE_STRING);
+  g_value_set_string (&value, param);
+  ret = gst_tensor_filter_common_set_property (priv, prop_id, &value, NULL);
+  g_value_unset (&value);
+
+  return ret;
+}
+
+/**
+ * @brief Internal util function to read a combination property back as a string.
+ * @return newly allocated string, the caller should free it
+ */
+static gchar *
+_get_combination (GstTensorFilterPrivate *priv, guint prop_id)
+{
+  GValue value = G_VALUE_INIT;
+  gchar *ret;
+
+  g_value_init (&value, G_TYPE_STRING);
+  EXPECT_TRUE (gst_tensor_filter_common_get_property (priv, prop_id, &value, NULL));
+  ret = g_value_dup_string (&value);
+  g_value_unset (&value);
+
+  return ret;
+}
+
+/**
+ * @brief Test for combination properties with blanks around the indices.
+ */
+TEST (tensorStreamTest, filterCombinationBlanks)
+{
+  GstTensorFilterPrivate priv;
+  gchar *str;
+
+  gst_tensor_filter_common_init_property (&priv);
+
+  EXPECT_TRUE (_set_combination (&priv, PROP_INPUTCOMBINATION, " 0 , 2,15 "));
+  EXPECT_TRUE (priv.combi.in_combi_defined);
+  str = _get_combination (&priv, PROP_INPUTCOMBINATION);
+  EXPECT_STREQ (str, "0,2,15");
+  g_free (str);
+
+  EXPECT_TRUE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, " i0 , o 1,o15,i2 "));
+  EXPECT_TRUE (priv.combi.out_combi_i_defined);
+  EXPECT_TRUE (priv.combi.out_combi_o_defined);
+  str = _get_combination (&priv, PROP_OUTPUTCOMBINATION);
+  EXPECT_STREQ (str, "i0,i2,o1,o15");
+  g_free (str);
+
+  gst_tensor_filter_common_free_property (&priv);
+}
+
+/**
+ * @brief Test for input-combination with a token that is not a tensor index; it leaves no combination behind.
+ */
+TEST (tensorStreamTest, filterInputCombinationInvalidIndex_n)
+{
+  const gchar *invalid[] = { "a", "i0", "1x", "0x1", "+1", "-1", "0,", ",0",
+    "0,,1", "0 1", " ", "0,a", NULL };
+  GstTensorFilterPrivate priv;
+  guint i;
+
+  gst_tensor_filter_common_init_property (&priv);
+
+  for (i = 0; invalid[i] != NULL; i++) {
+    EXPECT_TRUE (_set_combination (&priv, PROP_INPUTCOMBINATION, "0,1"));
+    EXPECT_FALSE (_set_combination (&priv, PROP_INPUTCOMBINATION, invalid[i]))
+        << invalid[i];
+    EXPECT_FALSE (priv.combi.in_combi_defined) << invalid[i];
+    EXPECT_TRUE (priv.combi.in_combi == NULL) << invalid[i];
+  }
+
+  gst_tensor_filter_common_free_property (&priv);
+}
+
+/**
+ * @brief Test for output-combination with a token that is not a tensor index; it leaves no combination behind.
+ */
+TEST (tensorStreamTest, filterOutputCombinationInvalidIndex_n)
+{
+  const gchar *invalid[] = { "i", "o", "ix", "o1x", "i0x1", "i+1", "o-1", "i0,",
+    ",o0", "i0,,o0", "i0 1", " ", "0", "x0", "I0", "i0,oa", "o0,ia", NULL };
+  GstTensorFilterPrivate priv;
+  guint i;
+
+  gst_tensor_filter_common_init_property (&priv);
+
+  for (i = 0; invalid[i] != NULL; i++) {
+    EXPECT_TRUE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, "i0,o0"));
+    EXPECT_FALSE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, invalid[i]))
+        << invalid[i];
+    EXPECT_FALSE (priv.combi.out_combi_i_defined) << invalid[i];
+    EXPECT_FALSE (priv.combi.out_combi_o_defined) << invalid[i];
+    EXPECT_TRUE (priv.combi.out_combi_i == NULL) << invalid[i];
+    EXPECT_TRUE (priv.combi.out_combi_o == NULL) << invalid[i];
+  }
+
+  gst_tensor_filter_common_free_property (&priv);
+}
+
+/**
+ * @brief Test for combination properties with the last valid tensor index.
+ */
+TEST (tensorStreamTest, filterCombinationIndexLimit)
+{
+  GstTensorFilterPrivate priv;
+  gchar *in_str = g_strdup_printf ("%u", NNS_TENSOR_SIZE_LIMIT - 1U);
+  gchar *out_str = g_strdup_printf ("i%s,o%s", in_str, in_str);
+  gchar *str;
+
+  gst_tensor_filter_common_init_property (&priv);
+
+  EXPECT_TRUE (_set_combination (&priv, PROP_INPUTCOMBINATION, in_str));
+  str = _get_combination (&priv, PROP_INPUTCOMBINATION);
+  EXPECT_STREQ (str, in_str);
+  g_free (str);
+
+  EXPECT_TRUE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, out_str));
+  str = _get_combination (&priv, PROP_OUTPUTCOMBINATION);
+  EXPECT_STREQ (str, out_str);
+  g_free (str);
+
+  gst_tensor_filter_common_free_property (&priv);
+  g_free (in_str);
+  g_free (out_str);
+}
+
+/**
+ * @brief Test for combination properties with the first tensor index past the limit.
+ */
+TEST (tensorStreamTest, filterCombinationIndexLimit_n)
+{
+  GstTensorFilterPrivate priv;
+  gchar *in_str = g_strdup_printf ("%u", (guint) NNS_TENSOR_SIZE_LIMIT);
+  gchar *out_i_str = g_strdup_printf ("i%s", in_str);
+  gchar *out_o_str = g_strdup_printf ("o%s", in_str);
+
+  gst_tensor_filter_common_init_property (&priv);
+
+  EXPECT_FALSE (_set_combination (&priv, PROP_INPUTCOMBINATION, in_str));
+  EXPECT_FALSE (priv.combi.in_combi_defined);
+  EXPECT_TRUE (priv.combi.in_combi == NULL);
+  EXPECT_FALSE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, out_i_str));
+  EXPECT_FALSE (priv.combi.out_combi_i_defined);
+  EXPECT_TRUE (priv.combi.out_combi_i == NULL);
+  EXPECT_FALSE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, out_o_str));
+  EXPECT_FALSE (priv.combi.out_combi_o_defined);
+  EXPECT_TRUE (priv.combi.out_combi_o == NULL);
+
+  gst_tensor_filter_common_free_property (&priv);
+  g_free (in_str);
+  g_free (out_i_str);
+  g_free (out_o_str);
+}
+
+/**
+ * @brief Test for clearing input-combination; every input tensor is used again.
+ */
+TEST (tensorStreamTest, filterInputCombinationReset)
+{
+  /* NULL is a value to set here, not the end of the list */
+  const gchar *empty[] = { "", NULL };
+  GstTensorFilterPrivate priv;
+  GstTensorsInfo in, combined;
+  guint i;
+
+  gst_tensor_filter_common_init_property (&priv);
+  _fill_combination_info (&in, 3U);
+
+  for (i = 0; i < G_N_ELEMENTS (empty); i++) {
+    EXPECT_TRUE (_set_combination (&priv, PROP_INPUTCOMBINATION, "2"));
+    EXPECT_TRUE (priv.combi.in_combi_defined);
+    EXPECT_TRUE (gst_tensor_filter_common_get_combined_in_info (&priv, &in, &combined));
+    EXPECT_EQ (combined.num_tensors, 1U);
+    gst_tensors_info_free (&combined);
+
+    EXPECT_TRUE (_set_combination (&priv, PROP_INPUTCOMBINATION, empty[i]));
+    EXPECT_FALSE (priv.combi.in_combi_defined);
+    EXPECT_TRUE (priv.combi.in_combi == NULL);
+    EXPECT_TRUE (gst_tensor_filter_common_get_combined_in_info (&priv, &in, &combined));
+    EXPECT_EQ (combined.num_tensors, 3U);
+    gst_tensors_info_free (&combined);
+  }
+
+  gst_tensors_info_free (&in);
+  gst_tensor_filter_common_free_property (&priv);
+}
+
+/**
+ * @brief Test for replacing and clearing output-combination; a group that is no longer listed is no longer defined.
+ */
+TEST (tensorStreamTest, filterOutputCombinationReset)
+{
+  /* NULL is a value to set here, not the end of the list */
+  const gchar *empty[] = { "", NULL };
+  GstTensorFilterPrivate priv;
+  GstTensorsInfo in, out, combined;
+  guint i;
+
+  gst_tensor_filter_common_init_property (&priv);
+  _fill_combination_info (&in, 3U);
+  _fill_combination_info (&out, 2U);
+
+  for (i = 0; i < G_N_ELEMENTS (empty); i++) {
+    EXPECT_TRUE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, "i0,i1,i2,o0"));
+    EXPECT_TRUE (priv.combi.out_combi_i_defined);
+    EXPECT_TRUE (priv.combi.out_combi_o_defined);
+    EXPECT_TRUE (gst_tensor_filter_common_get_combined_out_info (&priv, &in, &out, &combined));
+    EXPECT_EQ (combined.num_tensors, 4U);
+    gst_tensors_info_free (&combined);
+
+    EXPECT_TRUE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, "o1"));
+    EXPECT_FALSE (priv.combi.out_combi_i_defined);
+    EXPECT_TRUE (priv.combi.out_combi_o_defined);
+    EXPECT_TRUE (gst_tensor_filter_common_get_combined_out_info (&priv, &in, &out, &combined));
+    EXPECT_EQ (combined.num_tensors, 1U);
+    gst_tensors_info_free (&combined);
+
+    EXPECT_TRUE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, "i1"));
+    EXPECT_TRUE (priv.combi.out_combi_i_defined);
+    EXPECT_FALSE (priv.combi.out_combi_o_defined);
+
+    EXPECT_TRUE (_set_combination (&priv, PROP_OUTPUTCOMBINATION, empty[i]));
+    EXPECT_FALSE (priv.combi.out_combi_i_defined);
+    EXPECT_FALSE (priv.combi.out_combi_o_defined);
+    EXPECT_TRUE (priv.combi.out_combi_i == NULL);
+    EXPECT_TRUE (priv.combi.out_combi_o == NULL);
+    EXPECT_TRUE (gst_tensor_filter_common_get_combined_out_info (&priv, &in, &out, &combined));
+    EXPECT_EQ (combined.num_tensors, 2U);
+    gst_tensors_info_free (&combined);
+  }
+
+  gst_tensors_info_free (&in);
+  gst_tensors_info_free (&out);
+  gst_tensor_filter_common_free_property (&priv);
+}
+
+/**
  * @brief Test for plugin registration with invalid param.
  */
 TEST (tensorStreamTest, subpluginV0NullName_n)

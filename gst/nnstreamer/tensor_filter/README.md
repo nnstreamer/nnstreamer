@@ -65,6 +65,8 @@ Select the input tensor(s) to invoke the models
 ```
 If the input is tensors '0,1,2', only tensors '0' and '2' are used to invoke the model
 
+Each entry is a decimal tensor index; blanks around an entry are ignored. A value with any other entry (e.g., `0,a`, `0,` or `1x`) is refused with an error log and leaves the combination unset: the element still runs, using every input tensor. An empty value clears the combination.
+
 ### Output combination
 Select the output tensor(s) from the input tensor(s) and/or model output  
 #### Example launch line
@@ -74,6 +76,7 @@ Select the output tensor(s) from the input tensor(s) and/or model output
 Suppose the model receives tensors '0,1' as an input and outputs tensor '0,1,2'.  
 Src pad of the tensor_filter can produce input tensor '0' and output tensors '0,2' using output-combination.  
 The selected input tensors come first, then the selected output tensors. Each group keeps the order given in the property, and an index listed twice appears twice (e.g., `o2,o0,o0` produces output tensors '2,0,0').  
+Each entry is `i` or `o` followed by a decimal tensor index; blanks around an entry, and between the prefix and the index, are ignored. A value with any other entry (e.g., `i0,o`, `i0,` or `o1x`) is refused with an error log and leaves the combination unset: the element still runs, producing the model output as it is. An empty value clears the combination.  
 
 ### Comparison of tee and combination option
 #### Object detection using tee
