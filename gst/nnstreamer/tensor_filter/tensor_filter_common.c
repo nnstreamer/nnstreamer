@@ -911,7 +911,7 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
   subplugins = get_all_subplugins (NNS_SUBPLUGIN_FILTER);
   strbuf = g_strjoinv (", ", subplugins);
   strprint = g_strdup_printf
-      ("Neural network framework. Custom property depends on the specified framework. Use 'auto' to let tensor_filter determine the framework. For more detail, please refer to the documentation or nnstreamer-check utility. Available frameworks (filter subplugins) are: {%s}.",
+      ("Neural network framework. Custom property depends on the specified framework. Use 'auto' to let tensor_filter determine the framework. A running tensor_filter keeps its framework; stop it to set another one. For more detail, please refer to the documentation or nnstreamer-check utility. Available frameworks (filter subplugins) are: {%s}.",
       strbuf);
 
   g_object_class_install_property (gobject_class, PROP_FRAMEWORK,
@@ -1450,7 +1450,15 @@ gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
   }
 }
 
-/** @brief Handle "PROP_FRAMEWORK" for set-property */
+/**
+ * @brief Handle "PROP_FRAMEWORK" for set-property
+ * @note A different framework is refused while the filter may be streaming:
+ *       its framework is opened and the pad caps are negotiated, or the
+ *       suspend watchdog is alive. Replacing it there would close the
+ *       sub-plugin under the streaming thread. The single-shot filter has no
+ *       pad caps (the framerate of in_config stays unset), so it still takes
+ *       another framework after it has started.
+ */
 static gint
 _gtfc_setprop_FRAMEWORK (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
@@ -1461,6 +1469,16 @@ _gtfc_setprop_FRAMEWORK (GstTensorFilterPrivate * priv,
 
   if (priv->fw != NULL) {
     if (g_strcmp0 (priv->prop.fwname, fw_name) != 0) {
+      /* the streaming thread uses the opened framework without a lock */
+      if (priv->watchdog_h != NULL || (priv->prop.fw_opened
+              && priv->configured && !priv->is_suspended
+              && priv->in_config.rate_d > 0)) {
+        ml_logw
+            ("Cannot change the framework from '%s' to '%s' while the tensor-filter is running. Stop it before setting another framework.",
+            priv->prop.fwname, _STR_NULL (fw_name));
+        return 0;
+      }
+
       /* close old framework, if different */
       gst_tensor_filter_common_close_fw (priv);
       priv->fw = NULL;

@@ -687,6 +687,25 @@ class NNSFilterSingleTestPrivateData : public ::testing::Test
 };
 
 /**
+ * @brief A started single-shot filter takes another framework and is no longer configured.
+ */
+TEST_F (NNSFilterSingleTestPrivateData, frameworkAfterStart)
+{
+  gchar *fw_name = NULL;
+
+  ASSERT_TRUE (klass->start (single));
+
+  g_object_set (G_OBJECT (single), "framework", "custom", NULL);
+  g_object_get (G_OBJECT (single), "framework", &fw_name, NULL);
+  EXPECT_STREQ (fw_name, "custom");
+  g_free (fw_name);
+
+  g_object_set (G_OBJECT (single), "framework", PDATA_FW_NAME, NULL);
+  EXPECT_TRUE (klass->start (single));
+  EXPECT_EQ (klass->set_input_info (single, &in_info, &out_info), 0);
+}
+
+/**
  * @brief A V1 sub-plugin receives in getModelInfo the private data its open() stored.
  */
 TEST_F (NNSFilterSingleTestPrivateData, setInputInfo)

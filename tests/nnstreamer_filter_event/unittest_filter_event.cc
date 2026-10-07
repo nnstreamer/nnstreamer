@@ -436,6 +436,171 @@ TEST_F (testFilterEvent, restartAfterSuspend)
 }
 
 /**
+ * @brief Set the framework property of a tensor_filter private data.
+ */
+static gboolean
+_set_framework (GstTensorFilterPrivate *priv, const gchar *name)
+{
+  GValue value = G_VALUE_INIT;
+  gboolean ret;
+
+  g_value_init (&value, G_TYPE_STRING);
+  g_value_set_string (&value, name);
+  ret = gst_tensor_filter_common_set_property (priv, PROP_FRAMEWORK, &value, NULL);
+  g_value_unset (&value);
+  return ret;
+}
+
+/**
+ * @brief Make a tensor_filter private data look like the one of an element with negotiated pad caps.
+ */
+static void
+_set_negotiated (GstTensorFilterPrivate *priv)
+{
+  priv->configured = TRUE;
+  priv->in_config.rate_n = 30;
+  priv->in_config.rate_d = 1;
+}
+
+/**
+ * @brief An opened and negotiated filter keeps its framework and its opened
+ *        sub-plugin when another framework is set.
+ */
+TEST_F (testFilterEvent, frameworkWhileStreaming_n)
+{
+  const GstTensorFilterFramework *fw = priv.fw;
+  void *private_data = priv.privateData;
+
+  _set_negotiated (&priv);
+  EXPECT_TRUE (_set_framework (&priv, "custom"));
+
+  EXPECT_TRUE (priv.fw == fw);
+  EXPECT_TRUE (priv.privateData == private_data);
+  EXPECT_TRUE (priv.prop.fw_opened);
+  EXPECT_TRUE (priv.configured);
+  EXPECT_STREQ (priv.prop.fwname, event_mock_subplugin::mock_name);
+}
+
+/**
+ * @brief A filter whose suspend watchdog is alive keeps its framework even if
+ *        the watchdog has closed the sub-plugin.
+ */
+TEST_F (testFilterEvent, frameworkWithWatchdog_n)
+{
+  const GstTensorFilterFramework *fw = priv.fw;
+
+  ASSERT_TRUE (nnstreamer_watchdog_create (&priv.watchdog_h));
+  gst_tensor_filter_common_unload_fw (&priv, FALSE);
+  ASSERT_FALSE (priv.prop.fw_opened);
+
+  EXPECT_TRUE (_set_framework (&priv, "custom"));
+  EXPECT_TRUE (priv.fw == fw);
+  EXPECT_STREQ (priv.prop.fwname, event_mock_subplugin::mock_name);
+  EXPECT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  nnstreamer_watchdog_destroy (priv.watchdog_h);
+  priv.watchdog_h = NULL;
+}
+
+/**
+ * @brief Setting the framework a streaming filter already has is accepted and
+ *        leaves the sub-plugin opened.
+ */
+TEST_F (testFilterEvent, frameworkSameWhileStreaming)
+{
+  const GstTensorFilterFramework *fw = priv.fw;
+
+  _set_negotiated (&priv);
+  EXPECT_TRUE (_set_framework (&priv, event_mock_subplugin::mock_name));
+
+  EXPECT_TRUE (priv.fw == fw);
+  EXPECT_TRUE (priv.prop.fw_opened);
+}
+
+/**
+ * @brief A filter opened by a caps query before it is negotiated takes
+ *        another framework, closing the opened one.
+ */
+TEST_F (testFilterEvent, frameworkBeforeNegotiation)
+{
+  ASSERT_FALSE (priv.configured);
+  EXPECT_TRUE (_set_framework (&priv, "custom"));
+
+  EXPECT_TRUE (priv.fw == nnstreamer_filter_find ("custom"));
+  EXPECT_FALSE (priv.prop.fw_opened);
+  EXPECT_STREQ (priv.prop.fwname, "custom");
+}
+
+/**
+ * @brief A started single-shot filter, which has no pad caps, takes another
+ *        framework, closing the opened one.
+ */
+TEST_F (testFilterEvent, frameworkSingleShotStarted)
+{
+  priv.configured = TRUE;
+  EXPECT_TRUE (_set_framework (&priv, "custom"));
+
+  EXPECT_TRUE (priv.fw == nnstreamer_filter_find ("custom"));
+  EXPECT_FALSE (priv.prop.fw_opened);
+  EXPECT_FALSE (priv.configured);
+  EXPECT_STREQ (priv.prop.fwname, "custom");
+}
+
+/**
+ * @brief A stopped filter that keeps its model suspended takes another
+ *        framework, closing the suspended one.
+ */
+TEST_F (testFilterEvent, frameworkWhileSuspended)
+{
+  _set_negotiated (&priv);
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+  ASSERT_TRUE (priv.is_suspended);
+
+  EXPECT_TRUE (_set_framework (&priv, "custom"));
+
+  EXPECT_TRUE (priv.fw == nnstreamer_filter_find ("custom"));
+  EXPECT_FALSE (priv.prop.fw_opened);
+  EXPECT_FALSE (priv.is_suspended);
+  EXPECT_FALSE (priv.configured);
+  EXPECT_STREQ (priv.prop.fwname, "custom");
+}
+
+/**
+ * @brief A negotiated filter that has been stopped takes another framework.
+ */
+TEST_F (testFilterEvent, frameworkAfterStop)
+{
+  _set_negotiated (&priv);
+  event_mock_subplugin::event_ret = -ENOENT;
+  gst_tensor_filter_common_unload_fw (&priv, TRUE);
+  ASSERT_FALSE (priv.prop.fw_opened);
+
+  EXPECT_TRUE (_set_framework (&priv, "custom"));
+
+  EXPECT_TRUE (priv.fw == nnstreamer_filter_find ("custom"));
+  EXPECT_STREQ (priv.prop.fwname, "custom");
+}
+
+/**
+ * @brief The accelerator set while no framework is chosen is kept for the framework set later.
+ */
+TEST_F (testFilterEvent, frameworkKeepsAccelerator)
+{
+  GValue value = G_VALUE_INIT;
+
+  gst_tensor_filter_common_close_fw (&priv);
+  g_value_init (&value, G_TYPE_STRING);
+  g_value_set_string (&value, "true:cpu");
+  EXPECT_TRUE (gst_tensor_filter_common_set_property (&priv, PROP_ACCELERATOR, &value, NULL));
+  g_value_unset (&value);
+
+  EXPECT_TRUE (_set_framework (&priv, "custom"));
+
+  EXPECT_TRUE (priv.fw == nnstreamer_filter_find ("custom"));
+  EXPECT_STREQ (priv.prop.accl_str, "true:cpu");
+}
+
+/**
  * @brief Setting is-updatable asks a C++ sub-plugin with no event data.
  */
 TEST_F (testFilterEvent, isUpdatable)
