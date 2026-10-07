@@ -471,6 +471,172 @@ TEST_F (testFilterEvent, isUpdatableUnsupported_n)
 }
 
 /**
+ * @brief Test fixture sending the model update event to a running tensor_filter.
+ */
+class testFilterUpdateModelEvent : public testFilterEvent
+{
+  protected:
+  GstElement *filter;
+  GstPad *sinkpad;
+
+  /** @brief start a tensor_filter with the mock and a model */
+  void SetUp () override
+  {
+    testFilterEvent::SetUp ();
+
+    filter = gst_element_factory_make ("tensor_filter", NULL);
+    ASSERT_TRUE (filter != nullptr);
+    g_object_set (filter, "framework", event_mock_subplugin::mock_name, "model",
+        "first.model", NULL);
+    sinkpad = gst_element_get_static_pad (filter, "sink");
+    ASSERT_TRUE (sinkpad != nullptr);
+    ASSERT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  }
+
+  /** @brief stop the tensor_filter */
+  void TearDown () override
+  {
+    if (sinkpad)
+      gst_object_unref (sinkpad);
+    if (filter) {
+      EXPECT_EQ (gst_element_set_state (filter, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+      gst_object_unref (filter);
+    }
+
+    testFilterEvent::TearDown ();
+  }
+
+  /**
+   * @brief Send a custom downstream event to the sink pad of the filter.
+   * @param structure the content of the event (transfer full)
+   * @return the result of the event handler
+   */
+  gboolean sendEvent (GstStructure *structure)
+  {
+    return gst_pad_send_event (
+        sinkpad, gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM, structure));
+  }
+
+  /**
+   * @brief Tell whether the model property of the filter is the given one.
+   */
+  gboolean modelIs (const gchar *expected)
+  {
+    g_autofree gchar *model = NULL;
+
+    g_object_get (filter, "model", &model, NULL);
+    return g_strcmp0 (model, expected) == 0;
+  }
+};
+
+/**
+ * @brief The model update event sets the model and the sub-plugin reloads it.
+ */
+TEST_F (testFilterUpdateModelEvent, update)
+{
+  guint reloads;
+
+  g_object_set (filter, "is-updatable", TRUE, NULL);
+  reloads = event_mock_subplugin::num_events[RELOAD_MODEL];
+
+  EXPECT_TRUE (sendEvent (gst_structure_new (
+      "evt_update_model", "model_files", G_TYPE_STRING, "second.model", NULL)));
+
+  EXPECT_TRUE (modelIs ("second.model"));
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], reloads + 1);
+  ASSERT_EQ (event_mock_subplugin::last_event.num_models, 1);
+  EXPECT_STREQ (event_mock_subplugin::last_event.model_files[0], "second.model");
+
+  EXPECT_TRUE (sendEvent (gst_structure_new ("evt_update_model", "model_files",
+      G_TYPE_STRING, "third.model,fourth.model", NULL)));
+
+  EXPECT_TRUE (modelIs ("third.model,fourth.model"));
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], reloads + 2);
+  ASSERT_EQ (event_mock_subplugin::last_event.num_models, 2);
+  EXPECT_STREQ (event_mock_subplugin::last_event.model_files[0], "third.model");
+  EXPECT_STREQ (event_mock_subplugin::last_event.model_files[1], "fourth.model");
+}
+
+/**
+ * @brief The model update event is refused when the filter is not updatable.
+ */
+TEST_F (testFilterUpdateModelEvent, notUpdatable_n)
+{
+  EXPECT_FALSE (sendEvent (gst_structure_new (
+      "evt_update_model", "model_files", G_TYPE_STRING, "second.model", NULL)));
+
+  EXPECT_TRUE (modelIs ("first.model"));
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 0U);
+}
+
+/**
+ * @brief The model update event without model files is refused.
+ */
+TEST_F (testFilterUpdateModelEvent, noModelFiles_n)
+{
+  guint reloads;
+
+  g_object_set (filter, "is-updatable", TRUE, NULL);
+  reloads = event_mock_subplugin::num_events[RELOAD_MODEL];
+
+  EXPECT_FALSE (sendEvent (gst_structure_new_empty ("evt_update_model")));
+
+  EXPECT_TRUE (modelIs ("first.model"));
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], reloads);
+}
+
+/**
+ * @brief The model update event with model files that are not a string is refused.
+ */
+TEST_F (testFilterUpdateModelEvent, modelFilesNotString_n)
+{
+  guint reloads;
+
+  g_object_set (filter, "is-updatable", TRUE, NULL);
+  reloads = event_mock_subplugin::num_events[RELOAD_MODEL];
+
+  EXPECT_FALSE (sendEvent (
+      gst_structure_new ("evt_update_model", "model_files", G_TYPE_INT, 1, NULL)));
+
+  EXPECT_TRUE (modelIs ("first.model"));
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], reloads);
+}
+
+/**
+ * @brief The model update event with a NULL string as model files is refused.
+ */
+TEST_F (testFilterUpdateModelEvent, modelFilesNull_n)
+{
+  guint reloads;
+
+  g_object_set (filter, "is-updatable", TRUE, NULL);
+  reloads = event_mock_subplugin::num_events[RELOAD_MODEL];
+
+  EXPECT_FALSE (sendEvent (gst_structure_new (
+      "evt_update_model", "model_files", G_TYPE_STRING, NULL, NULL)));
+
+  EXPECT_TRUE (modelIs ("first.model"));
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], reloads);
+}
+
+/**
+ * @brief A custom event of another name does not update the model.
+ */
+TEST_F (testFilterUpdateModelEvent, otherEvent_n)
+{
+  guint reloads;
+
+  g_object_set (filter, "is-updatable", TRUE, NULL);
+  reloads = event_mock_subplugin::num_events[RELOAD_MODEL];
+
+  sendEvent (gst_structure_new (
+      "evt_other", "model_files", G_TYPE_STRING, "second.model", NULL));
+
+  EXPECT_TRUE (modelIs ("first.model"));
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], reloads);
+}
+
+/**
  * @brief State of the sub-plugin checking what runs while it is being unloaded.
  */
 static struct {
