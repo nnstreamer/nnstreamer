@@ -1159,6 +1159,337 @@ TEST (datareposink, writeFlexibleTensorsOnFd0)
 }
 
 /**
+ * @brief Result of _write_across_states ().
+ */
+typedef struct {
+  GstStateChangeReturn resumed; /**< return of the state change back to PLAYING */
+  GstMessageType type; /**< the first EOS or ERROR after the resume */
+  guint fds; /**< descriptors of this process on the data file before NULL */
+  gint64 paused_size; /**< size of the data file right before the resume */
+  gint64 size; /**< size of the data file at the end */
+  gint total_samples; /**< total_samples of the JSON file */
+  gint last_offset; /**< the last sample_offset of the JSON file, -1 if it has none */
+} ResumeResult;
+
+/**
+ * @brief Get the size of @a path, or -1.
+ */
+static gint64
+_file_size (const gchar *path)
+{
+  struct stat st = {};
+
+  return (stat (path, &st) == 0) ? (gint64) st.st_size : -1;
+}
+
+/**
+ * @brief Count the descriptors of this process that refer to @a path.
+ */
+static guint
+_count_fds_of (const gchar *path)
+{
+  struct stat target = {}, st = {};
+  guint count = 0;
+  gint fd;
+
+  if (stat (path, &target) != 0)
+    return 0;
+
+  for (fd = 0; fd < 1024; fd++) {
+    if (fstat (fd, &st) == 0 && st.st_dev == target.st_dev
+        && st.st_ino == target.st_ino)
+      count++;
+  }
+
+  return count;
+}
+
+/**
+ * @brief Push @a num samples of resume.data to @a src; a flexible one is a 128-byte header and 4 bytes.
+ */
+static void
+_push_resume_samples (GstElement *src, gboolean flexible, guint num)
+{
+  const gsize size = flexible ? 128 + 4 : 4;
+  GstTensorMetaInfo meta;
+  GstFlowReturn flow;
+  guint i;
+
+  for (i = 0; i < num; i++) {
+    guint8 *data = (guint8 *) g_malloc0 (size);
+    GstBuffer *buf = gst_buffer_new_wrapped (data, size);
+
+    if (flexible) {
+      gst_tensor_meta_info_init (&meta);
+      meta.type = _NNS_UINT8;
+      meta.dimension[0] = 4;
+      meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+      EXPECT_TRUE (gst_tensor_meta_info_update_header (&meta, data));
+    }
+
+    /* push-buffer does not take the buffer. */
+    g_signal_emit_by_name (src, "push-buffer", buf, &flow);
+    gst_buffer_unref (buf);
+    EXPECT_EQ (flow, GST_FLOW_OK);
+  }
+}
+
+/**
+ * @brief Write two samples to resume.data, go down to @a via and back to PLAYING, then write two more.
+ * @param resume_location if not NULL, the location set right before going back to PLAYING.
+ */
+static void
+_write_across_states (gboolean flexible, GstState via,
+    const gchar *resume_location, ResumeResult *res)
+{
+  const gint64 sample_size = flexible ? 128 + 4 : 4;
+  GstElement *pipeline, *src, *sink;
+  GstBus *bus;
+  GstMessage *msg;
+  GstFlowReturn flow;
+  gchar *launch, *contents = NULL;
+  const gchar *found;
+  guint i, remains = 2;
+
+  res->resumed = GST_STATE_CHANGE_FAILURE;
+  res->type = GST_MESSAGE_UNKNOWN;
+  res->fds = 0;
+  res->paused_size = res->size = -1;
+  res->total_samples = res->last_offset = -1;
+
+  launch = g_strdup_printf ("appsrc name=src0 caps=%s ! "
+                            "datareposink name=sink0 location=resume.data json=resume.json",
+      flexible ? "other/tensors,format=flexible,framerate=0/1" : "application/octet-stream");
+  pipeline = gst_parse_launch (launch, NULL);
+  g_free (launch);
+  EXPECT_NE (pipeline, nullptr);
+  if (!pipeline)
+    return;
+
+  src = gst_bin_get_by_name (GST_BIN (pipeline), "src0");
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink0");
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  _push_resume_samples (src, flexible, 2);
+  for (i = 0; i < 500 && _file_size ("resume.data") != 2 * sample_size; i++)
+    g_usleep (10000);
+
+  EXPECT_NE (gst_element_set_state (pipeline, via), GST_STATE_CHANGE_FAILURE);
+  if (via == GST_STATE_PAUSED) {
+    /* A sink leaving PLAYING reaches PAUSED with the next sample, which it writes after the resume. */
+    _push_resume_samples (src, flexible, 1);
+    remains--;
+  }
+  EXPECT_EQ (gst_element_get_state (pipeline, NULL, NULL, 5 * GST_SECOND),
+      GST_STATE_CHANGE_SUCCESS);
+  res->paused_size = _file_size ("resume.data");
+
+  if (resume_location)
+    g_object_set (sink, "location", resume_location, NULL);
+
+  res->resumed = gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  if (res->resumed != GST_STATE_CHANGE_FAILURE) {
+    _push_resume_samples (src, flexible, remains);
+    g_signal_emit_by_name (src, "end-of-stream", &flow);
+  }
+
+  msg = gst_bus_timed_pop_filtered (bus, 5 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  if (msg) {
+    res->type = GST_MESSAGE_TYPE (msg);
+    gst_message_unref (msg);
+  }
+
+  res->fds = _count_fds_of ("resume.data");
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (bus);
+  gst_object_unref (sink);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  res->size = _file_size ("resume.data");
+  if (g_file_get_contents ("resume.json", &contents, NULL, NULL)) {
+    found = g_strstr_len (contents, -1, "\"total_samples\"");
+    if (found)
+      sscanf (found, "\"total_samples\"%*[ :]%d", &res->total_samples);
+    /* Step back from the end of the sample_offset array to the first digit of its last number. */
+    found = g_strstr_len (contents, -1, "\"sample_offset\"");
+    found = found ? strchr (found, ']') : NULL;
+    while (found && found > contents && !g_ascii_isdigit (*found))
+      found--;
+    while (found && found > contents && g_ascii_isdigit (*(found - 1)))
+      found--;
+    if (found)
+      res->last_offset = atoi (found);
+    g_free (contents);
+  }
+
+  g_remove ("resume.data");
+  g_remove ("resume.json");
+}
+
+/**
+ * @brief A sink resumed from PAUSED keeps the samples it wrote before and its only descriptor.
+ */
+TEST (datareposink, resumeFromPausedKeepsData)
+{
+  ResumeResult res;
+
+  _write_across_states (FALSE, GST_STATE_PAUSED, NULL, &res);
+
+  EXPECT_NE (res.resumed, GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (res.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (res.fds, 1U);
+  EXPECT_EQ (res.paused_size, 2 * 4);
+  EXPECT_EQ (res.size, 4 * 4);
+  EXPECT_EQ (res.total_samples, 4);
+}
+
+/**
+ * @brief The sample offsets of flexible tensors written after a resume match the data file.
+ */
+TEST (datareposink, resumeFromPausedKeepsFlexibleOffsets)
+{
+  ResumeResult res;
+
+  _write_across_states (TRUE, GST_STATE_PAUSED, NULL, &res);
+
+  EXPECT_NE (res.resumed, GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (res.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (res.fds, 1U);
+  EXPECT_EQ (res.size, 4 * (128 + 4));
+  EXPECT_EQ (res.total_samples, 4);
+  EXPECT_EQ (res.last_offset, 3 * (128 + 4));
+}
+
+/**
+ * @brief A sink that went down to READY keeps writing to the data file it has.
+ */
+TEST (datareposink, resumeFromReadyKeepsData)
+{
+  ResumeResult res;
+
+  _write_across_states (FALSE, GST_STATE_READY, NULL, &res);
+
+  EXPECT_NE (res.resumed, GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (res.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (res.fds, 1U);
+  EXPECT_EQ (res.paused_size, 2 * 4);
+  EXPECT_EQ (res.size, 4 * 4);
+  EXPECT_EQ (res.total_samples, 4);
+}
+
+/**
+ * @brief A location set while paused does not move the data file, which the only JSON file describes.
+ */
+TEST (datareposink, resumeIgnoresNewLocation)
+{
+  ResumeResult res;
+
+  _write_across_states (FALSE, GST_STATE_PAUSED, "resume.other", &res);
+
+  EXPECT_NE (res.resumed, GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (res.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (res.fds, 1U);
+  EXPECT_EQ (res.size, 4 * 4);
+  EXPECT_EQ (res.total_samples, 4);
+  EXPECT_FALSE (g_file_test ("resume.other", G_FILE_TEST_EXISTS));
+
+  g_remove ("resume.other");
+}
+
+/**
+ * @brief A location set in READY, where the property may change, does not move the data file either.
+ */
+TEST (datareposink, resumeFromReadyIgnoresNewLocation)
+{
+  ResumeResult res;
+
+  _write_across_states (FALSE, GST_STATE_READY, "resume.other", &res);
+
+  EXPECT_NE (res.resumed, GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (res.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (res.fds, 1U);
+  EXPECT_EQ (res.size, 4 * 4);
+  EXPECT_EQ (res.total_samples, 4);
+  EXPECT_FALSE (g_file_test ("resume.other", G_FILE_TEST_EXISTS));
+
+  g_remove ("resume.other");
+}
+
+/**
+ * @brief A sink that lost its location while paused does not resume, and keeps what it wrote.
+ */
+TEST (datareposink, resumeWithoutLocation_n)
+{
+  ResumeResult res;
+
+  _write_across_states (FALSE, GST_STATE_PAUSED, "", &res);
+
+  EXPECT_EQ (res.resumed, GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (res.type, GST_MESSAGE_ERROR);
+  EXPECT_EQ (res.fds, 1U);
+  EXPECT_EQ (res.size, 2 * 4);
+  EXPECT_EQ (res.total_samples, 2);
+}
+
+/**
+ * @brief Run a raw video pipeline of which datareposink writes @a location.
+ * @return the first EOS or ERROR message type.
+ */
+static GstMessageType
+_open_data_file (const gchar *location)
+{
+  GstMessageType type = GST_MESSAGE_UNKNOWN;
+  GstElement *pipeline;
+  GstBus *bus;
+  GstMessage *msg;
+  gchar *launch = g_strdup_printf ("videotestsrc num-buffers=1 ! "
+                                   "video/x-raw,format=RGB,width=4,height=4 ! "
+                                   "datareposink location=%s json=openfile.json",
+      location);
+
+  pipeline = gst_parse_launch (launch, NULL);
+  g_free (launch);
+  EXPECT_NE (pipeline, nullptr);
+  if (!pipeline)
+    return type;
+
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  msg = gst_bus_timed_pop_filtered (bus, 5 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  if (msg) {
+    type = GST_MESSAGE_TYPE (msg);
+    gst_message_unref (msg);
+  }
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (bus);
+  gst_object_unref (pipeline);
+  g_remove ("openfile.json");
+
+  return type;
+}
+
+/**
+ * @brief A data file in a directory that does not exist is refused.
+ */
+TEST (datareposink, openFileNoDirectory_n)
+{
+  EXPECT_EQ (_open_data_file ("no-such-dir/open.raw"), GST_MESSAGE_ERROR);
+}
+
+/**
+ * @brief A location that is a directory is refused.
+ */
+TEST (datareposink, openFileOnDirectory_n)
+{
+  EXPECT_EQ (_open_data_file ("."), GST_MESSAGE_ERROR);
+}
+
+/**
  * @brief Main GTest
  */
 int

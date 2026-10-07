@@ -614,6 +614,10 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
     return TRUE;
   }
 
+  /* The data file stays open until stop (), a resumed sink keeps writing to it. */
+  if (sink->fd >= 0)
+    return TRUE;
+
   /* need to get filename by media type */
   filename = g_strdup (sink->filename);
 
