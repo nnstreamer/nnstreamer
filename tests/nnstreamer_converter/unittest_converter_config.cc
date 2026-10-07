@@ -1180,6 +1180,97 @@ TEST (tensorConverterConfig, videoRefusedPaddedCaps_n)
 }
 
 /**
+ * @brief The row padding of an odd-width GRAY16 frame is removed.
+ */
+TEST (tensorConverterConfig, videoGray16OddWidthPadding)
+{
+  const gchar *formats[] = { "GRAY16_LE", "GRAY16_BE" };
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (formats); i++) {
+    GstHarness *h = gst_harness_new ("tensor_converter");
+    gchar *str = g_strdup_printf (VIDEO_CAPS ("%s", "5"), formats[i]);
+    GstCaps *caps, *expected;
+
+    /* rows of 10 bytes are padded to a stride of 12 bytes */
+    gst_harness_set_src_caps_str (h, str);
+    check_video_padding_removed (h, 10U, 12U);
+
+    caps = gst_pad_get_current_caps (h->sinkpad);
+    expected = gst_caps_from_string ("other/tensors,format=static,num_tensors=1,"
+                                     "types=uint16,dimensions=1:5:2:1");
+    EXPECT_TRUE (caps != NULL);
+    if (caps) {
+      EXPECT_TRUE (gst_caps_can_intersect (caps, expected));
+      gst_caps_unref (caps);
+    }
+    gst_caps_unref (expected);
+
+    g_free (str);
+    gst_harness_teardown (h);
+  }
+}
+
+/**
+ * @brief An even-width GRAY16 frame has no row padding and passes through.
+ */
+TEST (tensorConverterConfig, videoGray16EvenWidthPassthrough)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("GRAY16_LE", "6"));
+  check_video_passthrough (h, 24U);
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("GRAY16_BE", "4"));
+  check_video_passthrough (h, 16U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Renegotiating GRAY16 between odd and even widths follows the padding of each width.
+ */
+TEST (tensorConverterConfig, videoGray16RenegotiateWidth)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("GRAY16_LE", "6"));
+  check_video_passthrough (h, 24U);
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("GRAY16_LE", "5"));
+  check_video_padding_removed (h, 10U, 12U);
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("GRAY16_LE", "7"));
+  check_video_padding_removed (h, 14U, 16U);
+
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("GRAY16_LE", "8"));
+  check_video_passthrough (h, 32U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An odd-width GRAY16 buffer without the row padding is refused.
+ */
+TEST (tensorConverterConfig, videoGray16OddWidthUnpaddedFrame_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+
+  /* a frame of the caps has 2 rows of 12 bytes, the tensor has 20 bytes */
+  gst_harness_set_src_caps_str (h, VIDEO_CAPS ("GRAY16_LE", "5"));
+
+  EXPECT_EQ (push_octet (h, 20U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (pop_errors (bus), 1U);
+
+  check_video_padding_removed (h, 10U, 12U);
+
+  detach_bus (h, bus);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Main GTest
  */
 int
