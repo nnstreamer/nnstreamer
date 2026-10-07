@@ -63,6 +63,12 @@ The input and output stream data type is either `other/tensor` or `other/tensors
   * nth tensor: used for TENSORPICK option, for example, `else-option`=0,2 means tensor 0 and tensor 2 are selected as output tensors among the input tensors.
   * A value with an index that is not written in decimal digits only, without a sign, is rejected and the previous value is kept. An empty value clears the list.
 
+### Changing the properties while streaming
+
+The properties may be set while buffers flow, from any thread, including the CUSTOM callback of the element itself.
+A new value applies from the next buffer at the latest.
+A source pad that already has its caps keeps them, so change `then-option` or `else-option` of a running TENSORPICK only to tensors of the same number and format.
+
 ## Usage Examples
 
  The format of statement with tensor-if is:

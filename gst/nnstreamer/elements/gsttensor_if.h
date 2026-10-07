@@ -142,7 +142,9 @@ struct _GstTensorIf
   gboolean custom_configured;
   custom_cb_s custom;
 
-  GMutex lock; /**< Lock for custom callback */
+  GMutex lock; /**< Lock for the properties, which may change while streaming.
+                    Release it before anything that may call the application:
+                    the custom callback, messages, pad signals and the push. */
 };
 
 /**
