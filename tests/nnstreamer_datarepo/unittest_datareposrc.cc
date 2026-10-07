@@ -1275,6 +1275,8 @@ typedef struct {
   gint error_code; /**< code of the first error */
   guint buffers; /**< buffers that reached the sink */
   guint last_mems; /**< memories in the last buffer */
+  gsize last_size; /**< size of the last buffer */
+  guint8 last_byte; /**< last byte of the last buffer */
   guint first_sample; /**< sample index of the first buffer (no shuffle) */
   guint tensors; /**< tensors per sample, payload is checked if not zero */
   guint mismatches; /**< memories whose size or payload is unexpected */
@@ -1422,6 +1424,9 @@ _repo_handoff_cb (GstElement *element, GstBuffer *buffer, GstPad *pad, gpointer 
 
   run->buffers++;
   run->last_mems = n;
+  run->last_size = gst_buffer_get_size (buffer);
+  if (run->last_size > 0)
+    gst_buffer_extract (buffer, run->last_size - 1, &run->last_byte, 1);
 
   if (run->tensors == 0)
     return;
@@ -1911,14 +1916,14 @@ TEST (datareposrc, setJsonWhilePaused_n)
 }
 
 /**
- * @brief Write an octet repository whose one sample is @a sample_size bytes.
+ * @brief Write an octet repository of @a total_samples samples, @a sample_size bytes each.
  */
 static void
-_write_octet_json (gsize sample_size)
+_write_octet_json (gsize sample_size, guint total_samples = 1)
 {
   g_autofree gchar *json = g_strdup_printf (
-      "{\"gst_caps\":\"application/octet-stream\",\"total_samples\":1,\"sample_size\":%zu}",
-      sample_size);
+      "{\"gst_caps\":\"application/octet-stream\",\"total_samples\":%u,\"sample_size\":%zu}",
+      total_samples, sample_size);
 
   EXPECT_TRUE (g_file_set_contents (REPO_JSON, json, -1, NULL));
 }
@@ -1972,6 +1977,241 @@ TEST (datareposrc, readTensorsNoJSONSampleLargerThanFile_n)
   _run_repo_pipeline (pipeline, &run);
   gst_object_unref (pipeline);
   _expect_refused (&run);
+}
+
+/**
+ * @brief Read samples 0 and 1 of the crafted data file as static uint8 tensors.
+ */
+static void
+_read_crafted_static (const gchar *dimensions, const gchar *types,
+    guint num_tensors, repo_run_s *run)
+{
+  g_autofree gchar *str_pipeline = g_strdup_printf (
+      "datareposrc name=src0 location=" REPO_DATA " is-shuffle=false stop-sample-index=1 "
+      "caps=\"other/tensors, format=(string)static, framerate=(fraction)0/1, "
+      "num_tensors=(int)%u, dimensions=(string)%s, types=(string)%s\" ! fakesink name=sink0",
+      num_tensors, dimensions, types);
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+
+  ASSERT_NE (pipeline, nullptr);
+  _run_repo_pipeline (pipeline, run);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Expect that datareposrc pushed one sample and refused the truncated second one.
+ */
+static void
+_expect_truncated (repo_run_s *run)
+{
+  EXPECT_EQ (run->type, GST_MESSAGE_ERROR);
+  EXPECT_STREQ (run->error_src, "src0");
+  EXPECT_EQ (run->error_domain, GST_STREAM_ERROR);
+  EXPECT_EQ (run->error_code, GST_STREAM_ERROR_FORMAT);
+  EXPECT_EQ (run->buffers, 1U);
+  EXPECT_EQ (run->json_logs, 0U);
+  g_clear_pointer (&run->error_src, g_free);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief Octet samples that fill the data file exactly are pushed in full.
+ */
+TEST (datareposrc, readOctetFullSamples)
+{
+  repo_run_s run = {};
+  gsize size = _write_flexible_repo (4, 2);
+
+  _write_octet_json (size / 2, 2);
+  _read_crafted_repo (0, 1, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 2U);
+  EXPECT_EQ (run.last_size, size / 2);
+  EXPECT_EQ (run.last_byte, _repo_payload (3, 1));
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief The last octet sample of a file that is not a multiple of the sample
+ * size is pushed with the bytes the file has, not with the full sample size.
+ */
+TEST (datareposrc, readOctetShortLastSample)
+{
+  repo_run_s run = {};
+  gsize size = _write_flexible_repo (4, 2);
+
+  _write_octet_json (size - 56, 2);
+  _read_crafted_repo (0, 1, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 2U);
+  EXPECT_EQ (run.last_size, 56U);
+  EXPECT_EQ (run.last_byte, _repo_payload (3, 1));
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief Static tensors that fill the data file exactly are pushed in full.
+ */
+TEST (datareposrc, readTensorsNoJSONFullSamples)
+{
+  repo_run_s run = {};
+  gsize size = _write_flexible_repo (4, 2);
+  g_autofree gchar *dimensions = g_strdup_printf ("%zu:1:1:1", size / 2);
+
+  _read_crafted_static (dimensions, "uint8", 1, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 2U);
+  EXPECT_EQ (run.last_mems, 1U);
+  EXPECT_EQ (run.last_size, size / 2);
+  EXPECT_EQ (run.last_byte, _repo_payload (3, 1));
+  g_remove (REPO_DATA);
+}
+
+/**
+ * @brief A static tensor that the data file holds only in part is refused
+ * instead of pushed with an unread tail.
+ */
+TEST (datareposrc, readTensorsNoJSONShortLastSample_n)
+{
+  repo_run_s run = {};
+  gsize size = _write_flexible_repo (4, 2);
+  g_autofree gchar *dimensions = g_strdup_printf ("%zu:1:1:1", size - 56);
+
+  _read_crafted_static (dimensions, "uint8", 1, &run);
+  _expect_truncated (&run);
+}
+
+/**
+ * @brief The second tensor of a sample is truncated: the sample is refused
+ * although its first tensor was read in full.
+ */
+TEST (datareposrc, readTensorsNoJSONShortSecondTensor_n)
+{
+  repo_run_s run = {};
+
+  EXPECT_EQ (_write_flexible_repo (4, 2), 1056U);
+  _read_crafted_static ("300:1:1:1.300:1:1:1", "uint8.uint8", 2, &run);
+  _expect_truncated (&run);
+}
+
+/**
+ * @brief An octet sample that starts at the end of the data file ends the stream.
+ */
+TEST (datareposrc, readOctetSampleAtEnd)
+{
+  repo_run_s run = {};
+  gsize size = _write_flexible_repo (4, 2);
+
+  _write_octet_json (size / 2, 3);
+  _read_crafted_repo (0, 2, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 2U);
+  EXPECT_EQ (run.last_size, size / 2);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A static tensor that starts at the end of the data file ends the stream.
+ */
+TEST (datareposrc, readTensorsNoJSONSampleAtEnd)
+{
+  repo_run_s run = {};
+  gsize size = _write_flexible_repo (4, 2);
+  g_autofree gchar *dimensions = g_strdup_printf ("%zu:1:1:1", size);
+
+  _read_crafted_static (dimensions, "uint8", 1, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 1U);
+  EXPECT_EQ (run.last_size, size);
+  g_remove (REPO_DATA);
+}
+
+/**
+ * @brief The data file ends between the two tensors of a sample: the stream
+ * ends and the incomplete sample is not pushed.
+ */
+TEST (datareposrc, readTensorsNoJSONSecondTensorAtEnd)
+{
+  repo_run_s run = {};
+
+  EXPECT_EQ (_write_flexible_repo (4, 2), 1056U);
+  _read_crafted_static ("352:1:1:1.352:1:1:1", "uint8.uint8", 2, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 1U);
+  EXPECT_EQ (run.last_mems, 2U);
+  EXPECT_EQ (run.last_size, 704U);
+  g_remove (REPO_DATA);
+}
+
+/**
+ * @brief Text read in blocks without JSON: the last block carries the rest of the file.
+ */
+TEST (datareposrc, readTextNoJSONShortLastBlock)
+{
+  repo_run_s run = {};
+  GstElement *pipeline;
+
+  EXPECT_EQ (_write_flexible_repo (4, 2), 1056U);
+  pipeline = gst_parse_launch ("datareposrc name=src0 location=" REPO_DATA
+                               " is-shuffle=false blocksize=1000 stop-sample-index=1 "
+                               "caps=\"text/x-raw, format=(string)utf8\" ! fakesink name=sink0",
+      NULL);
+  ASSERT_NE (pipeline, nullptr);
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 2U);
+  EXPECT_EQ (run.last_size, 56U);
+  EXPECT_EQ (run.last_byte, _repo_payload (3, 1));
+  g_remove (REPO_DATA);
+}
+
+/**
+ * @brief fakesink handoff callback cutting the second sample of the crafted
+ * repository short, in the streaming thread and before datareposrc reads it.
+ */
+static void
+_repo_truncate_cb (GstElement *element, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  EXPECT_EQ (truncate (REPO_DATA, REPO_TENSOR_SIZE + 60), 0);
+}
+
+/**
+ * @brief A flexible tensor cut short after the data file was opened is refused
+ * instead of parsed and pushed with an unread tail.
+ */
+TEST (datareposrc, readCraftedFlexibleTruncatedFile_n)
+{
+  repo_run_s run = {};
+  GstElement *pipeline, *sink;
+
+  EXPECT_EQ (_write_flexible_repo (2, 1), 2 * REPO_TENSOR_SIZE);
+  _write_valid_flexible_json (REPO_JSON, 2, 1);
+
+  pipeline = gst_parse_launch ("datareposrc name=src0 location=" REPO_DATA " json=" REPO_JSON
+                               " is-shuffle=false ! fakesink name=sink0",
+      NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink0");
+  ASSERT_NE (sink, nullptr);
+  g_signal_connect (sink, "handoff", G_CALLBACK (_repo_truncate_cb), NULL);
+  gst_object_unref (sink);
+
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (pipeline);
+  _expect_truncated (&run);
 }
 
 /**
