@@ -680,9 +680,13 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
       }
       /* files should eos if they read 0 and more was requested */
       if (read_size == 0) {
-        /* .. but first we should return any remaining data */
-        if (byte_read > 0)
-          break;
+        if (byte_read > 0) {
+          GST_ELEMENT_ERROR (src, STREAM, FORMAT, (NULL),
+              ("Tensor %u of sample %u is truncated, %zu bytes are missing.",
+                  seq_idx, shuffled_index, to_read));
+          ret = GST_FLOW_ERROR;
+          goto error;
+        }
         GST_DEBUG_OBJECT (src, "EOS");
         ret = GST_FLOW_EOS;
         goto error;
@@ -895,9 +899,13 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
       }
       /* files should eos if they read 0 and more was requested */
       if (read_size == 0) {
-        /* .. but first we should return any remaining data */
-        if (byte_read > 0)
-          break;
+        if (byte_read > 0) {
+          GST_ELEMENT_ERROR (src, STREAM, FORMAT, (NULL),
+              ("Tensor %u of sample %u is truncated, %zu bytes are missing.",
+                  i, shuffled_index, to_read));
+          ret = GST_FLOW_ERROR;
+          goto error;
+        }
         GST_DEBUG_OBJECT (src, "EOS");
         ret = GST_FLOW_EOS;
         goto error;
@@ -1116,6 +1124,12 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   }
 
   gst_memory_unmap (mem, &info);
+
+  if (to_read > 0) {
+    GST_INFO_OBJECT (src, "Sample %u has %zu of %zu bytes.", shuffled_index,
+        byte_read, src->sample_size);
+    gst_memory_resize (mem, 0, byte_read);
+  }
 
   buf = gst_buffer_new ();
   gst_buffer_append_memory (buf, mem);
