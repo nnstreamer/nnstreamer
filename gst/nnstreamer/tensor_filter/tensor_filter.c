@@ -1944,8 +1944,9 @@ gst_tensor_filter_sink_event (GstBaseTransform * trans, GstEvent * event)
       if (priv->is_updatable) {
         const GValue *value =
             gst_structure_get_value (structure, "model_files");
-        if (value != NULL) {
-          g_object_set (self, "model", value, NULL);
+        if (value != NULL && G_VALUE_HOLDS_STRING (value) &&
+            g_value_get_string (value) != NULL) {
+          g_object_set_property (G_OBJECT (self), "model", value);
           ret = 0;
         }
       }
