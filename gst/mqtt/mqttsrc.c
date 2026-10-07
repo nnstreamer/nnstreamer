@@ -51,6 +51,7 @@ enum
   PROP_MQTT_OPT_CLEANSESSION,
   PROP_MQTT_OPT_KEEP_ALIVE_INTERVAL,
   PROP_MQTT_QOS,
+  PROP_MAX_BUFFERS,
 
   PROP_LAST
 };
@@ -64,6 +65,7 @@ enum
   DEFAULT_MQTT_SUB_TIMEOUT = 10000000,  /* 10 seconds */
   DEFAULT_MQTT_SUB_TIMEOUT_MIN = 1000000,       /* 1 seconds */
   DEFAULT_MQTT_QOS = 2,         /* Once and one only */
+  DEFAULT_MAX_BUFFERS = 0,      /* No limit */
 };
 
 static guint8 src_client_id = 0;
@@ -123,6 +125,8 @@ static void gst_mqtt_src_set_opt_keep_alive_interval (GstMqttSrc * self,
     const gint num);
 static gint gst_mqtt_src_get_mqtt_qos (GstMqttSrc * self);
 static void gst_mqtt_src_set_mqtt_qos (GstMqttSrc * self, const gint qos);
+static guint gst_mqtt_src_get_max_buffers (GstMqttSrc * self);
+static void gst_mqtt_src_set_max_buffers (GstMqttSrc * self, const guint num);
 static gchar *gst_mqtt_src_dup_sub_topic (GstMqttSrc * self);
 
 static void cb_mqtt_on_connection_lost (void *context, char *cause);
@@ -151,6 +155,8 @@ static GstMQTTMessageHdr *_extract_mqtt_msg_hdr_from (GstMemory * mem,
     GstMemory ** hdr_mem, GstMapInfo * hdr_map_info);
 static void _put_timestamp_on_gst_buf (GstMqttSrc * self,
     GstMQTTMessageHdr * hdr, GstBuffer * buf);
+static guint _push_to_queue (GstMqttSrc * self, GstBuffer * buf,
+    guint max_buffers);
 static gboolean _subscribe (GstMqttSrc * self);
 static gboolean _unsubscribe (GstMqttSrc * self);
 static gboolean gst_mqtt_src_disconnect (GstMqttSrc * self, gint wait_time);
@@ -227,6 +233,7 @@ gst_mqtt_src_init (GstMqttSrc * self)
   self->mqtt_respn_opts.onFailure = NULL;
   self->mqtt_respn_opts.context = self;
   self->mqtt_qos = DEFAULT_MQTT_QOS;
+  self->max_buffers = DEFAULT_MAX_BUFFERS;
 
   /** init private member variables */
   self->err = NULL;
@@ -321,6 +328,13 @@ gst_mqtt_src_class_init (GstMqttSrcClass * klass)
           "\t\t\tsee also: https://www.eclipse.org/paho/files/mqttdoc/MQTTAsync/html/qos.html",
           0, 2, DEFAULT_MQTT_QOS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_MAX_BUFFERS,
+      g_param_spec_uint ("max-buffers", "Max buffers",
+          "The maximum number of received messages waiting to be pushed. "
+          "If the publisher sends faster than the pipeline processes, the oldest message is dropped. "
+          "0 means no limit.", 0, G_MAXUINT, DEFAULT_MAX_BUFFERS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_mqtt_src_change_state);
 
@@ -380,6 +394,9 @@ gst_mqtt_src_set_property (GObject * object, guint prop_id,
     case PROP_MQTT_QOS:
       gst_mqtt_src_set_mqtt_qos (self, g_value_get_int (value));
       break;
+    case PROP_MAX_BUFFERS:
+      gst_mqtt_src_set_max_buffers (self, g_value_get_uint (value));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -433,6 +450,9 @@ gst_mqtt_src_get_property (GObject * object, guint prop_id,
       break;
     case PROP_MQTT_QOS:
       g_value_set_int (value, gst_mqtt_src_get_mqtt_qos (self));
+      break;
+    case PROP_MAX_BUFFERS:
+      g_value_set_uint (value, gst_mqtt_src_get_max_buffers (self));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1184,6 +1204,24 @@ gst_mqtt_src_set_mqtt_qos (GstMqttSrc * self, const gint qos)
 }
 
 /**
+ * @brief Getter for the 'max-buffers' property
+ */
+static guint
+gst_mqtt_src_get_max_buffers (GstMqttSrc * self)
+{
+  return self->max_buffers;
+}
+
+/**
+ * @brief Setter for the 'max-buffers' property
+ */
+static void
+gst_mqtt_src_set_max_buffers (GstMqttSrc * self, const guint num)
+{
+  self->max_buffers = num;
+}
+
+/**
   * @brief A callback to handle the connection lost to the broker
   */
 static void
@@ -1228,6 +1266,8 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   gchar caps_str[GST_MQTT_MAX_LEN_GST_CAPS_STR + 1];
   gsize offset;
   guint i;
+  guint max_buffers;
+  guint dropped;
   UNUSED (topic_len);
 
   self = GST_MQTT_SRC_CAST (context);
@@ -1333,7 +1373,13 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     }
   }
   _put_timestamp_on_gst_buf (self, mqtt_msg_hdr, buffer);
-  g_async_queue_push (self->aqueue, buffer);
+  max_buffers = self->max_buffers;
+  dropped = _push_to_queue (self, buffer, max_buffers);
+  if (dropped > 0) {
+    GST_DEBUG_OBJECT (self,
+        "Dropped %u old message(s), the queue is full (max-buffers %u).",
+        dropped, max_buffers);
+  }
 
 ret_unmap_hdr_mem:
   gst_memory_unmap (hdr_mem, &hdr_map_info);
@@ -1488,6 +1534,36 @@ cb_mqtt_on_unsubscribe_failure (void *context, MQTTAsync_failureData * response)
   g_cond_broadcast (&self->mqtt_src_gcond);
   g_mutex_unlock (&self->mqtt_src_mutex);
   g_free (topic);
+}
+
+/**
+ * @brief Push a buffer to the queue, dropping the oldest ones if max_buffers is reached
+ * @param max_buffers The maximum number of buffers in the queue, 0 for no limit
+ * @return The number of buffers dropped to keep the queue within max_buffers
+ */
+static guint
+_push_to_queue (GstMqttSrc * self, GstBuffer * buf, guint max_buffers)
+{
+  GstBuffer *old;
+  gint length;
+  guint dropped = 0;
+
+  if (max_buffers == 0) {
+    g_async_queue_push (self->aqueue, buf);
+    return 0;
+  }
+
+  g_async_queue_lock (self->aqueue);
+  while ((length = g_async_queue_length_unlocked (self->aqueue)) > 0
+      && (guint) length >= max_buffers
+      && (old = g_async_queue_try_pop_unlocked (self->aqueue)) != NULL) {
+    gst_buffer_unref (old);
+    dropped++;
+  }
+  g_async_queue_push_unlocked (self->aqueue, buf);
+  g_async_queue_unlock (self->aqueue);
+
+  return dropped;
 }
 
 /**
