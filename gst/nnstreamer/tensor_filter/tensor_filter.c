@@ -826,12 +826,27 @@ _gst_tensor_filter_transform_get_invoke_tensors (GstBaseTransform * trans,
   guint invoke_num_tensors = 0;
 
   if (priv->combi.in_combi_defined) {
+    /* 'output-combination' indices are validated with the caps only. */
+    if (priv->combi.out_combi_i_defined) {
+      GList *list;
+
+      for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
+        i = GPOINTER_TO_UINT (list->data);
+
+        if (i >= trans_data->num_tensors) {
+          ml_loge_stacktrace
+              ("gst_tensor_filter_transform: Invalid output combination ('output-combination' property) for the tensor-filter (%s:%s). The input index %u is out of bound (>= %u = the number of memory chunks (tensors) of incoming buffer). Maybe, the pad capability is not consistent with the actual input stream.\n",
+              prop->fwname, TF_MODELNAME (prop), i, trans_data->num_tensors);
+          return NULL;
+        }
+      }
+    }
     invoke_num_tensors = g_list_length (priv->combi.in_combi);
   } else {
     if (trans_data->num_tensors != prop->input_meta.num_tensors) {
       ml_loge_stacktrace
           ("gst_tensor_filter_transform: Input buffer has invalid number of memory blocks (%u), which is expected to be %u (the number of tensors). Maybe, the pad capability is not consistent with the actual input stream.\n",
-          prop->input_meta.num_tensors, prop->input_meta.num_tensors);
+          trans_data->num_tensors, prop->input_meta.num_tensors);
       return NULL;
     }
     invoke_num_tensors = trans_data->num_tensors;

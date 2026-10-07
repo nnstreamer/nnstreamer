@@ -1415,6 +1415,8 @@ TEST (tensorFilterFlexInput, typedDynamicTakesType)
 #define OUT_COMBI_MODEL "out_combi_4_8"
 #define OUT_COMBI_IN_CAPS \
   "other/tensors,num_tensors=1,dimensions=(string)4,types=uint8,format=static,framerate=(fraction)0/1"
+#define OUT_COMBI_IN3_CAPS \
+  "other/tensors,num_tensors=3,dimensions=(string)4.4.4,types=(string)uint8.uint8.uint8,format=static,framerate=(fraction)0/1"
 
 /** @brief Static caps of the model of the renegotiation tests, without a framerate */
 #define RENEG_STATIC_CAPS \
@@ -1993,6 +1995,180 @@ TEST (tensorFilterOutputCombination, invalidDynamicInfo_n)
   h = _out_combi_dynamic_harness ("o1,o0", OUT_COMBI_DYNAMIC_INVALID);
 
   EXPECT_NE (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  _out_combi_teardown (h);
+}
+
+/**
+ * @brief Harness the output-combination test model behind input-combination=0, on a stream of three 4-byte tensors.
+ */
+static GstHarness *
+_in_combi_harness (const gchar *combi)
+{
+  GstHarness *h;
+  GstBus *bus;
+  gchar *desc;
+
+  desc = g_strdup_printf ("tensor_filter framework=custom-easy model=%s "
+                          "input-combination=0 output-combination=%s",
+      OUT_COMBI_MODEL, combi);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+
+  bus = gst_bus_new ();
+  gst_element_set_bus (h->element, bus);
+  gst_object_unref (bus);
+
+  gst_harness_set_src_caps_str (h, OUT_COMBI_IN3_CAPS);
+  return h;
+}
+
+/**
+ * @brief Make a buffer of @a num 4-byte memories, the i'th filled with 0x11 * (i + 1).
+ */
+static GstBuffer *
+_in_combi_buffer (guint num)
+{
+  GstBuffer *buf = gst_buffer_new ();
+  GstBuffer *chunk;
+  guint i;
+
+  for (i = 0; i < num; i++) {
+    chunk = gst_buffer_new_allocate (NULL, 4, NULL);
+    gst_buffer_memset (chunk, 0, (guint8) (0x11 * (i + 1)), 4);
+    buf = gst_buffer_append (buf, chunk);
+  }
+  return buf;
+}
+
+/**
+ * @brief Push a buffer of @a num_in memories through _in_combi_harness() with
+ * @a combi and check the first byte of each output tensor.
+ */
+static void
+_in_combi_run (const gchar *combi, guint num_in, guint num, const guint8 *bytes)
+{
+  GstHarness *h;
+  GstBuffer *out_buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  guint i;
+
+  ASSERT_EQ (_out_combi_register (), 0);
+  h = _in_combi_harness (combi);
+
+  EXPECT_EQ (gst_harness_push (h, _in_combi_buffer (num_in)), GST_FLOW_OK);
+  out_buf = gst_harness_try_pull (h);
+  EXPECT_TRUE (out_buf != NULL);
+  if (out_buf) {
+    EXPECT_EQ (gst_tensor_buffer_get_count (out_buf), num);
+    for (i = 0; i < num && i < gst_tensor_buffer_get_count (out_buf); i++) {
+      mem = gst_tensor_buffer_get_nth_memory (out_buf, i);
+      if (gst_memory_map (mem, &map, GST_MAP_READ)) {
+        EXPECT_EQ (map.data[0], bytes[i]);
+        gst_memory_unmap (mem, &map);
+      } else {
+        ADD_FAILURE () << "Cannot map memory " << i;
+      }
+      gst_memory_unref (mem);
+    }
+    gst_buffer_unref (out_buf);
+  }
+
+  _out_combi_teardown (h);
+}
+
+/**
+ * @brief Test output-combination passing an input tensor that input-combination does not give to the model.
+ */
+TEST (tensorFilterOutputCombination, inputCombiPassThrough)
+{
+  const guint8 bytes[] = { 0x33, 0xA0 };
+
+  _in_combi_run ("i2,o0", 3U, 2U, bytes);
+}
+
+/**
+ * @brief Test input-combination with an output-combination of model outputs only.
+ */
+TEST (tensorFilterOutputCombination, inputCombiModelOutputs)
+{
+  const guint8 bytes[] = { 0xB0, 0xA0 };
+
+  _in_combi_run ("o1,o0", 3U, 2U, bytes);
+}
+
+/**
+ * @brief Test output-combination naming the last input tensor of a buffer that carries fewer memories than the caps declare.
+ */
+TEST (tensorFilterOutputCombination, inputCombiLastMemory)
+{
+  const guint8 bytes[] = { 0x22, 0xA0 };
+
+  _in_combi_run ("i1,o0", 2U, 2U, bytes);
+}
+
+/**
+ * @brief Test output-combination naming an input tensor the caps declare but the buffer does not carry.
+ */
+TEST (tensorFilterOutputCombination, inputCombiFewerMemories_n)
+{
+  GstHarness *h;
+
+  ASSERT_EQ (_out_combi_register (), 0);
+  h = _in_combi_harness ("i2,o0");
+
+  EXPECT_EQ (gst_harness_push (h, _in_combi_buffer (1U)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_push (h, _in_combi_buffer (2U)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  _out_combi_teardown (h);
+}
+
+/**
+ * @brief Test output-combination naming an input tensor out of the buffer after one the buffer carries.
+ */
+TEST (tensorFilterOutputCombination, inputCombiLaterIndex_n)
+{
+  GstHarness *h;
+
+  ASSERT_EQ (_out_combi_register (), 0);
+  h = _in_combi_harness ("i0,i2,o0");
+
+  EXPECT_EQ (gst_harness_push (h, _in_combi_buffer (2U)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  _out_combi_teardown (h);
+}
+
+/**
+ * @brief Test input-combination selecting a memory whose size is not that of the model input.
+ */
+TEST (tensorFilterOutputCombination, inputCombiWrongSize_n)
+{
+  GstHarness *h;
+
+  ASSERT_EQ (_out_combi_register (), 0);
+  h = _in_combi_harness ("o0");
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 8)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  _out_combi_teardown (h);
+}
+
+/**
+ * @brief Test a buffer carrying more memories than the model has inputs, without input-combination.
+ */
+TEST (tensorFilterOutputCombination, wrongMemoryCount_n)
+{
+  GstHarness *h;
+
+  ASSERT_EQ (_out_combi_register (), 0);
+  h = _out_combi_harness ("i0,o0", FALSE);
+
+  EXPECT_EQ (gst_harness_push (h, _in_combi_buffer (2U)), GST_FLOW_ERROR);
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
 
   _out_combi_teardown (h);
