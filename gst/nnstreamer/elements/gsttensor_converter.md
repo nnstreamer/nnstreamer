@@ -69,7 +69,7 @@ When incoming media type is video, audio, or text, each frame (or a set of frame
 ## Performance Characteristics
 
 - Video
-  - Unless it is RGB with ```width % 4 > 0``` or Gray8 with ```width % 4 > 0```, there are no memcpy or data modification processes. It only converts meta data in such cases.
+  - Unless it is RGB with ```width % 4 > 0```, Gray8 with ```width % 4 > 0```, or Gray16 (```GRAY16_LE```, ```GRAY16_BE```) with ```width % 2 > 0```, there are no memcpy or data modification processes. It only converts meta data in such cases; Gray16 with an even width is one of them.
   - Otherwise, there will be one memcpy for each frame.
 - Audio
   - TBD.
