@@ -723,7 +723,7 @@ gst_tensor_query_client_chain (GstPad * pad,
   int ret = NNS_EDGE_ERROR_NONE;
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
-  gchar *val;
+  gchar *val = NULL;
   gint dropped;
   UNUSED (pad);
 
@@ -757,7 +757,11 @@ gst_tensor_query_client_chain (GstPad * pad,
     nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
   }
 
-  nns_edge_get_info (self->edge_h, "client_id", &val);
+  ret = nns_edge_get_info (self->edge_h, "client_id", &val);
+  if (ret != NNS_EDGE_ERROR_NONE) {
+    nns_loge ("Failed to get the client ID, the client is not connected.");
+    goto try_pop;
+  }
   nns_edge_data_set_info (data_h, "client_id", val);
   g_free (val);
 
@@ -791,7 +795,7 @@ try_pop:
 
       for (i = 0; i < num_data; i++) {
         void *data = NULL;
-        nns_size_t data_len;
+        nns_size_t data_len = 0;
         gpointer new_data;
 
         nns_edge_data_get (data_h, i, &data, &data_len);

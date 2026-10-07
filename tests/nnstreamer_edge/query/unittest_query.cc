@@ -2084,6 +2084,144 @@ TEST (tensorQuery, clientMaxBuffersDropsOldest_n)
 }
 
 /**
+ * @brief Make a paused tensor_query_client that is ready to take buffers on its sink pad.
+ * @param dest_port The port of the server to connect to.
+ * @param[out] sinkpad The sink pad of the client, unref after use.
+ * @return The client element, set its state to NULL and unref after use.
+ */
+static GstElement *
+_make_bare_client (guint dest_port, GstPad **sinkpad)
+{
+  GstElement *client;
+  GstSegment segment;
+
+  client = gst_element_factory_make ("tensor_query_client", nullptr);
+  EXPECT_NE (client, nullptr);
+  g_object_set (client, "port", 0U, "dest-host", "127.0.0.1", "dest-port", dest_port, nullptr);
+  EXPECT_EQ (gst_element_set_state (client, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+
+  *sinkpad = gst_element_get_static_pad (client, "sink");
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (gst_pad_send_event (*sinkpad, gst_event_new_stream_start ("bare-client")));
+  EXPECT_TRUE (gst_pad_send_event (*sinkpad, gst_event_new_segment (&segment)));
+
+  return client;
+}
+
+/**
+ * @brief Send a caps event to the sink pad of a bare tensor_query_client.
+ * @return TRUE if the client accepted the caps, which means it connected to the server.
+ */
+static gboolean
+_send_caps (GstPad *sinkpad, const gchar *caps_str)
+{
+  GstCaps *caps = gst_caps_from_string (caps_str);
+  gboolean accepted = gst_pad_send_event (sinkpad, gst_event_new_caps (caps));
+
+  gst_caps_unref (caps);
+  return accepted;
+}
+
+/**
+ * @brief tensor_query_client drops a buffer that comes before any caps, it has no edge handle then.
+ */
+TEST (tensorQuery, clientChainWithoutCaps_n)
+{
+  GstElement *client;
+  GstPad *sinkpad;
+
+  client = _make_bare_client (get_available_port (), &sinkpad);
+
+  EXPECT_EQ (gst_pad_chain (sinkpad, _static_input ()), GST_FLOW_OK);
+
+  gst_object_unref (sinkpad);
+  EXPECT_EQ (gst_element_set_state (client, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (client);
+}
+
+/**
+ * @brief tensor_query_client drops a buffer that comes after it failed to connect to the server.
+ */
+TEST (tensorQuery, clientChainWithoutServer_n)
+{
+  const gchar *caps = "other/tensors,format=(string)static,num_tensors=(int)1,"
+                      "dimensions=(string)4,types=(string)uint8,framerate=(fraction)0/1";
+  GstElement *client;
+  GstPad *sinkpad;
+
+  client = _make_bare_client (get_available_port (), &sinkpad);
+  EXPECT_FALSE (_send_caps (sinkpad, caps));
+
+  EXPECT_EQ (gst_pad_chain (sinkpad, _static_input ()), GST_FLOW_OK);
+
+  gst_object_unref (sinkpad);
+  EXPECT_EQ (gst_element_set_state (client, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (client);
+}
+
+/**
+ * @brief tensor_query_client sends its client id with a request, and drops a buffer after new caps failed to reconnect.
+ */
+TEST (tensorQuery, clientChainAfterFailedReconnect_n)
+{
+  const gchar *caps = "other/tensors,format=(string)static,num_tensors=(int)1,"
+                      "dimensions=(string)4,types=(string)uint8,framerate=(fraction)0/1";
+  const gchar *new_caps
+      = "other/tensors,format=(string)static,num_tensors=(int)1,"
+        "dimensions=(string)8,types=(string)uint8,framerate=(fraction)0/1";
+  GstElement *client;
+  GstPad *sinkpad;
+  nns_edge_h server_h = nullptr;
+  RawPeer peer;
+  gchar *caps_info, *port_str;
+  guint port = get_available_port ();
+
+  g_mutex_init (&peer.lock);
+  peer.client_id = nullptr;
+  peer.requests = 0;
+
+  EXPECT_EQ (nns_edge_create_handle ("rawserver", NNS_EDGE_CONNECT_TYPE_TCP,
+                 NNS_EDGE_NODE_TYPE_QUERY_SERVER, &server_h),
+      NNS_EDGE_ERROR_NONE);
+  nns_edge_set_event_callback (server_h, _raw_peer_event_cb, &peer);
+  nns_edge_set_info (server_h, "HOST", "127.0.0.1");
+  port_str = g_strdup_printf ("%u", port);
+  nns_edge_set_info (server_h, "PORT", port_str);
+  g_free (port_str);
+  caps_info = g_strdup_printf (
+      "@query_server_src_caps@%s@query_server_sink_caps@%s", caps, caps);
+  nns_edge_set_info (server_h, "CAPS", caps_info);
+  g_free (caps_info);
+  EXPECT_EQ (nns_edge_start (server_h), NNS_EDGE_ERROR_NONE);
+
+  client = _make_bare_client (port, &sinkpad);
+
+  /* Connected: the request reaches the server with the client id. */
+  EXPECT_TRUE (_send_caps (sinkpad, caps));
+  EXPECT_EQ (gst_pad_chain (sinkpad, _static_input ()), GST_FLOW_OK);
+  EXPECT_TRUE (_wait_requests (&peer, 1U, 5000U));
+  g_mutex_lock (&peer.lock);
+  EXPECT_NE (peer.client_id, nullptr);
+  g_mutex_unlock (&peer.lock);
+
+  /* The server is gone: new caps close the old handle and cannot open another one. */
+  nns_edge_release_handle (server_h);
+  EXPECT_FALSE (_send_caps (sinkpad, new_caps));
+
+  EXPECT_EQ (gst_pad_chain (sinkpad, _static_input ()), GST_FLOW_OK);
+  g_mutex_lock (&peer.lock);
+  EXPECT_EQ (peer.requests, 1U);
+  g_mutex_unlock (&peer.lock);
+
+  gst_object_unref (sinkpad);
+  EXPECT_EQ (gst_element_set_state (client, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (client);
+
+  g_free (peer.client_id);
+  g_mutex_clear (&peer.lock);
+}
+
+/**
  * @brief Main GTest
  */
 int
