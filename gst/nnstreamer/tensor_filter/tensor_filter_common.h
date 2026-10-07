@@ -139,7 +139,7 @@ typedef struct _GstTensorFilterCombination
   GList *out_combi_o; /**< Select the output tensor(s) from the model output */
   gboolean in_combi_defined; /**< True if input combination is defined */
   gboolean out_combi_i_defined;/**< True if output combination from input is defined */
-  gboolean out_combi_o_defined;/**< True if output combination from model output is defined */
+  gboolean out_combi_o_defined;/**< True if output combination is defined, so that only the model outputs in out_combi_o are passed */
 } GstTensorFilterCombination;
 
 /**
