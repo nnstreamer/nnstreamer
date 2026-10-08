@@ -55,6 +55,16 @@
  *
  * </refsect2>
  *
+ * A source pad takes its caps when it is created. To keep them true to what
+ * the pad carries, tensorpick is fixed by the first buffer: setting it to
+ * another selection afterwards is refused with a warning on the bus, until the
+ * element is taken to READY. An input renegotiated while the stream runs is
+ * passed on to the source pads that exist, an other/tensor pad staying
+ * other/tensor while it carries a single static tensor, and fails the
+ * negotiation if a peer cannot take the new caps.
+ * A renegotiated input with more tensors still gets a new pad for each of them
+ * when tensorpick is not set.
+ *
  */
 
 
@@ -109,6 +119,8 @@ static GstFlowReturn gst_tensor_demux_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buf);
 static gboolean gst_tensor_demux_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
+static gboolean gst_tensor_demux_update_src_caps (GstTensorDemux *
+    tensor_demux);
 static GstStateChangeReturn gst_tensor_demux_change_state (GstElement * element,
     GstStateChange transition);
 static void gst_tensor_demux_set_property (GObject * object, guint prop_id,
@@ -147,7 +159,8 @@ gst_tensor_demux_class_init (GstTensorDemuxClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_TENSORPICK,
       g_param_spec_string ("tensorpick", "TensorPick",
-          "Choose nth tensor among tensors ?", "",
+          "Choose nth tensor among tensors ? "
+          "(cannot be changed while the stream is running)", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gstelement_class->change_state =
@@ -187,6 +200,7 @@ gst_tensor_demux_init (GstTensorDemux * tensor_demux)
   tensor_demux->tensorpick = NULL;
   tensor_demux->have_group_id = FALSE;
   tensor_demux->group_id = G_MAXUINT;
+  tensor_demux->tensorpick_locked = FALSE;
   tensor_demux->srcpads = NULL;
 
   gst_tensors_config_init (&tensor_demux->tensors_config);
@@ -243,6 +257,14 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
       gst_event_parse_caps (event, &caps);
       gst_tensors_config_free (&tensor_demux->tensors_config);
       gst_tensors_config_from_caps (&tensor_demux->tensors_config, caps, TRUE);
+
+      if (tensor_demux->srcpads &&
+          !gst_tensor_demux_update_src_caps (tensor_demux)) {
+        GST_ELEMENT_ERROR (tensor_demux, CORE, NEGOTIATION,
+            ("The source pads cannot carry the renegotiated input."), (NULL));
+        gst_event_unref (event);
+        return FALSE;
+      }
       break;
     }
     case GST_EVENT_EOS:
@@ -274,16 +296,19 @@ gst_tensor_demux_copy_pick (gconstpointer src, gpointer data)
 /**
  * @brief Get a private copy of the tensorpick property.
  * @param tensor_demux "this" pointer
+ * @param lock TRUE to refuse another tensorpick from now on
  * @return copied list, which should be released with g_list_free_full()
  */
 static GList *
-gst_tensor_demux_get_tensorpick (GstTensorDemux * tensor_demux)
+gst_tensor_demux_get_tensorpick (GstTensorDemux * tensor_demux, gboolean lock)
 {
   GList *tensorpick;
 
   GST_OBJECT_LOCK (tensor_demux);
   tensorpick = g_list_copy_deep (tensor_demux->tensorpick,
       gst_tensor_demux_copy_pick, NULL);
+  if (lock)
+    tensor_demux->tensorpick_locked = TRUE;
   GST_OBJECT_UNLOCK (tensor_demux);
 
   return tensorpick;
@@ -348,6 +373,128 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
   config->rate_n = tensor_demux->tensors_config.rate_n;
   config->rate_d = tensor_demux->tensors_config.rate_d;
   return TRUE;
+}
+
+/**
+ * @brief Build the caps a source pad carries after the input is renegotiated.
+ * @details gst_tensor_pad_caps_from_config() picks the media type by what the
+ *          peer can take, which may differ from what the pad announced when it
+ *          was created. The media type of the pad is kept instead: only a
+ *          pad announcing other/tensor gets other/tensor again, while it
+ *          carries a single static tensor, and any other gets other/tensors.
+ *          A static pad is not made flexible for its peer, as a pad without
+ *          caps or one that is flexible already is. The notation of the
+ *          dimension follows the peer, as when the pad was created.
+ * @param pad the source pad
+ * @param current the caps the pad announces now, NULL if none
+ * @param config what the pad carries from the renegotiated input, which is
+ *               made flexible if the pad is to stay so for its peer
+ * @return the caps of the pad, to be released by the caller
+ */
+static GstCaps *
+gst_tensor_demux_renegotiated_caps (GstPad * pad, GstCaps * current,
+    GstTensorsConfig * config)
+{
+  GstStructure *structure =
+      current ? gst_caps_get_structure (current, 0) : NULL;
+  GstCaps *caps, *peer_caps;
+  gboolean was_static = structure &&
+      g_strcmp0 (gst_structure_get_string (structure, "format"),
+      "flexible") != 0;
+
+  peer_caps = gst_pad_peer_query_caps (pad, NULL);
+  if (!was_static && peer_caps && gst_caps_get_size (peer_caps) > 0 &&
+      g_strcmp0 (gst_structure_get_string (gst_caps_get_structure (peer_caps,
+                  0), "format"), "flexible") == 0)
+    config->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  if (structure && gst_tensors_config_is_static (config) &&
+      config->info.num_tensors == 1 &&
+      gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR))
+    caps = gst_tensor_caps_from_config (config);
+  else
+    caps = gst_tensors_caps_from_config (config);
+
+  if (peer_caps) {
+    if (gst_tensors_config_is_static (config))
+      gst_tensor_caps_update_dimension (caps, peer_caps);
+    gst_caps_unref (peer_caps);
+  }
+
+  return caps;
+}
+
+/**
+ * @brief Let the source pads that already exist carry a renegotiated input.
+ * @details A pad takes its caps when it is created, so an input that changes
+ *          afterwards would leave it announcing what it no longer carries.
+ *          Every peer is asked before any pad is changed, since
+ *          gst_pad_set_caps() does not report a refused sticky caps event, and
+ *          so that a refusal leaves all the pads as they were. A pad the new
+ *          input has no tensor for is left alone. A flexible input describes
+ *          no tensor, and its pads carry the format and the framerate only.
+ * @param tensor_demux TensorDemux object
+ * @return TRUE if every source pad took its new caps
+ */
+static gboolean
+gst_tensor_demux_update_src_caps (GstTensorDemux * tensor_demux)
+{
+  GPtrArray *pads = g_ptr_array_new ();
+  GPtrArray *pads_caps =
+      g_ptr_array_new_with_free_func ((GDestroyNotify) gst_mini_object_unref);
+  GList *tensorpick = gst_tensor_demux_get_tensorpick (tensor_demux, FALSE);
+  guint total = tensor_demux->tensors_config.info.num_tensors;
+  GSList *walk;
+  gboolean ret = TRUE;
+  guint i;
+
+  for (walk = tensor_demux->srcpads; ret && walk; walk = g_slist_next (walk)) {
+    GstTensorPad *tensorpad = (GstTensorPad *) walk->data;
+    GstTensorsConfig config;
+    GstCaps *current, *caps;
+
+    if (gst_tensors_config_is_flexible (&tensor_demux->tensors_config)) {
+      gst_tensors_config_init (&config);
+      config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+      config.rate_n = tensor_demux->tensors_config.rate_n;
+      config.rate_d = tensor_demux->tensors_config.rate_d;
+    } else if (!gst_tensor_demux_get_tensor_config (tensor_demux, tensorpick,
+            &config, tensorpad->nth, total)) {
+      gst_tensors_config_free (&config);
+      continue;
+    }
+
+    current = gst_pad_get_current_caps (tensorpad->pad);
+    caps = gst_tensor_demux_renegotiated_caps (tensorpad->pad, current,
+        &config);
+    gst_tensors_config_free (&config);
+
+    if (current && gst_caps_is_equal (caps, current)) {
+      gst_caps_unref (caps);
+    } else if (!gst_pad_peer_query_accept_caps (tensorpad->pad, caps)) {
+      GST_WARNING_OBJECT (tensorpad->pad,
+          "Cannot carry %" GST_PTR_FORMAT " of the renegotiated input.", caps);
+      gst_caps_unref (caps);
+      ret = FALSE;
+    } else {
+      g_ptr_array_add (pads, tensorpad->pad);
+      g_ptr_array_add (pads_caps, caps);
+    }
+
+    if (current)
+      gst_caps_unref (current);
+  }
+
+  for (i = 0; ret && i < pads->len; i++) {
+    ret = gst_pad_set_caps (g_ptr_array_index (pads, i),
+        g_ptr_array_index (pads_caps, i));
+  }
+
+  g_ptr_array_free (pads, TRUE);
+  g_ptr_array_free (pads_caps, TRUE);
+  g_list_free_full (tensorpick, g_free);
+
+  return ret;
 }
 
 /**
@@ -522,7 +669,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     return GST_FLOW_ERROR;
   }
 
-  tensorpick = gst_tensor_demux_get_tensorpick (tensor_demux);
+  tensorpick = gst_tensor_demux_get_tensorpick (tensor_demux, TRUE);
 
   GST_DEBUG_OBJECT (tensor_demux, " Number of Tensors: %d", num_tensors);
 
@@ -629,6 +776,9 @@ gst_tensor_demux_change_state (GstElement * element, GstStateChange transition)
       tensor_demux->group_id = G_MAXUINT;
       tensor_demux->have_group_id = FALSE;
       gst_tensor_demux_remove_src_pads (tensor_demux);
+      GST_OBJECT_LOCK (tensor_demux);
+      tensor_demux->tensorpick_locked = FALSE;
+      GST_OBJECT_UNLOCK (tensor_demux);
       break;
     case GST_STATE_CHANGE_READY_TO_NULL:
       break;
@@ -640,6 +790,31 @@ gst_tensor_demux_change_state (GstElement * element, GstStateChange transition)
 }
 
 /**
+ * @brief Tell whether two tensorpick selections are the same.
+ * @param a a tensorpick list
+ * @param b the tensorpick list to compare it with
+ * @return TRUE if both name the same tensors for the same pads
+ */
+static gboolean
+gst_tensor_demux_tensorpick_is_equal (GList * a, GList * b)
+{
+  for (; a && b; a = a->next, b = b->next) {
+    const gchar *pa = (const gchar *) a->data;
+    const gchar *pb = (const gchar *) b->data;
+
+    /* ':' and '+' both join the tensors of a pad */
+    for (; *pa && *pb; pa++, pb++) {
+      if ((*pa == '+' ? ':' : *pa) != (*pb == '+' ? ':' : *pb))
+        return FALSE;
+    }
+    if (*pa != *pb)
+      return FALSE;
+  }
+
+  return a == NULL && b == NULL;
+}
+
+/**
  * @brief Get property (gst element vmethod)
  */
 static void
@@ -647,6 +822,7 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorDemux *filter = GST_TENSOR_DEMUX (object);
+  gboolean refused = FALSE;
 
   GST_OBJECT_LOCK (filter);
   switch (prop_id) {
@@ -659,17 +835,23 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
       const gchar *param = g_value_get_string (value);
       gchar **strv = g_strsplit_set (param, ",.;/", -1);
       guint num = g_strv_length (strv);
+      GList *tensorpick = NULL;
 
-      /* Before setting the new Tensor Pick data, the existing one should be removed. */
-      if (filter->tensorpick) {
-        g_list_free_full (filter->tensorpick, g_free);
-        filter->tensorpick = NULL;
-      }
       for (i = 0; i < num; i++) {
         gchar *tmp = g_strstrip (g_strdup (strv[i]));
-        filter->tensorpick = g_list_append (filter->tensorpick, tmp);
+        tensorpick = g_list_append (tensorpick, tmp);
       }
       g_strfreev (strv);
+
+      if (filter->tensorpick_locked) {
+        refused = !gst_tensor_demux_tensorpick_is_equal (filter->tensorpick,
+            tensorpick);
+        g_list_free_full (tensorpick, g_free);
+        break;
+      }
+
+      g_list_free_full (filter->tensorpick, g_free);
+      filter->tensorpick = tensorpick;
       break;
     }
     default:
@@ -677,6 +859,12 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
       break;
   }
   GST_OBJECT_UNLOCK (filter);
+
+  if (refused) {
+    GST_ELEMENT_WARNING (filter, RESOURCE, SETTINGS,
+        ("Cannot change %s while the stream is running.", pspec->name),
+        ("Take the element to READY and set it again."));
+  }
 }
 
 /**
