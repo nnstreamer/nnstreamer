@@ -58,6 +58,7 @@ struct _GstTensorDemux
   GList *tensorpick;
   gboolean have_group_id;
   guint group_id;
+  gboolean tensorpick_locked; /**< TRUE once tensorpick is fixed by a buffer */
 
   GstTensorsConfig tensors_config; /**< input tensors info */
 };
