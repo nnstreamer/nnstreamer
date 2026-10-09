@@ -20,6 +20,7 @@
 #include <MQTTAsync.h>
 #include <string.h>
 
+#include <initializer_list>
 #include <string>
 #include <thread>
 #include <vector>
@@ -1703,6 +1704,293 @@ TEST (testMqttSrc, messageClocklessPipeline)
 
   _fixture_teardown (&fixture);
   _ts_record_stop (&rec);
+}
+
+/**
+ * @brief The gate a test case holds the element's streaming thread with
+ */
+typedef struct {
+  GMutex lock;
+  GCond cond;
+  gboolean entered;
+  gboolean released;
+  std::vector<gsize> sizes;
+  gulong probe_id;
+} flood_gate_s;
+
+/**
+ * @brief Record the size of a pushed buffer and hold it until the gate opens
+ */
+static GstPadProbeReturn
+_flood_gate_probe (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  flood_gate_s *gate = (flood_gate_s *) user_data;
+  (void) pad;
+
+  g_mutex_lock (&gate->lock);
+  gate->sizes.push_back (gst_buffer_get_size (GST_PAD_PROBE_INFO_BUFFER (info)));
+  gate->entered = TRUE;
+  g_cond_broadcast (&gate->cond);
+  while (!gate->released)
+    g_cond_wait (&gate->cond, &gate->lock);
+  g_mutex_unlock (&gate->lock);
+
+  return GST_PAD_PROBE_OK;
+}
+
+/**
+ * @brief Close the gate on the element's source pad
+ */
+static void
+_flood_gate_start (flood_gate_s *gate, src_fixture_s *fixture)
+{
+  g_mutex_init (&gate->lock);
+  g_cond_init (&gate->cond);
+  gate->entered = FALSE;
+  gate->released = FALSE;
+  gate->probe_id = gst_pad_add_probe (
+      fixture->srcpad, GST_PAD_PROBE_TYPE_BUFFER, _flood_gate_probe, gate, NULL);
+}
+
+/**
+ * @brief Wait until the streaming thread is held with the first buffer
+ */
+static gboolean
+_flood_gate_wait_entered (flood_gate_s *gate)
+{
+  gint64 end_time = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+  gboolean entered;
+
+  g_mutex_lock (&gate->lock);
+  while (!gate->entered) {
+    if (!g_cond_wait_until (&gate->cond, &gate->lock, end_time))
+      break;
+  }
+  entered = gate->entered;
+  g_mutex_unlock (&gate->lock);
+
+  return entered;
+}
+
+/**
+ * @brief Open the gate so that the streaming thread runs again
+ */
+static void
+_flood_gate_open (flood_gate_s *gate)
+{
+  g_mutex_lock (&gate->lock);
+  gate->released = TRUE;
+  g_cond_broadcast (&gate->cond);
+  g_mutex_unlock (&gate->lock);
+}
+
+/**
+ * @brief Wait until the given number of buffers have passed the gate and
+ *        take a copy of the sizes of the buffers pushed so far
+ */
+static std::vector<gsize>
+_flood_gate_wait_sizes (flood_gate_s *gate, gsize expected)
+{
+  gint64 end_time = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+  std::vector<gsize> sizes;
+
+  g_mutex_lock (&gate->lock);
+  while (gate->sizes.size () < expected) {
+    if (!g_cond_wait_until (&gate->cond, &gate->lock, end_time))
+      break;
+  }
+  sizes = gate->sizes;
+  g_mutex_unlock (&gate->lock);
+
+  return sizes;
+}
+
+/**
+ * @brief Open the gate for good and take it off the element's source pad
+ */
+static void
+_flood_gate_stop (flood_gate_s *gate, src_fixture_s *fixture)
+{
+  _flood_gate_open (gate);
+  gst_pad_remove_probe (fixture->srcpad, gate->probe_id);
+}
+
+/**
+ * @brief Release what the gate holds, once the pipeline is torn down
+ */
+static void
+_flood_gate_clear (flood_gate_s *gate)
+{
+  g_mutex_clear (&gate->lock);
+  g_cond_clear (&gate->cond);
+}
+
+#define FLOOD_BASE_SIZE (100U)
+
+/**
+ * @brief Build the buffer sizes a test case expects from the message indices
+ */
+static std::vector<gsize>
+_flood_sizes (std::initializer_list<guint> indices)
+{
+  std::vector<gsize> sizes;
+
+  for (guint idx : indices)
+    sizes.push_back (FLOOD_BASE_SIZE + idx);
+
+  return sizes;
+}
+
+/**
+ * @brief Deliver messages that their payload sizes tell apart: FLOOD_BASE_SIZE + index
+ */
+static void
+_deliver_flood (src_fixture_s *fixture, guint first, guint last)
+{
+  GstMQTTMessageHdr hdr = {};
+  guint i;
+
+  _set_header_timestamps (fixture->src, &hdr);
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = 1;
+  for (i = first; i <= last; ++i) {
+    hdr.size_mems[0] = FLOOD_BASE_SIZE + i;
+    EXPECT_TRUE (_deliver (_new_message (&hdr, FLOOD_BASE_SIZE + i)));
+  }
+}
+
+/**
+ * @brief The 'max-buffers' property of mqttsrc is 0 by default and reads back what was set
+ */
+TEST (testMqttSrc, maxBuffersProperty)
+{
+  GstElement *elm = gst_element_factory_make ("mqttsrc", NULL);
+  guint value = 1;
+
+  ASSERT_TRUE (elm != NULL);
+
+  g_object_get (elm, "max-buffers", &value, NULL);
+  EXPECT_EQ (value, 0U);
+
+  g_object_set (elm, "max-buffers", 5U, NULL);
+  g_object_get (elm, "max-buffers", &value, NULL);
+  EXPECT_EQ (value, 5U);
+
+  gst_object_unref (elm);
+}
+
+/**
+ * @brief Without 'max-buffers', mqttsrc keeps every message a stalled pipeline has not taken yet
+ */
+TEST (testMqttSrc, messageFloodWithoutLimit)
+{
+  src_fixture_s fixture;
+  flood_gate_s gate;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _flood_gate_start (&gate, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _deliver_flood (&fixture, 0, 0);
+  EXPECT_TRUE (_flood_gate_wait_entered (&gate));
+  _deliver_flood (&fixture, 1, 9);
+  EXPECT_EQ (_freed_messages (), 0U);
+
+  _flood_gate_open (&gate);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 10),
+      _flood_sizes ({ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }));
+
+  _flood_gate_stop (&gate, &fixture);
+  _fixture_teardown (&fixture);
+  _flood_gate_clear (&gate);
+}
+
+/**
+ * @brief mqttsrc drops nothing while the waiting messages fit in 'max-buffers'
+ */
+TEST (testMqttSrc, messagesWithinMaxBuffers)
+{
+  src_fixture_s fixture;
+  flood_gate_s gate;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_object_set (fixture.src, "max-buffers", 3U, NULL);
+  _flood_gate_start (&gate, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _deliver_flood (&fixture, 0, 0);
+  EXPECT_TRUE (_flood_gate_wait_entered (&gate));
+  _deliver_flood (&fixture, 1, 3);
+  EXPECT_EQ (_freed_messages (), 0U);
+
+  _flood_gate_open (&gate);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 4), _flood_sizes ({ 0, 1, 2, 3 }));
+
+  _flood_gate_stop (&gate, &fixture);
+  _fixture_teardown (&fixture);
+  _flood_gate_clear (&gate);
+}
+
+/**
+ * @brief With 'max-buffers', mqttsrc drops the oldest waiting messages of a
+ *        publisher that outruns the pipeline and releases them at once
+ */
+TEST (testMqttSrc, messageFloodDropsOldest_n)
+{
+  src_fixture_s fixture;
+  flood_gate_s gate;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_object_set (fixture.src, "max-buffers", 3U, NULL);
+  _flood_gate_start (&gate, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _deliver_flood (&fixture, 0, 0);
+  EXPECT_TRUE (_flood_gate_wait_entered (&gate));
+  _deliver_flood (&fixture, 1, 9);
+  /** the messages 1 to 6 made room for the three after them */
+  EXPECT_EQ (_freed_messages (), 6U);
+
+  _flood_gate_open (&gate);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 4).size (), 4U);
+  g_usleep (SETTLE_TIME_US);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 4), _flood_sizes ({ 0, 7, 8, 9 }));
+
+  _flood_gate_stop (&gate, &fixture);
+  _fixture_teardown (&fixture);
+  _flood_gate_clear (&gate);
+}
+
+/**
+ * @brief A 'max-buffers' set while more messages are waiting takes effect
+ *        with the next message
+ */
+TEST (testMqttSrc, maxBuffersLoweredWhileQueued_n)
+{
+  src_fixture_s fixture;
+  flood_gate_s gate;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _flood_gate_start (&gate, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _deliver_flood (&fixture, 0, 0);
+  EXPECT_TRUE (_flood_gate_wait_entered (&gate));
+  _deliver_flood (&fixture, 1, 5);
+  EXPECT_EQ (_freed_messages (), 0U);
+
+  g_object_set (fixture.src, "max-buffers", 2U, NULL);
+  _deliver_flood (&fixture, 6, 6);
+  EXPECT_EQ (_freed_messages (), 4U);
+
+  _flood_gate_open (&gate);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 3).size (), 3U);
+  g_usleep (SETTLE_TIME_US);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 3), _flood_sizes ({ 0, 5, 6 }));
+
+  _flood_gate_stop (&gate, &fixture);
+  _fixture_teardown (&fixture);
+  _flood_gate_clear (&gate);
 }
 
 /**
