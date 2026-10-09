@@ -7499,6 +7499,191 @@ TEST (testTensorAggregator, multiClients)
 }
 
 /**
+ * @brief Test for tensor_aggregator (a negative client-id in tensor-meta is aggregated like any other id)
+ */
+TEST (testTensorAggregator, negativeClientId)
+{
+  GstHarness *h;
+  GstBuffer *input, *output;
+  GstMetaQuery *meta;
+  GstTensorsConfig config;
+  GstMemory *mem;
+  GstMapInfo map;
+  guint i;
+  gsize data_size;
+  const gint data[4] = { 3, 3, 3, 3 };
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  g_object_set (h->element, "frames-in", 4, "frames-out", 8, "frames-dim", 0, NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("4", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+
+  input = gst_harness_create_buffer (h, data_size);
+  mem = gst_buffer_peek_memory (input, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+  memcpy (map.data, data, data_size);
+  gst_memory_unmap (mem, &map);
+  meta = gst_buffer_add_meta_query (input);
+  meta->client_id = -1;
+
+  EXPECT_EQ (gst_harness_push (h, gst_buffer_copy_deep (input)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_push (h, input), GST_FLOW_OK);
+
+  ASSERT_EQ (_harness_wait_for_output_buffer (h, 1U), 1U);
+
+  output = gst_harness_pull (h);
+  meta = gst_buffer_get_meta_query (output);
+  EXPECT_TRUE (meta && (meta->client_id == -1));
+
+  mem = gst_buffer_peek_memory (output, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+  ASSERT_TRUE (map.size == sizeof (gint) * 8);
+
+  for (i = 0; i < 8; i++) {
+    EXPECT_EQ (((gint *) map.data)[i], 3);
+  }
+
+  gst_memory_unmap (mem, &map);
+  gst_buffer_unref (output);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Push a zero-filled buffer carrying the given client-id in tensor-meta.
+ */
+static GstFlowReturn
+_harness_push_with_client_id (GstHarness *h, gsize size, gint64 client_id)
+{
+  GstBuffer *input;
+  GstMetaQuery *meta;
+
+  input = gst_harness_create_buffer (h, size);
+  gst_buffer_memset (input, 0, 0, size);
+  meta = gst_buffer_add_meta_query (input);
+  meta->client_id = client_id;
+
+  return gst_harness_push (h, input);
+}
+
+/**
+ * @brief Test for tensor_aggregator (more client-ids than the adapter table keeps, each leaving a partial frame)
+ */
+TEST (testTensorAggregator, manyClientIds)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  gint64 id;
+  gsize data_size;
+  const gint64 last_id = 2 * NNS_TENSOR_AGGREGATION_MAX;
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  g_object_set (h->element, "frames-in", 4, "frames-out", 8, "frames-dim", 0, NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("4", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+
+  for (id = 1; id <= last_id; id++)
+    ASSERT_EQ (_harness_push_with_client_id (h, data_size, id), GST_FLOW_OK);
+
+  /* No id has sent a whole output frame. */
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  /* The latest id still has its partial frame, the second half completes it. */
+  EXPECT_EQ (_harness_push_with_client_id (h, data_size, last_id), GST_FLOW_OK);
+  EXPECT_EQ (_harness_wait_for_output_buffer (h, 1U), 1U);
+
+  /* The first id lost its partial frame, this is its first half again. */
+  EXPECT_EQ (_harness_push_with_client_id (h, data_size, 1), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (a negative client-id in tensor-meta is chunked like any other id)
+ */
+TEST (testTensorConverter, negativeClientId)
+{
+  GstHarness *h;
+  GstBuffer *out_buf;
+  GstMetaQuery *meta;
+  const gsize frame_size = sizeof (gint) * 4;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "4", "input-type", "int32",
+      "frames-per-tensor", 2, NULL);
+
+  gst_harness_set_src_caps (h, gst_caps_from_string ("application/octet-stream"));
+
+  EXPECT_EQ (_harness_push_with_client_id (h, frame_size, -1), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (_harness_push_with_client_id (h, frame_size, -1), GST_FLOW_OK);
+
+  ASSERT_EQ (_harness_wait_for_output_buffer (h, 1U), 1U);
+
+  out_buf = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), frame_size * 2);
+  meta = gst_buffer_get_meta_query (out_buf);
+  EXPECT_TRUE (meta && (meta->client_id == -1));
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (more client-ids than the adapter table keeps, each leaving a partial tensor)
+ */
+TEST (testTensorConverter, manyClientIds)
+{
+  GstHarness *h;
+  gint64 id;
+  const gsize frame_size = sizeof (gint) * 4;
+  const gint64 last_id = 2 * NNS_TENSOR_AGGREGATION_MAX;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "4", "input-type", "int32",
+      "frames-per-tensor", 2, NULL);
+
+  gst_harness_set_src_caps (h, gst_caps_from_string ("application/octet-stream"));
+
+  for (id = 1; id <= last_id; id++)
+    ASSERT_EQ (_harness_push_with_client_id (h, frame_size, id), GST_FLOW_OK);
+
+  /* No id has sent a whole tensor. */
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  /* The latest id still has its first frame, the second one completes the tensor. */
+  EXPECT_EQ (_harness_push_with_client_id (h, frame_size, last_id), GST_FLOW_OK);
+  EXPECT_EQ (_harness_wait_for_output_buffer (h, 1U), 1U);
+
+  /* The first id lost its first frame, this one starts a new tensor. */
+  EXPECT_EQ (_harness_push_with_client_id (h, frame_size, 1), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
 TEST (testTensorConverter, bytesToMulti1)

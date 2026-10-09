@@ -2747,6 +2747,137 @@ TEST (commonAggregationUtil, nullParam_n)
 }
 
 /**
+ * @brief Test for aggregation utils (a negative key is a key like any other).
+ */
+TEST (commonAggregationUtil, negativeKey)
+{
+  const gint64 key = -1;
+  GHashTable *table;
+  GstAdapter *adapter;
+
+  table = gst_tensor_aggregation_init ();
+
+  adapter = gst_tensor_aggregation_get_adapter (table, key);
+  ASSERT_TRUE (adapter != NULL);
+  EXPECT_TRUE (adapter != gst_tensor_aggregation_get_adapter (table, 0));
+  EXPECT_TRUE (adapter == gst_tensor_aggregation_get_adapter (table, key));
+
+  gst_adapter_push (adapter, gst_buffer_new_allocate (NULL, 16U, 0));
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key)), 16U);
+
+  gst_tensor_aggregation_clear (table, key);
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key)), 0U);
+
+  g_hash_table_destroy (table);
+}
+
+/**
+ * @brief Test for aggregation utils (a full table releases the adapters holding no data).
+ */
+TEST (commonAggregationUtil, evictEmpty)
+{
+  const gint64 key_default = 0;
+  const gint64 key_used = 1;
+  gint64 key;
+  GHashTable *table;
+
+  table = gst_tensor_aggregation_init ();
+
+  for (key = 1; key < NNS_TENSOR_AGGREGATION_MAX; key++)
+    EXPECT_TRUE (gst_tensor_aggregation_get_adapter (table, key) != NULL);
+  EXPECT_EQ (g_hash_table_size (table), NNS_TENSOR_AGGREGATION_MAX);
+
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key_used),
+      gst_buffer_new_allocate (NULL, 10U, 0));
+
+  /* The table is full, a new key drops every empty adapter but the default one. */
+  key = NNS_TENSOR_AGGREGATION_MAX;
+  EXPECT_TRUE (gst_tensor_aggregation_get_adapter (table, key) != NULL);
+  EXPECT_EQ (g_hash_table_size (table), 3U);
+  EXPECT_TRUE (g_hash_table_contains (table, &key_default));
+  EXPECT_TRUE (g_hash_table_contains (table, &key));
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key_used)), 10U);
+
+  g_hash_table_destroy (table);
+}
+
+/**
+ * @brief Test for aggregation utils (a full table with no empty adapter releases the least recently used one).
+ */
+TEST (commonAggregationUtil, evictLeastRecentlyUsed)
+{
+  const gint64 key_default = 0;
+  const gint64 key_first = 1;
+  const gint64 key_second = 2;
+  gint64 key;
+  GHashTable *table;
+
+  table = gst_tensor_aggregation_init ();
+
+  for (key = 0; key < NNS_TENSOR_AGGREGATION_MAX; key++) {
+    gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key),
+        gst_buffer_new_allocate (NULL, 10U, 0));
+  }
+  EXPECT_EQ (g_hash_table_size (table), NNS_TENSOR_AGGREGATION_MAX);
+
+  /* The first key is used again, the second one becomes the oldest. */
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key_first),
+      gst_buffer_new_allocate (NULL, 10U, 0));
+
+  key = NNS_TENSOR_AGGREGATION_MAX;
+  EXPECT_TRUE (gst_tensor_aggregation_get_adapter (table, key) != NULL);
+  EXPECT_EQ (g_hash_table_size (table), NNS_TENSOR_AGGREGATION_MAX);
+  EXPECT_TRUE (g_hash_table_contains (table, &key));
+  EXPECT_FALSE (g_hash_table_contains (table, &key_second));
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key_first)), 20U);
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key_default)), 10U);
+
+  g_hash_table_destroy (table);
+}
+
+/**
+ * @brief Test for aggregation utils (the number of adapters is bounded for any number of keys).
+ */
+TEST (commonAggregationUtil, evictBound)
+{
+  gint64 key;
+  GHashTable *table;
+
+  table = gst_tensor_aggregation_init ();
+
+  for (key = 1; key < 4 * NNS_TENSOR_AGGREGATION_MAX; key++) {
+    gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key),
+        gst_buffer_new_allocate (NULL, 10U, 0));
+    EXPECT_LE (g_hash_table_size (table), NNS_TENSOR_AGGREGATION_MAX);
+  }
+
+  /* The default adapter has never been used and is still there. */
+  key = 0;
+  EXPECT_TRUE (g_hash_table_contains (table, &key));
+
+  g_hash_table_destroy (table);
+}
+
+/**
+ * @brief Test for aggregation utils (clear with null table and unknown key).
+ */
+TEST (commonAggregationUtil, clearInvalidParam_n)
+{
+  const gint64 key = 100;
+  GHashTable *table;
+
+  gst_tensor_aggregation_clear (NULL, 0);
+
+  table = gst_tensor_aggregation_init ();
+
+  gst_tensor_aggregation_clear (table, key);
+  EXPECT_EQ (g_hash_table_size (table), 1U);
+  EXPECT_FALSE (g_hash_table_contains (table, &key));
+
+  g_hash_table_destroy (table);
+}
+
+/**
  * @brief Create null files
  */
 static gchar *
