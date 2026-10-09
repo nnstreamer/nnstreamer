@@ -1581,16 +1581,15 @@ TEST (tensorFilterRenegotiate, dimensionChange_n)
 }
 
 /**
- * @brief A buffer reaching tensor_filter after its framework is replaced is refused with an error, not asserted on.
+ * @brief A streaming tensor_filter refuses another framework and keeps invoking its model.
  */
-TEST (tensorFilterRenegotiate, frameworkReplaced_n)
+TEST (tensorFilterRenegotiate, frameworkReplacedWhileStreaming_n)
 {
   flex_in_data data;
   GstHarness *h;
   GstElement *filter;
   GstBus *bus;
-  GstMessage *msg;
-  GError *err = NULL;
+  gchar *fw_name = NULL;
 
   ASSERT_EQ (_flex_in_register ("reneg_fw", FALSE, &data), 0);
 
@@ -1601,23 +1600,84 @@ TEST (tensorFilterRenegotiate, frameworkReplaced_n)
   filter = gst_harness_find_element (h, "tensor_filter");
   ASSERT_TRUE (filter != NULL);
   g_object_set (filter, "framework", "custom", NULL);
+  g_object_get (filter, "framework", &fw_name, NULL);
+  EXPECT_STREQ (fw_name, "custom-easy");
+  g_free (fw_name);
   gst_object_unref (filter);
 
-  EXPECT_NE (_reneg_push (h, FLEX_IN_MODEL_SIZE), GST_FLOW_OK);
-  EXPECT_EQ (data.invoked, 1U);
+  EXPECT_EQ (_reneg_push (h, FLEX_IN_MODEL_SIZE), GST_FLOW_OK);
+  EXPECT_EQ (data.invoked, 2U);
+  _reneg_drain (h);
 
   bus = gst_element_get_bus (h->element);
-  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
-  ASSERT_TRUE (msg != NULL);
-  gst_message_parse_error (msg, &err, NULL);
-  EXPECT_TRUE (g_error_matches (err, GST_STREAM_ERROR, GST_STREAM_ERROR_TYPE_NOT_FOUND));
-  EXPECT_STREQ (G_OBJECT_TYPE_NAME (GST_MESSAGE_SRC (msg)), "GstTensorFilter");
-  g_clear_error (&err);
-  gst_message_unref (msg);
+  EXPECT_TRUE (gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR) == NULL);
   gst_object_unref (bus);
 
   _flex_in_teardown (h);
   EXPECT_EQ (NNS_custom_easy_unregister ("reneg_fw"), 0);
+  g_free (data.in_name);
+}
+
+/**
+ * @brief A tensor_filter stopped after streaming takes another framework.
+ */
+TEST (tensorFilterRenegotiate, frameworkReplacedAfterStop)
+{
+  flex_in_data data;
+  GstHarness *h;
+  GstElement *filter;
+  gchar *fw_name = NULL;
+
+  ASSERT_EQ (_flex_in_register ("reneg_fw_stop", FALSE, &data), 0);
+
+  h = _reneg_harness ("reneg_fw_stop", "30/1");
+  EXPECT_EQ (_reneg_push (h, FLEX_IN_MODEL_SIZE), GST_FLOW_OK);
+  _reneg_drain (h);
+
+  filter = gst_harness_find_element (h, "tensor_filter");
+  ASSERT_TRUE (filter != NULL);
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (filter, "framework", "custom", NULL);
+  g_object_get (filter, "framework", &fw_name, NULL);
+  EXPECT_STREQ (fw_name, "custom");
+  g_free (fw_name);
+  gst_object_unref (filter);
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("reneg_fw_stop"), 0);
+  g_free (data.in_name);
+}
+
+/**
+ * @brief A started tensor_filter with the suspend watchdog refuses another framework until it is stopped.
+ */
+TEST (tensorFilterRenegotiate, frameworkReplacedWithSuspend_n)
+{
+  flex_in_data data;
+  GstElement *filter;
+  gchar *fw_name = NULL;
+
+  ASSERT_EQ (_flex_in_register ("reneg_fw_suspend", FALSE, &data), 0);
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", "custom-easy", "model", "reneg_fw_suspend",
+      "suspend", 60000U, NULL);
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+
+  g_object_set (filter, "framework", "custom", NULL);
+  g_object_get (filter, "framework", &fw_name, NULL);
+  EXPECT_STREQ (fw_name, "custom-easy");
+  g_free (fw_name);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (filter, "framework", "custom", NULL);
+  g_object_get (filter, "framework", &fw_name, NULL);
+  EXPECT_STREQ (fw_name, "custom");
+  g_free (fw_name);
+
+  gst_object_unref (filter);
+  EXPECT_EQ (NNS_custom_easy_unregister ("reneg_fw_suspend"), 0);
   g_free (data.in_name);
 }
 
