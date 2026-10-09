@@ -1065,7 +1065,7 @@ TEST (testFilterProperties, getEveryProperty)
   g_object_set (filter, "framework", "custom-easy", "model", "a.so,b.so",
       "input", "3:4:4:1", "inputtype", "uint8", "output", "3:4:4:1",
       "outputtype", "uint8", "custom", "key=value", "accelerator", "true:cpu",
-      "input-combination", "i0", "output-combination", "i0,o0", "silent", FALSE,
+      "input-combination", "0", "output-combination", "i0,o0", "silent", FALSE,
       "latency", 1, "throughput", 1, "suspend", 1, NULL);
 
   pspecs = g_object_class_list_properties (G_OBJECT_GET_CLASS (filter), &num_props);
@@ -1080,6 +1080,47 @@ TEST (testFilterProperties, getEveryProperty)
 
   g_object_get (filter, "model", &models, NULL);
   EXPECT_STREQ (models, "a.so,b.so");
+
+  gst_object_unref (filter);
+}
+
+/**
+ * @brief The combination properties of a tensor_filter element keep a valid value and ignore blanks around its entries.
+ */
+TEST (testFilterProperties, combination)
+{
+  GstElement *filter = gst_element_factory_make ("tensor_filter", NULL);
+  g_autofree gchar *in_combi = NULL;
+  g_autofree gchar *out_combi = NULL;
+
+  ASSERT_TRUE (filter != NULL);
+
+  g_object_set (filter, "input-combination", "0, 2", "output-combination", "i1, o0", NULL);
+  g_object_get (filter, "input-combination", &in_combi, "output-combination",
+      &out_combi, NULL);
+  EXPECT_STREQ (in_combi, "0,2");
+  EXPECT_STREQ (out_combi, "i1,o0");
+
+  gst_object_unref (filter);
+}
+
+/**
+ * @brief The combination properties of a tensor_filter element drop a value with an entry that is not a tensor index.
+ */
+TEST (testFilterProperties, combinationInvalidIndex_n)
+{
+  GstElement *filter = gst_element_factory_make ("tensor_filter", NULL);
+  g_autofree gchar *in_combi = NULL;
+  g_autofree gchar *out_combi = NULL;
+
+  ASSERT_TRUE (filter != NULL);
+
+  g_object_set (filter, "input-combination", "0,2", "output-combination", "i1,o0", NULL);
+  g_object_set (filter, "input-combination", "0,1x", "output-combination", "i1,o", NULL);
+  g_object_get (filter, "input-combination", &in_combi, "output-combination",
+      &out_combi, NULL);
+  EXPECT_STREQ (in_combi, "");
+  EXPECT_STREQ (out_combi, "");
 
   gst_object_unref (filter);
 }
