@@ -134,6 +134,7 @@ static GstFlowReturn gst_tensor_if_chain (GstPad * pad, GstObject * parent,
 static gboolean gst_tensor_if_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
 static void gst_tensor_if_dispose (GObject * object);
+static void gst_tensor_if_finalize (GObject * object);
 
 static void gst_tensor_if_install_properties (GObjectClass * gobject_class);
 
@@ -236,6 +237,7 @@ gst_tensor_if_class_init (GstTensorIfClass * klass)
   gobject_class->set_property = gst_tensor_if_set_property;
   gobject_class->get_property = gst_tensor_if_get_property;
   gobject_class->dispose = gst_tensor_if_dispose;
+  gobject_class->finalize = gst_tensor_if_finalize;
 
   gst_tensor_if_install_properties (gobject_class);
 
@@ -308,22 +310,41 @@ static void
 gst_tensor_if_dispose (GObject * object)
 {
   GstTensorIf *tensor_if = GST_TENSOR_IF (object);
-  g_mutex_clear (&tensor_if->lock);
 
   gst_tensor_if_remove_src_pads (tensor_if);
+
+  g_mutex_lock (&tensor_if->lock);
   g_list_free (tensor_if->cv_option);
+  tensor_if->cv_option = NULL;
   g_list_free (tensor_if->then_option);
+  tensor_if->then_option = NULL;
   g_list_free (tensor_if->else_option);
+  tensor_if->else_option = NULL;
   g_free (tensor_if->custom.name);
+  tensor_if->custom.name = NULL;
   tensor_if->custom.func = NULL;
   tensor_if->custom.data = NULL;
   tensor_if->custom_configured = FALSE;
+  g_mutex_unlock (&tensor_if->lock);
 
   gst_tensors_config_free (&tensor_if->in_config);
   gst_tensors_config_free (&tensor_if->out_config[0]);
   gst_tensors_config_free (&tensor_if->out_config[1]);
 
   G_OBJECT_CLASS (parent_class)->dispose (object);
+}
+
+/**
+ * @brief finalize function for tensor if (gst element vmethod)
+ */
+static void
+gst_tensor_if_finalize (GObject * object)
+{
+  GstTensorIf *tensor_if = GST_TENSOR_IF (object);
+
+  g_mutex_clear (&tensor_if->lock);
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
@@ -543,6 +564,7 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
 {
   GstTensorIf *self = GST_TENSOR_IF (object);
 
+  g_mutex_lock (&self->lock);
   switch (prop_id) {
     case PROP_CV:
       self->cv = g_value_get_enum (value);
@@ -579,6 +601,7 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  g_mutex_unlock (&self->lock);
 }
 
 /**
@@ -666,6 +689,7 @@ gst_tensor_if_get_property (GObject * object, guint prop_id,
 {
   GstTensorIf *self = GST_TENSOR_IF (object);
 
+  g_mutex_lock (&self->lock);
   switch (prop_id) {
     case PROP_CV:
       g_value_set_enum (value, self->cv);
@@ -702,6 +726,7 @@ gst_tensor_if_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  g_mutex_unlock (&self->lock);
 }
 
 /**
@@ -1173,6 +1198,7 @@ nnstreamer_if_custom_unregister (const gchar * name)
  * @param tensor_if TensorIf Object
  * @param buf gstbuffer from sink pad
  * @return return TRUE if no error
+ * @note Call this with the lock held. The lock is released while the custom callback runs.
  */
 static gboolean
 gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
@@ -1184,6 +1210,8 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
     GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
     GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
     GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+    tensor_if_custom func = tensor_if->custom.func;
+    void *data = tensor_if->custom.data;
     guint i, j;
 
     if (!tensor_if->custom_configured) {
@@ -1207,8 +1235,9 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
       in_tensors[i].size = in_info[i].size;
     }
 
-    ret = tensor_if->custom.func (&tensor_if->in_config.info, in_tensors,
-        tensor_if->custom.data, result);
+    g_mutex_unlock (&tensor_if->lock);
+    ret = func (&tensor_if->in_config.info, in_tensors, data, result);
+    g_mutex_lock (&tensor_if->lock);
 
     for (i = 0; i < tensor_if->in_config.info.num_tensors; i++) {
       gst_memory_unmap (in_mem[i], &in_info[i]);
@@ -1258,7 +1287,9 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     return GST_FLOW_ERROR;
   }
 
+  g_mutex_lock (&tensor_if->lock);
   if (!gst_tensor_if_check_condition (tensor_if, buf, &condition_result)) {
+    g_mutex_unlock (&tensor_if->lock);
     GST_ELEMENT_ERROR (tensor_if, STREAM, WRONG_TYPE, (NULL),
         ("Failed to check the condition of the incoming buffer."));
     gst_buffer_unref (buf);
@@ -1315,11 +1346,13 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
     }
     case TIFB_SKIP:
+      g_mutex_unlock (&tensor_if->lock);
       goto done;
     default:
       GST_DEBUG_OBJECT (tensor_if, " Not defined behavior");
       break;
   }
+  g_mutex_unlock (&tensor_if->lock);
 
   srcpad =
       gst_tensor_if_get_tensor_pad (tensor_if, config, &created, which_srcpad);
