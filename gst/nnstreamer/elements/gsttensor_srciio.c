@@ -354,7 +354,8 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
           "Specify channels to be enabled:"
           " 1) auto: enable all channels when no channels are enabled automatically,"
           " 2) all: enable all channels,"
-          " 3) x,y,z: list the idx of the channels to be enabled",
+          " 3) x,y,z: list the idx of the channels to be enabled,"
+          " in decimal digits only; any other value is rejected",
           DEFAULT_OPERATING_CHANNELS_ENABLED, G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_BUFFER_CAPACITY,
@@ -1194,18 +1195,23 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
     case PROP_CHANNELS:
     {
       const gchar *param = g_value_get_string (value);
-      if (g_ascii_strncasecmp (param, CHANNELS_ENABLED_ALL_CHAR,
-              strlen (CHANNELS_ENABLED_ALL_CHAR)) == 0) {
+      gchar *keyword;
+
+      if (!param) {
+        GST_ERROR_OBJECT (self, "The property value for CHANNELS is NULL.");
+        break;
+      }
+
+      keyword = g_strstrip (g_strdup (param));
+      if (g_ascii_strcasecmp (keyword, CHANNELS_ENABLED_ALL_CHAR) == 0) {
         self->channels_enabled = CHANNELS_ENABLED_ALL;
-      } else if (g_ascii_strncasecmp (param, CHANNELS_ENABLED_AUTO_CHAR,
-              strlen (CHANNELS_ENABLED_AUTO_CHAR)) == 0) {
+      } else if (g_ascii_strcasecmp (keyword, CHANNELS_ENABLED_AUTO_CHAR) == 0) {
         self->channels_enabled = CHANNELS_ENABLED_AUTO;
       } else {
         gint i, num;
-        gint64 val;
+        guint64 val;
         gchar **strv;
-        gchar *endptr = NULL;
-        gboolean status = TRUE;
+        gboolean status;
         GHashTable *table;
 
         /**
@@ -1215,14 +1221,10 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
         table = g_hash_table_new (g_direct_hash, g_direct_equal);
         strv = g_strsplit_set (param, ",;", -1);
         num = g_strv_length (strv);
+        status = (num > 0);
         for (i = 0; i < num; i++) {
-          errno = 0;
-          val = g_ascii_strtoll (strv[i], &endptr, 10);
-          if (errno == ERANGE || errno == EINVAL || (endptr == strv[i]
-                  && val == 0) || val < 0 || val > G_MAXINT) {
-            GST_ERROR_OBJECT (self,
-                "Cannot parse received custom channels %s. The property values for CHANNELS are ignored.",
-                param);
+          if (!g_ascii_string_to_unsigned (g_strstrip (strv[i]), 10, 0,
+                  G_MAXINT, &val, NULL)) {
             status = FALSE;
             break;
           }
@@ -1239,11 +1241,14 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
           self->custom_channel_table = table;
           self->channels_enabled = CHANNELS_ENABLED_CUSTOM;
         } else {
+          GST_ERROR_OBJECT (self,
+              "Cannot parse received custom channels %s. The property values for CHANNELS are ignored.",
+              param);
           g_hash_table_destroy (table);
         }
         g_strfreev (strv);
-        break;
       }
+      g_free (keyword);
       break;
     }
 
