@@ -92,6 +92,12 @@ enum
 #define DEFAULT_STR_PROP_VALUE ""
 
 /**
+ * @brief Reasons to stop the waits for the sub-plugin, bits of wait_stopped
+ */
+#define WAIT_STOPPED_FLUSH (1U << 0)
+#define WAIT_STOPPED_SHUTDOWN (1U << 1)
+
+/**
  * @brief tensor_trainer properties
  */
 enum
@@ -143,7 +149,7 @@ static gsize gst_tensor_trainer_get_tensor_size (GstTensorTrainer * trainer,
 static gboolean gst_tensor_trainer_create_model (GstTensorTrainer * trainer);
 static void gst_tensor_trainer_create_event_notifier (GstTensorTrainer *
     trainer);
-static void gst_tensor_trainer_start_model_training (GstTensorTrainer *
+static gboolean gst_tensor_trainer_start_model_training (GstTensorTrainer *
     trainer);
 static void gst_tensor_trainer_stop_model_training (GstTensorTrainer * trainer);
 static void gst_tensor_trainer_set_output_meta (GstTensorTrainer * trainer);
@@ -295,6 +301,8 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->fw_created = FALSE;
   trainer->is_training_complete = FALSE;
   trainer->is_epoch_complete = FALSE;
+  trainer->wait_stopped = 0;
+  trainer->stopped_epochs = 0;
   trainer->cur_epoch_data_cnt = 0;
   trainer->required_sample = 0;
 
@@ -519,6 +527,29 @@ gst_tensor_trainer_dummy_data_generation_func (GstTensorTrainer * trainer)
 }
 
 /**
+ * @brief Stop or allow the waits of the streaming thread for the sub-plugin.
+ * @param trainer the element
+ * @param reason WAIT_STOPPED_FLUSH or WAIT_STOPPED_SHUTDOWN
+ * @param stopped TRUE to wake up the running waits and refuse new ones
+ * @note The waits run again when no reason is left.
+ */
+static void
+gst_tensor_trainer_set_wait_stopped (GstTensorTrainer * trainer, guint reason,
+    gboolean stopped)
+{
+  g_mutex_lock (&trainer->training_completion_lock);
+  g_mutex_lock (&trainer->epoch_completion_lock);
+  if (stopped)
+    trainer->wait_stopped |= reason;
+  else
+    trainer->wait_stopped &= ~reason;
+  g_cond_broadcast (&trainer->training_completion_cond);
+  g_cond_broadcast (&trainer->epoch_completion_cond);
+  g_mutex_unlock (&trainer->epoch_completion_lock);
+  g_mutex_unlock (&trainer->training_completion_lock);
+}
+
+/**
  * @brief Change state of tensor_trainsink.
  */
 static GstStateChangeReturn
@@ -538,6 +569,8 @@ gst_tensor_trainer_change_state (GstElement * element,
 
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       GST_INFO_OBJECT (trainer, "READY_TO_PAUSED");
+      gst_tensor_trainer_set_wait_stopped (trainer,
+          WAIT_STOPPED_FLUSH | WAIT_STOPPED_SHUTDOWN, FALSE);
       break;
 
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -549,7 +582,14 @@ gst_tensor_trainer_change_state (GstElement * element,
           goto state_change_failed;
       }
       gst_tensor_trainer_create_event_notifier (trainer);
-      gst_tensor_trainer_start_model_training (trainer);
+      if (!gst_tensor_trainer_start_model_training (trainer))
+        goto state_change_failed;
+      break;
+
+    case GST_STATE_CHANGE_PAUSED_TO_READY:
+      /* the streaming thread holds the stream lock while it waits */
+      gst_tensor_trainer_set_wait_stopped (trainer, WAIT_STOPPED_SHUTDOWN,
+          TRUE);
       break;
 
     default:
@@ -600,20 +640,28 @@ state_change_failed:
 
 /**
  * @brief Wait for epoch eompletion
+ * @return FALSE if the wait is stopped before the epoch is complete
  */
-static void
+static gboolean
 gst_tensor_trainer_wait_for_epoch_completion (GstTensorTrainer * trainer)
 {
-  g_return_if_fail (trainer != NULL);
+  gboolean completed;
+
+  g_return_val_if_fail (trainer != NULL, FALSE);
 
   g_mutex_lock (&trainer->epoch_completion_lock);
-  while (!trainer->is_epoch_complete) {
+  while (!trainer->is_epoch_complete && !trainer->wait_stopped) {
     GST_INFO_OBJECT (trainer, "wait for epoch_completion_cond signal");
     g_cond_wait (&trainer->epoch_completion_cond,
         &trainer->epoch_completion_lock);
   }
+  completed = trainer->is_epoch_complete;
   trainer->is_epoch_complete = FALSE;
+  if (!completed)
+    trainer->stopped_epochs++;
   g_mutex_unlock (&trainer->epoch_completion_lock);
+
+  return completed;
 }
 
 /**
@@ -621,11 +669,15 @@ gst_tensor_trainer_wait_for_epoch_completion (GstTensorTrainer * trainer)
  * tensor_trainer wait for one of epochs to complete before getting the results from the subplugin
  * @param trainer the element
  * @param data_cnt the sample count the chain read after its push
+ * @param stopped set TRUE if the wait for the epoch is stopped
+ * @return FALSE if the epoch has more samples to get or the wait is stopped
  */
 static gboolean
 gst_tensor_trainer_epochs_is_complete (GstTensorTrainer * trainer,
-    guint data_cnt)
+    guint data_cnt, gboolean * stopped)
 {
+  gboolean completed;
+
   g_return_val_if_fail (trainer != NULL, FALSE);
   g_return_val_if_fail (trainer->fw != NULL, FALSE);
   g_return_val_if_fail (&trainer->prop != NULL, FALSE);
@@ -633,12 +685,13 @@ gst_tensor_trainer_epochs_is_complete (GstTensorTrainer * trainer,
   if (data_cnt != trainer->required_sample)
     return FALSE;
 
-  gst_tensor_trainer_wait_for_epoch_completion (trainer);
+  completed = gst_tensor_trainer_wait_for_epoch_completion (trainer);
+  *stopped = !completed;
 
   g_mutex_lock (&trainer->push_lock);
   trainer->cur_epoch_data_cnt = 0;
   g_mutex_unlock (&trainer->push_lock);
-  return TRUE;
+  return completed;
 }
 
 /**
@@ -915,7 +968,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   GstBuffer *outbuf = NULL;
   GstFlowReturn ret = GST_FLOW_ERROR;
   guint num_tensors, data_cnt;
-  gboolean in_flexible, pushed;
+  gboolean in_flexible, pushed, stopped = FALSE;
 
   trainer = GST_TENSOR_TRAINER (parent);
   in_flexible = gst_tensor_pad_caps_is_flexible (sinkpad);
@@ -948,11 +1001,13 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
    * Scheduling with subplugin does not work.
    */
   if (data_cnt == 1
-      || gst_tensor_trainer_epochs_is_complete (trainer, data_cnt)) {
+      || gst_tensor_trainer_epochs_is_complete (trainer, data_cnt, &stopped)) {
     outbuf = gst_tensor_trainer_create_output (trainer);
 
     if (outbuf)
       ret = gst_pad_push (trainer->srcpad, outbuf);
+  } else if (stopped) {
+    ret = GST_FLOW_FLUSHING;
   } else {
     /* Run flow, need more data? */
     ret = GST_FLOW_OK;
@@ -1001,24 +1056,30 @@ gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
 
 /**
  * @brief Wait for training completion
+ * @return FALSE if the wait is stopped before the training is complete
  */
-static void
+static gboolean
 gst_tensor_trainer_wait_for_training_completion (GstTensorTrainer * trainer)
 {
-  g_return_if_fail (trainer != NULL);
+  gboolean completed;
+
+  g_return_val_if_fail (trainer != NULL, FALSE);
 
   g_mutex_lock (&trainer->training_completion_lock);
-  while (!trainer->is_training_complete) {
+  while (!trainer->is_training_complete && !trainer->wait_stopped) {
     GST_INFO_OBJECT (trainer,
         "got GST_EVENT_EOS event but training is not completed, state is %d, "
         "wait for training_completion_cond signal", GST_STATE (trainer));
     g_cond_wait (&trainer->training_completion_cond,
         &trainer->training_completion_lock);
   }
+  completed = trainer->is_training_complete;
   g_mutex_unlock (&trainer->training_completion_lock);
 
-  GST_DEBUG_OBJECT (trainer, "training is completed in sub-plugin[%s]",
-      trainer->fw_name);
+  GST_DEBUG_OBJECT (trainer, "training is %s in sub-plugin[%s]",
+      completed ? "completed" : "not completed", trainer->fw_name);
+
+  return completed;
 }
 
 /**
@@ -1036,14 +1097,19 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_EOS:
-      if (!trainer->is_training_complete)
-        gst_tensor_trainer_wait_for_training_completion (trainer);
+      if (!trainer->is_training_complete &&
+          !gst_tensor_trainer_wait_for_training_completion (trainer)) {
+        gst_event_unref (event);
+        return FALSE;
+      }
       break;
     case GST_EVENT_FLUSH_START:
       GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
+      gst_tensor_trainer_set_wait_stopped (trainer, WAIT_STOPPED_FLUSH, TRUE);
       break;
     case GST_EVENT_FLUSH_STOP:
       GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_STOP event");
+      gst_tensor_trainer_set_wait_stopped (trainer, WAIT_STOPPED_FLUSH, FALSE);
       break;
     case GST_EVENT_CAPS:
     {
@@ -1355,14 +1421,15 @@ gst_tensor_trainer_create_event_notifier (GstTensorTrainer * trainer)
 
 /**
  * @brief Start model training
+ * @return FALSE if the sub-plugin cannot start the training
  */
-static void
+static gboolean
 gst_tensor_trainer_start_model_training (GstTensorTrainer * trainer)
 {
   gint ret = -1;
-  g_return_if_fail (trainer != NULL);
-  g_return_if_fail (trainer->fw != NULL);
-  g_return_if_fail (trainer->fw->start != NULL);
+  g_return_val_if_fail (trainer != NULL, FALSE);
+  g_return_val_if_fail (trainer->fw != NULL, FALSE);
+  g_return_val_if_fail (trainer->fw->start != NULL, FALSE);
 
   GST_DEBUG_OBJECT (trainer, "Start model training");
   ret =
@@ -1371,6 +1438,8 @@ gst_tensor_trainer_start_model_training (GstTensorTrainer * trainer)
   if (ret != 0) {
     GST_ERROR_OBJECT (trainer, "Model training is failed");
   }
+
+  return (ret == 0);
 }
 
 /**
@@ -1492,9 +1561,14 @@ nnstreamer_trainer_notify_event (GstTensorTrainerEventNotifier * notifier,
   switch (type) {
     case TRAINER_EVENT_EPOCH_COMPLETION:
       g_mutex_lock (&trainer->epoch_completion_lock);
-      trainer->is_epoch_complete = TRUE;
-      GST_DEBUG ("send epoch_completion_cond signal");
-      g_cond_signal (&trainer->epoch_completion_cond);
+      if (trainer->stopped_epochs > 0) {
+        /* the chain has left this epoch, the next one should not take it */
+        trainer->stopped_epochs--;
+      } else {
+        trainer->is_epoch_complete = TRUE;
+        GST_DEBUG ("send epoch_completion_cond signal");
+        g_cond_signal (&trainer->epoch_completion_cond);
+      }
       g_mutex_unlock (&trainer->epoch_completion_lock);
       break;
     case TRAINER_EVENT_TRAINING_COMPLETION:

@@ -575,6 +575,11 @@ TEST (tensor_trainer, invalidNumLabels0_n)
 }
 
 /**
+ * @brief Name the fake trainer sub-plugin registers with.
+ */
+static const gchar *fake_fw_name = "nntrainer";
+
+/**
  * @brief What the fake trainer sub-plugin has been asked to do.
  */
 static struct {
@@ -600,6 +605,7 @@ static struct {
   guint pushed_num; /**< number of input tensors the last push_data() declared */
   gboolean sizes_matched; /**< whether the last push_data() tensors match the declared sizes */
   gboolean all_ones; /**< whether every byte the last push_data() got is 1 */
+  gint start_ret; /**< what start() returns */
 } fake_stat;
 
 /**
@@ -663,7 +669,7 @@ fake_trainer_start (const GstTensorTrainerFramework *,
     const GstTensorTrainerProperties *, GstTensorTrainerEventNotifier *notifier, void *)
 {
   fake_stat.notifier = notifier;
-  return 0;
+  return fake_stat.start_ret;
 }
 
 /**
@@ -753,14 +759,14 @@ fake_trainer_get_status (
 
 /**
  * @brief Fake sub-plugin callback naming the framework.
- * @note It takes the name nntrainer, the only framework tensor_trainer
- *       starts a dummy-data thread for.
+ * @note It takes the name nntrainer by default, the only framework
+ *       tensor_trainer starts a dummy-data thread for.
  */
 static int
 fake_trainer_get_framework_info (const GstTensorTrainerFramework *,
     const GstTensorTrainerProperties *, void *, GstTensorTrainerFrameworkInfo *fw_info)
 {
-  fw_info->name = "nntrainer";
+  fw_info->name = fake_fw_name;
   return 0;
 }
 
@@ -810,6 +816,7 @@ class TensorTrainerFakeFw : public ::testing::Test
     }
 
     memset (&fake_stat, 0, sizeof (fake_stat));
+    fake_fw_name = "nntrainer";
     ASSERT_TRUE (nnstreamer_trainer_probe (&fake_trainer_fw));
   }
 
@@ -832,7 +839,7 @@ make_fake_trainer (void)
   GstElement *trainer = gst_element_factory_make ("tensor_trainer", NULL);
 
   if (trainer)
-    g_object_set (trainer, "framework", "nntrainer", "model-config",
+    g_object_set (trainer, "framework", fake_fw_name, "model-config",
         config_path, "model-save-path", "c31_model.bin", NULL);
   g_free (config_path);
 
@@ -1501,6 +1508,524 @@ TEST_F (TensorTrainerFakeFw, epochBoundaryWaitsAndResets)
   EXPECT_EQ (gst_harness_buffers_received (h), 3U);
 
   gst_harness_teardown (h);
+}
+
+/**
+ * @brief What a TrainerJob does.
+ */
+typedef enum {
+  TRAINER_JOB_EOS, /**< send an EOS event to the sink pad of the element */
+  TRAINER_JOB_READY, /**< set the element to READY */
+} TrainerJobType;
+
+/**
+ * @brief A call that may block in the element, running in its own thread.
+ */
+typedef struct {
+  GstHarness *h; /**< harness of the element */
+  TrainerJobType type; /**< what to do */
+  gint ret; /**< what the call returned */
+  gint done; /**< whether the call has returned */
+} TrainerJob;
+
+/**
+ * @brief Send an event to the sink pad of the element, as its upstream peer does.
+ */
+static gboolean
+send_sink_event (GstHarness *h, GstEvent *event)
+{
+  GstPad *pad = gst_element_get_static_pad (h->element, "sink");
+  gboolean ret = gst_pad_send_event (pad, event);
+
+  gst_object_unref (pad);
+  return ret;
+}
+
+/**
+ * @brief Thread running a TrainerJob.
+ */
+static gpointer
+trainer_job_func (gpointer data)
+{
+  TrainerJob *job = (TrainerJob *) data;
+
+  if (job->type == TRAINER_JOB_EOS)
+    job->ret = send_sink_event (job->h, gst_event_new_eos ());
+  else
+    job->ret = gst_element_set_state (job->h->element, GST_STATE_READY);
+  g_atomic_int_set (&job->done, 1);
+
+  return NULL;
+}
+
+/**
+ * @brief Start a TrainerJob.
+ */
+static GThread *
+trainer_job_start (TrainerJob *job, GstHarness *h, TrainerJobType type)
+{
+  job->h = h;
+  job->type = type;
+  job->ret = -1;
+  job->done = 0;
+
+  return g_thread_new ("trainer_job", trainer_job_func, job);
+}
+
+/**
+ * @brief Wait up to five seconds until @a done is set.
+ */
+static gboolean
+wait_for_done (gint *done)
+{
+  guint i;
+
+  for (i = 0; i < 500; i++) {
+    if (g_atomic_int_get (done))
+      return TRUE;
+    g_usleep (10000);
+  }
+
+  return FALSE;
+}
+
+/**
+ * @brief Tell whether @a done stays unset; it gives a call that should block time to return.
+ */
+static gboolean
+stays_blocked (gint *done)
+{
+  g_usleep (200000);
+  return g_atomic_int_get (done) == 0;
+}
+
+/**
+ * @brief Create a harness whose trainer has negotiated one input and one label.
+ */
+static GstHarness *
+make_negotiated_trainer_harness (guint num_training_samples)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  gchar *caps_str;
+
+  if (!h)
+    return NULL;
+
+  g_object_set (h->element, "num-training-samples", num_training_samples, NULL);
+  caps_str = make_static_caps_string (2, 10);
+  gst_harness_set_src_caps_str (h, caps_str);
+  g_free (caps_str);
+
+  return h;
+}
+
+/**
+ * @brief Number of EOS events that reached the event handler of the element.
+ */
+static gint eos_at_sink;
+
+/**
+ * @brief Pad probe counting the EOS events.
+ */
+static GstPadProbeReturn
+count_eos_probe (GstPad *, GstPadProbeInfo *info, gpointer)
+{
+  if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_EVENT (info)) == GST_EVENT_EOS)
+    g_atomic_int_inc (&eos_at_sink);
+
+  return GST_PAD_PROBE_OK;
+}
+
+/**
+ * @brief Count the EOS events entering the element.
+ * @note The sink pad calls its probe once it has accepted the event, right
+ *       before the event handler, so the count tells the handler has it.
+ */
+static void
+watch_eos (GstHarness *h)
+{
+  GstPad *pad = gst_element_get_static_pad (h->element, "sink");
+
+  g_atomic_int_set (&eos_at_sink, 0);
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, count_eos_probe, NULL, NULL);
+  gst_object_unref (pad);
+}
+
+/**
+ * @brief Tell whether the harness got an EOS event from the element.
+ */
+static gboolean
+harness_got_eos (GstHarness *h)
+{
+  GstEvent *event;
+  gboolean got = FALSE;
+
+  while ((event = gst_harness_try_pull_event (h)) != NULL) {
+    if (GST_EVENT_TYPE (event) == GST_EVENT_EOS)
+      got = TRUE;
+    gst_event_unref (event);
+  }
+
+  return got;
+}
+
+/**
+ * @brief EOS waits for the training to complete and is forwarded after it.
+ */
+TEST_F (TensorTrainerFakeFw, eosWaitsForTrainingCompletion)
+{
+  GstHarness *h = make_negotiated_trainer_harness (0U);
+  static TrainerJob job;
+  GThread *thread;
+
+  ASSERT_NE (h, nullptr);
+
+  thread = trainer_job_start (&job, h, TRAINER_JOB_EOS);
+  EXPECT_TRUE (stays_blocked (&job.done));
+  EXPECT_FALSE (harness_got_eos (h));
+
+  nnstreamer_trainer_notify_event (
+      fake_stat.notifier, TRAINER_EVENT_TRAINING_COMPLETION, NULL);
+  if (!wait_for_done (&job.done)) {
+    /* the event is stuck: joining it or tearing down would hang as well; job is static for it */
+    g_thread_unref (thread);
+    FAIL () << "EOS did not return after the training completion event.";
+  }
+  g_thread_join (thread);
+  EXPECT_TRUE (job.ret);
+  EXPECT_TRUE (harness_got_eos (h));
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A flush that stops no wait does not keep a later EOS from waiting.
+ */
+TEST_F (TensorTrainerFakeFw, eosWaitsAfterIdleFlush)
+{
+  GstHarness *h = make_negotiated_trainer_harness (0U);
+  static TrainerJob job;
+  GThread *thread;
+
+  ASSERT_NE (h, nullptr);
+
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_flush_start ()));
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_flush_stop (TRUE)));
+
+  thread = trainer_job_start (&job, h, TRAINER_JOB_EOS);
+  EXPECT_TRUE (stays_blocked (&job.done));
+
+  nnstreamer_trainer_notify_event (
+      fake_stat.notifier, TRAINER_EVENT_TRAINING_COMPLETION, NULL);
+  if (!wait_for_done (&job.done)) {
+    /* the event is stuck: joining it or tearing down would hang as well; job is static for it */
+    g_thread_unref (thread);
+    FAIL () << "EOS did not return after the training completion event.";
+  }
+  g_thread_join (thread);
+  EXPECT_TRUE (job.ret);
+  EXPECT_TRUE (harness_got_eos (h));
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A flush wakes up the EOS that waits for the training to complete.
+ *
+ * The EOS is refused and not forwarded, as the training is not complete.
+ * After the flush, an EOS waits for the training again.
+ */
+TEST_F (TensorTrainerFakeFw, eosWaitStoppedByFlush)
+{
+  GstHarness *h = make_negotiated_trainer_harness (0U);
+  static TrainerJob job;
+  GThread *thread;
+
+  ASSERT_NE (h, nullptr);
+  watch_eos (h);
+
+  thread = trainer_job_start (&job, h, TRAINER_JOB_EOS);
+  EXPECT_TRUE (wait_for_done (&eos_at_sink));
+  EXPECT_TRUE (stays_blocked (&job.done));
+
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_flush_start ()));
+  if (!wait_for_done (&job.done)) {
+    /* the event is stuck: joining it or tearing down would hang as well; job is static for it */
+    g_thread_unref (thread);
+    FAIL () << "EOS did not return after the flush.";
+  }
+  g_thread_join (thread);
+  EXPECT_FALSE (job.ret);
+  EXPECT_FALSE (harness_got_eos (h));
+
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_flush_stop (TRUE)));
+  thread = trainer_job_start (&job, h, TRAINER_JOB_EOS);
+  EXPECT_TRUE (stays_blocked (&job.done));
+
+  nnstreamer_trainer_notify_event (
+      fake_stat.notifier, TRAINER_EVENT_TRAINING_COMPLETION, NULL);
+  if (!wait_for_done (&job.done)) {
+    g_thread_unref (thread);
+    FAIL () << "EOS did not return after the training completion event.";
+  }
+  g_thread_join (thread);
+  EXPECT_TRUE (job.ret);
+  EXPECT_TRUE (harness_got_eos (h));
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Stopping the element wakes up the EOS that waits for the training to complete.
+ *
+ * The streaming thread waits with the stream lock of the sink pad, which
+ * deactivating the pad takes, so the state change used to hang with it.
+ * When the element runs again, an EOS waits for the training again.
+ */
+TEST_F (TensorTrainerFakeFw, eosWaitStoppedByStateChange)
+{
+  GstHarness *h = make_negotiated_trainer_harness (0U);
+  static TrainerJob eos_job, state_job;
+  GThread *eos_thread, *state_thread;
+
+  ASSERT_NE (h, nullptr);
+  watch_eos (h);
+
+  eos_thread = trainer_job_start (&eos_job, h, TRAINER_JOB_EOS);
+  EXPECT_TRUE (wait_for_done (&eos_at_sink));
+  EXPECT_TRUE (stays_blocked (&eos_job.done));
+
+  state_thread = trainer_job_start (&state_job, h, TRAINER_JOB_READY);
+  if (!wait_for_done (&state_job.done) || !wait_for_done (&eos_job.done)) {
+    /* both are stuck: joining them or tearing down would hang as well; the jobs are static for it */
+    g_thread_unref (state_thread);
+    g_thread_unref (eos_thread);
+    FAIL () << "The state change did not return while EOS waits.";
+  }
+  g_thread_join (state_thread);
+  g_thread_join (eos_thread);
+  EXPECT_EQ (state_job.ret, (gint) GST_STATE_CHANGE_SUCCESS);
+  EXPECT_FALSE (eos_job.ret);
+  EXPECT_FALSE (harness_got_eos (h));
+
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  eos_thread = trainer_job_start (&eos_job, h, TRAINER_JOB_EOS);
+  EXPECT_TRUE (stays_blocked (&eos_job.done));
+
+  nnstreamer_trainer_notify_event (
+      fake_stat.notifier, TRAINER_EVENT_TRAINING_COMPLETION, NULL);
+  if (!wait_for_done (&eos_job.done)) {
+    g_thread_unref (eos_thread);
+    FAIL () << "EOS did not return after the training completion event.";
+  }
+  g_thread_join (eos_thread);
+  EXPECT_TRUE (eos_job.ret);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A flush wakes up the chain that waits for the end of an epoch.
+ *
+ * The buffer completing the epoch returns flushing without an output. The
+ * next buffer starts an epoch, which is what yields an output. The
+ * sub-plugin still reports the epoch whose wait was stopped; that late event
+ * must not end the wait of the next epoch.
+ */
+TEST_F (TensorTrainerFakeFw, epochWaitStoppedByFlush)
+{
+  GstHarness *h = make_negotiated_trainer_harness (3U);
+  const gsize sizes[2] = { 1, 1 };
+  static PushJob job;
+  GThread *thread;
+  GstSegment segment;
+
+  ASSERT_NE (h, nullptr);
+  job.h = h;
+  job.ret = GST_FLOW_ERROR;
+  job.done = 0;
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  thread = g_thread_new ("push_job", push_job_func, &job);
+  EXPECT_TRUE (wait_for_push_done (3));
+  EXPECT_TRUE (stays_blocked (&job.done));
+
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_flush_start ()));
+  if (!wait_for_done (&job.done)) {
+    /* the push is stuck: joining it or tearing down would hang as well; job is static for it */
+    g_thread_unref (thread);
+    FAIL () << "The push did not return after the flush.";
+  }
+  g_thread_join (thread);
+  EXPECT_EQ (job.ret, GST_FLOW_FLUSHING);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_flush_stop (TRUE)));
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_segment (&segment)));
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 4);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+
+  nnstreamer_trainer_notify_event (fake_stat.notifier, TRAINER_EVENT_EPOCH_COMPLETION, NULL);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+
+  job.ret = GST_FLOW_ERROR;
+  job.done = 0;
+  thread = g_thread_new ("push_job", push_job_func, &job);
+  EXPECT_TRUE (wait_for_push_done (6));
+  EXPECT_TRUE (stays_blocked (&job.done));
+
+  nnstreamer_trainer_notify_event (fake_stat.notifier, TRAINER_EVENT_EPOCH_COMPLETION, NULL);
+  if (!wait_for_done (&job.done)) {
+    g_thread_unref (thread);
+    FAIL () << "The push did not return after the epoch completion event.";
+  }
+  g_thread_join (thread);
+  EXPECT_EQ (job.ret, GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 3U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Stopping the element wakes up the chain that waits for the end of an epoch.
+ */
+TEST_F (TensorTrainerFakeFw, epochWaitStoppedByStateChange)
+{
+  GstHarness *h = make_negotiated_trainer_harness (3U);
+  const gsize sizes[2] = { 1, 1 };
+  static PushJob push_job;
+  static TrainerJob state_job;
+  GThread *push_thread, *state_thread;
+
+  ASSERT_NE (h, nullptr);
+  push_job.h = h;
+  push_job.ret = GST_FLOW_ERROR;
+  push_job.done = 0;
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+
+  push_thread = g_thread_new ("push_job", push_job_func, &push_job);
+  EXPECT_TRUE (wait_for_push_done (3));
+  EXPECT_TRUE (stays_blocked (&push_job.done));
+
+  state_thread = trainer_job_start (&state_job, h, TRAINER_JOB_READY);
+  if (!wait_for_done (&state_job.done) || !wait_for_done (&push_job.done)) {
+    /* both are stuck: joining them or tearing down would hang as well; the jobs are static for it */
+    g_thread_unref (state_thread);
+    g_thread_unref (push_thread);
+    FAIL () << "The state change did not return while the chain waits.";
+  }
+  g_thread_join (state_thread);
+  g_thread_join (push_thread);
+  EXPECT_EQ (state_job.ret, (gint) GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (push_job.ret, GST_FLOW_FLUSHING);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief The completion event of an epoch whose wait was stopped is discarded after a restart too.
+ *
+ * The sub-plugin outlives the restart and reports the stopped epoch late.
+ * The epoch that follows must still wait for its own event. The fake takes
+ * another name here, so that no dummy-data thread adds samples of its own
+ * when the element leaves PLAYING.
+ */
+TEST_F (TensorTrainerFakeFw, epochWaitStoppedThenRestart)
+{
+  GstHarness *h;
+  const gsize sizes[2] = { 1, 1 };
+  static PushJob push_job;
+  static TrainerJob state_job;
+  GThread *push_thread, *state_thread;
+  GstSegment segment;
+  GstCaps *caps;
+  gchar *caps_str;
+
+  nnstreamer_trainer_exit (&fake_trainer_fw);
+  fake_fw_name = "fake-trainer-no-dummy";
+  ASSERT_TRUE (nnstreamer_trainer_probe (&fake_trainer_fw));
+
+  h = make_negotiated_trainer_harness (3U);
+  ASSERT_NE (h, nullptr);
+  push_job.h = h;
+  push_job.ret = GST_FLOW_ERROR;
+  push_job.done = 0;
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+
+  push_thread = g_thread_new ("push_job", push_job_func, &push_job);
+  EXPECT_TRUE (wait_for_push_done (3));
+  state_thread = trainer_job_start (&state_job, h, TRAINER_JOB_READY);
+  if (!wait_for_done (&state_job.done) || !wait_for_done (&push_job.done)) {
+    /* both are stuck: joining them or tearing down would hang as well; the jobs are static for it */
+    g_thread_unref (state_thread);
+    g_thread_unref (push_thread);
+    FAIL () << "The state change did not return while the chain waits.";
+  }
+  g_thread_join (state_thread);
+  g_thread_join (push_thread);
+  EXPECT_EQ (state_job.ret, (gint) GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (push_job.ret, GST_FLOW_FLUSHING);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.stop_calls), 0);
+
+  /* the sink pad lost its sticky events and the harness does not send them again */
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  caps_str = make_static_caps_string (2, 10);
+  caps = gst_caps_from_string (caps_str);
+  g_free (caps_str);
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_stream_start ("restart")));
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_caps (caps)));
+  EXPECT_TRUE (send_sink_event (h, gst_event_new_segment (&segment)));
+  gst_caps_unref (caps);
+
+  nnstreamer_trainer_notify_event (fake_stat.notifier, TRAINER_EVENT_EPOCH_COMPLETION, NULL);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+
+  push_job.ret = GST_FLOW_ERROR;
+  push_job.done = 0;
+  push_thread = g_thread_new ("push_job", push_job_func, &push_job);
+  EXPECT_TRUE (wait_for_push_done (6));
+  EXPECT_TRUE (stays_blocked (&push_job.done));
+
+  nnstreamer_trainer_notify_event (fake_stat.notifier, TRAINER_EVENT_EPOCH_COMPLETION, NULL);
+  if (!wait_for_done (&push_job.done)) {
+    g_thread_unref (push_thread);
+    FAIL () << "The push did not return after the epoch completion event.";
+  }
+  g_thread_join (push_thread);
+  EXPECT_EQ (push_job.ret, GST_FLOW_OK);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief The element does not play when the sub-plugin cannot start the training.
+ */
+TEST_F (TensorTrainerFakeFw, startFailure_n)
+{
+  GstElement *trainer = make_fake_trainer ();
+  ASSERT_NE (trainer, nullptr);
+
+  fake_stat.start_ret = -1;
+
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  EXPECT_NE (fake_stat.notifier, nullptr);
+
+  fake_stat.start_ret = 0;
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_element_set_state (trainer, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (trainer);
 }
 
 /**

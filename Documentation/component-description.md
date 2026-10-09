@@ -101,6 +101,8 @@ In this page, we focus on the status of each elements. For requirements and desi
   - Users can add plugins in run-time.
 - [tensor\_trainer](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_trainer.c) (stable)
   - Trains models from tensor streams using a trainer subplugin selected by the ```framework``` property.
+  - At end-of-stream, it waits for the subplugin to complete the training before forwarding the EOS, and the buffer that completes an epoch waits for the subplugin to finish that epoch. A flush or stopping the element (```PAUSED``` to ```READY```) ends both waits: the EOS is dropped and the buffer returns flushing.
+  - The element does not reach ```PLAYING``` if the subplugin fails to start the training.
 - [tensor\_sink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_sink.md) (stable)
   - ```appsink```-like element, which is specialized for ```other/tensors```. You may use appsink with capsfilter instead.
 - [tensor\_merge](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_merge.c) (stable)
