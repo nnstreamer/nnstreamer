@@ -15547,6 +15547,8 @@ _pad_race_sync_clear (padRaceSync *sync)
  * @details The application thread may touch a property at any time, and the
  *          first buffer keeps the streaming thread inside the pad creation for
  *          a long while (caps negotiation and the delayed link downstream).
+ *          The buffer being demuxed fixed the selection before the pad it is
+ *          creating was reported, so the racing set leaves it as it is.
  */
 TEST (testTensorDemux, setTensorpickWhileAddingPad)
 {
@@ -15579,7 +15581,7 @@ TEST (testTensorDemux, setTensorpickWhileAddingPad)
   EXPECT_TRUE (wait_pipeline_process_buffers (&data_received, 1, TEST_TIMEOUT_LIMIT_MS));
 
   g_object_get (demux, "tensorpick", &tensorpick, NULL);
-  EXPECT_STREQ (tensorpick, "0");
+  EXPECT_STREQ (tensorpick, "");
   g_free (tensorpick);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
@@ -16933,6 +16935,1183 @@ TEST (testTensorSplit, tensorpickPastBuffer_n)
 
   _split_outputs_clear (out);
   gst_harness_teardown (h);
+}
+
+/**
+ * @brief Number of tensor_demux source pads a demuxPadOutput array covers.
+ */
+#define DEMUX_TEST_MAX_PADS (4U)
+
+/**
+ * @brief What went out on one tensor_demux source pad.
+ */
+typedef struct {
+  guint buffers; /**< number of buffers pushed on the pad */
+  gchar *media; /**< media type in the caps of the pad at the last buffer */
+  gchar *dimensions; /**< dimensions in the caps of the pad at the last buffer */
+  gchar *types; /**< element types in the caps of the pad at the last buffer */
+  gint rate_n; /**< framerate numerator in the caps of the pad */
+  gint rate_d; /**< framerate denominator in the caps of the pad */
+  gsize caps_size; /**< bytes of the tensors the caps of the pad describe */
+  gsize buffer_size; /**< bytes of the last buffer */
+  guint first_byte; /**< first byte of the last buffer */
+} demuxPadOutput;
+
+/**
+ * @brief Buffer probe recording what goes out on a tensor_demux source pad.
+ * @details The buffer is dropped, which the pad reports as a successful push,
+ *          so the element goes on to the next pad as if it were linked.
+ */
+static GstPadProbeReturn
+_demux_record_output (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  demuxPadOutput *outputs = (demuxPadOutput *) user_data;
+  GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER (info);
+  gchar *name = gst_pad_get_name (pad);
+  guint idx = (guint) g_ascii_strtoull (name + strlen ("src_"), NULL, 10);
+  GstCaps *caps = gst_pad_get_current_caps (pad);
+  GstTensorsConfig config;
+  demuxPadOutput *out;
+  guint8 first = 0;
+
+  g_free (name);
+  EXPECT_LT (idx, DEMUX_TEST_MAX_PADS);
+  EXPECT_TRUE (caps != NULL);
+  if (idx >= DEMUX_TEST_MAX_PADS || caps == NULL)
+    goto done;
+
+  out = &outputs[idx];
+  out->buffers++;
+  out->buffer_size = gst_buffer_get_size (buf);
+  gst_buffer_extract (buf, 0, &first, 1);
+  out->first_byte = first;
+
+  g_free (out->media);
+  out->media = g_strdup (gst_structure_get_name (gst_caps_get_structure (caps, 0)));
+
+  gst_tensors_config_init (&config);
+  if (gst_tensors_config_from_caps (&config, caps, TRUE)) {
+    g_free (out->dimensions);
+    g_free (out->types);
+    out->dimensions = gst_tensors_info_get_dimensions_string (&config.info);
+    out->types = gst_tensors_info_get_types_string (&config.info);
+    out->rate_n = config.rate_n;
+    out->rate_d = config.rate_d;
+    out->caps_size = gst_tensors_info_get_size (&config.info, -1);
+  }
+  gst_tensors_config_free (&config);
+
+done:
+  if (caps)
+    gst_caps_unref (caps);
+  return GST_PAD_PROBE_DROP;
+}
+
+/**
+ * @brief Handler of "pad-added", which puts the recording probe on the pad.
+ */
+static void
+_demux_pad_added (GstElement *element, GstPad *pad, gpointer user_data)
+{
+  UNUSED (element);
+
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, _demux_record_output, user_data, NULL);
+}
+
+/**
+ * @brief Handler of "no-more-pads", which counts how often it is reported.
+ */
+static void
+_demux_no_more_pads (GstElement *element, gpointer user_data)
+{
+  UNUSED (element);
+
+  (*(guint *) user_data)++;
+}
+
+/**
+ * @brief Build the caps of a static tensors stream.
+ * @param[out] size bytes of one frame of the stream
+ */
+static GstCaps *
+_demux_stream_caps (const gchar *dimensions, const gchar *types, gint rate_n,
+    gint rate_d, gsize *size)
+{
+  GstTensorsConfig config;
+  GstCaps *caps;
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors
+      = gst_tensors_info_parse_dimensions_string (&config.info, dimensions);
+  gst_tensors_info_parse_types_string (&config.info, types);
+  config.rate_n = rate_n;
+  config.rate_d = rate_d;
+
+  caps = gst_tensors_caps_from_config (&config);
+  *size = gst_tensors_info_get_size (&config.info, -1);
+  gst_tensors_config_free (&config);
+
+  return caps;
+}
+
+/**
+ * @brief Feed a tensor_demux harness a stream of the given description.
+ * @return bytes of one frame of the stream
+ */
+static gsize
+_demux_set_src_caps (GstHarness *h, const gchar *dimensions, const gchar *types,
+    gint rate_n, gint rate_d)
+{
+  gsize size;
+
+  gst_harness_set_src_caps (
+      h, _demux_stream_caps (dimensions, types, rate_n, rate_d, &size));
+
+  return size;
+}
+
+/**
+ * @brief Get a tensor_demux harness fed with two uint8 tensors, 1:4:4 and 2:4:4.
+ * @param[out] size bytes of one incoming frame
+ */
+static GstHarness *
+_demux_harness_new (demuxPadOutput *outputs, gsize *size)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_demux_pad_added), outputs);
+  *size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+
+  return h;
+}
+
+/**
+ * @brief Push a frame whose byte i is i % 256, so a tensor is known by its first byte.
+ */
+static GstFlowReturn
+_demux_push (GstHarness *h, gsize size)
+{
+  GstBuffer *buf = gst_harness_create_buffer (h, size);
+  GstMapInfo map;
+  gsize i;
+
+  if (!gst_buffer_map (buf, &map, GST_MAP_WRITE)) {
+    gst_buffer_unref (buf);
+    return GST_FLOW_ERROR;
+  }
+  for (i = 0; i < size; i++)
+    map.data[i] = (guint8) i;
+  gst_buffer_unmap (buf, &map);
+
+  return gst_harness_push (h, buf);
+}
+
+/**
+ * @brief Release what a demuxPadOutput array holds.
+ */
+static void
+_demux_outputs_clear (demuxPadOutput *outputs)
+{
+  guint i;
+
+  for (i = 0; i < DEMUX_TEST_MAX_PADS; i++) {
+    g_free (outputs[i].media);
+    g_free (outputs[i].dimensions);
+    g_free (outputs[i].types);
+  }
+}
+
+/**
+ * @brief Tell whether the element posted a warning, and take it off the bus.
+ */
+static gboolean
+_demux_pop_warning (GstBus *bus)
+{
+  GstMessage *msg = gst_bus_pop_filtered (bus, GST_MESSAGE_WARNING);
+
+  if (msg == NULL)
+    return FALSE;
+
+  gst_message_unref (msg);
+  return TRUE;
+}
+
+/**
+ * @brief Without tensorpick, src_n carries tensor n, described by the input.
+ */
+TEST (testTensorDemux, tensorsWithoutTensorpick)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 2U);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].media, "other/tensors");
+  EXPECT_STREQ (out[0].dimensions, "1:4:4");
+  EXPECT_STREQ (out[0].types, "uint8");
+  EXPECT_EQ (out[0].caps_size, 16U);
+  EXPECT_EQ (out[0].buffer_size, 16U);
+  EXPECT_EQ (out[0].first_byte, 0U);
+
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_STREQ (out[1].dimensions, "2:4:4");
+  EXPECT_EQ (out[1].caps_size, 32U);
+  EXPECT_EQ (out[1].buffer_size, 32U);
+  EXPECT_EQ (out[1].first_byte, 16U);
+
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A tensorpick set while the stream runs is refused, selection and pads intact.
+ * @details The caps of a source pad are taken when it is created, so a
+ *          selection that changed under it would put another tensor on src_0
+ *          than it announces, and add a pad after no-more-pads.
+ */
+TEST (testTensorDemux, setTensorpickWhileStreaming_n)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  gchar *tensorpick = NULL;
+  guint no_more_pads = 0;
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+  GstBus *bus = _split_harness_bus (h);
+
+  g_signal_connect (h->element, "no-more-pads", G_CALLBACK (_demux_no_more_pads), &no_more_pads);
+  g_object_set (h->element, "tensorpick", "1", NULL);
+  EXPECT_FALSE (_demux_pop_warning (bus));
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorpick", "0,1", NULL);
+  EXPECT_TRUE (_demux_pop_warning (bus));
+  g_object_get (h->element, "tensorpick", &tensorpick, NULL);
+  EXPECT_STREQ (tensorpick, "1");
+  g_free (tensorpick);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 1U);
+  EXPECT_EQ (no_more_pads, 1U);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimensions, "2:4:4");
+  EXPECT_EQ (out[0].caps_size, 32U);
+  EXPECT_EQ (out[0].buffer_size, 32U);
+  EXPECT_EQ (out[0].first_byte, 16U);
+  EXPECT_EQ (out[1].buffers, 0U);
+
+  _split_harness_bus_clear (h, bus);
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A tensorpick given to a running element that had none is refused as well.
+ */
+TEST (testTensorDemux, setFirstTensorpickWhileStreaming_n)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  gchar *tensorpick = NULL;
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+  GstBus *bus = _split_harness_bus (h);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorpick", "1", NULL);
+  EXPECT_TRUE (_demux_pop_warning (bus));
+  g_object_get (h->element, "tensorpick", &tensorpick, NULL);
+  EXPECT_STREQ (tensorpick, "");
+  g_free (tensorpick);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_EQ (out[0].buffer_size, 16U);
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_EQ (out[1].buffer_size, 32U);
+
+  _split_harness_bus_clear (h, bus);
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Setting the tensorpick the element already has is not a change, nor refused.
+ */
+TEST (testTensorDemux, setSameTensorpickWhileStreaming)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+  GstBus *bus = _split_harness_bus (h);
+
+  g_object_set (h->element, "tensorpick", "1,0:1", NULL);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorpick", "1,0:1", NULL);
+  EXPECT_FALSE (_demux_pop_warning (bus));
+
+  /* the separators and the blanks the property accepts do not make it another selection */
+  g_object_set (h->element, "tensorpick", "1; 0:1", NULL);
+  EXPECT_FALSE (_demux_pop_warning (bus));
+  g_object_set (h->element, "tensorpick", "1,0+1", NULL);
+  EXPECT_FALSE (_demux_pop_warning (bus));
+
+  /* a selection that is the start of the one it holds is another one */
+  g_object_set (h->element, "tensorpick", "1", NULL);
+  EXPECT_TRUE (_demux_pop_warning (bus));
+
+  /* so is one that goes on after it */
+  g_object_set (h->element, "tensorpick", "1,0:1,0", NULL);
+  EXPECT_TRUE (_demux_pop_warning (bus));
+
+  /* and one that combines other tensors on a pad */
+  g_object_set (h->element, "tensorpick", "1,0", NULL);
+  EXPECT_TRUE (_demux_pop_warning (bus));
+
+  g_object_set (h->element, "silent", FALSE, NULL);
+  EXPECT_FALSE (_demux_pop_warning (bus));
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_EQ (out[0].buffer_size, 32U);
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_STREQ (out[1].dimensions, "1:4:4,2:4:4");
+  EXPECT_EQ (out[1].caps_size, 48U);
+  EXPECT_EQ (out[1].buffer_size, 48U);
+
+  _split_harness_bus_clear (h, bus);
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A tensorpick set in READY is taken, and describes the pads of the next stream.
+ */
+TEST (testTensorDemux, setTensorpickInReady)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  gchar *tensorpick = NULL;
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+  GstBus *bus = _split_harness_bus (h);
+
+  g_object_set (h->element, "tensorpick", "1", NULL);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_STREQ (out[0].dimensions, "2:4:4");
+
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 0U);
+
+  g_object_set (h->element, "tensorpick", "0", NULL);
+  EXPECT_FALSE (_demux_pop_warning (bus));
+  g_object_get (h->element, "tensorpick", &tensorpick, NULL);
+  EXPECT_STREQ (tensorpick, "0");
+  g_free (tensorpick);
+
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 30, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  EXPECT_EQ ((guint) h->element->numsrcpads, 1U);
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimensions, "1:4:4");
+  EXPECT_EQ (out[0].caps_size, 16U);
+  EXPECT_EQ (out[0].buffer_size, 16U);
+  EXPECT_EQ (out[0].first_byte, 0U);
+
+  _split_harness_bus_clear (h, bus);
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An input type changing while the stream runs reaches every source pad.
+ */
+TEST (testTensorDemux, renegotiateInputType)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_STREQ (out[0].types, "uint8");
+  EXPECT_STREQ (out[1].types, "uint8");
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "float32,float32", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 2U);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].media, "other/tensors");
+  EXPECT_STREQ (out[0].dimensions, "1:4:4");
+  EXPECT_STREQ (out[0].types, "float32");
+  EXPECT_EQ (out[0].caps_size, 64U);
+  EXPECT_EQ (out[0].buffer_size, 64U);
+
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_STREQ (out[1].dimensions, "2:4:4");
+  EXPECT_STREQ (out[1].types, "float32");
+  EXPECT_EQ (out[1].caps_size, 128U);
+  EXPECT_EQ (out[1].buffer_size, 128U);
+
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An input shape changing while the stream runs reaches the pad it concerns.
+ * @details A pad takes its dimension from the input, so src_0 would otherwise
+ *          announce 16 bytes for the 32-byte buffers it carries. src_1 carries
+ *          what it did, and its caps are not touched.
+ */
+TEST (testTensorDemux, renegotiateInputDimension)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  GstPad *srcpad;
+  GstCaps *before = NULL, *after;
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  srcpad = gst_element_get_static_pad (h->element, "src_1");
+  ASSERT_TRUE (srcpad != NULL);
+  before = gst_pad_get_current_caps (srcpad);
+
+  size = _demux_set_src_caps (h, "2:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimensions, "2:4:4");
+  EXPECT_EQ (out[0].caps_size, 32U);
+  EXPECT_EQ (out[0].buffer_size, 32U);
+  EXPECT_EQ (out[0].first_byte, 0U);
+
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_STREQ (out[1].dimensions, "2:4:4");
+  EXPECT_EQ (out[1].caps_size, 32U);
+  EXPECT_EQ (out[1].buffer_size, 32U);
+  EXPECT_EQ (out[1].first_byte, 32U);
+
+  /* the very caps object: no caps event went out on the pad nothing changed for */
+  after = gst_pad_get_current_caps (srcpad);
+  EXPECT_TRUE (before == after);
+
+  gst_caps_unref (before);
+  gst_caps_unref (after);
+  gst_object_unref (srcpad);
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An input framerate changing while the stream runs reaches every source pad.
+ */
+TEST (testTensorDemux, renegotiateInputFramerate)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (out[0].rate_n, 0);
+  EXPECT_EQ (out[0].rate_d, 1);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 30, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_EQ (out[0].rate_n, 30);
+  EXPECT_EQ (out[0].rate_d, 1);
+  EXPECT_EQ (out[0].caps_size, 16U);
+  EXPECT_EQ (out[0].buffer_size, 16U);
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_EQ (out[1].rate_n, 30);
+  EXPECT_EQ (out[1].rate_d, 1);
+
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A renegotiated input reaches the pads a tensorpick combines tensors on.
+ */
+TEST (testTensorDemux, renegotiateWithTensorpick)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  guint no_more_pads = 0;
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  g_signal_connect (h->element, "no-more-pads", G_CALLBACK (_demux_no_more_pads), &no_more_pads);
+  g_object_set (h->element, "tensorpick", "1,1:0", NULL);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_STREQ (out[0].dimensions, "2:4:4");
+  EXPECT_STREQ (out[1].dimensions, "2:4:4,1:4:4");
+  EXPECT_STREQ (out[1].types, "uint8,uint8");
+
+  size = _demux_set_src_caps (h, "1:4:4,3:4:4", "uint8,int16", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 2U);
+  EXPECT_EQ (no_more_pads, 1U);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimensions, "3:4:4");
+  EXPECT_STREQ (out[0].types, "int16");
+  EXPECT_EQ (out[0].caps_size, 96U);
+  EXPECT_EQ (out[0].buffer_size, 96U);
+  EXPECT_EQ (out[0].first_byte, 16U);
+
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_STREQ (out[1].dimensions, "3:4:4,1:4:4");
+  EXPECT_STREQ (out[1].types, "int16,uint8");
+  EXPECT_EQ (out[1].caps_size, 112U);
+  EXPECT_EQ (out[1].buffer_size, 112U);
+
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An input renegotiated before the first buffer describes the pads that follow.
+ */
+TEST (testTensorDemux, renegotiateBeforeFirstBuffer)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "float32,float32", 0, 1);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 0U);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  EXPECT_EQ (out[0].buffers, 1U);
+  EXPECT_STREQ (out[0].types, "float32");
+  EXPECT_EQ (out[0].caps_size, 64U);
+  EXPECT_EQ (out[0].buffer_size, 64U);
+  EXPECT_EQ (out[1].buffers, 1U);
+  EXPECT_EQ (out[1].caps_size, 128U);
+  EXPECT_EQ (out[1].buffer_size, 128U);
+
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An input renegotiated to more tensors gets a pad for each new one.
+ * @details Without tensorpick the element never reports no-more-pads, and goes
+ *          on creating a pad for a tensor it sees for the first time. The pads
+ *          that exist follow the renegotiation like any other.
+ */
+TEST (testTensorDemux, renegotiateMoreTensors)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  guint no_more_pads = 0;
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  g_signal_connect (h->element, "no-more-pads", G_CALLBACK (_demux_no_more_pads), &no_more_pads);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 2U);
+
+  size = _demux_set_src_caps (h, "2:4:4,2:4:4,3:4:4", "uint8,uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 3U);
+  EXPECT_EQ (no_more_pads, 0U);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimensions, "2:4:4");
+  EXPECT_EQ (out[0].buffer_size, 32U);
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_EQ (out[1].buffer_size, 32U);
+  EXPECT_EQ (out[2].buffers, 1U);
+  EXPECT_STREQ (out[2].dimensions, "3:4:4");
+  EXPECT_EQ (out[2].caps_size, 48U);
+  EXPECT_EQ (out[2].buffer_size, 48U);
+  EXPECT_EQ (out[2].first_byte, 64U);
+
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An input renegotiated to fewer tensors leaves the pad it has nothing for alone.
+ * @details The pad stays, announcing what it last carried, and gets no buffer.
+ */
+TEST (testTensorDemux, renegotiateFewerTensors)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  GstPad *srcpad;
+  GstCaps *before = NULL, *after;
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  srcpad = gst_element_get_static_pad (h->element, "src_1");
+  ASSERT_TRUE (srcpad != NULL);
+  before = gst_pad_get_current_caps (srcpad);
+
+  size = _demux_set_src_caps (h, "3:4:4", "uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 2U);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimensions, "3:4:4");
+  EXPECT_EQ (out[0].caps_size, 48U);
+  EXPECT_EQ (out[0].buffer_size, 48U);
+  EXPECT_EQ (out[1].buffers, 1U);
+
+  after = gst_pad_get_current_caps (srcpad);
+  EXPECT_TRUE (before == after);
+
+  gst_caps_unref (before);
+  gst_caps_unref (after);
+  gst_object_unref (srcpad);
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An input renegotiated below what tensorpick names is refused per buffer.
+ * @details The pad of the missing tensor is left as it was, and the buffer
+ *          that no longer holds the tensor is refused rather than passed on.
+ */
+TEST (testTensorDemux, renegotiateBelowTensorpick_n)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  g_object_set (h->element, "tensorpick", "1", NULL);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  size = _demux_set_src_caps (h, "3:4:4", "uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_ERROR);
+
+  EXPECT_EQ (out[0].buffers, 1U);
+  EXPECT_STREQ (out[0].dimensions, "2:4:4");
+
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief An input renegotiated from static to flexible is refused, as it was.
+ * @details The pads announce the flexible stream, and the buffer that carries
+ *          no flexible header is refused.
+ */
+TEST (testTensorDemux, renegotiateStaticToFlexible_n)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  GstPad *srcpad;
+  GstCaps *caps;
+  gsize size;
+  GstHarness *h = _demux_harness_new (out, &size);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  gst_harness_set_src_caps (
+      h, gst_caps_from_string ("other/tensors,format=flexible,framerate=0/1"));
+  srcpad = gst_element_get_static_pad (h->element, "src_0");
+  ASSERT_TRUE (srcpad != NULL);
+  caps = gst_pad_get_current_caps (srcpad);
+  ASSERT_TRUE (caps != NULL);
+  EXPECT_STREQ (gst_structure_get_string (gst_caps_get_structure (caps, 0), "format"), "flexible");
+  gst_caps_unref (caps);
+  gst_object_unref (srcpad);
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_ERROR);
+  EXPECT_EQ (out[0].buffers, 1U);
+  EXPECT_EQ (out[1].buffers, 1U);
+
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Read the framerate numerator a source pad of the element announces.
+ * @return the numerator, -1 if the pad or its caps are missing or not flexible
+ */
+static gint
+_demux_flexible_pad_rate (GstElement *element, const gchar *name)
+{
+  GstPad *srcpad = gst_element_get_static_pad (element, name);
+  GstCaps *caps = srcpad ? gst_pad_get_current_caps (srcpad) : NULL;
+  gint rate_n = -1, rate_d = 0;
+
+  if (caps) {
+    GstStructure *structure = gst_caps_get_structure (caps, 0);
+
+    if (g_strcmp0 (gst_structure_get_string (structure, "format"), "flexible") == 0)
+      gst_structure_get_fraction (structure, "framerate", &rate_n, &rate_d);
+    gst_caps_unref (caps);
+  }
+  if (srcpad)
+    gst_object_unref (srcpad);
+
+  return rate_n;
+}
+
+/**
+ * @brief A flexible input renegotiated to another framerate reaches the source pads.
+ * @details The caps of a flexible stream describe no tensor, so the pads are
+ *          not found by the tensors of the input.
+ */
+TEST (testTensorDemux, renegotiateFlexibleFramerate)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+
+  ASSERT_TRUE (h != NULL);
+  gst_harness_set_src_caps (
+      h, gst_caps_from_string ("other/tensors,format=flexible,framerate=10/1"));
+  EXPECT_EQ (_push_flex_uint8_sequence (h, 4, 4, 16), GST_FLOW_NOT_LINKED);
+  EXPECT_EQ (_demux_flexible_pad_rate (h->element, "src_0"), 10);
+
+  gst_harness_set_src_caps (
+      h, gst_caps_from_string ("other/tensors,format=flexible,framerate=30/1"));
+  EXPECT_EQ (_demux_flexible_pad_rate (h->element, "src_0"), 30);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 1U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A flexible input renegotiated to static makes its pads static.
+ * @details The pads were flexible for the input, not for a peer, and would
+ *          otherwise announce flexible tensors for buffers without a header.
+ */
+TEST (testTensorDemux, renegotiateFlexibleToStatic)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  GstStructure *structure;
+  GstPad *srcpad;
+  GstCaps *caps;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  gst_harness_set_src_caps (
+      h, gst_caps_from_string ("other/tensors,format=flexible,framerate=10/1"));
+  EXPECT_EQ (_push_flex_uint8_sequence (h, 4, 4, 16), GST_FLOW_NOT_LINKED);
+  EXPECT_EQ (_demux_flexible_pad_rate (h->element, "src_0"), 10);
+
+  size = _demux_set_src_caps (h, "1:4:4", "uint8", 10, 1);
+  EXPECT_EQ (size, 16U);
+  srcpad = gst_element_get_static_pad (h->element, "src_0");
+  ASSERT_TRUE (srcpad != NULL);
+  caps = gst_pad_get_current_caps (srcpad);
+  ASSERT_TRUE (caps != NULL);
+  structure = gst_caps_get_structure (caps, 0);
+  EXPECT_STREQ (gst_structure_get_string (structure, "format"), "static");
+  EXPECT_STREQ (gst_structure_get_string (structure, "dimensions"), "1:4:4");
+  EXPECT_STREQ (gst_structure_get_string (structure, "types"), "uint8");
+  gst_caps_unref (caps);
+  gst_object_unref (srcpad);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Set up a sink pad that takes any caps and remembers them.
+ */
+static GstPad *
+_demux_any_sink_new (splitAnySink *sink, const gchar *query_caps)
+{
+  GstPad *sinkpad = gst_pad_new ("sink", GST_PAD_SINK);
+
+  sink->query_caps = gst_caps_from_string (query_caps);
+  gst_pad_set_event_function (sinkpad, _split_any_sink_event);
+  gst_pad_set_query_function (sinkpad, _split_any_sink_query);
+  gst_pad_set_chain_function (sinkpad, _split_any_sink_chain);
+  gst_pad_set_element_private (sinkpad, sink);
+  gst_pad_set_active (sinkpad, TRUE);
+
+  return sinkpad;
+}
+
+/**
+ * @brief Release a sink pad of _demux_any_sink_new() and what it remembers.
+ */
+static void
+_demux_any_sink_free (GstPad *sinkpad, splitAnySink *sink)
+{
+  gst_pad_set_active (sinkpad, FALSE);
+  gst_object_unref (sinkpad);
+  gst_caps_unref (sink->query_caps);
+  if (sink->taken)
+    gst_caps_unref (sink->taken);
+}
+
+/**
+ * @brief A pad created as other/tensor is renegotiated as other/tensor.
+ * @details A peer linked from "pad-added" is there when the pad is described,
+ *          and one that takes other/tensor gets other/tensor.
+ */
+TEST (testTensorDemux, renegotiateKeepsMediaTypeTensor)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  splitAnySink sink = { NULL, NULL, 0 };
+  GstPad *sinkpad = _demux_any_sink_new (&sink, "other/tensor; other/tensors");
+  GstStructure *structure;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_first_pad), sinkpad);
+  g_object_set (h->element, "tensorpick", "0", NULL);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  ASSERT_TRUE (sink.taken != NULL);
+  structure = gst_caps_get_structure (sink.taken, 0);
+  EXPECT_STREQ (gst_structure_get_name (structure), "other/tensor");
+  EXPECT_STREQ (gst_structure_get_string (structure, "type"), "uint8");
+
+  size = _demux_set_src_caps (h, "2:4:4,2:4:4", "float32,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (sink.buffers, 2U);
+
+  structure = gst_caps_get_structure (sink.taken, 0);
+  EXPECT_STREQ (gst_structure_get_name (structure), "other/tensor");
+  EXPECT_STREQ (gst_structure_get_string (structure, "type"), "float32");
+  EXPECT_STREQ (gst_structure_get_string (structure, "dimension"), "2:4:4");
+
+  gst_harness_teardown (h);
+  _demux_any_sink_free (sinkpad, &sink);
+}
+
+/**
+ * @brief A pad created as other/tensors stays other/tensors, whatever its peer takes.
+ * @details The pad is linked after it was described, as an application
+ *          linking by name does. Building its caps from the config again would
+ *          ask the peer, which takes other/tensor, and flip the media type of
+ *          a pad that has been announcing other/tensors.
+ */
+TEST (testTensorDemux, renegotiateKeepsMediaTypeTensors)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  splitAnySink sink = { NULL, NULL, 0 };
+  GstPad *sinkpad = _demux_any_sink_new (&sink, "other/tensor; other/tensors");
+  GstStructure *structure;
+  GstPad *srcpad;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_object_set (h->element, "tensorpick", "0", NULL);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_NOT_LINKED);
+
+  srcpad = gst_element_get_static_pad (h->element, "src_0");
+  ASSERT_TRUE (srcpad != NULL);
+  EXPECT_EQ (gst_pad_link (srcpad, sinkpad), GST_PAD_LINK_OK);
+  gst_object_unref (srcpad);
+
+  size = _demux_set_src_caps (h, "2:4:4,2:4:4", "float32,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (sink.buffers, 1U);
+
+  ASSERT_TRUE (sink.taken != NULL);
+  structure = gst_caps_get_structure (sink.taken, 0);
+  EXPECT_STREQ (gst_structure_get_name (structure), "other/tensors");
+  EXPECT_STREQ (gst_structure_get_string (structure, "types"), "float32");
+  EXPECT_STREQ (gst_structure_get_string (structure, "dimensions"), "2:4:4");
+
+  gst_harness_teardown (h);
+  _demux_any_sink_free (sinkpad, &sink);
+}
+
+/**
+ * @brief A static pad linked to a peer that prefers flexible tensors stays static.
+ * @details The pad was described without a peer, and pushes tensors without
+ *          the header a flexible stream carries.
+ */
+TEST (testTensorDemux, renegotiateKeepsStaticPad)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  splitAnySink sink = { NULL, NULL, 0 };
+  GstPad *sinkpad = _demux_any_sink_new (
+      &sink, "other/tensors,format=(string)flexible; other/tensors");
+  GstStructure *structure;
+  GstPad *srcpad;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_object_set (h->element, "tensorpick", "0", NULL);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_NOT_LINKED);
+
+  srcpad = gst_element_get_static_pad (h->element, "src_0");
+  ASSERT_TRUE (srcpad != NULL);
+  EXPECT_EQ (gst_pad_link (srcpad, sinkpad), GST_PAD_LINK_OK);
+  gst_object_unref (srcpad);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "float32,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (sink.buffers, 1U);
+
+  ASSERT_TRUE (sink.taken != NULL);
+  structure = gst_caps_get_structure (sink.taken, 0);
+  EXPECT_STREQ (gst_structure_get_string (structure, "format"), "static");
+  EXPECT_STREQ (gst_structure_get_string (structure, "types"), "float32");
+
+  gst_harness_teardown (h);
+  _demux_any_sink_free (sinkpad, &sink);
+}
+
+/**
+ * @brief A pad that could not be described gets its caps from a renegotiated input.
+ * @details A tensorpick naming a tensor the input does not have leaves src_0
+ *          without caps, and the buffer is refused. Once the input has the
+ *          tensor, the pad is described by it.
+ */
+TEST (testTensorDemux, renegotiateDescribesPadWithoutCaps)
+{
+  demuxPadOutput out[DEMUX_TEST_MAX_PADS] = {};
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  GstPad *srcpad;
+  GstCaps *caps;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_demux_pad_added), out);
+  g_object_set (h->element, "tensorpick", "1", NULL);
+
+  size = _demux_set_src_caps (h, "3:4:4", "uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_ERROR);
+  srcpad = gst_element_get_static_pad (h->element, "src_0");
+  ASSERT_TRUE (srcpad != NULL);
+  caps = gst_pad_get_current_caps (srcpad);
+  EXPECT_TRUE (caps == NULL);
+  if (caps)
+    gst_caps_unref (caps);
+  gst_object_unref (srcpad);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+
+  EXPECT_EQ (out[0].buffers, 1U);
+  EXPECT_STREQ (out[0].media, "other/tensors");
+  EXPECT_STREQ (out[0].dimensions, "2:4:4");
+  EXPECT_EQ (out[0].caps_size, 32U);
+  EXPECT_EQ (out[0].buffer_size, 32U);
+  EXPECT_EQ (out[0].first_byte, 16U);
+
+  _demux_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A pad made flexible by its peer stays flexible across a renegotiation.
+ * @details A peer that takes flexible tensors only gets a flexible pad for a
+ *          static input, and that is not to turn static under it.
+ */
+TEST (testTensorDemux, renegotiateKeepsFlexiblePad)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  splitAnySink sink = { NULL, NULL, 0 };
+  GstPad *sinkpad = _demux_any_sink_new (&sink, "other/tensors,format=(string)flexible");
+  GstStructure *structure;
+  gint rate_n = -1, rate_d = -1;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_first_pad), sinkpad);
+  g_object_set (h->element, "tensorpick", "0", NULL);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  ASSERT_TRUE (sink.taken != NULL);
+  structure = gst_caps_get_structure (sink.taken, 0);
+  EXPECT_STREQ (gst_structure_get_string (structure, "format"), "flexible");
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "float32,uint8", 30, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (sink.buffers, 2U);
+
+  structure = gst_caps_get_structure (sink.taken, 0);
+  EXPECT_STREQ (gst_structure_get_string (structure, "format"), "flexible");
+  EXPECT_FALSE (gst_structure_has_field (structure, "types"));
+  EXPECT_TRUE (gst_structure_get_fraction (structure, "framerate", &rate_n, &rate_d));
+  EXPECT_EQ (rate_n, 30);
+  EXPECT_EQ (rate_d, 1);
+
+  gst_harness_teardown (h);
+  _demux_any_sink_free (sinkpad, &sink);
+}
+
+/**
+ * @brief A renegotiated pad writes its dimension the way its peer does.
+ * @details A peer may spell out the trailing 1s of a dimension, and compares
+ *          the caps it is offered as strings.
+ */
+TEST (testTensorDemux, renegotiateFollowsPeerDimensionNotation)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  splitAnySink sink = { NULL, NULL, 0 };
+  GstPad *sinkpad = _demux_any_sink_new (&sink,
+      "other/tensors,format=static,num_tensors=1,dimensions=(string)1:4:4:1");
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_first_pad), sinkpad);
+  g_object_set (h->element, "tensorpick", "0", NULL);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  ASSERT_TRUE (sink.taken != NULL);
+  EXPECT_STREQ (gst_structure_get_string (gst_caps_get_structure (sink.taken, 0), "dimensions"),
+      "1:4:4:1");
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "float32,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (sink.buffers, 2U);
+  EXPECT_STREQ (gst_structure_get_string (gst_caps_get_structure (sink.taken, 0), "dimensions"),
+      "1:4:4:1");
+  EXPECT_STREQ (gst_structure_get_string (gst_caps_get_structure (sink.taken, 0), "types"),
+      "float32");
+
+  gst_harness_teardown (h);
+  _demux_any_sink_free (sinkpad, &sink);
+}
+
+/**
+ * @brief A renegotiation a source pad cannot pass on fails the stream.
+ * @details Pushing buffers of the new type on a pad still announcing the old
+ *          one would hand downstream tensors it reads by the wrong type. The
+ *          caps event is refused instead, which leaves it pending on the sink
+ *          pad, so the buffer behind it never reaches the peer either.
+ */
+TEST (testTensorDemux, renegotiateRefusedDownstream_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  splitPinnedSink sink = { NULL, 0, 0 };
+  GstPad *sinkpad = gst_pad_new ("sink", GST_PAD_SINK);
+  GstMessage *msg;
+  GstCaps *caps;
+  GstBus *bus;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  gst_pad_set_event_function (sinkpad, _split_pinned_sink_event);
+  gst_pad_set_query_function (sinkpad, _split_pinned_sink_query);
+  gst_pad_set_chain_function (sinkpad, _split_pinned_sink_chain);
+  gst_pad_set_element_private (sinkpad, &sink);
+  gst_pad_set_active (sinkpad, TRUE);
+
+  bus = _split_harness_bus (h);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_first_pad), sinkpad);
+  g_object_set (h->element, "tensorpick", "0", NULL);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (sink.buffers, 1U);
+  EXPECT_TRUE (sink.accepted != NULL);
+
+  caps = _demux_stream_caps ("2:4:4,2:4:4", "uint8,uint8", 0, 1, &size);
+  gst_harness_push_event (h, gst_event_new_caps (caps));
+  gst_caps_unref (caps);
+  EXPECT_GT (sink.refused, 0U);
+
+  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  EXPECT_TRUE (msg != NULL);
+  if (msg) {
+    GError *err = NULL;
+
+    gst_message_parse_error (msg, &err, NULL);
+    EXPECT_EQ (err->domain, GST_CORE_ERROR);
+    EXPECT_EQ (err->code, (gint) GST_CORE_ERROR_NEGOTIATION);
+    g_clear_error (&err);
+    gst_message_unref (msg);
+  }
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_EQ (sink.buffers, 1U);
+
+  _split_harness_bus_clear (h, bus);
+  gst_harness_teardown (h);
+  gst_pad_set_active (sinkpad, FALSE);
+  gst_object_unref (sinkpad);
+  if (sink.accepted)
+    gst_caps_unref (sink.accepted);
+}
+
+/**
+ * @brief A renegotiation one peer refuses leaves every source pad as it was.
+ * @details src_0 goes to a peer that would take the new type and src_1 to one
+ *          pinned to the old type. Every peer is asked before any pad changes,
+ *          so src_0 does not move ahead of src_1 into a type no buffer will
+ *          ever be pushed in.
+ */
+TEST (testTensorDemux, renegotiateRefusedLeavesEveryPad_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  splitAnySink open = { NULL, NULL, 0 };
+  splitPinnedSink pinned = { NULL, 0, 0 };
+  GstPad *sinkpads[] = { _demux_any_sink_new (&open, "other/tensors"),
+    gst_pad_new ("pinned", GST_PAD_SINK), NULL };
+  GstPad *srcpad;
+  GstMessage *msg;
+  GstCaps *caps;
+  GstBus *bus;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  gst_pad_set_event_function (sinkpads[1], _split_pinned_sink_event);
+  gst_pad_set_query_function (sinkpads[1], _split_pinned_sink_query);
+  gst_pad_set_chain_function (sinkpads[1], _split_pinned_sink_chain);
+  gst_pad_set_element_private (sinkpads[1], &pinned);
+  gst_pad_set_active (sinkpads[1], TRUE);
+
+  bus = _split_harness_bus (h);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_pad_by_index), sinkpads);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (open.buffers, 1U);
+  EXPECT_EQ (pinned.buffers, 1U);
+
+  caps = _demux_stream_caps ("1:4:4,2:4:4", "float32,float32", 0, 1, &size);
+  gst_harness_push_event (h, gst_event_new_caps (caps));
+  gst_caps_unref (caps);
+  EXPECT_GT (pinned.refused, 0U);
+
+  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  EXPECT_TRUE (msg != NULL);
+  if (msg)
+    gst_message_unref (msg);
+
+  srcpad = gst_element_get_static_pad (h->element, "src_0");
+  EXPECT_TRUE (srcpad != NULL);
+  if (srcpad) {
+    caps = gst_pad_get_current_caps (srcpad);
+    EXPECT_TRUE (caps != NULL);
+    if (caps) {
+      EXPECT_STREQ (gst_structure_get_string (gst_caps_get_structure (caps, 0), "types"), "uint8");
+      gst_caps_unref (caps);
+    }
+    gst_object_unref (srcpad);
+  }
+  EXPECT_TRUE (open.taken != NULL);
+  if (open.taken) {
+    EXPECT_STREQ (
+        gst_structure_get_string (gst_caps_get_structure (open.taken, 0), "types"), "uint8");
+  }
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_EQ (open.buffers, 1U);
+  EXPECT_EQ (pinned.buffers, 1U);
+
+  _split_harness_bus_clear (h, bus);
+  gst_harness_teardown (h);
+  gst_pad_set_active (sinkpads[1], FALSE);
+  gst_object_unref (sinkpads[1]);
+  _demux_any_sink_free (sinkpads[0], &open);
+  if (pinned.accepted)
+    gst_caps_unref (pinned.accepted);
 }
 
 /**
