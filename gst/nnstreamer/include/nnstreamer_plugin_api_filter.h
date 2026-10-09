@@ -208,8 +208,14 @@ typedef enum
   SET_OUTPUT_PROP,  /**< Update output tensor info and layout */
   SET_ACCELERATOR,  /**< Update accelerator of the subplugin to be used as backend */
   CHECK_HW_AVAILABILITY, /**< Check the hw availability with custom option */
-  SUSPEND,          /**< Suspend current opened model. */
-  RESUME,           /**< Resume suspended model. */
+  SUSPEND,
+  /**< Suspend current opened model.
+   * Return 0 if it is suspended: the model stays opened (private_data is kept), SUSPEND is not sent again while it is suspended, and RESUME is sent before the model is invoked again.
+   * A suspended model may be closed without RESUME (e.g., when the element is finalized or its framework is changed), so close() has to release it as well. The other events (e.g., RELOAD_MODEL) and reloadModel() may reach a suspended model without RESUME, too; the model stays suspended after them.
+   * If a non-zero value is returned, or the event is not handled, tensor-filter closes the model instead.
+   */
+  RESUME,
+  /**< Resume suspended model. This is sent only to a model that has accepted SUSPEND. If a non-zero value is returned, the model stays suspended. */
 } event_ops;
 
 /**
@@ -282,17 +288,21 @@ struct _GstTensorFilterFramework
    */
 
   int (*open) (const GstTensorFilterProperties * prop, void **private_data);
-  /**< Optional. Tensor-filter will call this before any of other callbacks and will call once before calling close.
+  /**< Optional. Tensor-filter will call this before any of other callbacks. Tensor-filter itself calls it with *private_data set to NULL and does not call it again before calling close.
    *
    * Note: If 'open' callback is not defined, then the private_data passed in other callbacks will be NULL.
    *
+   * Note: Other callers of this callback may call it again with the private_data that an earlier open has filled, and close is not called in between. The callback then decides what to do with the model it holds. If prop describes that same model (every model file of it, when it consists of several files), keep it and return a positive value. Otherwise release everything private_data holds before loading the other model; loading over a live private_data leaks the previous model. For example, the sub-plugins tensorflow, pytorch, caffe2, nnfw, armnn and vivante do so. The open of a C++ sub-plugin (nnstreamer_cppplugin_api_filter.hh) does not: it always creates another object and does not look at private_data, so do not open such a sub-plugin again before closing it.
+   *
    * @param[in] prop read-only property values.
    * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, open() allocates memory for private_data.
-   * @return 0 if ok. < 0 if error.
+   * @return 0 if the model is loaded. A positive value (1 by convention) if loading is skipped because private_data already holds the model; tensor-filter takes it as an opened model, the same as 0. < 0 if error.
    */
 
   void (*close) (const GstTensorFilterProperties * prop, void **private_data);
   /**< Optional. Tensor-filter will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that.
+   *
+   * Note: The model may be suspended when this is called, because tensor-filter does not send RESUME before closing a suspended model (refer to SUSPEND of event_ops). Release a suspended model as well as an active one.
    *
    * @param[in] prop read-only property values.
    * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.

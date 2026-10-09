@@ -193,8 +193,9 @@ static void
 vivante_close (const GstTensorFilterProperties * prop, void **private_data);
 
 /**
- *  * @brief Configure private_data
- *   */
+ * @brief Configure private_data
+ * @return 0 if allocated. 1 if it already holds the given model. < 0 if error.
+ */
 static int
 allocateData (const GstTensorFilterProperties * prop, void **private_data)
 {
@@ -212,12 +213,9 @@ allocateData (const GstTensorFilterProperties * prop, void **private_data)
       printf ("Shared library path (.so) is not given.");
       return -1;
     }
-    if (pdata->model_path && g_strcmp0 (prop->model_files[0],
-            pdata->model_path) == 0) {
-      return 0;                 /* Already opened with same model file. Skip ops */
-    }
-    if (pdata->so_path && g_strcmp0 (prop->model_files[1], pdata->so_path) == 0) {
-      return 0;                 /* Already opened with same so file. Skip ops */
+    if (g_strcmp0 (prop->model_files[0], pdata->model_path) == 0 &&
+        g_strcmp0 (prop->model_files[1], pdata->so_path) == 0) {
+      return 1;                 /* Already opened with same model. Skip ops */
     }
     vivante_close (prop, private_data); /* Close before opening one. */
   }
@@ -272,6 +270,8 @@ convert_tensortype (unsigned tensor_type)
  * 2. Once anything has been taken for the model, a failure releases all of it
  *    and leaves private_data NULL. A refusal that happens before that, such as
  *    a model path that is not given, keeps an already opened model as it is.
+ * 3. An already opened model is kept if both of its files are given again.
+ * @return 0 if successfully loaded. 1 if skipped (already loaded). < 0 if error.
  */
 static int
 vivante_open (const GstTensorFilterProperties * prop, void **private_data)
@@ -280,7 +280,7 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
   unsigned int i, j, k;
   vivante_pdata *pdata = (vivante_pdata *) * private_data;
 
-  if (ret < 0)
+  if (ret != 0)
     return ret;
 
   if (*private_data == NULL)
