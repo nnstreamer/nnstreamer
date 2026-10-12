@@ -634,6 +634,9 @@ TEST (tensorRepo, pipelineSinkErrorsWhenSlotRemoved)
   gulong probe_id;
   guint received = 0;
   guint missing_slot = 0;
+  guint log_handler;
+  GLogLevelFlags fatal_mask;
+  guint recorded;
 
   str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=10 ! video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
@@ -656,7 +659,16 @@ TEST (tensorRepo, pipelineSinkErrorsWhenSlotRemoved)
       sinkpad, GST_PAD_PROBE_TYPE_BUFFER, count_buffer_probe, &received, NULL);
 
   bus = gst_element_get_bus (pipeline);
-  g_log_set_default_handler (count_missing_slot_log, &missing_slot);
+  log_handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      count_missing_slot_log, &missing_slot);
+  /* set_buffer() logs its failed assertion in the default domain. */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log (NULL, G_LOG_LEVEL_CRITICAL, "[probe] gst_tensor_repo_set_buffer: handler self-check");
+  recorded = g_atomic_int_get (&missing_slot);
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (recorded, 1U) << "no live handler for the missing-slot log";
+  g_atomic_int_set (&missing_slot, 0);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
@@ -678,7 +690,7 @@ TEST (tensorRepo, pipelineSinkErrorsWhenSlotRemoved)
    * The probe and the log handler point into this frame, so they are dropped
    * here, before any check that could leave the case early.
    */
-  g_log_set_default_handler (g_log_default_handler, NULL);
+  g_log_remove_handler (NULL, log_handler);
   gst_pad_remove_probe (sinkpad, probe_id);
   gst_object_unref (sinkpad);
   gst_object_unref (reposink);
