@@ -9,12 +9,16 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <gst/app/gstappsink.h>
+#include <gst/app/gstappsrc.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_util.h>
 #include <tensor_common.h>
+#include <tuple>
 #include <unittest_util.h>
+#include <vector>
 
 /**
  * @brief Number of sink pads that make the merged stream reach
@@ -278,6 +282,180 @@ TEST (tensorMergeCollect, staticShortBuffer_n)
 
   _merge_harness_teardown (h);
 }
+
+/**
+ * @brief Exercise abbreviated dimensions along each supported merge axis.
+ */
+class TensorMergeDimensions : public testing::TestWithParam<std::tuple<guint, guint>>
+{
+  protected:
+  GstElement *pipeline = nullptr;
+  tensor_dim dims[2] = {};
+  tensor_dim merged = {};
+  std::vector<guint8> input[2];
+  std::vector<guint8> expected;
+
+  /**
+   * @brief Build input shapes and a coordinate-based concatenation oracle.
+   */
+  void SetUp () override
+  {
+    const guint rank = std::get<0> (GetParam ());
+    const guint axis = std::get<1> (GetParam ());
+    const guint shape[4] = { 2, 3, 2, 1 };
+
+    for (guint i = 0; i < 4; i++) {
+      dims[0][i] = dims[1][i] = i < rank ? shape[i] : 1;
+      merged[i] = dims[0][i];
+    }
+    if (axis < rank)
+      dims[1][axis]++;
+    merged[axis] += dims[1][axis];
+
+    for (guint i = 0; i < 2; i++) {
+      input[i].resize (gst_tensor_get_element_count (dims[i]));
+      for (gsize j = 0; j < input[i].size (); j++)
+        input[i][j] = 1 + j + i * 100;
+    }
+
+    /* Map output coordinates to their input, independently of the copy loops. */
+    for (gsize i = 0; i < gst_tensor_get_element_count (merged); i++) {
+      gsize index = i;
+      guint coord[4];
+      for (guint j = 0; j < 4; j++) {
+        coord[j] = index % merged[j];
+        index /= merged[j];
+      }
+      const guint source = coord[axis] >= dims[0][axis] ? 1 : 0;
+      if (source)
+        coord[axis] -= dims[0][axis];
+      index = coord[3];
+      for (gint j = 2; j >= 0; j--)
+        index = index * dims[source][j] + coord[j];
+      expected.push_back (input[source][index]);
+    }
+  }
+
+  /**
+   * @brief Stop the pipeline even after a failed assertion.
+   */
+  void TearDown () override
+  {
+    if (pipeline) {
+      gst_element_set_state (pipeline, GST_STATE_NULL);
+      gst_object_unref (pipeline);
+      pipeline = nullptr;
+    }
+  }
+
+  /**
+   * @brief Select full, abbreviated, or mixed dimension notation on the inputs.
+   * @param notation bit i abbreviates input i to the parameterized rank
+   */
+  void configure (guint notation)
+  {
+    TearDown ();
+    pipeline = gst_parse_launch ("tensor_merge name=merge mode=linear sync-mode=nosync ! "
+                                 "appsink name=out sync=false async=false wait-on-eos=false "
+                                 "appsrc name=in0 format=time ! merge.sink_0 "
+                                 "appsrc name=in1 format=time ! merge.sink_1",
+        NULL);
+
+    const guint rank = std::get<0> (GetParam ());
+    g_autofree gchar *option = g_strdup_printf ("%u", std::get<1> (GetParam ()));
+    g_autoptr (GstElement) merge = gst_bin_get_by_name (GST_BIN (pipeline), "merge");
+    g_object_set (merge, "option", option, NULL);
+    for (guint i = 0; i < 2; i++) {
+      g_autofree gchar *name = g_strdup_printf ("in%u", i);
+      g_autoptr (GstElement) src = gst_bin_get_by_name (GST_BIN (pipeline), name);
+      g_autofree gchar *dimensions = gst_tensor_get_rank_dimension_string (
+          dims[i], notation & (1U << i) ? rank : 4, FALSE);
+      g_autoptr (GstCaps) caps = gst_caps_new_simple ("other/tensors", "format",
+          G_TYPE_STRING, "static", "num_tensors", G_TYPE_INT, 1, "types",
+          G_TYPE_STRING, "uint8", "dimensions", G_TYPE_STRING, dimensions,
+          "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+      gst_app_src_set_caps (GST_APP_SRC (src), caps);
+    }
+  }
+
+  /**
+   * @brief Push both tensors with an optional size error.
+   * @param size_error number of bytes to add to or remove from the buffer
+   * @return the pipeline's EOS or error message type, or UNKNOWN on timeout
+   */
+  GstMessageType run (gint size_error = 0)
+  {
+    gst_element_set_state (pipeline, GST_STATE_PLAYING);
+    for (guint i = 0; i < 2; i++) {
+      std::vector<guint8> bytes = input[i];
+      if (i == 0)
+        bytes.resize (bytes.size () + size_error);
+      GstBuffer *in = gst_buffer_new_allocate (NULL, bytes.size (), NULL);
+      gst_buffer_fill (in, 0, bytes.data (), bytes.size ());
+      GST_BUFFER_PTS (in) = 0;
+      g_autofree gchar *name = g_strdup_printf ("in%u", i);
+      g_autoptr (GstElement) src = gst_bin_get_by_name (GST_BIN (pipeline), name);
+      gst_app_src_push_buffer (GST_APP_SRC (src), in);
+      gst_app_src_end_of_stream (GST_APP_SRC (src));
+    }
+    g_autoptr (GstBus) bus = gst_element_get_bus (pipeline);
+    g_autoptr (GstMessage) msg = gst_bus_timed_pop_filtered (bus,
+        10 * GST_SECOND, (GstMessageType) (GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
+    return msg ? GST_MESSAGE_TYPE (msg) : GST_MESSAGE_UNKNOWN;
+  }
+};
+
+/**
+ * @brief Full and abbreviated shapes produce the same bytes and output caps.
+ */
+TEST_P (TensorMergeDimensions, equivalentNotation)
+{
+  for (guint notation = 0; notation < 4; notation++) {
+    SCOPED_TRACE (notation);
+    configure (notation);
+    EXPECT_EQ (run (), GST_MESSAGE_EOS);
+
+    g_autoptr (GstElement) sink = gst_bin_get_by_name (GST_BIN (pipeline), "out");
+    g_autoptr (GstSample) sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 0);
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *out = gst_sample_get_buffer (sample);
+    EXPECT_EQ (gst_buffer_get_size (out), expected.size ());
+    EXPECT_EQ (gst_buffer_memcmp (out, 0, expected.data (), expected.size ()), 0);
+
+    GstCaps *caps = gst_sample_get_caps (sample);
+    ASSERT_NE (caps, nullptr);
+    GstTensorsConfig config;
+    gst_tensors_config_init (&config);
+    EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, TRUE));
+    EXPECT_EQ (config.info.num_tensors, 1U);
+    EXPECT_EQ (config.info.info[0].type, _NNS_UINT8);
+    for (guint i = 0; i < 4; i++)
+      EXPECT_EQ (config.info.info[0].dimension[i], merged[i]);
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief Abbreviated dimensions must not admit short or oversized input buffers.
+ */
+TEST_P (TensorMergeDimensions, wrongBufferSize_n)
+{
+  for (guint notation = 0; notation < 4; notation++) {
+    for (gint size_error : { -1, 1 }) {
+      SCOPED_TRACE (notation);
+      SCOPED_TRACE (size_error);
+      configure (notation);
+      EXPECT_EQ (run (size_error), GST_MESSAGE_ERROR);
+      g_autoptr (GstElement) sink = gst_bin_get_by_name (GST_BIN (pipeline), "out");
+      g_autoptr (GstSample) sample
+          = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 0);
+      EXPECT_EQ (sample, nullptr);
+    }
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P (RanksAndAxes, TensorMergeDimensions,
+    testing::Combine (testing::Values (1U, 2U, 3U), testing::Values (0U, 1U, 2U, 3U)));
 
 /**
  * @brief Main GTest

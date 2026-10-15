@@ -20941,17 +20941,15 @@ TEST (testTensorMerge, undersizedMemory_n)
 }
 
 /**
- * @brief An input of a lower rank is refused in the batch direction.
- * @details The dimension array ends at the first zero, so a rank 3 tensor has
- *          dimension[3] == 0 and the batch-direction stride is zero: the input
- *          is never copied and its share of the output, which is sized from
- *          the input sizes, goes downstream uninitialised.
+ * @brief An abbreviated shape still refuses an undersized input buffer.
+ * @details Missing trailing dimensions mean one; they do not relax the
+ *          byte-size check in the batch direction.
  */
-TEST (testTensorMerge, lowerRankBatchDirection_n)
+TEST (testTensorMerge, lowerRankUndersizedMemory_n)
 {
   mergeOutput out;
 
-  EXPECT_EQ (_run_merge_appsrc ("3", "3:4:4:1", 3 * 4 * 4, "3:4:4", 3 * 4 * 4, &out),
+  EXPECT_EQ (_run_merge_appsrc ("3", "3:4:4:1", 3 * 4 * 4, "3:4:4", 3 * 4 * 4 - 1, &out),
       GST_MESSAGE_ERROR);
   EXPECT_STREQ (out.error_src, "merge");
   EXPECT_EQ (out.error_domain, (GQuark) GST_STREAM_ERROR);
