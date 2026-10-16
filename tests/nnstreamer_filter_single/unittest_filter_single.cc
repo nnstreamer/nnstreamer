@@ -962,7 +962,8 @@ TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsync_p)
   skip_llamacpp_tc ("invokeAsync_p");
 
   InvokeAsyncCallbackData callback_data = {};
-  const gint64 deadline = g_get_monotonic_time () + 30 * G_TIME_SPAN_SECOND;
+  /* Bound a hung worker without timing out slow memcheck prompt decoding. */
+  const gint64 deadline = g_get_monotonic_time () + 180 * G_TIME_SPAN_SECOND;
   guint count;
 
   g_mutex_init (&callback_data.mutex);
