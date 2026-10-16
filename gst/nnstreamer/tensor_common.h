@@ -238,6 +238,11 @@ gst_tensor_pad_get_format (GstPad *pad);
 #define gst_tensor_pad_caps_is_sparse(p) (gst_tensor_pad_get_format (p) == _NNS_TENSOR_FORMAT_SPARSE)
 
 /**
+ * @brief The maximum number of adapters in a hash table for tensor aggregation, including the default one.
+ */
+#define NNS_TENSOR_AGGREGATION_MAX (1024U)
+
+/**
  * @brief Gets new hash table for tensor aggregation.
  * @return Newly allocated hash table, caller should release this using g_hash_table_destroy().
  */
@@ -264,6 +269,7 @@ gst_tensor_aggregation_clear_all (GHashTable * table);
  * @param table a hash table instance initialized with gst_tensor_aggregation_init()
  * @param key the key to look up (set 0 to get default adapter)
  * @return gst-adapter instance. DO NOT release this instance.
+ * @note The table keeps at most NNS_TENSOR_AGGREGATION_MAX adapters. Asking for a new key when it is full releases the empty adapters, or the least recently used one, so use the returned adapter before calling this with another key. The data pending in a released adapter is dropped, and the next data of its key starts a new aggregate.
  */
 extern GstAdapter *
 gst_tensor_aggregation_get_adapter (GHashTable * table, const gint64 key);
