@@ -452,18 +452,21 @@ _count_assertion (const gchar *log_domain, GLogLevelFlags log_level,
   guint *count = (guint *) user_data;
 
   if (message && strstr (message, "assertion '") != NULL)
-    (*count)++;
+    g_atomic_int_inc (count);
   g_log_default_handler (log_domain, log_level, message, NULL);
 }
 
 /**
  * @brief Log handlers counting failed assertions in the domains the decoder may hit.
  */
+static const gchar *assertion_domains[] = { "GStreamer", "GLib", "GLib-GObject", NULL };
+
+/**
+ * @brief Scoped handlers and their shared assertion count.
+ */
 typedef struct {
   guint count;
-  guint gst_id;
-  guint glib_id;
-  GLogFunc prev;
+  guint handlers[G_N_ELEMENTS (assertion_domains)];
 } AssertionCounter;
 
 /**
@@ -472,14 +475,40 @@ typedef struct {
 static void
 _assertion_counter_start (AssertionCounter *counter)
 {
-  GLogLevelFlags levels = (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING);
+  const GLogLevelFlags levels
+      = (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING
+                          | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION);
+  guint recorded[G_N_ELEMENTS (assertion_domains)][2];
+  GLogLevelFlags fatal_mask;
 
   counter->count = 0;
-  counter->gst_id
-      = g_log_set_handler ("GStreamer", levels, _count_assertion, &counter->count);
-  counter->glib_id
-      = g_log_set_handler ("GLib", levels, _count_assertion, &counter->count);
-  counter->prev = g_log_set_default_handler (_count_assertion, &counter->count);
+  for (guint i = 0; i < G_N_ELEMENTS (assertion_domains); i++)
+    counter->handlers[i] = g_log_set_handler (
+        assertion_domains[i], levels, _count_assertion, &counter->count);
+
+  /* Only the intentional probes may bypass fatal handling. */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  for (guint i = 0; i < G_N_ELEMENTS (assertion_domains); i++) {
+    g_atomic_int_set (&counter->count, 0);
+    g_log (assertion_domains[i], G_LOG_LEVEL_CRITICAL,
+        "[probe] assertion 'decoder handler self-check' failed");
+    recorded[i][0] = g_atomic_int_get (&counter->count);
+    g_atomic_int_set (&counter->count, 0);
+    g_log (assertion_domains[i], G_LOG_LEVEL_WARNING,
+        "[probe] assertion 'decoder handler self-check' failed");
+    recorded[i][1] = g_atomic_int_get (&counter->count);
+  }
+  g_log_set_always_fatal (fatal_mask);
+
+  for (guint i = 0; i < G_N_ELEMENTS (assertion_domains); i++) {
+    EXPECT_EQ (recorded[i][0], 1U)
+        << "no live critical handler for domain "
+        << (assertion_domains[i] ? assertion_domains[i] : "default");
+    EXPECT_EQ (recorded[i][1], 1U)
+        << "no live warning handler for domain "
+        << (assertion_domains[i] ? assertion_domains[i] : "default");
+  }
+  g_atomic_int_set (&counter->count, 0);
 }
 
 /**
@@ -489,11 +518,10 @@ _assertion_counter_start (AssertionCounter *counter)
 static guint
 _assertion_counter_stop (AssertionCounter *counter)
 {
-  g_log_set_default_handler (counter->prev, NULL);
-  g_log_remove_handler ("GLib", counter->glib_id);
-  g_log_remove_handler ("GStreamer", counter->gst_id);
+  for (guint i = 0; i < G_N_ELEMENTS (assertion_domains); i++)
+    g_log_remove_handler (assertion_domains[i], counter->handlers[i]);
 
-  return counter->count;
+  return g_atomic_int_get (&counter->count);
 }
 
 /**
