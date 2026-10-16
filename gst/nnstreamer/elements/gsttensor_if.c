@@ -84,6 +84,24 @@
 #endif
 
 /**
+ * @brief The properties a buffer is handled with, copied under the lock.
+ * @details The option lists are not copied: a list replaced while a buffer is
+ *          being handled is kept until no buffer is (see num_chains).
+ */
+typedef struct
+{
+  tensor_if_compared_value cv;
+  GList *cv_option;
+  tensor_if_operator op;
+  tensor_if_sv_s sv;
+  tensor_if_behavior act[2]; /**< indexed by tensor_if_srcpads */
+  GList *option[2]; /**< indexed by tensor_if_srcpads */
+  gboolean custom_configured;
+  tensor_if_custom custom_func;
+  void *custom_data;
+} tensor_if_props_s;
+
+/**
  * @brief tensor_if properties
  */
 enum
@@ -134,6 +152,7 @@ static GstFlowReturn gst_tensor_if_chain (GstPad * pad, GstObject * parent,
 static gboolean gst_tensor_if_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
 static void gst_tensor_if_dispose (GObject * object);
+static void gst_tensor_if_finalize (GObject * object);
 
 static void gst_tensor_if_install_properties (GObjectClass * gobject_class);
 
@@ -236,6 +255,7 @@ gst_tensor_if_class_init (GstTensorIfClass * klass)
   gobject_class->set_property = gst_tensor_if_set_property;
   gobject_class->get_property = gst_tensor_if_get_property;
   gobject_class->dispose = gst_tensor_if_dispose;
+  gobject_class->finalize = gst_tensor_if_finalize;
 
   gst_tensor_if_install_properties (gobject_class);
 
@@ -280,6 +300,8 @@ gst_tensor_if_init (GstTensorIf * tensor_if)
   memset (tensor_if->sv, 0, sizeof (tensor_if_sv_s) * 2);
   memset (&tensor_if->custom, 0, sizeof (custom_cb_s));
   tensor_if->custom_configured = FALSE;
+  tensor_if->num_chains = 0;
+  tensor_if->retired_options = NULL;
 
   g_mutex_init (&tensor_if->lock);
 }
@@ -308,22 +330,43 @@ static void
 gst_tensor_if_dispose (GObject * object)
 {
   GstTensorIf *tensor_if = GST_TENSOR_IF (object);
-  g_mutex_clear (&tensor_if->lock);
 
   gst_tensor_if_remove_src_pads (tensor_if);
+
+  g_mutex_lock (&tensor_if->lock);
   g_list_free (tensor_if->cv_option);
+  tensor_if->cv_option = NULL;
   g_list_free (tensor_if->then_option);
+  tensor_if->then_option = NULL;
   g_list_free (tensor_if->else_option);
+  tensor_if->else_option = NULL;
   g_free (tensor_if->custom.name);
+  tensor_if->custom.name = NULL;
   tensor_if->custom.func = NULL;
   tensor_if->custom.data = NULL;
   tensor_if->custom_configured = FALSE;
+  g_slist_free_full (tensor_if->retired_options, (GDestroyNotify) g_list_free);
+  tensor_if->retired_options = NULL;
+  g_mutex_unlock (&tensor_if->lock);
 
   gst_tensors_config_free (&tensor_if->in_config);
   gst_tensors_config_free (&tensor_if->out_config[0]);
   gst_tensors_config_free (&tensor_if->out_config[1]);
 
   G_OBJECT_CLASS (parent_class)->dispose (object);
+}
+
+/**
+ * @brief finalize function for tensor if (gst element vmethod)
+ */
+static void
+gst_tensor_if_finalize (GObject * object)
+{
+  GstTensorIf *tensor_if = GST_TENSOR_IF (object);
+
+  g_mutex_clear (&tensor_if->lock);
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
@@ -369,11 +412,27 @@ gst_tensor_if_parse_index_list (const gchar * param, GList ** prop_list,
 }
 
 /**
+ * @brief Replace an option list, keeping the old one while a buffer may walk it
+ * @note Call this with the lock held.
+ */
+static void
+gst_tensor_if_replace_option (GstTensorIf * self, GList ** prop_list,
+    GList * list)
+{
+  if (self->num_chains > 0 && *prop_list)
+    self->retired_options = g_slist_prepend (self->retired_options, *prop_list);
+  else
+    g_list_free (*prop_list);
+
+  *prop_list = list;
+}
+
+/**
  * @brief Convert GValue to GList according to delimiters
  */
 static void
-gst_tensor_if_set_property_glist (const GValue * value, GList ** prop_list,
-    const gchar * delimiters)
+gst_tensor_if_set_property_glist (GstTensorIf * self, const GValue * value,
+    GList ** prop_list, const gchar * delimiters)
 {
   const gchar *param = g_value_get_string (value);
   GList *list;
@@ -385,8 +444,7 @@ gst_tensor_if_set_property_glist (const GValue * value, GList ** prop_list,
     return;
   }
 
-  g_list_free (*prop_list);
-  *prop_list = list;
+  gst_tensor_if_replace_option (self, prop_list, list);
 }
 
 /**
@@ -394,7 +452,8 @@ gst_tensor_if_set_property_glist (const GValue * value, GList ** prop_list,
  * @details A value that is not an index list clears the list, since it may be the name of a custom callback.
  */
 static void
-gst_tensor_if_set_property_cv_option (const GValue * value, GList ** prop_list)
+gst_tensor_if_set_property_cv_option (GstTensorIf * self, const GValue * value,
+    GList ** prop_list)
 {
   gint length, i, nth;
   const gchar *param = g_value_get_string (value);
@@ -435,8 +494,7 @@ done:
     GST_DEBUG ("'%s' is not an index list: %s", param, error->message);
     g_error_free (error);
   }
-  g_list_free (*prop_list);
-  *prop_list = list;
+  gst_tensor_if_replace_option (self, prop_list, list);
   g_strfreev (strv);
 }
 
@@ -543,6 +601,7 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
 {
   GstTensorIf *self = GST_TENSOR_IF (object);
 
+  g_mutex_lock (&self->lock);
   switch (prop_id) {
     case PROP_CV:
       self->cv = g_value_get_enum (value);
@@ -552,7 +611,7 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
       g_free (self->custom.name);
       self->custom.name = g_value_dup_string (value);
       gst_tensor_if_configure_custom_prop (self);
-      gst_tensor_if_set_property_cv_option (value, &self->cv_option);
+      gst_tensor_if_set_property_cv_option (self, value, &self->cv_option);
       break;
     case PROP_OP:
       self->op = g_value_get_enum (value);
@@ -564,13 +623,13 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
       self->act_then = g_value_get_enum (value);
       break;
     case PROP_THEN_OPTION:
-      gst_tensor_if_set_property_glist (value, &self->then_option, ",");
+      gst_tensor_if_set_property_glist (self, value, &self->then_option, ",");
       break;
     case PROP_ELSE:
       self->act_else = g_value_get_enum (value);
       break;
     case PROP_ELSE_OPTION:
-      gst_tensor_if_set_property_glist (value, &self->else_option, ",");
+      gst_tensor_if_set_property_glist (self, value, &self->else_option, ",");
       break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
@@ -579,6 +638,7 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  g_mutex_unlock (&self->lock);
 }
 
 /**
@@ -666,6 +726,7 @@ gst_tensor_if_get_property (GObject * object, guint prop_id,
 {
   GstTensorIf *self = GST_TENSOR_IF (object);
 
+  g_mutex_lock (&self->lock);
   switch (prop_id) {
     case PROP_CV:
       g_value_set_enum (value, self->cv);
@@ -702,6 +763,7 @@ gst_tensor_if_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  g_mutex_unlock (&self->lock);
 }
 
 /**
@@ -904,58 +966,57 @@ done:
  */
 static gboolean
 gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if,
-    tensor_data_s * cv, gboolean * result)
+    const tensor_if_props_s * props, tensor_data_s * cv, gboolean * result)
 {
   gboolean ret = FALSE;
   tensor_data_s svtc_1, svtc_2;
 
-  svtc_1.type = tensor_if->sv->type;
-  svtc_1.data = tensor_if->sv->data[0];
+  svtc_1.type = props->sv.type;
+  svtc_1.data = props->sv.data[0];
   gst_tensor_data_typecast (&svtc_1, cv->type);
 
-  svtc_2.type = tensor_if->sv->type;
-  svtc_2.data = tensor_if->sv->data[1];
+  svtc_2.type = props->sv.type;
+  svtc_2.data = props->sv.data[1];
   gst_tensor_data_typecast (&svtc_2, cv->type);
 
   switch (cv->type) {
     case _NNS_INT32:
-      operator_func (cv->data, int32_t, tensor_if->op, svtc_1.data, svtc_2.data,
+      operator_func (cv->data, int32_t, props->op, svtc_1.data, svtc_2.data,
           ret);
       break;
     case _NNS_UINT32:
-      operator_func (cv->data, uint32_t, tensor_if->op, svtc_1.data,
+      operator_func (cv->data, uint32_t, props->op, svtc_1.data,
           svtc_2.data, ret);
       break;
     case _NNS_INT16:
-      operator_func (cv->data, int16_t, tensor_if->op, svtc_1.data, svtc_2.data,
+      operator_func (cv->data, int16_t, props->op, svtc_1.data, svtc_2.data,
           ret);
       break;
     case _NNS_UINT16:
-      operator_func (cv->data, uint16_t, tensor_if->op, svtc_1.data,
+      operator_func (cv->data, uint16_t, props->op, svtc_1.data,
           svtc_2.data, ret);
       break;
     case _NNS_INT8:
-      operator_func (cv->data, int8_t, tensor_if->op, svtc_1.data, svtc_2.data,
+      operator_func (cv->data, int8_t, props->op, svtc_1.data, svtc_2.data,
           ret);
       break;
     case _NNS_UINT8:
-      operator_func (cv->data, uint8_t, tensor_if->op, svtc_1.data, svtc_2.data,
+      operator_func (cv->data, uint8_t, props->op, svtc_1.data, svtc_2.data,
           ret);
       break;
     case _NNS_FLOAT64:
-      operator_func (cv->data, double, tensor_if->op, svtc_1.data, svtc_2.data,
+      operator_func (cv->data, double, props->op, svtc_1.data, svtc_2.data,
           ret);
       break;
     case _NNS_FLOAT32:
-      operator_func (cv->data, float, tensor_if->op, svtc_1.data, svtc_2.data,
-          ret);
+      operator_func (cv->data, float, props->op, svtc_1.data, svtc_2.data, ret);
       break;
     case _NNS_INT64:
-      operator_func (cv->data, int64_t, tensor_if->op, svtc_1.data, svtc_2.data,
+      operator_func (cv->data, int64_t, props->op, svtc_1.data, svtc_2.data,
           ret);
       break;
     case _NNS_UINT64:
-      operator_func (cv->data, uint64_t, tensor_if->op, svtc_1.data,
+      operator_func (cv->data, uint64_t, props->op, svtc_1.data,
           svtc_2.data, ret);
       break;
     default:
@@ -1005,12 +1066,12 @@ gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
  * @brief Calculate compared value
  */
 static gboolean
-gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
-    tensor_data_s * cv)
+gst_tensor_if_calculate_cv (GstTensorIf * tensor_if,
+    const tensor_if_props_s * props, GstBuffer * buf, tensor_data_s * cv)
 {
   GstTensorInfo *_info;
 
-  switch (tensor_if->cv) {
+  switch (props->cv) {
     case TIFCV_A_VALUE:
     {
       GstMemory *in_mem;
@@ -1026,12 +1087,12 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
       const uint32_t *in_dim;
       tensor_type in_type;
 
-      if (g_list_length (tensor_if->cv_option) != NNS_TENSOR_RANK_LIMIT + 1) {
+      if (g_list_length (props->cv_option) != NNS_TENSOR_RANK_LIMIT + 1) {
         GST_ERROR_OBJECT (tensor_if,
             "Please specify a proper 'compared-value-option' property, e.g., 0:1:2:3,0");
         return FALSE;
       }
-      for (list = tensor_if->cv_option; list->next != NULL; list = list->next) {
+      for (list = props->cv_option; list->next != NULL; list = list->next) {
         target[n++] = GPOINTER_TO_INT (list->data);
       }
 
@@ -1103,12 +1164,12 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
     case TIFCV_TENSOR_AVERAGE_VALUE:
     {
       uint32_t nth;
-      if (g_list_length (tensor_if->cv_option) != 1) {
+      if (g_list_length (props->cv_option) != 1) {
         GST_ERROR_OBJECT (tensor_if,
             "Please specify a proper 'compared-value-option' property, For TENSOR_AVERAGE_VALUE, specify only one tensor. Tensors is not supported.");
         return FALSE;
       }
-      nth = GPOINTER_TO_INT (tensor_if->cv_option->data);
+      nth = GPOINTER_TO_INT (props->cv_option->data);
       if (gst_tensor_buffer_get_count (buf) <= nth) {
         GST_ERROR_OBJECT (tensor_if, "Index should be lower than buffer size");
         return FALSE;
@@ -1171,22 +1232,23 @@ nnstreamer_if_custom_unregister (const gchar * name)
 /**
  * @brief Determining whether a given condition is true or false
  * @param tensor_if TensorIf Object
+ * @param props the properties the buffer is handled with
  * @param buf gstbuffer from sink pad
  * @return return TRUE if no error
  */
 static gboolean
-gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
-    gboolean * result)
+gst_tensor_if_check_condition (GstTensorIf * tensor_if,
+    const tensor_if_props_s * props, GstBuffer * buf, gboolean * result)
 {
   gboolean ret = FALSE;
 
-  if (tensor_if->cv == TIFCV_CUSTOM) {
+  if (props->cv == TIFCV_CUSTOM) {
     GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
     GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
     GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
     guint i, j;
 
-    if (!tensor_if->custom_configured) {
+    if (!props->custom_configured) {
       nns_loge ("custom condition of the tensor_if is not configured.");
       return FALSE;
     }
@@ -1207,8 +1269,8 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
       in_tensors[i].size = in_info[i].size;
     }
 
-    ret = tensor_if->custom.func (&tensor_if->in_config.info, in_tensors,
-        tensor_if->custom.data, result);
+    ret = props->custom_func (&tensor_if->in_config.info, in_tensors,
+        props->custom_data, result);
 
     for (i = 0; i < tensor_if->in_config.info.num_tensors; i++) {
       gst_memory_unmap (in_mem[i], &in_info[i]);
@@ -1216,14 +1278,66 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
     }
   } else {
     tensor_data_s cv = {.type = _NNS_END,.data._uint8_t = 0 };
-    if (!gst_tensor_if_calculate_cv (tensor_if, buf, &cv)) {
+    if (!gst_tensor_if_calculate_cv (tensor_if, props, buf, &cv)) {
       GST_ERROR_OBJECT (tensor_if, " failed to calculate compared value");
       return FALSE;
     }
-    ret = gst_tensor_if_get_comparison_result (tensor_if, &cv, result);
+    ret = gst_tensor_if_get_comparison_result (tensor_if, props, &cv, result);
   }
 
   return ret;
+}
+
+/**
+ * @brief Copy the actions and their options for a buffer
+ * @note Call this with the lock held.
+ */
+static inline void
+gst_tensor_if_get_actions (GstTensorIf * tensor_if, tensor_if_props_s * props)
+{
+  props->act[TIFSP_THEN_PAD] = tensor_if->act_then;
+  props->option[TIFSP_THEN_PAD] = tensor_if->then_option;
+  props->act[TIFSP_ELSE_PAD] = tensor_if->act_else;
+  props->option[TIFSP_ELSE_PAD] = tensor_if->else_option;
+}
+
+/**
+ * @brief Copy the properties a buffer is handled with, and keep the option
+ *        lists until gst_tensor_if_release_props () is called
+ */
+static void
+gst_tensor_if_take_props (GstTensorIf * tensor_if, tensor_if_props_s * props)
+{
+  g_mutex_lock (&tensor_if->lock);
+  props->cv = tensor_if->cv;
+  props->cv_option = tensor_if->cv_option;
+  props->op = tensor_if->op;
+  props->sv = tensor_if->sv[0];
+  props->custom_configured = tensor_if->custom_configured;
+  props->custom_func = tensor_if->custom.func;
+  props->custom_data = tensor_if->custom.data;
+  gst_tensor_if_get_actions (tensor_if, props);
+  tensor_if->num_chains++;
+  g_mutex_unlock (&tensor_if->lock);
+}
+
+/**
+ * @brief Let the option lists replaced while the buffer was handled go
+ */
+static void
+gst_tensor_if_release_props (GstTensorIf * tensor_if)
+{
+  GSList *retired = NULL;
+
+  g_mutex_lock (&tensor_if->lock);
+  if (--tensor_if->num_chains == 0) {
+    retired = tensor_if->retired_options;
+    tensor_if->retired_options = NULL;
+  }
+  g_mutex_unlock (&tensor_if->lock);
+
+  if (retired)
+    g_slist_free_full (retired, (GDestroyNotify) g_list_free);
 }
 
 /**
@@ -1245,6 +1359,7 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstMemory *mem = NULL;
   gboolean created;
   GstClockTime ts;
+  tensor_if_props_s props;
   UNUSED (pad);
 
   num_tensors = tensor_if->in_config.info.num_tensors;
@@ -1258,22 +1373,26 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     return GST_FLOW_ERROR;
   }
 
-  if (!gst_tensor_if_check_condition (tensor_if, buf, &condition_result)) {
+  gst_tensor_if_take_props (tensor_if, &props);
+  if (!gst_tensor_if_check_condition (tensor_if, &props, buf,
+          &condition_result)) {
+    gst_tensor_if_release_props (tensor_if);
     GST_ELEMENT_ERROR (tensor_if, STREAM, WRONG_TYPE, (NULL),
         ("Failed to check the condition of the incoming buffer."));
     gst_buffer_unref (buf);
     return GST_FLOW_ERROR;
   }
 
-  if (condition_result) {
-    curr_act = tensor_if->act_then;
-    curr_act_option = tensor_if->then_option;
-    which_srcpad = TIFSP_THEN_PAD;
-  } else {
-    curr_act = tensor_if->act_else;
-    curr_act_option = tensor_if->else_option;
-    which_srcpad = TIFSP_ELSE_PAD;
+  /* the custom callback may have changed the actions of this buffer */
+  if (props.cv == TIFCV_CUSTOM) {
+    g_mutex_lock (&tensor_if->lock);
+    gst_tensor_if_get_actions (tensor_if, &props);
+    g_mutex_unlock (&tensor_if->lock);
   }
+
+  which_srcpad = condition_result ? TIFSP_THEN_PAD : TIFSP_ELSE_PAD;
+  curr_act = props.act[which_srcpad];
+  curr_act_option = props.option[which_srcpad];
 
   config = &tensor_if->out_config[which_srcpad];
 
@@ -1315,11 +1434,13 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
     }
     case TIFB_SKIP:
+      gst_tensor_if_release_props (tensor_if);
       goto done;
     default:
       GST_DEBUG_OBJECT (tensor_if, " Not defined behavior");
       break;
   }
+  gst_tensor_if_release_props (tensor_if);
 
   srcpad =
       gst_tensor_if_get_tensor_pad (tensor_if, config, &created, which_srcpad);
