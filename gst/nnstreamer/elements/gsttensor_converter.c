@@ -1478,6 +1478,12 @@ gst_tensor_converter_video_stride (GstVideoFormat format, gint width)
         return TRUE;
       }
       break;
+    case GST_VIDEO_FORMAT_GRAY16_BE:
+    case GST_VIDEO_FORMAT_GRAY16_LE:
+      if (width % 2) {
+        return TRUE;
+      }
+      break;
     default:
       break;
   }
@@ -1615,8 +1621,9 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
     /** @todo need rewrite. */
     GST_WARNING_OBJECT (self,
         "\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION!\n"
-        "Please use 4 x n as image width for inputs; the width of your input is %d.\n",
-        width);
+        "Please use %d x n as image width for inputs; the width of your input is %d.\n",
+        (format == GST_VIDEO_FORMAT_GRAY16_BE ||
+            format == GST_VIDEO_FORMAT_GRAY16_LE) ? 2 : 4, width);
   }
 
   self->frame_size = GST_VIDEO_INFO_SIZE (&vinfo);
