@@ -63,6 +63,11 @@ typedef struct _GstTensorTrainerFramework GstTensorTrainerFramework;
  * @brief GstTensorTrainer's event type list
  *
  * Event types that subplugins must send to tensor_trainer
+ *
+ * A subplugin sends TRAINER_EVENT_EPOCH_COMPLETION once for each epoch it
+ * has got all the samples of, even after tensor_trainer stopped waiting for
+ * that epoch because of a flush or a state change: tensor_trainer pushes no
+ * sample of the next epoch before that event, even after a restart.
  */
 typedef enum
 {

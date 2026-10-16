@@ -52,6 +52,8 @@ struct _GstTensorTrainer
   gboolean fw_created;
   gboolean is_training_complete;
   gboolean is_epoch_complete;
+  guint wait_stopped; /**< Reasons (flush, shutdown) the waits for the sub-plugin are stopped; 0 if none */
+  gboolean epoch_pending; /**< The wait for an epoch with all its samples was stopped; it is waited for before the next sample */
   gboolean extra_tensors_warned; /**< Whether extra tensors were reported in this run */
 
   GstTensorMemory input_tensors[NNS_TENSOR_SIZE_LIMIT];
