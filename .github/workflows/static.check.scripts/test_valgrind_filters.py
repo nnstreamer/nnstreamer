@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: LGPL-2.1-only
+# @file test_valgrind_filters.py
+# @brief Exercise stale and malformed Valgrind filters without optional backends.
 """Regression checks for stale and malformed Valgrind GTest filters."""
 
 from pathlib import Path

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: LGPL-2.1-only
+# @file valgrind_filters.py
+# @brief Validate the exact GTest names selected by the Valgrind workflow.
 """Check the exact GTest names selected by the Valgrind workflow."""
 
 import argparse
