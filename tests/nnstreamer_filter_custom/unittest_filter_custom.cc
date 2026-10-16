@@ -1671,18 +1671,26 @@ _out_combi_register (void)
 
 /**
  * @brief Harness a tensor_filter running the output-combination test model, with a bus to catch its errors.
+ * @param initial if not NULL, the output-combination given in the launch line, replaced with @a combi before the caps are set
  */
 static GstHarness *
-_out_combi_harness (const gchar *combi, gboolean flexible)
+_out_combi_harness (const gchar *combi, gboolean flexible, const gchar *initial = NULL)
 {
   GstHarness *h;
   GstBus *bus;
   gchar *desc;
 
-  desc = g_strdup_printf ("tensor_filter framework=custom-easy model=%s output-combination=%s",
-      OUT_COMBI_MODEL, combi);
+  desc = g_strdup_printf ("tensor_filter name=out_combi_filter framework=custom-easy model=%s output-combination=%s",
+      OUT_COMBI_MODEL, initial ? initial : combi);
   h = gst_harness_new_parse (desc);
   g_free (desc);
+
+  if (initial) {
+    GstElement *filter = gst_bin_get_by_name (GST_BIN (h->element), "out_combi_filter");
+
+    g_object_set (filter, "output-combination", combi, NULL);
+    gst_object_unref (filter);
+  }
 
   bus = gst_bus_new ();
   gst_element_set_bus (h->element, bus);
@@ -1792,10 +1800,11 @@ _out_combi_count_critical (const gchar *domain, GLogLevelFlags level,
  * @param num expected number of memories in the output buffer
  * @param bytes expected byte each tensor is filled with, in buffer order
  * @param sizes expected data size of each tensor, in buffer order
+ * @param initial if not NULL, the output-combination @a combi replaces before the caps are set (static invoke only)
  */
 static void
 _out_combi_run (const gchar *combi, gboolean flexible, out_combi_mode mode,
-    guint num, const guint8 *bytes, const gsize *sizes)
+    guint num, const guint8 *bytes, const gsize *sizes, const gchar *initial = NULL)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -1812,7 +1821,7 @@ _out_combi_run (const gchar *combi, gboolean flexible, out_combi_mode mode,
     h = _out_combi_dynamic_harness (combi, mode);
   } else {
     ASSERT_EQ (_out_combi_register (), 0);
-    h = _out_combi_harness (combi, flexible);
+    h = _out_combi_harness (combi, flexible, initial);
   }
 
   handler = g_log_set_handler ("GStreamer",
@@ -1965,6 +1974,61 @@ TEST (tensorFilterOutputCombination, dynamicFewerOutputs)
   const gsize sizes[] = { 4, 4 };
 
   _out_combi_run ("o1,o0,o0", FALSE, OUT_COMBI_DYNAMIC_FEWER, 2U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination selecting an input tensor only; no model output is passed.
+ */
+TEST (tensorFilterOutputCombination, inputOnly)
+{
+  const guint8 bytes[] = { 0x11 };
+  const gsize sizes[] = { 4 };
+
+  _out_combi_run ("i0", FALSE, OUT_COMBI_STATIC, 1U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination selecting an input tensor only with flexible output tensors.
+ */
+TEST (tensorFilterOutputCombination, inputOnlyFlexible)
+{
+  const guint8 bytes[] = { 0x11 };
+  const gsize sizes[] = { 4 };
+
+  _out_combi_run ("i0", TRUE, OUT_COMBI_STATIC, 1U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination selecting an input tensor only on a dynamic invoke; every model output is released.
+ */
+TEST (tensorFilterOutputCombination, inputOnlyDynamic)
+{
+  const guint8 bytes[] = { 0x11 };
+  const gsize sizes[] = { 4 };
+
+  _out_combi_run ("i0", FALSE, OUT_COMBI_DYNAMIC, 1U, bytes, sizes);
+}
+
+/**
+ * @brief Test replacing a combination of input and model outputs with an input-only one before negotiation.
+ */
+TEST (tensorFilterOutputCombination, replaceWithInputOnly)
+{
+  const guint8 bytes[] = { 0x11 };
+  const gsize sizes[] = { 4 };
+
+  _out_combi_run ("i0", FALSE, OUT_COMBI_STATIC, 1U, bytes, sizes, "i0,o0");
+}
+
+/**
+ * @brief Test replacing an input-only combination with model outputs before negotiation.
+ */
+TEST (tensorFilterOutputCombination, replaceInputOnly)
+{
+  const guint8 bytes[] = { 0x11, 0xB0 };
+  const gsize sizes[] = { 4, 8 };
+
+  _out_combi_run ("o1,i0", FALSE, OUT_COMBI_STATIC, 2U, bytes, sizes, "i0");
 }
 
 /**
