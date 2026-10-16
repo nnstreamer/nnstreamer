@@ -687,6 +687,64 @@ class NNSFilterSingleTestPrivateData : public ::testing::Test
 };
 
 /**
+ * @brief A started single-shot filter takes another framework and is no longer configured.
+ */
+TEST_F (NNSFilterSingleTestPrivateData, frameworkAfterStart)
+{
+  gchar *fw_name = NULL;
+
+  ASSERT_TRUE (klass->start (single));
+
+  g_object_set (G_OBJECT (single), "framework", "custom", NULL);
+  g_object_get (G_OBJECT (single), "framework", &fw_name, NULL);
+  EXPECT_STREQ (fw_name, "custom");
+  g_free (fw_name);
+
+  g_object_set (G_OBJECT (single), "framework", PDATA_FW_NAME, NULL);
+  EXPECT_TRUE (klass->start (single));
+  EXPECT_EQ (klass->set_input_info (single, &in_info, &out_info), 0);
+}
+
+/**
+ * @brief Count the critical logs given to the default log handler.
+ */
+static void
+_single_count_critical (const gchar *log_domain, GLogLevelFlags log_level,
+    const gchar *message, gpointer user_data)
+{
+  UNUSED (log_domain);
+  UNUSED (message);
+  if (log_level & G_LOG_LEVEL_CRITICAL)
+    (*(guint *) user_data)++;
+}
+
+/**
+ * @brief A started single-shot filter set to an unknown framework is no longer
+ *        configured and cannot start again.
+ * @details Starting without a framework is refused by a g_return_val_if_fail(),
+ *          so at most that one critical is allowed here.
+ */
+TEST_F (NNSFilterSingleTestPrivateData, unknownFrameworkAfterStart_n)
+{
+  guint critical_count = 0;
+  GLogLevelFlags old_fatal;
+  GLogFunc old_handler;
+
+  ASSERT_TRUE (klass->start (single));
+
+  g_object_set (G_OBJECT (single), "framework", "no-such-framework", NULL);
+  EXPECT_FALSE (klass->input_configured (single));
+
+  old_fatal = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  old_handler = g_log_set_default_handler (_single_count_critical, &critical_count);
+  EXPECT_FALSE (klass->start (single));
+  g_log_set_default_handler (old_handler, NULL);
+  g_log_set_always_fatal (old_fatal);
+
+  EXPECT_LE (critical_count, 1U);
+}
+
+/**
  * @brief A V1 sub-plugin receives in getModelInfo the private data its open() stored.
  */
 TEST_F (NNSFilterSingleTestPrivateData, setInputInfo)
