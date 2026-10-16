@@ -2319,6 +2319,189 @@ TEST (datareposrc, readCraftedStartAfterStopSetInReady_n)
 }
 
 /**
+ * @brief Zero epochs set while READY is refused when the element starts.
+ */
+TEST (datareposrc, readCraftedZeroEpochsSetInReady_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_flexible_repo (4, 2);
+  _write_valid_flexible_json (REPO_JSON, 4, 2);
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "is-shuffle", FALSE, NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (src, "epochs", 0U, NULL);
+
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  _expect_range_refused (&run);
+}
+
+/**
+ * @brief The range, epochs and shuffle set while READY are used.
+ */
+TEST (datareposrc, readCraftedPropertiesSetInReady)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  guint start = 0, stop = 0, epochs = 0;
+  gboolean shuffle = TRUE;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_flexible_repo (4, 2);
+  _write_valid_flexible_json (REPO_JSON, 4, 2);
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "epochs", 3U, NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (src, "start-sample-index", 1U, "stop-sample-index", 2U,
+      "epochs", 1U, "is-shuffle", FALSE, NULL);
+  g_object_get (src, "start-sample-index", &start, "stop-sample-index", &stop,
+      "epochs", &epochs, "is-shuffle", &shuffle, NULL);
+  EXPECT_EQ (start, 1U);
+  EXPECT_EQ (stop, 2U);
+  EXPECT_EQ (epochs, 1U);
+  EXPECT_FALSE (shuffle);
+
+  run.tensors = 2;
+  run.first_sample = 1;
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 2U);
+  EXPECT_EQ (run.mismatches, 0U);
+  EXPECT_EQ (run.json_logs, 0U);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+#define REPO_STATIC_CAPS \
+  "other/tensors,format=static,num_tensors=1,dimensions=4,types=uint8,framerate=0/1"
+
+/**
+ * @brief Set every property the streaming thread reads to a value that differs from the crafted run.
+ */
+static void
+_repo_set_running_props (GstElement *src)
+{
+  GstCaps *caps = gst_caps_from_string (REPO_STATIC_CAPS);
+
+  g_object_set (src, "caps", caps, "tensors-sequence", "0", "start-sample-index",
+      1U, "stop-sample-index", 2U, "epochs", 3U, "is-shuffle", TRUE, NULL);
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Setting the properties the streaming thread reads while PAUSED is refused.
+ */
+TEST (datareposrc, setPropertiesWhilePaused_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  GstCaps *caps_before = NULL, *caps_after = NULL;
+  g_autofree gchar *seq = NULL;
+  guint start = 0, stop = 0, epochs = 0;
+  gboolean shuffle = TRUE;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_flexible_repo (4, 2);
+  _write_valid_flexible_json (REPO_JSON, 4, 2);
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "is-shuffle", FALSE, NULL);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  g_object_get (src, "caps", &caps_before, NULL);
+
+  _repo_set_running_props (src);
+
+  g_object_get (src, "caps", &caps_after, "tensors-sequence", &seq,
+      "start-sample-index", &start, "stop-sample-index", &stop, "epochs",
+      &epochs, "is-shuffle", &shuffle, NULL);
+  ASSERT_NE (caps_before, nullptr);
+  ASSERT_NE (caps_after, nullptr);
+  EXPECT_TRUE (gst_caps_is_equal (caps_after, caps_before));
+  EXPECT_EQ (seq, nullptr);
+  EXPECT_EQ (start, 0U);
+  EXPECT_EQ (stop, 3U);
+  EXPECT_EQ (epochs, 1U);
+  EXPECT_FALSE (shuffle);
+  gst_caps_unref (caps_before);
+  gst_caps_unref (caps_after);
+
+  run.tensors = 2;
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 4U);
+  EXPECT_EQ (run.mismatches, 0U);
+  EXPECT_EQ (run.json_logs, 0U);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief fakesink handoff callback setting the properties of datareposrc on the first buffer.
+ */
+static void
+_repo_set_props_handoff_cb (GstElement *element, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  GstElement **src = (GstElement **) user_data;
+
+  if (*src == NULL)
+    return;
+
+  _repo_set_running_props (*src);
+  *src = NULL;
+}
+
+/**
+ * @brief Setting the properties while the streaming thread runs is refused and the run is unchanged.
+ */
+TEST (datareposrc, setPropertiesWhilePlaying_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL, *target;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  GstElement *sink;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_flexible_repo (4, 2);
+  _write_valid_flexible_json (REPO_JSON, 4, 2);
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "is-shuffle", FALSE, NULL);
+  target = src;
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink0");
+  ASSERT_NE (sink, nullptr);
+  g_signal_connect (sink, "handoff", G_CALLBACK (_repo_set_props_handoff_cb), &target);
+  gst_object_unref (sink);
+
+  run.tensors = 2;
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (target, nullptr);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 4U);
+  EXPECT_EQ (run.mismatches, 0U);
+  EXPECT_EQ (run.json_logs, 0U);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
  * @brief A reversed range is refused without a JSON, where the total is unknown.
  */
 TEST (datareposrc, readTensorsNoJSONStartAfterStop_n)
