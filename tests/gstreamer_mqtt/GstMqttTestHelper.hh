@@ -221,12 +221,75 @@ class GstMqttTestHelper
   }
 
   /**
-   * @brief Reset the record of MQTTAsync_create () calls
+   * @brief Record the credentials given to a call to MQTTAsync_connect ()
+   */
+  void recordConnect (const char *username, const char *password)
+  {
+    this->has_username = (username != nullptr);
+    this->last_username.assign (username ? username : "");
+    this->has_password = (password != nullptr);
+    this->last_password.assign (password ? password : "");
+  }
+
+  /**
+   * @brief Reset the record of MQTTAsync_create () and MQTTAsync_connect () calls and the required password
    */
   void resetCreateRecord ()
   {
     this->last_server_uri.clear ();
     this->last_client_id.clear ();
+    recordConnect (nullptr, nullptr);
+    this->required_password.clear ();
+  }
+
+  /**
+   * @brief Make MQTTAsync_connect () fail unless it is given this password (empty: accept any)
+   */
+  void setRequiredPassword (const char *password)
+  {
+    this->required_password.assign (password ? password : "");
+  }
+
+  /**
+   * @brief Whether MQTTAsync_connect () should fail for the given password
+   */
+  bool rejectsPassword (const char *password)
+  {
+    if (this->required_password.empty ())
+      return false;
+    return (password == nullptr || this->required_password != password);
+  }
+
+  /**
+   * @brief Whether the most recent MQTTAsync_connect () call was given a user name
+   */
+  bool hasUsername ()
+  {
+    return this->has_username;
+  }
+
+  /**
+   * @brief Getter for the user name given to the most recent MQTTAsync_connect () call
+   */
+  const std::string &getLastUsername ()
+  {
+    return this->last_username;
+  }
+
+  /**
+   * @brief Whether the most recent MQTTAsync_connect () call was given a password
+   */
+  bool hasPassword ()
+  {
+    return this->has_password;
+  }
+
+  /**
+   * @brief Getter for the password given to the most recent MQTTAsync_connect () call
+   */
+  const std::string &getLastPassword ()
+  {
+    return this->last_password;
   }
 
   /**
@@ -281,8 +344,8 @@ class GstMqttTestHelper
   GstMqttTestHelper ()
       : context (nullptr), cl (nullptr), ma (nullptr), dc (nullptr),
         fail_send (false), fail_disconnect (false), fail_subscribe (false),
-        fail_unsubscribe (false), is_connected (false), send_count (0),
-        last_payloadlen (0){};
+        fail_unsubscribe (false), is_connected (false), has_username (false),
+        has_password (false), send_count (0), last_payloadlen (0){};
 
   /** @brief Disable the copy constructor to keep this class a singleton */
   GstMqttTestHelper (const GstMqttTestHelper &) = delete;
@@ -301,6 +364,11 @@ class GstMqttTestHelper
 
   std::string last_server_uri;
   std::string last_client_id;
+  bool has_username;
+  std::string last_username;
+  bool has_password;
+  std::string last_password;
+  std::string required_password;
 
   int send_count;
   std::string last_topic;
