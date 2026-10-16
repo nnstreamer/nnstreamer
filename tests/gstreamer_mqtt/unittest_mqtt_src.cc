@@ -61,6 +61,11 @@ typedef struct {
 
   std::string last_client_id;
   std::string last_server_uri;
+  gboolean has_username;
+  std::string last_username;
+  gboolean has_password;
+  std::string last_password;
+  std::string required_password;
   std::string last_sub_topic;
   std::string last_unsub_topic;
 
@@ -94,6 +99,11 @@ _mock_reset (void)
   g_mock.fail_reconnect = FALSE;
   g_mock.last_client_id.clear ();
   g_mock.last_server_uri.clear ();
+  g_mock.has_username = FALSE;
+  g_mock.last_username.clear ();
+  g_mock.has_password = FALSE;
+  g_mock.last_password.clear ();
+  g_mock.required_password.clear ();
   g_mock.last_sub_topic.clear ();
   g_mock.last_unsub_topic.clear ();
   g_mock.free_message_count = 0;
@@ -298,6 +308,13 @@ MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
   g_mutex_lock (&g_mock.lock);
   async = g_mock.async_connect;
   fail = g_mock.fail_connect;
+  g_mock.has_username = (options->username != NULL);
+  g_mock.last_username.assign (options->username ? options->username : "");
+  g_mock.has_password = (options->password != NULL);
+  g_mock.last_password.assign (options->password ? options->password : "");
+  if (!g_mock.required_password.empty ()
+      && (options->password == NULL || g_mock.required_password != options->password))
+    fail = TRUE;
   g_mutex_unlock (&g_mock.lock);
 
   if (fail) {
@@ -1348,6 +1365,268 @@ TEST (testMqttSrc, getSetStringProperties)
   g_free (value);
 
   gst_object_unref (elm);
+}
+
+/**
+ * @brief Start mqttsrc in a new fixture with the given credentials and record what it gave to paho
+ */
+static gboolean
+_fixture_start (src_fixture_s *fixture, const gchar *username,
+    const gchar *password, const gchar *required_password)
+{
+  if (!_fixture_setup (fixture, "test_topic", "video/x-raw"))
+    return FALSE;
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.required_password.assign (required_password ? required_password : "");
+  g_mutex_unlock (&g_mock.lock);
+
+  if (username)
+    g_object_set (fixture->src, "username", username, NULL);
+  if (password)
+    g_object_set (fixture->src, "password", password, NULL);
+
+  return (gst_element_set_state (fixture->pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE);
+}
+
+/**
+ * @brief mqttsrc generates a random client id when client-id is not set
+ */
+TEST (testMqttSrc, defaultClientIdRandom)
+{
+  src_fixture_s fixture;
+  std::string ids[2];
+  gchar *prop = NULL;
+
+  for (int i = 0; i < 2; i++) {
+    ASSERT_TRUE (_fixture_start (&fixture, NULL, NULL, NULL));
+    g_mutex_lock (&g_mock.lock);
+    ids[i] = g_mock.last_client_id;
+    g_mutex_unlock (&g_mock.lock);
+
+    g_object_get (fixture.src, "client-id", &prop, NULL);
+    EXPECT_STREQ (prop, ids[i].c_str ());
+    g_free (prop);
+    _fixture_teardown (&fixture);
+
+    ASSERT_EQ (ids[i].size (), 22U);
+    EXPECT_EQ (ids[i].compare (0, 6, "nnssrc"), 0);
+    for (size_t c = 6; c < ids[i].size (); c++)
+      EXPECT_TRUE (g_ascii_isdigit (ids[i][c]) || (ids[i][c] >= 'a' && ids[i][c] <= 'f'));
+  }
+
+  EXPECT_STRNE (ids[0].c_str (), ids[1].c_str ());
+}
+
+/**
+ * @brief mqttsrc keeps the client id it generated when it starts again
+ */
+TEST (testMqttSrc, defaultClientIdKeptOnRestart)
+{
+  src_fixture_s fixture;
+  std::string first;
+  std::string second;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  g_mutex_lock (&g_mock.lock);
+  first = g_mock.last_client_id;
+  g_mock.last_client_id.clear ();
+  g_mutex_unlock (&g_mock.lock);
+
+  EXPECT_EQ (gst_element_set_state (fixture.pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  g_mutex_lock (&g_mock.lock);
+  second = g_mock.last_client_id;
+  g_mutex_unlock (&g_mock.lock);
+
+  EXPECT_EQ (first.compare (0, 6, "nnssrc"), 0);
+  EXPECT_STREQ (second.c_str (), first.c_str ());
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc connects with the credentials set, and with none by default
+ */
+TEST (testMqttSrc, credentialsGivenToConnect)
+{
+  src_fixture_s fixture;
+  gchar *username = NULL;
+
+  ASSERT_TRUE (_fixture_start (&fixture, NULL, NULL, NULL));
+  g_object_get (fixture.src, "username", &username, NULL);
+  EXPECT_TRUE (username == NULL);
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_FALSE (g_mock.has_username);
+  EXPECT_FALSE (g_mock.has_password);
+  g_mutex_unlock (&g_mock.lock);
+  _fixture_teardown (&fixture);
+
+  ASSERT_TRUE (_fixture_start (&fixture, "an-mqtt-user", "an-mqtt-password", NULL));
+  g_object_get (fixture.src, "username", &username, NULL);
+  EXPECT_STREQ (username, "an-mqtt-user");
+  g_free (username);
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_TRUE (g_mock.has_username);
+  EXPECT_STREQ (g_mock.last_username.c_str (), "an-mqtt-user");
+  EXPECT_TRUE (g_mock.has_password);
+  EXPECT_STREQ (g_mock.last_password.c_str (), "an-mqtt-password");
+  g_mutex_unlock (&g_mock.lock);
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief A new_client_id_func replacement for a system without a secure random source
+ */
+static gchar *
+_no_random_client_id (const gchar *prefix)
+{
+  (void) prefix;
+  return NULL;
+}
+
+/**
+ * @brief mqttsrc refuses to start without a random source, and starts with an explicit client-id
+ */
+TEST (testMqttSrc, startWithoutRandomSource_n)
+{
+  src_fixture_s fixture;
+  GstMessage *msg;
+  GError *err = NULL;
+  gchar *prop = NULL;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GST_MQTT_SRC (fixture.src)->new_client_id_func = _no_random_client_id;
+
+  EXPECT_EQ (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_LT (GST_STATE (fixture.src), GST_STATE_PAUSED);
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_TRUE (g_mock.last_client_id.empty ());
+  g_mutex_unlock (&g_mock.lock);
+
+  msg = gst_bus_pop_filtered (fixture.bus, GST_MESSAGE_ERROR);
+  ASSERT_TRUE (msg != NULL);
+  gst_message_parse_error (msg, &err, NULL);
+  EXPECT_TRUE (g_error_matches (err, GST_RESOURCE_ERROR, GST_RESOURCE_ERROR_FAILED));
+  g_error_free (err);
+  gst_message_unref (msg);
+
+  /* No id is made up in place of the random one */
+  g_object_get (fixture.src, "client-id", &prop, NULL);
+  EXPECT_EQ (std::string (prop).find ("nnssrc"), std::string::npos);
+  g_free (prop);
+
+  g_object_set (fixture.src, "client-id", "an-explicit-client-id", NULL);
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_STREQ (g_mock.last_client_id.c_str (), "an-explicit-client-id");
+  g_mutex_unlock (&g_mock.lock);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief Credentials changed while mqttsrc is stopped apply from its next start
+ */
+TEST (testMqttSrc, credentialsClearedOnRestart)
+{
+  src_fixture_s fixture;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_object_set (fixture.src, "username", "an-mqtt-user", "password",
+      "an-mqtt-password", NULL);
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_TRUE (g_mock.has_username);
+  EXPECT_TRUE (g_mock.has_password);
+  g_mutex_unlock (&g_mock.lock);
+
+  EXPECT_EQ (gst_element_set_state (fixture.pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (fixture.src, "username", NULL, "password", NULL, NULL);
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_FALSE (g_mock.has_username);
+  EXPECT_FALSE (g_mock.has_password);
+  g_mutex_unlock (&g_mock.lock);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief The password of mqttsrc cannot be read back
+ */
+TEST (testMqttSrc, passwordNotReadable_n)
+{
+  GstElement *elm = gst_element_factory_make ("mqttsrc", NULL);
+  GParamSpec *pspec;
+
+  ASSERT_TRUE (elm != NULL);
+  pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (elm), "password");
+  ASSERT_TRUE (pspec != NULL);
+  EXPECT_FALSE (pspec->flags & G_PARAM_READABLE);
+  EXPECT_TRUE (pspec->flags & G_PARAM_WRITABLE);
+
+  gst_object_unref (elm);
+}
+
+/**
+ * @brief mqttsrc fails to start when the broker rejects the password, and starts with the right one
+ */
+TEST (testMqttSrc, credentialsRejected_n)
+{
+  src_fixture_s fixture;
+
+  EXPECT_FALSE (_fixture_start (&fixture, "an-mqtt-user", NULL, "the-right-password"));
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_TRUE (g_mock.has_username);
+  EXPECT_FALSE (g_mock.has_password);
+  g_mutex_unlock (&g_mock.lock);
+  _fixture_teardown (&fixture);
+
+  EXPECT_FALSE (_fixture_start (
+      &fixture, "an-mqtt-user", "a-wrong-password", "the-right-password"));
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_STREQ (g_mock.last_password.c_str (), "a-wrong-password");
+  g_mutex_unlock (&g_mock.lock);
+  _fixture_teardown (&fixture);
+
+  EXPECT_TRUE (_fixture_start (
+      &fixture, "an-mqtt-user", "the-right-password", "the-right-password"));
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc refuses to start with a password but no username, before creating a client
+ */
+TEST (testMqttSrc, passwordWithoutUsername_n)
+{
+  src_fixture_s fixture;
+  GstMessage *msg;
+  GError *err = NULL;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_object_set (fixture.src, "password", "an-mqtt-password", NULL);
+  EXPECT_EQ (gst_element_set_state (fixture.pipeline, GST_STATE_PLAYING),
+      GST_STATE_CHANGE_FAILURE);
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_TRUE (g_mock.last_client_id.empty ());
+  g_mutex_unlock (&g_mock.lock);
+
+  msg = gst_bus_pop_filtered (fixture.bus, GST_MESSAGE_ERROR);
+  ASSERT_TRUE (msg != NULL);
+  gst_message_parse_error (msg, &err, NULL);
+  EXPECT_TRUE (g_error_matches (err, GST_RESOURCE_ERROR, GST_RESOURCE_ERROR_SETTINGS));
+  g_error_free (err);
+  gst_message_unref (msg);
+  _fixture_teardown (&fixture);
+
+  /* The same password starts with a username */
+  EXPECT_TRUE (_fixture_start (&fixture, "an-mqtt-user", "an-mqtt-password", NULL));
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_STREQ (g_mock.last_password.c_str (), "an-mqtt-password");
+  g_mutex_unlock (&g_mock.lock);
+  _fixture_teardown (&fixture);
 }
 
 /**

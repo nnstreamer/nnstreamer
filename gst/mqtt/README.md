@@ -46,6 +46,13 @@ We need further investigation on how to realize this: we may need to either
 1. add another "caps-filter-for-mqtt" so that this ```extra``` caps are removed for the rest, or
 2. express such extra capabilities directly in mqttsrc/mqttsink elements as their properties.
 
+## Client ID and Authentication
+
+Both elements have the following properties to identify and authenticate themselves to the broker.
+
+- `client-id`: if it is not set, a random one is generated when the element starts: `nnssink` or `nnssrc` followed by 16 hexadecimal digits. It used to be `<host>_<pid>_sink<n>` (`_src<n>` for mqttsrc); update broker rules written for that form. It is not derived from the host name or the process ID, so a remote party cannot guess it and disconnect the element by connecting with the same ID. The random bits come from the operating system (`getrandom ()` on Linux, or `/dev/urandom`); if neither is available, the element refuses to start unless `client-id` is set. On a Linux kernel older than 5.18, an element started before the kernel's random pool is initialized (early boot) reads `/dev/urandom` that may not be seeded yet; set `client-id` for such boot-time services. If `pub-topic` of mqttsink is not set, it is `<client-id>/topic`, which tells the ID to whoever may subscribe to it: set `pub-topic`, or restrict the subscriptions with `username`/`password` and the broker's ACL, to keep the ID private.
+- `username` and `password`: if they are not set (default), the element connects without authentication. `password` needs `username`; the element refuses to start with a password only. A broker that refuses them fails the start like an unreachable broker, after the connection timeout (5 seconds). They are sent as they are, as the connection to the broker (`tcp://`) is not encrypted: use them on a trusted network or a tunnel. `password` cannot be read back. Prefer setting it from the application to giving it on a `gst-launch-1.0` command line, which other local users can see.
+
 ## MQTT Implementation
 
 Use the mqtt implementation already available in Tizen.org (/platform/upstream/paho-mqtt-c).

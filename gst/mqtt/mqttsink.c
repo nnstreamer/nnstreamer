@@ -18,13 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef G_OS_WIN32
-#include <process.h>
-#else
-#include <sys/types.h>
-#include <unistd.h>
-#endif
-
 #include <gst/base/gstbasesink.h>
 #include <MQTTAsync.h>
 #include <nnstreamer_util.h>
@@ -47,6 +40,8 @@ enum
 
   PROP_DEBUG,
   PROP_MQTT_CLIENT_ID,
+  PROP_MQTT_USERNAME,
+  PROP_MQTT_PASSWORD,
   PROP_MQTT_HOST_ADDRESS,
   PROP_MQTT_HOST_PORT,
   PROP_MQTT_PUB_TOPIC,
@@ -78,12 +73,11 @@ enum
   MAX_LEN_PROP_NTP_SRVS = 4096,
 };
 
-static guint8 sink_client_id = 0;
 static const gchar DEFAULT_MQTT_HOST_ADDRESS[] = "127.0.0.1";
 static const gchar DEFAULT_MQTT_HOST_PORT[] = "1883";
 static const gchar TAG_ERR_MQTTSINK[] = "ERROR: MQTTSink";
 static const gchar DEFAULT_MQTT_CLIENT_ID[] = "$HOST_$PID_^[0-9][0-9]?$|^255$";
-static const gchar DEFAULT_MQTT_CLIENT_ID_FORMAT[] = "%s_%u_sink%u";
+static const gchar MQTT_CLIENT_ID_PREFIX[] = "nnssink";
 static const gchar DEFAULT_MQTT_PUB_TOPIC[] = "$client-id/topic";
 static const gchar DEFAULT_MQTT_PUB_TOPIC_FORMAT[] = "%s/topic";
 static const gchar DEFAULT_MQTT_NTP_SERVERS[] = "pool.ntp.org:123";
@@ -126,6 +120,11 @@ static gboolean gst_mqtt_sink_get_debug (GstMqttSink * self);
 static void gst_mqtt_sink_set_debug (GstMqttSink * self, const gboolean flag);
 static gchar *gst_mqtt_sink_get_client_id (GstMqttSink * self);
 static void gst_mqtt_sink_set_client_id (GstMqttSink * self, const gchar * id);
+static gchar *gst_mqtt_sink_get_username (GstMqttSink * self);
+static void gst_mqtt_sink_set_username (GstMqttSink * self,
+    const gchar * username);
+static void gst_mqtt_sink_set_password (GstMqttSink * self,
+    const gchar * password);
 static gchar *gst_mqtt_sink_get_host_address (GstMqttSink * self);
 static void gst_mqtt_sink_set_host_address (GstMqttSink * self,
     const gchar * addr);
@@ -219,6 +218,9 @@ gst_mqtt_sink_init (GstMqttSink * self)
   self->num_buffers = DEFAULT_NUM_BUFFERS;
   self->max_msg_buf_size = DEFAULT_MAX_MSG_BUF_SIZE;
   self->mqtt_client_id = g_strdup (DEFAULT_MQTT_CLIENT_ID);
+  self->mqtt_username = NULL;
+  self->mqtt_password = NULL;
+  self->new_client_id_func = gst_mqtt_new_client_id;
   self->mqtt_host_address = g_strdup (DEFAULT_MQTT_HOST_ADDRESS);
   self->mqtt_host_port = g_strdup (DEFAULT_MQTT_HOST_PORT);
   self->mqtt_topic = g_strdup (DEFAULT_MQTT_PUB_TOPIC);
@@ -261,8 +263,22 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_MQTT_CLIENT_ID,
       g_param_spec_string ("client-id", "Client ID",
-          "The client identifier passed to the server (broker).", NULL,
+          "The client identifier passed to the server (broker). "
+          "If it is not set, a random one is generated at start", NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MQTT_USERNAME,
+      g_param_spec_string ("username", "User name",
+          "The user name to authenticate with the server (broker). "
+          "If it is not set, no user name is sent", NULL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MQTT_PASSWORD,
+      g_param_spec_string ("password", "Password",
+          "The password to authenticate with the server (broker), "
+          "which needs username. It is sent as is: the connection is not encrypted. "
+          "If it is not set, no password is sent", NULL,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MQTT_HOST_ADDRESS,
       g_param_spec_string ("host", "Host", "Host (broker) to connect to",
@@ -370,6 +386,12 @@ gst_mqtt_sink_set_property (GObject * object, guint prop_id,
     case PROP_MQTT_CLIENT_ID:
       gst_mqtt_sink_set_client_id (self, g_value_get_string (value));
       break;
+    case PROP_MQTT_USERNAME:
+      gst_mqtt_sink_set_username (self, g_value_get_string (value));
+      break;
+    case PROP_MQTT_PASSWORD:
+      gst_mqtt_sink_set_password (self, g_value_get_string (value));
+      break;
     case PROP_MQTT_HOST_ADDRESS:
       gst_mqtt_sink_set_host_address (self, g_value_get_string (value));
       break;
@@ -425,6 +447,11 @@ gst_mqtt_sink_get_property (GObject * object, guint prop_id,
     case PROP_MQTT_CLIENT_ID:
       GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_client_id (self));
+      GST_OBJECT_UNLOCK (self);
+      break;
+    case PROP_MQTT_USERNAME:
+      GST_OBJECT_LOCK (self);
+      g_value_set_string (value, gst_mqtt_sink_get_username (self));
       GST_OBJECT_UNLOCK (self);
       break;
     case PROP_MQTT_HOST_ADDRESS:
@@ -492,6 +519,11 @@ gst_mqtt_sink_class_finalize (GObject * object)
   }
   g_free (self->mqtt_client_id);
   self->mqtt_client_id = NULL;
+  g_free (self->mqtt_username);
+  self->mqtt_username = NULL;
+  g_free (self->mqtt_password);
+  self->mqtt_password = NULL;
+  gst_mqtt_replace_credentials (&self->mqtt_conn_opts, NULL, NULL);
   g_free (self->mqtt_msg_buf);
   self->mqtt_msg_buf = NULL;
   g_free (self->mqtt_topic);
@@ -583,15 +615,33 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
   gint64 end_time;
 
   GST_OBJECT_LOCK (self);
+  if (self->mqtt_password && !self->mqtt_username) {
+    GST_OBJECT_UNLOCK (self);
+    GST_ELEMENT_ERROR (self, RESOURCE, SETTINGS,
+        ("The password is set without a username."),
+        ("MQTT 3.1.1 does not allow a password without a username."));
+    return FALSE;
+  }
   haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
       self->mqtt_host_port);
 
   if (!g_strcmp0 (DEFAULT_MQTT_CLIENT_ID, self->mqtt_client_id)) {
+    gchar *new_id = self->new_client_id_func (MQTT_CLIENT_ID_PREFIX);
+
+    if (!new_id) {
+      GST_OBJECT_UNLOCK (self);
+      g_free (haddr);
+      GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
+          ("Cannot generate a client id: no secure random source."),
+          ("Set client-id, or make getrandom () or /dev/urandom available."));
+      return FALSE;
+    }
     g_free (self->mqtt_client_id);
-    self->mqtt_client_id = g_strdup_printf (DEFAULT_MQTT_CLIENT_ID_FORMAT,
-        g_get_host_name (), getpid (), sink_client_id++);
+    self->mqtt_client_id = new_id;
   }
   client_id = g_strdup (self->mqtt_client_id);
+  gst_mqtt_replace_credentials (&self->mqtt_conn_opts, self->mqtt_username,
+      self->mqtt_password);
 
   if (!g_strcmp0 (DEFAULT_MQTT_PUB_TOPIC, self->mqtt_topic)) {
     g_free (self->mqtt_topic);
@@ -633,7 +683,8 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
             end_time)) {
       g_mutex_unlock (&self->mqtt_sink_mutex);
       g_critical ("Failed to connect to MQTT broker from mqttsink."
-          "Please check broker is running status or broker host address.");
+          "Please check broker is running status, broker host address, "
+          "or username and password.");
       goto error;
     }
   }
@@ -1049,6 +1100,49 @@ gst_mqtt_sink_set_client_id (GstMqttSink * self, const gchar * id)
   GST_OBJECT_UNLOCK (self);
 
   g_free (old_id);
+}
+
+/**
+ * @brief Getter for the 'username' property.
+ */
+static gchar *
+gst_mqtt_sink_get_username (GstMqttSink * self)
+{
+  return self->mqtt_username;
+}
+
+/**
+ * @brief Setter for the 'username' property.
+ */
+static void
+gst_mqtt_sink_set_username (GstMqttSink * self, const gchar * username)
+{
+  gchar *new_name = g_strdup (username);
+  gchar *old_name;
+
+  GST_OBJECT_LOCK (self);
+  old_name = self->mqtt_username;
+  self->mqtt_username = new_name;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_name);
+}
+
+/**
+ * @brief Setter for the 'password' property.
+ */
+static void
+gst_mqtt_sink_set_password (GstMqttSink * self, const gchar * password)
+{
+  gchar *new_pw = g_strdup (password);
+  gchar *old_pw;
+
+  GST_OBJECT_LOCK (self);
+  old_pw = self->mqtt_password;
+  self->mqtt_password = new_pw;
+  GST_OBJECT_UNLOCK (self);
+
+  g_free (old_pw);
 }
 
 /**
