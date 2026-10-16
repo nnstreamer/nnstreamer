@@ -124,6 +124,8 @@ $ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor
 ## Custom converter
 If you want to convert any media type to tensors, you can use custom mode of the tensor converter.
 
+The custom converter returns a buffer and the tensors configuration of it. If the configuration is static and the output of tensor_converter is flexible, tensor_converter adds a header to each tensor: each tensor must be one memory of the buffer (a single tensor may span all memories of the buffer) holding at least the bytes the configuration declares, otherwise the stream fails with an error.
+
 ### Code mode
 This is an example of a callback type custom mode.
 ```
