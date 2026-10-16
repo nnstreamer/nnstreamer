@@ -313,12 +313,13 @@ jobs:
     # ours is inside GLib. Both are still printed. The gate starts with nothing
     # to forgive: the last errors of our own went with the tensor_transform fix
     # in #4929, so there is no baseline file to keep in step with the code. A
-    # test failure in this pass still does not fail the step. Each run is
-    # checked on its own log, so one falling silent cannot be covered by the
-    # other having run.
+    # test failure in this pass fails the step too. Each run is checked on
+    # its own log, so one falling silent cannot be covered by the other
+    # having run.
     - name: GTEST run with Valgrind on a case
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
       timeout-minutes: 30
+      shell: bash
       run: |
         export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build
         export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter
@@ -330,9 +331,7 @@ jobs:
         export G_DEBUG=gc-friendly
         # unittest_edge dlopens the custom-connection library it builds, by
         # name; meson test hands it a path, a run from here does not. Assert
-        # the library is where this says it is: a gtest failure does not fail
-        # this step, so a stale path would only make nine cases take their
-        # error paths quietly.
+        # the library is where this says it is before starting the sweep.
         test -f `pwd`/build/tests/nnstreamer_edge/libnnstreamer-edge-custom-test.so
         export LD_LIBRARY_PATH=`pwd`/build/tests/nnstreamer_edge${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
         skip_cases="nnstreamerFilterArmnn.invokeAdvanced"
@@ -354,9 +353,11 @@ jobs:
         # for unittest_mqtt_w_helper, 277 s for unittest_filter_litert - and
         # below what the slowest whole pass leaves of the 30 above.
         export UNITTEST_TIMEOUT=720
-        GTEST_FILTER="-${skip_cases}" ./packaging/run_unittests_binaries.sh --valgrind --recursive --skip unittest_filter_llamacpp ./tests/ 2>&1 | tee valgrind-tests.log
-        GTEST_FILTER="${llamacpp_cases}" ./packaging/run_unittests_binaries.sh --valgrind ./tests/unittest_filter_llamacpp 2>&1 | tee valgrind-llamacpp.log
         checked=0
+        # The explicit bash shell enables pipefail. Collect failures rather
+        # than stopping at the first one, so both sweeps and log checks run.
+        GTEST_FILTER="-${skip_cases}" ./packaging/run_unittests_binaries.sh --valgrind --recursive --skip unittest_filter_llamacpp ./tests/ 2>&1 | tee valgrind-tests.log || checked=1
+        GTEST_FILTER="${llamacpp_cases}" ./packaging/run_unittests_binaries.sh --valgrind ./tests/unittest_filter_llamacpp 2>&1 | tee valgrind-llamacpp.log || checked=1
         bash ./tools/debugging/check_valgrind_log.sh --require-output valgrind-tests.log || checked=1
         bash ./tools/debugging/check_valgrind_log.sh --require-output valgrind-llamacpp.log || checked=1
         exit ${checked}
