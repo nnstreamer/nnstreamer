@@ -2825,6 +2825,245 @@ TEST (datareposrc, openFailureClosesNothing_n)
 }
 
 /**
+ * @brief Read samples 0 to 3 of a zero-filled data file with the given caps property.
+ * @param caps caps of the samples, or NULL to keep the caps given by @a set_caps.
+ * @param set_caps caps set with g_object_set () after @a caps, or NULL.
+ * @param props other properties of datareposrc.
+ * @param file_size size of the data file.
+ */
+static void
+_read_with_caps (const gchar *caps, const gchar *set_caps, repo_run_s *run,
+    const gchar *props = "", gsize file_size = 1000)
+{
+  g_autofree gchar *data = (gchar *) g_malloc0 (file_size);
+  g_autofree gchar *str_pipeline = g_strdup_printf (
+      "datareposrc name=src0 location=" REPO_DATA
+      " is-shuffle=false stop-sample-index=3 %s %s%s%s ! fakesink name=sink0",
+      props, caps ? "caps=\"" : "", caps ? caps : "", caps ? "\"" : "");
+  GstElement *pipeline, *src;
+
+  ASSERT_TRUE (g_file_set_contents (REPO_DATA, data, file_size, NULL));
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  if (set_caps) {
+    GstCaps *new_caps = gst_caps_from_string (set_caps);
+
+    src = gst_bin_get_by_name (GST_BIN (pipeline), "src0");
+    ASSERT_NE (src, nullptr);
+    g_object_set (src, "caps", new_caps, NULL);
+    gst_caps_unref (new_caps);
+    gst_object_unref (src);
+  }
+
+  _run_repo_pipeline (pipeline, run);
+  gst_object_unref (pipeline);
+  g_remove (REPO_DATA);
+}
+
+/**
+ * @brief Expect that datareposrc refused the caps before pushing anything.
+ */
+static void
+_expect_caps_refused (repo_run_s *run)
+{
+  EXPECT_EQ (run->type, GST_MESSAGE_ANY);
+  EXPECT_EQ (run->buffers, 0U);
+  g_clear_pointer (&run->error_src, g_free);
+}
+
+/**
+ * @brief A video frame is as large as the video info of the caps, stride padding included.
+ */
+TEST (datareposrc, readVideoCapsSampleSize)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("video/x-raw,format=GRAY8,width=10,height=10,framerate=0/1", NULL, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 4U);
+  EXPECT_EQ (run.last_size, 120U);
+}
+
+/**
+ * @brief An audio sample is one second of the audio info of the caps.
+ */
+TEST (datareposrc, readAudioCapsSampleSize)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("audio/x-raw,format=S16LE,rate=100,channels=1,layout=interleaved",
+      NULL, &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 4U);
+  EXPECT_EQ (run.last_size, 200U);
+}
+
+/**
+ * @brief Valid caps set after refused caps are used.
+ */
+TEST (datareposrc, readVideoCapsAfterInvalidCaps)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("video/x-raw,format=GRAY8,height=10",
+      "video/x-raw,format=GRAY8,width=10,height=10,framerate=0/1", &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 4U);
+  EXPECT_EQ (run.last_size, 120U);
+}
+
+/**
+ * @brief Valid tensors caps set after refused caps are used.
+ */
+TEST (datareposrc, readTensorsCapsAfterInvalidCaps)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("other/tensors,format=static,framerate=0/1,num_tensors=2,"
+                   "dimensions=(string)10,types=(string)uint8",
+      "other/tensors,format=static,framerate=0/1,num_tensors=2,"
+      "dimensions=(string)10.20,types=(string)uint8.uint8",
+      &run);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 4U);
+  EXPECT_EQ (run.last_mems, 2U);
+  EXPECT_EQ (run.last_size, 30U);
+}
+
+/**
+ * @brief Video caps without a width are refused instead of read as empty frames.
+ */
+TEST (datareposrc, readVideoCapsNoWidth_n)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("video/x-raw,format=GRAY8,height=10,framerate=0/1", NULL, &run);
+  _expect_caps_refused (&run);
+}
+
+/**
+ * @brief Video caps of a frame of 4 GiB and 64 KiB are refused, not truncated
+ * to a frame size of 64 KiB that four samples of the data file would hold.
+ */
+TEST (datareposrc, readVideoCapsHugeFrame_n)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("video/x-raw,format=GRAY8,width=65536,height=65537,framerate=0/1",
+      NULL, &run, "", 4 * 65536);
+
+  EXPECT_NE (run.type, GST_MESSAGE_EOS);
+  EXPECT_NE (run.type, GST_MESSAGE_UNKNOWN);
+  EXPECT_EQ (run.buffers, 0U);
+  g_clear_pointer (&run.error_src, g_free);
+}
+
+/**
+ * @brief Audio caps without a layout are refused instead of read as empty samples.
+ */
+TEST (datareposrc, readAudioCapsNoLayout_n)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("audio/x-raw,format=S16LE,rate=100,channels=1", NULL, &run);
+  _expect_caps_refused (&run);
+}
+
+/**
+ * @brief Tensors caps with fewer dimensions than tensors are refused.
+ */
+TEST (datareposrc, readTensorsCapsCountMismatch_n)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("other/tensors,format=static,framerate=0/1,num_tensors=2,"
+                   "dimensions=(string)10,types=(string)uint8",
+      NULL, &run);
+  _expect_caps_refused (&run);
+}
+
+/**
+ * @brief Tensors caps without a framerate are refused instead of read as empty samples.
+ */
+TEST (datareposrc, readTensorsCapsNoFramerate_n)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("other/tensors,format=static,num_tensors=1,dimensions=(string)10,types=(string)uint8",
+      NULL, &run);
+  _expect_caps_refused (&run);
+}
+
+/**
+ * @brief Invalid caps set after valid caps are refused, not read with the old sample size.
+ */
+TEST (datareposrc, readVideoCapsInvalidAfterValidCaps_n)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("video/x-raw,format=GRAY8,width=10,height=10,framerate=0/1",
+      "video/x-raw,format=GRAY8,height=10,framerate=0/1", &run);
+  _expect_caps_refused (&run);
+}
+
+/**
+ * @brief The tensors-sequence picks tensors of the caps set after it.
+ */
+TEST (datareposrc, readTensorsCapsSequence)
+{
+  repo_run_s run = {};
+
+  _read_with_caps (NULL,
+      "other/tensors,format=static,framerate=0/1,num_tensors=2,"
+      "dimensions=(string)10.20,types=(string)uint8.uint8",
+      &run, "tensors-sequence=1");
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 4U);
+  EXPECT_EQ (run.last_mems, 1U);
+  EXPECT_EQ (run.last_size, 20U);
+}
+
+/**
+ * @brief Refused tensors caps set after valid caps and tensors-sequence are not
+ * replaced by a tensors-sequence of the previous caps.
+ */
+TEST (datareposrc, readTensorsCapsSequenceInvalidAfterValidCaps_n)
+{
+  repo_run_s run = {};
+
+  _read_with_caps ("other/tensors,format=static,framerate=0/1,num_tensors=2,"
+                   "dimensions=(string)10.20,types=(string)uint8.uint8",
+      "other/tensors,format=static,num_tensors=2,"
+      "dimensions=(string)10.20,types=(string)uint8.uint8",
+      &run, "tensors-sequence=1");
+  _expect_caps_refused (&run);
+}
+
+/**
+ * @brief Video caps in the JSON file without a width are refused.
+ */
+TEST (datareposrc, readVideoJsonNoWidth_n)
+{
+  repo_run_s run = {};
+  g_autofree gchar *data = (gchar *) g_malloc0 (1000);
+
+  ASSERT_TRUE (g_file_set_contents (REPO_DATA, data, 1000, NULL));
+  ASSERT_TRUE (g_file_set_contents (REPO_JSON,
+      "{\"gst_caps\":\"video/x-raw,format=GRAY8,height=10,framerate=0/1\",\"total_samples\":4}",
+      -1, NULL));
+  _read_crafted_repo (0, 3, &run);
+  _expect_caps_refused (&run);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
  * @brief Main GTest
  */
 int

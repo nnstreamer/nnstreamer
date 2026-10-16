@@ -318,6 +318,7 @@ static gboolean
 gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
 {
   GstStructure *s;
+  gboolean parsed = TRUE;
 
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (caps != NULL, FALSE);
@@ -331,10 +332,13 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
       GstVideoInfo video_info;
 
       gst_video_info_init (&video_info);
-      gst_video_info_from_caps (&video_info, caps);
+      if (!gst_video_info_from_caps (&video_info, caps)) {
+        parsed = FALSE;
+        break;
+      }
 
       /* https://gstreamer.freedesktop.org/documentation/additional/design/mediatype-video-raw.html?gi-language=c */
-      src->sample_size = (guint) GST_VIDEO_INFO_SIZE (&video_info);
+      src->sample_size = GST_VIDEO_INFO_SIZE (&video_info);
 
       GST_DEBUG_OBJECT (src, "format(%s), width(%d), height(%d): %zd byte/frame",
           gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (&video_info)),
@@ -348,7 +352,10 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
       gint rate, channel, depth;
 
       gst_audio_info_init (&audio_info);
-      gst_audio_info_from_caps (&audio_info, caps);
+      if (!gst_audio_info_from_caps (&audio_info, caps)) {
+        parsed = FALSE;
+        break;
+      }
 
       rate = GST_AUDIO_INFO_RATE (&audio_info);
       channel = GST_AUDIO_INFO_CHANNELS (&audio_info);
@@ -369,7 +376,10 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
 
       /* Set current tensors information if given data type is tensor. */
       gst_tensors_config_free (&src->config);
-      gst_tensors_config_from_caps (&src->config, caps, TRUE);
+      if (!gst_tensors_config_from_caps (&src->config, caps, TRUE)) {
+        parsed = FALSE;
+        break;
+      }
       src->sample_size = 0;
 
       for (i = 0; i < src->config.info.num_tensors; i++) {
@@ -384,6 +394,11 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
     }
     default:
       break;
+  }
+
+  if (!parsed) {
+    GST_ERROR_OBJECT (src, "Failed to parse caps %" GST_PTR_FORMAT, caps);
+    src->data_type = GST_DATA_REPO_DATA_UNKNOWN;
   }
 
   src->rate_n = 0;
