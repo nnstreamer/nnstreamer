@@ -459,6 +459,26 @@ wrong_state:
 }
 
 /**
+ * @brief Check that the element is stopped, so that a property the streaming thread reads can be changed.
+ */
+static gboolean
+gst_data_repo_src_is_stopped (GstDataRepoSrc * src, const GParamSpec * pspec)
+{
+  GstState state;
+
+  GST_OBJECT_LOCK (src);
+  state = GST_STATE (src);
+  GST_OBJECT_UNLOCK (src);
+
+  if (state == GST_STATE_READY || state == GST_STATE_NULL)
+    return TRUE;
+
+  g_warning ("Changing the `%s' property on datareposrc when a file is open "
+      "is not supported.", pspec->name);
+  return FALSE;
+}
+
+/**
  * @brief Function to set tensors sequence
  */
 static gboolean
@@ -1164,6 +1184,9 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
   if (src->start_sample_index > src->stop_sample_index)
     goto invalid_range;
 
+  if (src->epochs == 0)
+    goto no_epochs;
+
   src->current_sample_index = src->start_sample_index;
   src->num_samples = src->stop_sample_index - src->start_sample_index + 1;
   GST_INFO_OBJECT (src,
@@ -1286,6 +1309,12 @@ invalid_range:
     GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, (NULL),
         ("start-sample-index %u is larger than stop-sample-index %u.",
             src->start_sample_index, src->stop_sample_index));
+    goto error_exit;
+  }
+no_epochs:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, (NULL),
+        ("epochs must be larger than 0."));
     goto error_exit;
   }
 
@@ -1649,6 +1678,11 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
   g_return_if_fail (GST_IS_DATA_REPO_SRC (object));
 
   src = GST_DATA_REPO_SRC (object);
+
+  /* location and json check the state in gst_data_repo_src_set_file_path () */
+  if (prop_id != PROP_LOCATION && prop_id != PROP_JSON
+      && !gst_data_repo_src_is_stopped (src, pspec))
+    return;
 
   switch (prop_id) {
     case PROP_LOCATION:
