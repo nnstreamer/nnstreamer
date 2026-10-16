@@ -339,6 +339,330 @@ TEST (tensorConverterConfig, modeRegisteredAfterUnregistered)
 }
 
 /**
+ * @brief Data registered with a custom converter that knows which callback it belongs to.
+ */
+typedef struct {
+  gchar id; /**< callback this data is registered with */
+  guint called; /**< conversions done with this data */
+  guint foreign; /**< conversions another callback did with this data */
+  GstElement *element; /**< converter to set the mode of while converting */
+  const gchar *next_mode; /**< mode to set while converting, NULL to leave it */
+} TaggedData;
+
+/**
+ * @brief Convert as split_bytes_cb does, as the callback @a id.
+ */
+static GstBuffer *
+tagged_convert (GstBuffer *in_buf, void *data, GstTensorsConfig *config, gchar id)
+{
+  TaggedData *td = (TaggedData *) data;
+
+  if (td->id != id)
+    td->foreign++;
+  if (td->next_mode)
+    g_object_set (td->element, "mode", td->next_mode, NULL);
+
+  return split_bytes_cb (in_buf, &td->called, config);
+}
+
+/**
+ * @brief Custom converter 'a'.
+ */
+static GstBuffer *
+tagged_a_cb (GstBuffer *in_buf, void *data, GstTensorsConfig *config)
+{
+  return tagged_convert (in_buf, data, config, 'a');
+}
+
+/**
+ * @brief Custom converter 'b'.
+ */
+static GstBuffer *
+tagged_b_cb (GstBuffer *in_buf, void *data, GstTensorsConfig *config)
+{
+  return tagged_convert (in_buf, data, config, 'b');
+}
+
+/**
+ * @brief Register the custom converters g10_a and g10_b with their own data.
+ */
+static void
+register_tagged (TaggedData *a, TaggedData *b)
+{
+  *a = { 'a', 0U, 0U, NULL, NULL };
+  *b = { 'b', 0U, 0U, NULL, NULL };
+  ASSERT_EQ (0, nnstreamer_converter_custom_register ("g10_a", tagged_a_cb, a));
+  ASSERT_EQ (0, nnstreamer_converter_custom_register ("g10_b", tagged_b_cb, b));
+}
+
+/**
+ * @brief Push a single byte and drop what comes out.
+ */
+static GstFlowReturn
+push_byte_and_drop (GstHarness *h)
+{
+  GstFlowReturn ret = push_octet (h, 1U);
+  GstBuffer *out = gst_harness_try_pull (h);
+
+  if (out)
+    gst_buffer_unref (out);
+  return ret;
+}
+
+/**
+ * @brief Arguments of the thread changing the mode.
+ */
+typedef struct {
+  GstElement *element; /**< converter to set the mode of */
+  gint started; /**< set once the thread sets modes */
+  gint stop; /**< set to end the thread */
+} ToggleData;
+
+/**
+ * @brief Switch the mode between the two custom converters until told to stop.
+ */
+static gpointer
+toggle_mode_thread (gpointer user_data)
+{
+  ToggleData *td = (ToggleData *) user_data;
+  guint i = 0;
+
+  while (!g_atomic_int_get (&td->stop)) {
+    g_object_set (td->element, "mode",
+        (i++ % 2U) ? "custom-code:g10_a" : "custom-code:g10_b", NULL);
+    g_atomic_int_set (&td->started, 1);
+    g_thread_yield ();
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief Every buffer is converted by a callback with its own data while another thread changes the mode.
+ */
+TEST (tensorConverterConfig, modeChangedWhileStreaming)
+{
+  const guint num_buffers = 3000U;
+  TaggedData a, b;
+  ToggleData toggle = { NULL, 0, 0 };
+  GstHarness *h;
+  GThread *thread;
+  guint i, failed = 0U;
+
+  ASSERT_NO_FATAL_FAILURE (register_tagged (&a, &b));
+
+  h = gst_harness_new ("tensor_converter");
+  g_object_set (h->element, "mode", "custom-code:g10_a", NULL);
+  gst_harness_set_src_caps_str (h, OCTET_CAPS);
+
+  toggle.element = h->element;
+  thread = g_thread_new ("toggle-mode", toggle_mode_thread, &toggle);
+  while (!g_atomic_int_get (&toggle.started))
+    g_thread_yield ();
+
+  for (i = 0; i < num_buffers; i++) {
+    if (push_byte_and_drop (h) != GST_FLOW_OK)
+      failed++;
+  }
+
+  g_atomic_int_set (&toggle.stop, 1);
+  g_thread_join (thread);
+
+  EXPECT_EQ (failed, 0U);
+  EXPECT_EQ (a.foreign + b.foreign, 0U);
+  EXPECT_EQ (a.called + b.called, num_buffers);
+
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_a"));
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_b"));
+}
+
+/**
+ * @brief A mode set by the callback itself leaves its conversion alone and applies from the next buffer.
+ */
+TEST (tensorConverterConfig, modeChangedByCallback)
+{
+  TaggedData a, b;
+  GstHarness *h;
+
+  ASSERT_NO_FATAL_FAILURE (register_tagged (&a, &b));
+
+  h = gst_harness_new ("tensor_converter");
+  g_object_set (h->element, "mode", "custom-code:g10_a", NULL);
+  gst_harness_set_src_caps_str (h, OCTET_CAPS);
+
+  a.element = h->element;
+  a.next_mode = "custom-code:g10_b";
+
+  EXPECT_EQ (push_byte_and_drop (h), GST_FLOW_OK);
+  EXPECT_EQ (a.called, 1U);
+  EXPECT_EQ (b.called, 0U);
+
+  EXPECT_EQ (push_byte_and_drop (h), GST_FLOW_OK);
+  EXPECT_EQ (a.called, 1U);
+  EXPECT_EQ (b.called, 1U);
+  EXPECT_EQ (a.foreign + b.foreign, 0U);
+
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_a"));
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_b"));
+}
+
+/**
+ * @brief A mode that names no registered callback, set while streaming, stops the conversion.
+ */
+TEST (tensorConverterConfig, modeChangedToInvalidWhileStreaming_n)
+{
+  TaggedData a, b;
+  GstHarness *h;
+
+  ASSERT_NO_FATAL_FAILURE (register_tagged (&a, &b));
+
+  h = gst_harness_new ("tensor_converter");
+  g_object_set (h->element, "mode", "custom-code:g10_a", NULL);
+  gst_harness_set_src_caps_str (h, OCTET_CAPS);
+  EXPECT_EQ (push_byte_and_drop (h), GST_FLOW_OK);
+
+  g_object_set (h->element, "mode", "custom-code:g10_not_registered", NULL);
+  EXPECT_NE (push_byte_and_drop (h), GST_FLOW_OK);
+
+  g_object_set (h->element, "mode", "custom-code:g10_b", NULL);
+  EXPECT_EQ (push_byte_and_drop (h), GST_FLOW_OK);
+
+  /* a mode without an option drops the callback as well */
+  g_object_set (h->element, "mode", "custom-code", NULL);
+  EXPECT_NE (push_byte_and_drop (h), GST_FLOW_OK);
+
+  EXPECT_EQ (a.called, 1U);
+  EXPECT_EQ (b.called, 1U);
+  EXPECT_EQ (a.foreign + b.foreign, 0U);
+
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_a"));
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_b"));
+}
+
+/**
+ * @brief State shared by the log handler holding a mode set and the thread pushing meanwhile.
+ */
+typedef struct {
+  GstHarness *h; /**< harness to push into */
+  GMutex lock; /**< protects the fields below */
+  GCond cond; /**< signalled when a field below changes */
+  gboolean in_set; /**< the mode set has reached its warning */
+  gboolean done; /**< the push is over, or the mode set returned without a warning */
+  GstFlowReturn ret; /**< result of the push */
+} HeldSetData;
+
+/**
+ * @brief Hold the mode set at its warning about the unregistered name until the push is over.
+ */
+static void
+held_set_log_handler (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer user_data)
+{
+  HeldSetData *hd = (HeldSetData *) user_data;
+
+  if (!message || !strstr (message, "g10_held_not_registered")) {
+    g_log_default_handler (domain, level, message, NULL);
+    return;
+  }
+
+  g_mutex_lock (&hd->lock);
+  hd->in_set = TRUE;
+  g_cond_broadcast (&hd->cond);
+  while (!hd->done)
+    g_cond_wait (&hd->cond, &hd->lock);
+  g_mutex_unlock (&hd->lock);
+}
+
+/**
+ * @brief Push a buffer once the mode set is held.
+ */
+static gpointer
+held_set_push_thread (gpointer user_data)
+{
+  HeldSetData *hd = (HeldSetData *) user_data;
+  gboolean in_set;
+
+  g_mutex_lock (&hd->lock);
+  while (!hd->in_set && !hd->done)
+    g_cond_wait (&hd->cond, &hd->lock);
+  in_set = hd->in_set;
+  g_mutex_unlock (&hd->lock);
+
+  if (in_set) {
+    GstFlowReturn ret = push_byte_and_drop (hd->h);
+
+    g_mutex_lock (&hd->lock);
+    hd->ret = ret;
+    hd->done = TRUE;
+    g_cond_broadcast (&hd->cond);
+    g_mutex_unlock (&hd->lock);
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief A buffer arriving in the middle of a mode set is converted by the previous callback.
+ */
+TEST (tensorConverterConfig, modeSetInProgressKeepsPrevious)
+{
+  TaggedData a, b;
+  HeldSetData hd;
+  GThread *thread;
+  guint handler;
+  gboolean in_set;
+
+  ASSERT_NO_FATAL_FAILURE (register_tagged (&a, &b));
+
+  hd.h = gst_harness_new ("tensor_converter");
+  hd.in_set = hd.done = FALSE;
+  hd.ret = GST_FLOW_ERROR;
+  g_mutex_init (&hd.lock);
+  g_cond_init (&hd.cond);
+
+  g_object_set (hd.h->element, "mode", "custom-code:g10_a", NULL);
+  gst_harness_set_src_caps_str (hd.h, OCTET_CAPS);
+
+  thread = g_thread_new ("held-set-push", held_set_push_thread, &hd);
+  handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_WARNING | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      held_set_log_handler, &hd);
+
+  g_object_set (hd.h->element, "mode", "custom-code:g10_held_not_registered", NULL);
+
+  g_log_remove_handler (NULL, handler);
+  g_mutex_lock (&hd.lock);
+  in_set = hd.in_set;
+  hd.done = TRUE;
+  g_cond_broadcast (&hd.cond);
+  g_mutex_unlock (&hd.lock);
+  g_thread_join (thread);
+
+  /* the warning reaches a GLib log handler unless the platform has a log of its own */
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  EXPECT_TRUE (in_set);
+#endif
+  if (in_set) {
+    EXPECT_EQ (hd.ret, GST_FLOW_OK);
+    EXPECT_EQ (a.called, 1U);
+  }
+  EXPECT_EQ (a.foreign + b.foreign, 0U);
+
+  /* the unregistered name applies once the set is over */
+  EXPECT_NE (push_byte_and_drop (hd.h), GST_FLOW_OK);
+  EXPECT_EQ (a.called, in_set ? 1U : 0U);
+
+  gst_harness_teardown (hd.h);
+  g_mutex_clear (&hd.lock);
+  g_cond_clear (&hd.cond);
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_a"));
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_b"));
+}
+
+/**
  * @brief Flexible to static conversion of more tensors than a buffer has memories.
  */
 TEST (tensorConverterConfig, flexToStaticExtraTensors)
