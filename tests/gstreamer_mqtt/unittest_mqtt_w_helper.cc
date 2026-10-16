@@ -130,6 +130,11 @@ MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
 {
   MQTTAsync_successData data;
   void *ctx = GstMqttTestHelper::getInstance ().getContext ();
+
+  GstMqttTestHelper::getInstance ().recordConnect (options->username, options->password);
+  if (GstMqttTestHelper::getInstance ().rejectsPassword (options->password))
+    return MQTTASYNC_FAILURE;
+
   auto ret = std::async (std::launch::async, options->onSuccess, ctx, &data);
 
   GstMqttTestHelper::getInstance ().setIsConnected (true);
@@ -1408,6 +1413,221 @@ TEST (testMqttSinkWithHelper, clientIdReplacedDuringStart)
       "first-client-identifier-in-use");
   EXPECT_STREQ (GstMqttTestHelper::getInstance ().getLastServerUri ().c_str (),
       "first.broker.example.org:1883");
+
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (sink);
+}
+
+/**
+ * @brief Check that a generated client id is the prefix followed by 16 lowercase hexadecimal digits
+ */
+static void
+_expect_generated_client_id (const std::string &id, const char *prefix)
+{
+  size_t len = std::string (prefix).size ();
+
+  ASSERT_EQ (id.size (), len + 16U);
+  EXPECT_EQ (id.compare (0, len, prefix), 0);
+  for (size_t i = len; i < id.size (); i++)
+    EXPECT_TRUE (g_ascii_isdigit (id[i]) || (id[i] >= 'a' && id[i] <= 'f'));
+}
+
+/**
+ * @brief Start a new mqttsink without client-id and return the client id it created the client with
+ */
+static std::string
+_start_sink_for_client_id (GstElement **sink)
+{
+  *sink = gst_element_factory_make ("mqttsink", NULL);
+  if (*sink == NULL)
+    return "";
+  gst_object_ref_sink (*sink);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetCreateRecord ();
+  if (gst_element_set_state (*sink, GST_STATE_READY) != GST_STATE_CHANGE_SUCCESS)
+    return "";
+  return GstMqttTestHelper::getInstance ().getLastClientId ();
+}
+
+/**
+ * @brief Test the client id mqttsink generates when client-id is not set
+ */
+TEST (testMqttSinkWithHelper, defaultClientIdRandom)
+{
+  GstElement *sink1 = NULL;
+  GstElement *sink2 = NULL;
+  std::string id1 = _start_sink_for_client_id (&sink1);
+  std::string id2 = _start_sink_for_client_id (&sink2);
+  gchar *prop = NULL;
+  gchar *topic = NULL;
+  gchar *expected_topic;
+
+  ASSERT_TRUE (sink1 != NULL);
+  ASSERT_TRUE (sink2 != NULL);
+  _expect_generated_client_id (id1, "nnssink");
+  _expect_generated_client_id (id2, "nnssink");
+  EXPECT_STRNE (id1.c_str (), id2.c_str ());
+
+  /* The generated id is what the property reads and what the default topic is made of */
+  g_object_get (sink1, "client-id", &prop, "pub-topic", &topic, NULL);
+  EXPECT_STREQ (prop, id1.c_str ());
+  expected_topic = g_strdup_printf ("%s/topic", id1.c_str ());
+  EXPECT_STREQ (topic, expected_topic);
+  g_free (prop);
+  g_free (topic);
+  g_free (expected_topic);
+
+  /* A restart keeps the id */
+  EXPECT_EQ (gst_element_set_state (sink1, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  GstMqttTestHelper::getInstance ().resetCreateRecord ();
+  EXPECT_EQ (gst_element_set_state (sink1, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_STREQ (GstMqttTestHelper::getInstance ().getLastClientId ().c_str (),
+      id1.c_str ());
+
+  EXPECT_EQ (gst_element_set_state (sink1, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_element_set_state (sink2, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (sink1);
+  gst_object_unref (sink2);
+}
+
+/**
+ * @brief Test that the generated client id does not follow the seed of the global random generator
+ */
+TEST (testMqttSinkWithHelper, generatedClientIdIgnoresGlobalSeed)
+{
+  gchar *id1, *id2;
+  GRand *rand;
+
+  g_random_set_seed (4960);
+  id1 = gst_mqtt_new_client_id ("nnssink");
+  g_random_set_seed (4960);
+  id2 = gst_mqtt_new_client_id ("nnssink");
+
+  /* Do not leave the global generator on a fixed seed for the other tests */
+  rand = g_rand_new ();
+  g_random_set_seed (g_rand_int (rand));
+  g_rand_free (rand);
+
+  _expect_generated_client_id (id1, "nnssink");
+  _expect_generated_client_id (id2, "nnssink");
+  EXPECT_STRNE (id1, id2);
+
+  g_free (id1);
+  g_free (id2);
+}
+
+/**
+ * @brief Test the credentials mqttsink connects with
+ */
+TEST (testMqttSinkWithHelper, credentialsGivenToConnect)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", NULL);
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  gchar *username = NULL;
+
+  ASSERT_TRUE (sink != NULL);
+  gst_object_ref_sink (sink);
+  helper.initFailFlags ();
+
+  /* None by default */
+  g_object_get (sink, "username", &username, NULL);
+  EXPECT_TRUE (username == NULL);
+  helper.resetCreateRecord ();
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_FALSE (helper.hasUsername ());
+  EXPECT_FALSE (helper.hasPassword ());
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+
+  g_object_set (sink, "username", "an-mqtt-user", "password", "an-mqtt-password", NULL);
+  g_object_get (sink, "username", &username, NULL);
+  EXPECT_STREQ (username, "an-mqtt-user");
+  g_free (username);
+  helper.resetCreateRecord ();
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_TRUE (helper.hasUsername ());
+  EXPECT_STREQ (helper.getLastUsername ().c_str (), "an-mqtt-user");
+  EXPECT_TRUE (helper.hasPassword ());
+  EXPECT_STREQ (helper.getLastPassword ().c_str (), "an-mqtt-password");
+
+  /* A change while started applies from the next start */
+  g_object_set (sink, "username", "another-user", "password", NULL, NULL);
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  helper.resetCreateRecord ();
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_STREQ (helper.getLastUsername ().c_str (), "another-user");
+  EXPECT_FALSE (helper.hasPassword ());
+
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (sink);
+}
+
+/**
+ * @brief Test that the password of mqttsink cannot be read back
+ */
+TEST (testMqttSinkWithHelper, passwordNotReadable_n)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", NULL);
+  GParamSpec *pspec;
+
+  ASSERT_TRUE (sink != NULL);
+  pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (sink), "password");
+  ASSERT_TRUE (pspec != NULL);
+  EXPECT_FALSE (pspec->flags & G_PARAM_READABLE);
+  EXPECT_TRUE (pspec->flags & G_PARAM_WRITABLE);
+
+  gst_object_unref (sink);
+}
+
+/**
+ * @brief Test that mqttsink fails to start when the broker rejects the password, and starts with the right one
+ */
+TEST (testMqttSinkWithHelper, credentialsRejected_n)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", NULL);
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+
+  ASSERT_TRUE (sink != NULL);
+  gst_object_ref_sink (sink);
+  helper.initFailFlags ();
+  helper.resetCreateRecord ();
+  helper.setRequiredPassword ("the-right-password");
+
+  /* No password */
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (helper.hasPassword ());
+
+  g_object_set (sink, "username", "an-mqtt-user", "password", "a-wrong-password", NULL);
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_STREQ (helper.getLastPassword ().c_str (), "a-wrong-password");
+
+  g_object_set (sink, "password", "the-right-password", NULL);
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+
+  helper.setRequiredPassword (NULL);
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (sink);
+}
+
+/**
+ * @brief Test that mqttsink refuses to start with a password but no username, before creating a client
+ */
+TEST (testMqttSinkWithHelper, passwordWithoutUsername_n)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", NULL);
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+
+  ASSERT_TRUE (sink != NULL);
+  gst_object_ref_sink (sink);
+  helper.initFailFlags ();
+  helper.resetCreateRecord ();
+
+  g_object_set (sink, "password", "an-mqtt-password", NULL);
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_TRUE (helper.getLastClientId ().empty ());
+
+  g_object_set (sink, "username", "an-mqtt-user", NULL);
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_STREQ (helper.getLastPassword ().c_str (), "an-mqtt-password");
 
   EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
   gst_object_unref (sink);

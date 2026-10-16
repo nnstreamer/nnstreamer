@@ -51,6 +51,8 @@ struct _GstMqttSrc {
   gint64 base_time_epoch;
   GstClockTime latency;
   gchar *mqtt_client_id;
+  gchar *mqtt_username;
+  gchar *mqtt_password;
   gchar *mqtt_host_address;
   gchar *mqtt_host_port;
   gchar *mqtt_topic;
