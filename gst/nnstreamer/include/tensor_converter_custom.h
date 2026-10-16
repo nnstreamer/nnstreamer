@@ -27,6 +27,9 @@ G_BEGIN_DECLS
  * @param[in/out] data private data for the callback
  * @param[out] config tensors config structure to be filled
  * @return output buffer filled by user
+ * @note If @a config is static and the output is flexible, each tensor must be
+ *       one memory of the output buffer (a single tensor may span all of its
+ *       memories) with at least the bytes @a config declares, or the stream fails.
  */
 typedef GstBuffer * (* tensor_converter_custom) (GstBuffer *in_buf,
     void *data, GstTensorsConfig *config);

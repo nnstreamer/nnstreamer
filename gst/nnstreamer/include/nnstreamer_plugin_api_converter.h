@@ -50,6 +50,9 @@ typedef struct _NNStreamerExternalConverter
    * @param[out] config tensors config structure to be filled
    * @retval Return input buffer(in_buf) if the data is to be kept untouched.
    * @retval Return a new GstBuf if the data is to be modified.
+   * @note If config is static and the output is flexible, each tensor must be
+   *       one memory of the returned buffer (a single tensor may span all of its
+   *       memories) with at least the bytes config declares, or the stream fails.
    */
 
   /* 2. get_out_config (type conf, input(media) to output(tensor)) */

@@ -907,6 +907,7 @@ _gst_tensor_converter_chain_flex_tensor (GstTensorConverter * self,
   GstTensorsInfo *info;
   GstTensorInfo *_info;
   GstTensorMetaInfo meta;
+  gsize msize;
   guint i;
 
   info = &self->tensors_config.info;
@@ -930,7 +931,30 @@ _gst_tensor_converter_chain_flex_tensor (GstTensorConverter * self,
         break;
     }
 
-    mem = gst_tensor_buffer_get_nth_memory (buf, i);
+    /* a single tensor may arrive in several memories (e.g., one per plane) */
+    if (info->num_tensors == 1 && gst_buffer_n_memory (buf) > 1)
+      mem = gst_buffer_get_all_memory (buf);
+    else
+      mem = gst_tensor_buffer_get_nth_memory (buf, i);
+
+    msize = mem ? gst_memory_get_sizes (mem, NULL, NULL) : 0;
+    if (msize < gst_tensor_info_get_size (_info)) {
+      if (mem) {
+        GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+            ("Cannot add the flexible tensor header to the tensor %u/%u: the incoming buffer has %zu bytes for it while the header declares %zu bytes.",
+                i + 1, info->num_tensors, msize,
+                gst_tensor_info_get_size (_info)));
+        gst_memory_unref (mem);
+      } else {
+        GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+            ("Cannot add the flexible tensor header to the tensor %u/%u: the incoming buffer has no memory for it (%u memories).",
+                i + 1, info->num_tensors, gst_buffer_n_memory (buf)));
+      }
+      gst_buffer_unref (buffer);
+      gst_buffer_unref (buf);
+      return NULL;
+    }
+
     new_mem = gst_tensor_meta_info_append_header (&meta, mem);
     gst_memory_unref (mem);
 
@@ -957,6 +981,8 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
   if (!self->do_not_append_header
       && gst_tensor_pad_caps_is_flexible (self->srcpad)) {
     buffer = _gst_tensor_converter_chain_flex_tensor (self, buffer);
+    if (!buffer)
+      return GST_FLOW_ERROR;
   }
 
   silent_debug_timestamp (self, buffer);
