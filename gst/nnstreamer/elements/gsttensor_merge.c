@@ -461,6 +461,10 @@ static GstFlowReturn
 gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
     GstBuffer * tensors_buf)
 {
+  GstFlowReturn ret;
+  GstTensorInfo *info;
+  guint i, j;
+
   if (tensor_merge->need_set_time) {
     if (gst_tensor_time_sync_get_current_time (tensor_merge->collect,
             &tensor_merge->sync, &tensor_merge->current_time, tensors_buf)) {
@@ -471,9 +475,21 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
     tensor_merge->need_set_time = FALSE;
   }
 
-  return gst_tensor_time_sync_buffer_from_collectpad (tensor_merge->collect,
+  ret = gst_tensor_time_sync_buffer_from_collectpad (tensor_merge->collect,
       &tensor_merge->sync, tensor_merge->current_time, tensors_buf,
       &tensor_merge->tensors_config);
+
+  if (ret == GST_FLOW_OK) {
+    /* Expand implicit unit dimensions before negotiation and copying. */
+    for (i = 0; i < tensor_merge->tensors_config.info.num_tensors; i++) {
+      info =
+          gst_tensors_info_get_nth_info (&tensor_merge->tensors_config.info, i);
+      for (j = gst_tensor_info_get_rank (info); j <= LINEAR_FOURTH; j++)
+        info->dimension[j] = 1;
+    }
+  }
+
+  return ret;
 }
 
 /**
@@ -488,7 +504,7 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
  * @param dim the dimensions of input 0
  * @param element_size the element size of input 0
  * @param info the tensor info of the input to measure
- * @return the size in bytes, 0 if a dimension the loop needs is unset
+ * @return the size in bytes read by the copy loop
  * @note The direction is always one of the four the loop knows: an option
  *       string it does not recognise leaves the previous one in place, and a
  *       mode other than linear is refused while the source caps are negotiated.
