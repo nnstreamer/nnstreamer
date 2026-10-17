@@ -443,6 +443,9 @@ init_decoder_py (void)
   /** Python should be initialized and finalized only once */
   nnstreamer_python_init_refcnt ();
   nnstreamer_decoder_probe (&Python);
+  nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_python3, "option1",
+      "The path to the Python script (mandatory). The script defines the class CustomDecoder with decode (raw_data, in_info, rate_n, rate_d), returning the output data as bytes, and optionally getOutCaps (), returning the output caps as bytes. Without getOutCaps (), the output caps are application/octet-stream.",
+      NULL);
 }
 
 /** @brief Destruct this object for tensordec-plugin */

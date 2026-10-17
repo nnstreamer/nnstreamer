@@ -18,6 +18,7 @@
 
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api_util.h>
+#include <nnstreamer_subplugin.h>
 
 /* The number of labels pose_estimation assumes without a label file */
 #define DEFAULT_LABELS (14U)
@@ -708,6 +709,64 @@ TEST (tensorDecoderLabelFile, refuseEmptyLabelFile_n)
 
   decoder->exit (&pdata);
   removeTempFile (&label_file);
+}
+
+/**
+ * @brief Each option pose_estimation parses is described, and option4 names the modes it takes.
+ */
+TEST (tensorDecoderPoseOptions, describeOptions)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("pose_estimation");
+  const gchar *modes[] = { "heatmap-only", "heatmap-offset" };
+  GData *desc_list;
+  const gchar *desc;
+  void *pdata = NULL;
+  guint i;
+
+  ASSERT_TRUE (decoder != NULL);
+  desc_list = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "pose_estimation");
+  ASSERT_TRUE (desc_list != NULL);
+
+  for (i = 1; i <= 4; i++) {
+    g_autofree gchar *prop = g_strdup_printf ("option%u", i);
+
+    desc = (const gchar *) g_datalist_get_data (&desc_list, prop);
+    ASSERT_TRUE (desc != NULL) << prop;
+    EXPECT_GT (strlen (desc), 0U) << prop;
+  }
+
+  desc = (const gchar *) g_datalist_get_data (&desc_list, "option4");
+  ASSERT_TRUE (decoder->init (&pdata));
+  for (i = 0; i < G_N_ELEMENTS (modes); i++) {
+    EXPECT_TRUE (strstr (desc, modes[i]) != NULL) << modes[i];
+    EXPECT_TRUE (decoder->setOption (&pdata, 3, modes[i])) << modes[i];
+  }
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief pose_estimation describes no option it ignores, and refuses a mode option4 does not name.
+ */
+TEST (tensorDecoderPoseOptions, describeIgnoredOption_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("pose_estimation");
+  GData *desc_list;
+  void *pdata = NULL;
+  guint i;
+
+  ASSERT_TRUE (decoder != NULL);
+  desc_list = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "pose_estimation");
+  ASSERT_TRUE (desc_list != NULL);
+
+  for (i = 5; i <= 9; i++) {
+    g_autofree gchar *prop = g_strdup_printf ("option%u", i);
+
+    EXPECT_TRUE (g_datalist_get_data (&desc_list, prop) == NULL) << prop;
+  }
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_FALSE (decoder->setOption (&pdata, 3, "heatmap"));
+  decoder->exit (&pdata);
 }
 
 /**

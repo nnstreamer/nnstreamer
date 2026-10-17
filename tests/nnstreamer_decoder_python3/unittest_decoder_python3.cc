@@ -16,6 +16,7 @@
 #include <unittest_util.h>
 
 #include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_subplugin.h>
 #include <nnstreamer_util.h>
 #include <tensor_common.h>
 
@@ -832,6 +833,44 @@ TEST (nnstreamerDecoderPython3, decodeFloat16_n)
 
   dec->exit (&pdata);
   gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief The script path, the only option of the python3 decoder, is described.
+ */
+TEST (nnstreamerDecoderPython3, describeOptions)
+{
+  const GstTensorDecoderDef *dec = nnstreamer_decoder_find ("python3");
+  GData *desc_list;
+  const gchar *desc;
+
+  ASSERT_NE (dec, nullptr);
+  desc_list = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "python3");
+  ASSERT_NE (desc_list, nullptr);
+
+  desc = (const gchar *) g_datalist_get_data (&desc_list, "option1");
+  ASSERT_NE (desc, nullptr);
+  EXPECT_TRUE (strstr (desc, "CustomDecoder") != NULL) << desc;
+}
+
+/**
+ * @brief The python3 decoder describes no option it ignores.
+ */
+TEST (nnstreamerDecoderPython3, describeIgnoredOption_n)
+{
+  const GstTensorDecoderDef *dec = nnstreamer_decoder_find ("python3");
+  GData *desc_list;
+  guint i;
+
+  ASSERT_NE (dec, nullptr);
+  desc_list = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "python3");
+  ASSERT_NE (desc_list, nullptr);
+
+  for (i = 2; i <= 9; i++) {
+    g_autofree gchar *prop = g_strdup_printf ("option%u", i);
+
+    EXPECT_EQ (g_datalist_get_data (&desc_list, prop), nullptr) << prop;
+  }
 }
 
 /**
