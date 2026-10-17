@@ -68,6 +68,7 @@ fi
 
 PATH_TO_MODEL="../test_models/models/add_one_224.onnx"
 PATH_TO_INVALID_MODEL="../test_models/labels/labels.txt"
+# ssat-fixture: missing - exercise the missing-model error path
 PATH_TO_MISSING_MODEL="../test_models/models/no_such_model.onnx"
 
 if [[ ! -f ${PATH_TO_MODEL} ]]; then
