@@ -153,10 +153,7 @@ _parse_bool_string (const gchar * strval, gboolean def)
 static gchar *
 _strdup_getenv (const gchar * name)
 {
-  /**
-   * @todo Evaluate if we need to use secure_getenv() here
-   *  (and compatible with other OS
-   */
+  /* The environment is trusted, as GStreamer trusts GST_PLUGIN_PATH. */
   const gchar *tmp = g_getenv (name);
 
   return g_strdup (tmp);

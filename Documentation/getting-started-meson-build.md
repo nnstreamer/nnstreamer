@@ -8,7 +8,7 @@ NNStreamer uses meson/ninja as its standard build environment; both Tizen(GBS-OB
 
 With meson/ninja, you may build in the git repo directory and install nnstreamer binaries to your designated directories.
 However, you should be careful on configuring nnstreamer; i.e., the paths of subplugins and .ini file locations.
-Please note that nnstreamer tries to load /etc/nnstreamer.ini by default.
+Please note that nnstreamer tries to load /etc/nnstreamer.ini by default; step 7 below describes how the ini file is chosen.
 
 * https://mesonbuild.com/Getting-meson.html
 
@@ -135,3 +135,17 @@ $ build/tools/development/confchk/nnstreamer-check
 
 ```nnstreamer-check``` utility shows the status of your nnstreamer installation.
 It uses environmental-variables, nnstreamer.ini file, and hardcoded default values, with the respective order.
+
+***7. Configuration file and the environment***
+
+nnstreamer reads one main ini file, chosen in this order:
+1. the file named by the ```NNSTREAMER_CONF``` environment variable, if it is a regular file (not on Tizen),
+2. ```{sysconfdir}/nnstreamer.ini``` (under ```{prefix}``` when ```sysconfdir``` is relative),
+3. ```/etc/nnstreamer.ini```,
+4. the file named by ```NNSTREAMER_CONF```, when neither of the two above exists (Tizen included).
+
+The chosen ini sets the subplugin directories, ```enable_symlink```, ```enable_envvar``` and ```extra_config_path```, an extra ini whose subplugin directories are added as well.
+```enable_envvar``` (false when the key is absent) decides whether ```NNSTREAMER_FILTERS```, ```NNSTREAMER_DECODERS```, ```NNSTREAMER_CUSTOMFILTERS```, ```NNSTREAMER_CONVERTERS```, ```NNSTREAMER_TRAINERS``` and the ```NNSTREAMER_<group>_<key>``` overrides of ini values, spelled case-sensitively as in the ini (e.g., ```NNSTREAMER_filter_framework_priority_tflite``` for the ```framework=auto``` priority), are read; ```-Denable-env-var=false``` writes ```enable_envvar=false``` into the installed ini and does not disable ```NNSTREAMER_CONF```.
+
+nnstreamer trusts the environment of its process, as GStreamer does with ```GST_PLUGIN_PATH```: these variables select the shared objects nnstreamer loads, and nnstreamer does not ignore them in setuid, setgid or file-capability programs.
+Do not run nnstreamer in such a program with an environment you do not control; clear ```NNSTREAMER_*``` and ```GST_*``` before starting it, and keep the ini files and the subplugin directories writable only by root or another trusted account (e.g., in a read-only partition).
