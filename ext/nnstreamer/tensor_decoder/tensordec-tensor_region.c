@@ -806,6 +806,16 @@ void
 init_tr (void)
 {
   nnstreamer_decoder_probe (&tensorRegion);
+  nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_tensor_region,
+      "option1",
+      "The number of crop regions in each output buffer. They are the detected boxes left after non-maximum suppression, the highest score first; a region without a box is all zero. 1 is applied if not specified.",
+      "option2",
+      "The path to the label file (mandatory). It needs at least as many labels as the first dimension of the second input tensor.",
+      "option3",
+      "The box priors and parameters of the mobilenet-ssd model, PRIORS[:THRESHOLD[:Y_SCALE[:X_SCALE[:H_SCALE[:W_SCALE[:IOU_THRESHOLD]]]]]]. The box prior file is mandatory. An empty or omitted parameter keeps its default: detection threshold 0.5, Y and X box scales 10.0, H and W box scales 5.0, IOU threshold 0.5. e.g., box-priors.txt:0.65:::::0.6",
+      "option4",
+      "The input video size of the model, WIDTH:HEIGHT. The regions are given and clipped in this frame. 300:300 is applied if not specified.",
+      NULL);
 }
 
 /** @brief Destruct this object for tensordec-plugin */

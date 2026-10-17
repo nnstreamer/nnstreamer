@@ -589,6 +589,47 @@ TEST_F (tensorRegionDecode, droppedBoxTakesNoRegion_n)
   expectRegion (regions + 4, 0U, 0U, 0U, 0U);
 }
 
+/**
+ * @brief Each option tensor_region parses is described.
+ */
+TEST (tensorRegionOptions, describeOptions)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("tensor_region");
+  GData *desc_list;
+  guint i;
+
+  ASSERT_TRUE (decoder != NULL);
+  desc_list = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "tensor_region");
+  ASSERT_TRUE (desc_list != NULL);
+
+  for (i = 1; i <= 4; i++) {
+    g_autofree gchar *prop = g_strdup_printf ("option%u", i);
+    const gchar *desc = (const gchar *) g_datalist_get_data (&desc_list, prop);
+
+    ASSERT_TRUE (desc != NULL) << prop;
+    EXPECT_GT (strlen (desc), 0U) << prop;
+  }
+}
+
+/**
+ * @brief tensor_region describes no option it ignores.
+ */
+TEST (tensorRegionOptions, describeIgnoredOption_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("tensor_region");
+  GData *desc_list;
+  guint i;
+
+  ASSERT_TRUE (decoder != NULL);
+  desc_list = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "tensor_region");
+  ASSERT_TRUE (desc_list != NULL);
+
+  for (i = 5; i <= 9; i++) {
+    g_autofree gchar *prop = g_strdup_printf ("option%u", i);
+
+    EXPECT_TRUE (g_datalist_get_data (&desc_list, prop) == NULL) << prop;
+  }
+}
 
 /**
  * @brief Main function for unit test.

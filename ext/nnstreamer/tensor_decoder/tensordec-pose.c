@@ -27,7 +27,8 @@
  * @bug         No known bugs except for NYI items
  *
  * option1: Video Output Dimension (WIDTH:HEIGHT)
- * option2: Input Dimension (WIDTH:HEIGHT)
+ * option2: Dimension the keypoints are scaled from (WIDTH:HEIGHT)
+ *          heatmap-only: the heatmap size, heatmap-offset: the model input size
  * option3: Location of label file (optional)
  * 	The file describes the keypoints and their body connections.
  * 	A line per keypoint description is expected with the following syntax:
@@ -898,6 +899,16 @@ void
 init_pose (void)
 {
   nnstreamer_decoder_probe (&poseEstimation);
+  nnstreamer_decoder_set_custom_property_desc
+      (decoder_subplugin_pose_estimation, "option1",
+      "The output video size, WIDTH:HEIGHT (mandatory, e.g., 640:480). The output is an RGBA video of this size with the keypoints and their connections drawn on a transparent background.",
+      "option2",
+      "The size the keypoint positions are scaled from to the size of option1, WIDTH:HEIGHT (mandatory). For heatmap-only, the width and height of the heatmap tensor (e.g., 33:33); for heatmap-offset, the input video size of the model (e.g., 257:257).",
+      "option3",
+      "The path to the keypoint label file (optional). One line per keypoint: '<label> <index of a connected keypoint> ...', separated by single spaces; a label is cut at 15 characters and a keypoint takes up to 7 connections. There has to be exactly one line per keypoint, the first dimension of the heatmap tensor. Without this, the 14 built-in keypoints (top, neck, shoulders, elbows, wrists, hips, knees and ankles) are used.",
+      "option4",
+      "The decoding mode. { heatmap-only (default, input: #keypoints x width x height (float32, keypoint probability)), heatmap-offset (input: the heatmap tensor and #keypoints*2 x width x height (float32, offset of the keypoint within a heatmap cell), width and height the same in both tensors and 2 or larger. e.g., posenet_mobilenet_v1_100_257x257_multi_kpt_stripped.tflite) }",
+      NULL);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
