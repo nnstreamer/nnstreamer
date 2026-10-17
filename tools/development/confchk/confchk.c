@@ -23,6 +23,9 @@
 
 #define STR_BOOL(x) ((x) ? "TRUE" : "FALSE")
 
+/** Large enough for the sub-plugins and their property descriptions */
+#define DUMP_SIZE (65536)
+
 /**
  * @brief Dump NNStreamer configurations
  * @param[in] path the filepath of nnstreamer library
@@ -33,7 +36,7 @@ get_nnsconf_dump (const gchar * path)
   void *handle;
   void (*nnsconf_dump) (gchar * str, gulong size);
   void (*nnsconf_subplugin_dump) (gchar * str, gulong size);
-  gchar dump[8192];
+  g_autofree gchar *dump = NULL;
 
   handle = dlopen (path, RTLD_LAZY);
   if (!handle) {
@@ -55,7 +58,8 @@ get_nnsconf_dump (const gchar * path)
     return -2;
   }
 
-  nnsconf_dump (dump, 8192);
+  dump = g_malloc (DUMP_SIZE);
+  nnsconf_dump (dump, DUMP_SIZE);
 
   g_print ("\n");
   g_print ("NNStreamer configuration:\n");
@@ -63,7 +67,7 @@ get_nnsconf_dump (const gchar * path)
   g_print ("%s\n", dump);
   g_print ("============================================================\n");
 
-  nnsconf_subplugin_dump (dump, 8192);
+  nnsconf_subplugin_dump (dump, DUMP_SIZE);
 
   g_print ("\n");
   g_print ("NNStreamer registered sub-plugins:\n");
