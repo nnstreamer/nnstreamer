@@ -299,6 +299,8 @@ _setOption_mode (tensor_region *trData, const char *param)
 
     options = g_strsplit (param, ":", -1);
     noptions = g_strv_length (options);
+    if (noptions > MOBILENET_SSD_PARAMS_MAX + 1)
+      noptions = MOBILENET_SSD_PARAMS_MAX + 1;
 
     if (mobilenet_ssd->box_prior_path)
       g_free (mobilenet_ssd->box_prior_path);

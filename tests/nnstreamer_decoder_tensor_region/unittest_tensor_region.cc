@@ -590,6 +590,22 @@ TEST_F (tensorRegionDecode, droppedBoxTakesNoRegion_n)
 }
 
 /**
+ * @brief Values after the six parameters of option3 are ignored.
+ * @details They were written past the parameter array, over the labels
+ *          and the other state of the decoder.
+ */
+TEST_F (tensorRegionDecode, ignoreExtraBoxParams_n)
+{
+  g_autofree gchar *option3 = g_strdup_printf (
+      "%s:0.5:10.0:10.0:5.0:5.0:0.5:1:1:1:1:1:1:1:1:1:1", prior_file);
+  guint32 region[4];
+
+  ASSERT_TRUE (decoder->setOption (&pdata, 2, option3));
+  ASSERT_TRUE (decodeOne (0, 0, 0, 0, region));
+  expectRegion (region, 75U, 75U, 150U, 150U);
+}
+
+/**
  * @brief Each option tensor_region parses is described.
  */
 TEST (tensorRegionOptions, describeOptions)
