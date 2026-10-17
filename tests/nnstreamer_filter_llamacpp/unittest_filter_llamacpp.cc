@@ -68,6 +68,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   LoRAPaths *lora_paths;
   gint *new_sample_count;
   gsize max_sample_size;
+  GString *generated_text;
   gboolean pipeline_error;
   gboolean skip_test;
   gboolean skip_lora_test;
@@ -90,6 +91,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
     tensor_filter = nullptr;
     new_sample_count = nullptr;
     max_sample_size = 0;
+    generated_text = nullptr;
     pipeline_error = FALSE;
 
     model = g_build_filename (
@@ -125,6 +127,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
     /* Track the number of async callback invocations. */
     new_sample_count = g_new0 (gint, 1);
     max_sample_size = 0;
+    generated_text = g_string_new (NULL);
     pipeline_error = FALSE;
   }
 
@@ -135,11 +138,16 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   {
     clear_pipeline ();
     g_clear_pointer (&new_sample_count, g_free);
+    if (generated_text) {
+      g_string_free (generated_text, TRUE);
+      generated_text = nullptr;
+    }
   }
 
   /**
    * @brief Callback for appsink to pull a sample, print the generated text and
-   *        record the sample count and the largest payload seen.
+   *        record the sample count, the largest payload seen and the text
+   *        of all samples in arrival order.
    *
    * The payload size matters because a zero-token generation is expected to
    * arrive as a one-byte, terminator-only buffer rather than not at all.
@@ -161,6 +169,9 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
         g_print ("%.*s", (int) map.size, (char *) map.data);
         if (self && map.size > self->max_sample_size)
           self->max_sample_size = map.size;
+        if (self && self->generated_text && map.size > 0)
+          g_string_append_len (self->generated_text, (const gchar *) map.data,
+              strnlen ((const char *) map.data, map.size));
         gst_buffer_unmap (buffer, &map);
       }
       gst_sample_unref (sample);
@@ -338,6 +349,11 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputMultipleOutputsAsync_p)
 
 /**
  * @brief Test case for tensor_filter llama-cpp plugin with singleInputSingleOutputSync_p
+ *
+ * With no sampling option the sampler chain is greedy alone, so a fresh
+ * context generates the same tokens for the same prompt on every run.
+ * singleInputMultipleOutputsAsync_p already requires ten tokens from this
+ * prompt, so the output being more than the terminator is not model luck.
  */
 TEST_F (NNStreamerFilterLlamaCppTest, singleInputSingleOutputSync_p)
 {
@@ -351,6 +367,89 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputSingleOutputSync_p)
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
+  EXPECT_GT (max_sample_size, 1U);
+  /* The text and its terminator, nothing else. */
+  EXPECT_EQ (max_sample_size, generated_text->len + 1);
+}
+
+/**
+ * @brief Test that a synchronous generation is the same text as the tokens an
+ *        asynchronous generation dispatches one by one.
+ *
+ * Both runs use a fresh context and the greedy-only sampler chain, so they
+ * decode the same tokens; the comparison holds on any CPU backend and model
+ * version as long as generation stays deterministic.
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, syncGenerationMatchesAsyncTokens_p)
+{
+  g_autofree gchar *async_text = NULL;
+  gboolean async_done;
+
+  skip_llamacpp_tc ("syncGenerationMatchesAsyncTokens_p");
+
+  ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10"));
+  EXPECT_TRUE (data_push ("Hello my name is"));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  /* Ten tokens plus the empty buffer tensor_filter pushes per async invoke. */
+  async_done = wait_for_samples (11);
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  clear_pipeline ();
+  ASSERT_TRUE (async_done);
+
+  async_text = g_strdup (generated_text->str);
+  g_string_truncate (generated_text, 0);
+  g_atomic_int_set (new_sample_count, 0);
+  ASSERT_GT (strlen (async_text), 0U);
+
+  ASSERT_TRUE (create_pipeline (model, FALSE, "num_predict:10"));
+  EXPECT_TRUE (data_push ("Hello my name is"));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (*new_sample_count, 1);
+  EXPECT_STREQ (generated_text->str, async_text);
+}
+
+/**
+ * @brief Test that a synchronous generation with a smaller num_predict is a
+ *        strict prefix of one with a larger num_predict.
+ *
+ * Greedy decoding from a fresh context makes the first five tokens the same in
+ * both runs, and singleInputMultipleOutputsAsync_p shows that this prompt does
+ * not end within ten tokens.
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, syncGenerationNumPredictPrefix_p)
+{
+  g_autofree gchar *short_text = NULL;
+
+  skip_llamacpp_tc ("syncGenerationNumPredictPrefix_p");
+
+  ASSERT_TRUE (create_pipeline (model, FALSE, "num_predict:5"));
+  EXPECT_TRUE (data_push ("Hello my name is"));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  clear_pipeline ();
+
+  short_text = g_strdup (generated_text->str);
+  g_string_truncate (generated_text, 0);
+  g_atomic_int_set (new_sample_count, 0);
+  ASSERT_GT (strlen (short_text), 0U);
+
+  ASSERT_TRUE (create_pipeline (model, FALSE, "num_predict:10"));
+  EXPECT_TRUE (data_push ("Hello my name is"));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (*new_sample_count, 1);
+  EXPECT_TRUE (g_str_has_prefix (generated_text->str, short_text));
+  EXPECT_GT (generated_text->len, strlen (short_text));
 }
 
 /**
