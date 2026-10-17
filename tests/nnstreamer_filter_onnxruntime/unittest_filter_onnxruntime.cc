@@ -10,6 +10,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <cmath>
 #include <glib.h>
 #include <gst/gst.h>
 
@@ -47,8 +48,7 @@ _GetModelFilePath (gchar **model_file)
 /**
  * @brief internal function to get the float mobilenet v2 model
  * @note Use this model to verify inference results. Results of the quantized
- *       model depend on CPU features (e.g., AVX2 w/o VNNI saturates in
- *       onnxruntime kernels), giving a different argmax per machine.
+ *       model depend on the CPU, giving a different argmax on some machines.
  */
 static gboolean
 _GetFloatModelFilePath (gchar **model_file)
@@ -94,35 +94,72 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
   GstMemory *mem_res;
   GstMapInfo info_res;
   gboolean mapped;
+  gsize max_idx;
   UNUSED (element);
+  UNUSED (user_data);
 
   mem_res = gst_buffer_get_memory (buffer, 0);
   mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
   ASSERT_TRUE (mapped);
 
-  gint is_float = (gint) * ((guint8 *) user_data);
-  gsize idx, max_idx = 0U;
-
-  if (is_float == 0) {
-    guint8 *output = (guint8 *) info_res.data;
-    guint8 max_value = 0;
-
-    for (idx = 0; idx < info_res.size; ++idx) {
-      if (output[idx] > max_value) {
-        max_value = output[idx];
-        max_idx = idx;
-      }
-    }
-  } else if (is_float == 1) {
-    gfloat *output = (gfloat *) info_res.data;
-
-    max_idx = argmax_float (output, info_res.size / sizeof (gfloat));
-  }
+  max_idx = argmax_float ((gfloat *) info_res.data, info_res.size / sizeof (gfloat));
 
   gst_memory_unmap (mem_res, &info_res);
   gst_memory_unref (mem_res);
 
   EXPECT_EQ (max_idx, 951U);
+}
+
+/**
+ * @brief Signal to validate the output of the quantized model in tensor_sink
+ * @note The class is not checked: the argmax of the quantized model depends on
+ *       the CPU. The model ends with DequantizeLinear (scale 0.10035347, zero
+ *       point 94), so on every CPU each value is scale * (q - 94), q in 0..255.
+ */
+static void
+check_quant_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  const gfloat scale = 0.10035347f;
+  const gfloat zero_point = 94.0f;
+  GstMemory *mem_res;
+  GstMapInfo info_res;
+  gboolean mapped;
+  gfloat *output;
+  gfloat q, min_value, max_value, first_value = 0.0f;
+  gsize idx, num, off_grid = 0U, first_idx = 0U;
+  UNUSED (element);
+  UNUSED (user_data);
+
+  mem_res = gst_buffer_get_memory (buffer, 0);
+  mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
+  ASSERT_TRUE (mapped);
+
+  EXPECT_EQ (info_res.size, 1000U * sizeof (gfloat));
+
+  output = (gfloat *) info_res.data;
+  num = info_res.size / sizeof (gfloat);
+  min_value = max_value = (num > 0U) ? output[0] : 0.0f;
+
+  for (idx = 0; idx < num; ++idx) {
+    q = output[idx] / scale + zero_point;
+    if (!std::isfinite (q) || q < -0.01f || q > 255.01f
+        || std::fabs (q - std::round (q)) > 0.01f) {
+      if (off_grid++ == 0U) {
+        first_idx = idx;
+        first_value = output[idx];
+      }
+      continue;
+    }
+
+    min_value = MIN (min_value, output[idx]);
+    max_value = MAX (max_value, output[idx]);
+  }
+
+  gst_memory_unmap (mem_res, &info_res);
+  gst_memory_unref (mem_res);
+
+  EXPECT_EQ (off_grid, 0U) << "first at [" << first_idx << "] = " << first_value;
+  EXPECT_LT (min_value, max_value);
 }
 
 /**
@@ -378,10 +415,9 @@ TEST (nnstreamerFilterOnnxRuntime, floatModelResult)
 
   ASSERT_TRUE (sink_handle != nullptr);
 
-  guint8 is_float = 1;
   guint count = 0U;
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) check_output, &is_float);
+  g_signal_connect (sink_handle, "new-data", (GCallback) check_output, NULL);
   g_signal_connect (sink_handle, "new-data", (GCallback) count_output, &count);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
@@ -399,7 +435,7 @@ TEST (nnstreamerFilterOnnxRuntime, floatModelResult)
 
 /**
  * @brief Positive case to launch gst pipeline with the quantized model
- * @note The output value is not verified; quantized results are CPU-dependent.
+ * @note The class is not verified; quantized results are CPU-dependent.
  */
 TEST (nnstreamerFilterOnnxRuntime, quantModelLaunch00)
 {
@@ -424,6 +460,7 @@ TEST (nnstreamerFilterOnnxRuntime, quantModelLaunch00)
 
   ASSERT_TRUE (sink_handle != nullptr);
 
+  g_signal_connect (sink_handle, "new-data", (GCallback) check_quant_output, NULL);
   g_signal_connect (sink_handle, "new-data", (GCallback) count_output, &count);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
