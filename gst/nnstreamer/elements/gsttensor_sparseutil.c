@@ -26,6 +26,20 @@
 GstMemory *
 gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem)
 {
+  return gst_tensor_sparse_to_dense_with_limit (meta, mem, G_MAXSIZE);
+}
+
+/**
+ * @brief Decode a sparse tensor without allocating beyond the output limit.
+ * @param[in,out] meta tensor meta structure to be updated
+ * @param[in] mem gst-memory of sparse tensor data
+ * @param[in] max_size maximum dense data size in bytes
+ * @return newly allocated dense memory, or NULL on malformed or oversized input
+ */
+GstMemory *
+gst_tensor_sparse_to_dense_with_limit (GstTensorMetaInfo *meta, GstMemory *mem,
+    gsize max_size)
+{
   GstMemory *dense = NULL;
   GstMapInfo map;
   guint i, nnz;
@@ -81,6 +95,13 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem)
     nns_loge ("Given memory holds %" G_GSIZE_FORMAT
         " bytes, too small for the %u non-zero elements of the meta info",
         map.size, nnz);
+    goto done;
+  }
+
+  if (output_size > max_size) {
+    nns_loge ("The dense tensor needs %" G_GSIZE_FORMAT
+        " bytes, exceeding the negotiated limit of %" G_GSIZE_FORMAT,
+        output_size, max_size);
     goto done;
   }
 

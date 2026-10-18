@@ -10,8 +10,10 @@
 #include <gtest/gtest.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
+#include <nnstreamer_plugin_api.h>
 #include <string.h>
 #include <tensor_common.h>
+#include <utility>
 
 #include "../gst/nnstreamer/elements/gsttensor_sparsedec.h"
 #include "../gst/nnstreamer/elements/gsttensor_sparseenc.h"
@@ -267,6 +269,180 @@ TEST (testTensorSparseExtra, encCapsRenegotiation_n)
 
   gst_harness_teardown (h);
 }
+
+/**
+ * @brief Describe count dense int32 tensors with the given number of elements.
+ */
+static GstCaps *
+_sparse_caps_with_size (guint count, guint elements)
+{
+  GstTensorsConfig config;
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = count;
+  config.rate_n = 0;
+  config.rate_d = 1;
+  gchar *dimension = g_strdup_printf ("%u:1:1:1", elements);
+  for (guint i = 0; i < count; i++) {
+    GstTensorInfo *info = gst_tensors_info_get_nth_info (&config.info, i);
+    info->type = _NNS_INT32;
+    gst_tensor_parse_dimension (dimension, info->dimension);
+  }
+  GstCaps *caps = gst_tensors_caps_from_config (&config);
+  g_free (dimension);
+  gst_tensors_config_free (&config);
+  return caps;
+}
+
+/**
+ * @brief Build sparse inputs, optionally enlarging only the last dense tensor.
+ */
+static GstBuffer *
+_sparse_buffer_with_size (guint count, guint elements, gboolean oversized_last)
+{
+  GstBuffer *buffer = gst_buffer_new ();
+  for (guint i = 0; i < count; i++) {
+    const guint size = elements + (oversized_last && i + 1 == count);
+    const gint32 value = 7;
+    const guint index = size - 1;
+    gchar *dimension = g_strdup_printf ("%u", size);
+    GstMemory *memory = _sparse_new_memory (dimension, 1, &value, &index);
+    g_free (dimension);
+    EXPECT_NE (memory, nullptr);
+    EXPECT_TRUE (gst_tensor_buffer_append_memory (buffer, memory, NULL));
+  }
+  return buffer;
+}
+
+/**
+ * @brief Check every decoded tensor, including tensors in the extra block.
+ */
+static void
+_sparse_check_output_size (GstHarness *h, guint count, guint elements)
+{
+  EXPECT_EQ (gst_harness_buffers_in_queue (h), 1U);
+  if (gst_harness_buffers_in_queue (h) == 0)
+    return;
+  GstBuffer *output = gst_harness_pull (h);
+  EXPECT_EQ (gst_tensor_buffer_get_count (output), count);
+  for (guint i = 0; i < count; i++) {
+    GstMemory *memory = gst_tensor_buffer_get_nth_memory (output, i);
+    ASSERT_NE (memory, nullptr);
+    GstMapInfo map;
+    if (gst_memory_map (memory, &map, GST_MAP_READ)) {
+      EXPECT_EQ (map.size, elements * sizeof (gint32));
+      if (map.size == elements * sizeof (gint32)) {
+        EXPECT_EQ (((gint32 *) map.data)[0], 0);
+        EXPECT_EQ (((gint32 *) map.data)[elements - 1], 7);
+      }
+      gst_memory_unmap (memory, &map);
+    } else {
+      ADD_FAILURE () << "Cannot map decoded tensor " << i;
+    }
+    gst_memory_unref (memory);
+  }
+  gst_buffer_unref (output);
+}
+
+/**
+ * @brief Cover single, multiple and extra-tensor negotiated outputs.
+ */
+class TensorSparseLimitTest : public ::testing::TestWithParam<guint>
+{
+};
+
+/**
+ * @brief Refuse an oversized last tensor and recover on the same decoder.
+ */
+TEST_P (TensorSparseLimitTest, oversizedTensor_n)
+{
+  const guint count = GetParam ();
+  GstHarness *h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_NE (h, nullptr);
+  gst_harness_set_sink_caps (h, _sparse_caps_with_size (count, 40));
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+  EXPECT_EQ (gst_harness_push (h, _sparse_buffer_with_size (count, 40, TRUE)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (gst_harness_push (h, _sparse_buffer_with_size (count, 40, FALSE)), GST_FLOW_OK);
+  _sparse_check_output_size (h, count, 40);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Valid output follows renegotiation rather than retaining a stale limit.
+ */
+TEST_P (TensorSparseLimitTest, renegotiatedSize)
+{
+  const guint count = GetParam ();
+  GstHarness *h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_NE (h, nullptr);
+  for (const guint elements : { 40U, 80U }) {
+    gst_harness_set_sink_caps (h, _sparse_caps_with_size (count, elements));
+    gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+    EXPECT_EQ (gst_harness_push (h, _sparse_buffer_with_size (count, elements, FALSE)),
+        GST_FLOW_OK);
+    _sparse_check_output_size (h, count, elements);
+  }
+  gst_harness_teardown (h);
+}
+
+INSTANTIATE_TEST_SUITE_P (Negotiated, TensorSparseLimitTest,
+    ::testing::Values (1U, 2U, EXTRA_NUM_TENSORS));
+
+/**
+ * @brief Exercise both missing and extra tensors against the negotiated count.
+ */
+class TensorSparseCountTest : public ::testing::TestWithParam<std::pair<guint, guint>>
+{
+};
+
+/**
+ * @brief A count mismatch is refused without decoding any of its tensors.
+ */
+TEST_P (TensorSparseCountTest, mismatchedCount_n)
+{
+  const guint expected = GetParam ().first;
+  const guint actual = GetParam ().second;
+  GstHarness *h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_NE (h, nullptr);
+  gst_harness_set_sink_caps (h, _sparse_caps_with_size (expected, 40));
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+  EXPECT_EQ (gst_harness_push (h, _sparse_buffer_with_size (actual, 40, FALSE)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+INSTANTIATE_TEST_SUITE_P (Negotiated, TensorSparseCountTest,
+    ::testing::Values (std::make_pair (1U, 2U), std::make_pair (2U, 1U),
+        std::make_pair (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS - 1),
+        std::make_pair (EXTRA_NUM_TENSORS - 1, EXTRA_NUM_TENSORS)));
+
+/**
+ * @brief Preserve the existing drop behavior for shapes within the size limit.
+ */
+class TensorSparseShapeTest : public ::testing::TestWithParam<const char *>
+{
+};
+
+/**
+ * @brief A smaller or equally sized incompatible shape is still dropped.
+ */
+TEST_P (TensorSparseShapeTest, incompatibleShape_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_NE (h, nullptr);
+  gst_harness_set_sink_caps_str (h, SPARSE_DENSE_CAPS_STR);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+  const gint32 value = 7;
+  const guint index = 0;
+  GstMemory *memory = _sparse_new_memory (GetParam (), 1, &value, &index);
+  ASSERT_NE (memory, nullptr);
+  EXPECT_EQ (gst_harness_push (h, _sparse_new_buffer (memory)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+INSTANTIATE_TEST_SUITE_P (
+    Negotiated, TensorSparseShapeTest, ::testing::Values ("20", "20:2"));
 
 /**
  * @brief Main GTest
