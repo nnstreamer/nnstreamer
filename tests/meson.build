@@ -187,10 +187,14 @@ if gtest_dep.found()
 
     test('unittest_plugins', unittest_plugins, timeout: 120, env: testenv)
 
+    # Executable symbol interposition observes GLib allocations on Linux only.
+    sparse_allocation_observer = host_machine.system() == 'linux'
     # Run unittest_sparse
     unittest_sparse = executable('unittest_sparse',
       join_paths('nnstreamer_sparse', 'unittest_sparse.cc'),
-      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps, libdl_dep],
+      cpp_args: sparse_allocation_observer ? ['-DNNSTREAMER_TEST_ALLOC_OBSERVER'] : [],
+      export_dynamic: sparse_allocation_observer,
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )

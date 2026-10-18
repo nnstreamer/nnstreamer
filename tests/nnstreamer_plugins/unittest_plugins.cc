@@ -15276,8 +15276,8 @@ TEST (testTensorSparse, decPushFailure_n)
 }
 
 /**
- * @brief Test for tensor_sparse_dec, the decoded buffer is dropped when it does
- *        not match the negotiated downstream config.
+ * @brief Refuse a sparse tensor that exceeds the negotiated dense size before
+ *        allocating its decoded output.
  */
 TEST (testTensorSparse, decConfigMismatch_n)
 {
@@ -15297,7 +15297,7 @@ TEST (testTensorSparse, decConfigMismatch_n)
   sparse = _sparse_new_sparse_memory (&info);
   ASSERT_TRUE (sparse != NULL);
 
-  EXPECT_EQ (gst_harness_push (h, _sparse_new_buffer (sparse)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_push (h, _sparse_new_buffer (sparse)), GST_FLOW_ERROR);
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
 
   gst_tensor_info_free (&info);

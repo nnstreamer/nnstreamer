@@ -30,6 +30,17 @@ extern GstMemory *
 gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem);
 
 /**
+ * @brief Decode a sparse tensor without allocating beyond the output limit.
+ * @param[in,out] meta tensor meta structure to be updated
+ * @param[in] mem gst-memory of sparse tensor data
+ * @param[in] max_size maximum dense data size in bytes
+ * @return newly allocated dense memory, or NULL on malformed or oversized input
+ */
+extern GstMemory *
+gst_tensor_sparse_to_dense_with_limit (GstTensorMetaInfo * meta, GstMemory * mem,
+    gsize max_size);
+
+/**
  * @brief Make sparse tensor with input dense tensor.
  * @param[in,out] meta tensor meta structure to be updated
  * @param[in] mem gst-memory of dense tensor data
