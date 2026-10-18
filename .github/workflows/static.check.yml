@@ -184,6 +184,20 @@ jobs:
           else
             echo "Skipped: $checker is not in this branch's tree and this PR does not remove it."
           fi
+      - name: /Checker/ Valgrind GTest filter names
+        # The workflow is read from the merge ref, but checkout uses the PR head.
+        # Older branches must not fail just because this checker is absent there.
+        run: |
+          checker=.github/workflows/static.check.scripts/valgrind_filters.py
+          if [ -f "$checker" ]; then
+            python3 "$checker"
+            python3 .github/workflows/static.check.scripts/test_valgrind_filters.py
+          elif git show --pretty="format:" --name-only --no-renames --diff-filter=D ${{ github.event.pull_request.head.sha }} -${{ github.event.pull_request.commits }} | grep -qxF "$checker"; then
+            echo "::error::This PR removes $checker; remove its workflow step too, or restore the script."
+            exit 1
+          else
+            echo "Skipped: $checker is not in this branch's tree and this PR does not remove it."
+          fi
       - name: /Checker/ shellcheck for shell scripts
         # Originally from "pr-prebuild-shellcheck"
         run: |
