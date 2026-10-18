@@ -1299,6 +1299,12 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       outbuf = gst_buffer_new ();
       for (list = curr_act_option; list != NULL; list = list->next) {
         i = GPOINTER_TO_INT (list->data);
+        if (i >= num_mems) {
+          GST_ELEMENT_ERROR (tensor_if, STREAM, WRONG_TYPE, (NULL),
+              ("Tensor index %u is outside the %u input tensors.", i, num_mems));
+          res = GST_FLOW_ERROR;
+          break;
+        }
         src = gst_tensors_info_get_nth_info (&tensor_if->in_config.info, i);
 
         if (config->info.num_tensors == 0) {
@@ -1311,6 +1317,8 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         mem = gst_tensor_buffer_get_nth_memory (buf, i);
         gst_tensor_buffer_append_memory (outbuf, mem, src);
       }
+      if (res != GST_FLOW_OK)
+        break;
       config->info.num_tensors = info_idx;
       break;
     }
@@ -1319,6 +1327,11 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     default:
       GST_DEBUG_OBJECT (tensor_if, " Not defined behavior");
       break;
+  }
+
+  if (res != GST_FLOW_OK) {
+    gst_buffer_unref (outbuf);
+    goto done;
   }
 
   srcpad =
