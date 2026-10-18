@@ -1317,8 +1317,11 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         mem = gst_tensor_buffer_get_nth_memory (buf, i);
         gst_tensor_buffer_append_memory (outbuf, mem, src);
       }
-      if (res != GST_FLOW_OK)
+      if (res != GST_FLOW_OK) {
+        if (info_idx > 0)
+          gst_tensors_info_free (&config->info);
         break;
+      }
       config->info.num_tensors = info_idx;
       break;
     }
