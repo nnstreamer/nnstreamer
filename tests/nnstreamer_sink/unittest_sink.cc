@@ -1682,17 +1682,26 @@ TEST (tensorStreamTest, muxRefreshMode)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS_MUX_4 };
-  guint timeout_id;
+  GSource *timeout;
+  GSource *push_timer;
 
   ASSERT_TRUE (_setup_pipeline (option));
 
   gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
 
-  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
+  push_timer = g_timeout_source_new (100);
+  g_source_set_callback (push_timer, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE), NULL);
+  g_source_attach (push_timer, NULL);
 
-  timeout_id = g_timeout_add (3000, _test_src_eos_timer_cb, g_test_data.loop);
+  /* Wait for EOS; the deadline only bounds a stalled pipeline under Valgrind. */
+  timeout = g_timeout_source_new_seconds (30);
+  g_source_set_callback (timeout, _test_src_eos_timer_cb, g_test_data.loop, NULL);
+  g_source_attach (timeout, NULL);
   g_main_loop_run (g_test_data.loop);
-  g_source_remove (timeout_id);
+  g_source_destroy (timeout);
+  g_source_unref (timeout);
+  g_source_destroy (push_timer);
+  g_source_unref (push_timer);
 
   EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);

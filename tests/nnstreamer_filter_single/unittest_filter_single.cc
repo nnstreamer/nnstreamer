@@ -959,7 +959,7 @@ class NNSFilterSingleInvokeAsyncTest : public ::testing::Test
     output.size = 0;
 
     g_object_set (G_OBJECT (single), "framework", "llamacpp", "model", model_file,
-        "invoke-dynamic", TRUE, "invoke-async", TRUE, "custom", "num_predict:10", NULL);
+        "invoke-dynamic", TRUE, "invoke-async", TRUE, "custom", "num_predict:2", NULL);
   }
 
   /**
@@ -972,6 +972,15 @@ class NNSFilterSingleInvokeAsyncTest : public ::testing::Test
     g_free (input.data);
   }
 };
+
+/**
+ * @brief Synchronize callback progress with the asynchronous invoke test.
+ */
+typedef struct {
+  GMutex mutex;
+  GCond cond;
+  guint count;
+} InvokeAsyncCallbackData;
 
 /**
  * @brief Callback function invoked for asynchronous output
@@ -988,8 +997,11 @@ _invoke_async_callback (GstTensorMemory *data, GstTensorsInfo *info, void *user_
 
   /* Track the number of async callback invocations. */
   if (user_data) {
-    guint *callback_count = (guint *) user_data;
-    (*callback_count)++;
+    auto *callback_data = (InvokeAsyncCallbackData *) user_data;
+    g_mutex_lock (&callback_data->mutex);
+    callback_data->count++;
+    g_cond_signal (&callback_data->cond);
+    g_mutex_unlock (&callback_data->mutex);
   }
 
   EXPECT_EQ (info->num_tensors, 1U);
@@ -1007,17 +1019,30 @@ TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsync_p)
 {
   skip_llamacpp_tc ("invokeAsync_p");
 
-  guint *count = g_new0 (guint, 1);
+  InvokeAsyncCallbackData callback_data = {};
+  /* Bound a hung worker without timing out slow memcheck prompt decoding. */
+  const gint64 deadline = g_get_monotonic_time () + 180 * G_TIME_SPAN_SECOND;
+  guint count;
 
-  EXPECT_TRUE (klass->set_invoke_async_callback (single, _invoke_async_callback, count));
+  g_mutex_init (&callback_data.mutex);
+  g_cond_init (&callback_data.cond);
+
+  EXPECT_TRUE (klass->set_invoke_async_callback (single, _invoke_async_callback, &callback_data));
   EXPECT_TRUE (klass->invoke (single, &input, &output, TRUE));
-  /* Wait for the test to end until all tokens have been invoked.*/
-  g_usleep (3000000);
-  /* Verify the number of times the callback was called */
-  EXPECT_GT (*count, 1) << "Callback was not invoked even once.";
+
+  /* Two tokens suffice to verify repeated callbacks, even under Valgrind. */
+  g_mutex_lock (&callback_data.mutex);
+  while (callback_data.count < 2) {
+    if (!g_cond_wait_until (&callback_data.cond, &callback_data.mutex, deadline))
+      break;
+  }
+  count = callback_data.count;
+  g_mutex_unlock (&callback_data.mutex);
 
   EXPECT_TRUE (klass->stop (single));
-  g_free (count);
+  EXPECT_GE (count, 2U) << "Timed out waiting for two asynchronous outputs.";
+  g_cond_clear (&callback_data.cond);
+  g_mutex_clear (&callback_data.mutex);
 }
 
 /**
