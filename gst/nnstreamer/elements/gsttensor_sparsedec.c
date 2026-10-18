@@ -18,6 +18,10 @@
  * The input is always in the format of other/tensors,format=sparse.
  * The output is always in the format of ohter/tensors,format=static.
  *
+ * With negotiated dense output caps, the tensor count and each dense data size
+ * are bounded before decoding. A buffer exceeding these limits returns a flow
+ * error instead of allocating the declared output and dropping it afterwards.
+ *
  * Please see also tensor_sparse_enc.
  *
  * <refsect2>
@@ -374,6 +378,7 @@ gst_tensor_sparse_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstTensorsInfo info;
   GstTensorInfo *_info;
   guint i;
+  gboolean output_configured;
 
   UNUSED (pad);
 
@@ -387,10 +392,25 @@ gst_tensor_sparse_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   gst_tensors_info_init (&info);
   info.num_tensors = gst_tensor_buffer_get_count (buf);
+  output_configured = gst_tensors_config_validate (&self->out_config);
+
+  if (output_configured &&
+      info.num_tensors != self->out_config.info.num_tensors) {
+    nns_loge ("The buffer has %u tensors, but the output caps declare %u",
+        info.num_tensors, self->out_config.info.num_tensors);
+    goto done;
+  }
 
   for (i = 0; i < info.num_tensors; ++i) {
+    gsize max_size = G_MAXSIZE;
+
+    if (output_configured) {
+      _info = gst_tensors_info_get_nth_info (&self->out_config.info, i);
+      max_size = gst_tensor_info_get_size (_info);
+    }
+
     in_mem = gst_tensor_buffer_get_nth_memory (buf, i);
-    out_mem = gst_tensor_sparse_to_dense (&meta, in_mem);
+    out_mem = gst_tensor_sparse_to_dense_with_limit (&meta, in_mem, max_size);
     gst_memory_unref (in_mem);
 
     if (!out_mem) {
@@ -404,7 +424,7 @@ gst_tensor_sparse_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   }
 
   /* check the decoded tensor with negotiated config when it's valid */
-  if (gst_tensors_config_validate (&self->out_config)) {
+  if (output_configured) {
     if (!gst_tensors_info_is_equal (&self->out_config.info, &info)) {
       /* if it's not compatible with downstream, do not send the buffer */
       /** @todo consider more error handling */
