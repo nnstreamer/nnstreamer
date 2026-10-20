@@ -45,7 +45,9 @@ typedef struct _GstMqttSrcClass GstMqttSrcClass;
  */
 struct _GstMqttSrc {
   GstBaseSrc parent;
-  GstCaps *caps;
+  GstCaps *caps; /**< the caps last set on the pad, set by the streaming thread */
+  GstCaps *recv_caps; /**< the caps of the last received message, set by the paho thread */
+  gchar *recv_caps_str; /**< the header caps string recv_caps was parsed from */
   GQuark gquark_err_tag;
   GError *err;
   gint64 base_time_epoch;
