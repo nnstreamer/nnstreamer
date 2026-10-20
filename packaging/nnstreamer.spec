@@ -40,6 +40,8 @@
 %define		ncnn_support 1
 # Enable executorch_support when executorch package is ready.
 %define		executorch_support 0
+# executorch-llama also needs the LLM runner of ExecuTorch (EXECUTORCH_BUILD_EXTENSION_LLM_RUNNER).
+%define		executorch_llama_support 0
 %define         tensorrt_support 0
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
@@ -969,6 +971,11 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %else
 %define enable_executorch -Dexecutorch-support=disabled
 %endif
+%if 0%{?executorch_support} && 0%{?executorch_llama_support}
+%define enable_executorch_llama -Dexecutorch-llama-support=enabled
+%else
+%define enable_executorch_llama -Dexecutorch-llama-support=disabled
+%endif
 
 # Support ncnn
 %if 0%{?ncnn_support}
@@ -1041,7 +1048,7 @@ meson setup %{builddir} \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
-	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} %{enable_executorch} \
+	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} %{enable_executorch} %{enable_executorch_llama} \
 	%{enable_ncnn} %{enable_test} %{enable_test_coverage} %{install_test} \
 	%{fp16_support} %{nnsedge} %{enable_ml_agent} %{enable_tizen_hal}
 
@@ -1348,7 +1355,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_executorch.so
+%if 0%{?executorch_llama_support}
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_executorch-llama.so
+%endif
 %endif
 
 # for ncnn

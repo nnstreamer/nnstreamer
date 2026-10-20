@@ -820,7 +820,8 @@ endif
 
 if executorch_llama_support_is_available
   filter_sub_executorch_llama_sources = ['tensor_filter_executorch_llama.cc']
-  nnstreamer_filter_executorch_llama_deps = [executorch_llama_support_deps, glib_dep, nnstreamer_single_dep]
+  # executorch_llama_runner_dep carries the ExecuTorch headers as system headers.
+  nnstreamer_filter_executorch_llama_deps = [executorch_llama_runner_dep, glib_dep, nnstreamer_single_dep]
 
   executorch_llama_compile_args = cxx.get_supported_arguments([
     '-Wno-sign-compare',
@@ -829,9 +830,12 @@ if executorch_llama_support_is_available
 
   nnstreamer_filter_executorch_llama_deps += declare_dependency(compile_args: executorch_llama_compile_args)
 
+  # Keep the statically linked runner, tokenizers, re2 and abseil out of the
+  # dynamic symbol table, where they could interpose on other copies in the process.
   shared_library('nnstreamer_filter_executorch-llama',
     filter_sub_executorch_llama_sources,
     dependencies: nnstreamer_filter_executorch_llama_deps,
+    link_args: cxx.get_supported_link_arguments('-Wl,--exclude-libs,ALL'),
     install: true,
     install_dir: filter_subplugin_install_dir
   )
