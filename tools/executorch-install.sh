@@ -85,7 +85,10 @@ fi
 # EXECUTORCH_BUILD_SHARED is what produces libexecutorch.so,
 # libexecutorch_portable_ops.so and executorch.pc. EXTENSION_MODULE is the API
 # the subplugin is written against, and it in turn requires the data loader,
-# the flat tensor reader and the named data map.
+# the flat tensor reader and the named data map. EXTENSION_LLM_RUNNER is what
+# the executorch-llama subplugin is written against; it brings the tokenizers
+# and their regex and sentencepiece libraries along, all installed as static
+# libraries.
 cmake -B "${SRC_DIR}/cmake-out" -S "${SRC_DIR}" \
   -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
   -DCMAKE_INSTALL_LIBDIR=lib \
@@ -99,6 +102,8 @@ cmake -B "${SRC_DIR}/cmake-out" -S "${SRC_DIR}" \
   -DEXECUTORCH_BUILD_EXTENSION_FLAT_TENSOR=ON \
   -DEXECUTORCH_BUILD_EXTENSION_TENSOR=ON \
   -DEXECUTORCH_BUILD_PORTABLE_OPS=ON \
+  -DEXECUTORCH_BUILD_EXTENSION_LLM=ON \
+  -DEXECUTORCH_BUILD_EXTENSION_LLM_RUNNER=ON \
   -DEXECUTORCH_BUILD_PYBIND=OFF \
   -DBUILD_TESTING=OFF
 

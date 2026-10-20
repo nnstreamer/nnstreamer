@@ -598,16 +598,51 @@ if not get_option('dali-support').disabled() and have_python3
   endif
 endif
 
-# executorch-llama needs the llama runner from the ExecuTorch examples tree,
-# which `cmake --install` does not install. Probing executorch.pc alone would
-# turn this subplugin on wherever the ExecuTorch runtime is present and then
-# fail the build on a missing header, so probe for the runner itself.
+# executorch-llama is built on the LLM runner of ExecuTorch
+# (EXECUTORCH_BUILD_EXTENSION_LLM_RUNNER), installed as static libraries next to
+# libexecutorch.so with no pkg-config file of its own. Probe for the runner, not
+# just executorch.pc, so that the subplugin stays off where the runtime is built
+# without it. Only the runner's own libraries are linked statically; the runtime
+# itself must come from libexecutorch.so, whose kernel registry the operator
+# library fills.
 executorch_llama_runner_dep = dependency('', required: false)
 if not get_option('executorch-llama-support').disabled()
   executorch_probe_dep = dependency('executorch', required: false)
   if executorch_probe_dep.found() and \
-    cxx.has_header('executorch/examples/models/llama/runner/runner.h', dependencies: executorch_probe_dep)
-    executorch_llama_runner_dep = declare_dependency()
+    not cxx.has_header('executorch/extension/llm/runner/text_llm_runner.h', dependencies: executorch_probe_dep)
+    message('executorch-llama: ExecuTorch is built without EXECUTORCH_BUILD_EXTENSION_LLM_RUNNER')
+  elif executorch_probe_dep.found() and \
+      executorch_probe_dep.get_variable(pkgconfig: 'libdir', default_value: '') == ''
+    message('executorch-llama: executorch.pc names no libdir to find the LLM runner in')
+  elif executorch_probe_dep.found()
+    executorch_libdir = executorch_probe_dep.get_variable(pkgconfig: 'libdir')
+    executorch_llama_runner_libs = []
+    executorch_llama_runner_missing = []
+    foreach lib : ['extension_llm_runner', 'extension_llm_sampler', 'extension_memory_allocator',
+        'kernels_util_all_deps', 'tokenizers', 'sentencepiece', 'regex_lookahead', 'pcre2-8']
+      executorch_llama_runner_lib = cxx.find_library(lib, dirs: executorch_libdir, static: true, required: false)
+      if not executorch_llama_runner_lib.found()
+        executorch_llama_runner_missing += lib
+      endif
+      executorch_llama_runner_libs += executorch_llama_runner_lib
+    endforeach
+    # The tokenizers need the re2 (and its abseil) they were built with.
+    executorch_re2_dep = dependency('re2', static: true, required: false)
+    if executorch_re2_dep.found() and \
+        executorch_re2_dep.get_variable(pkgconfig: 'libdir', default_value: '') == executorch_libdir
+      executorch_llama_runner_libs += executorch_re2_dep
+    else
+      executorch_llama_runner_missing += 're2 (re2.pc of @0@)'.format(executorch_libdir)
+    endif
+
+    if executorch_llama_runner_missing.length() == 0
+      # The runner and tokenizer headers do not build clean under -Wextra -Werror.
+      executorch_llama_runner_dep = declare_dependency(
+        dependencies: [executorch_probe_dep.as_system()] + executorch_llama_runner_libs)
+    else
+      message('executorch-llama: missing static libraries of the ExecuTorch LLM runner: ' +
+        ', '.join(executorch_llama_runner_missing))
+    endif
   endif
 endif
 

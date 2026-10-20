@@ -73,6 +73,13 @@ Input and output tensor types are taken from the model and mapped as follows:
 
 A model with any other type at its boundary (```BFloat16```, ```UInt16``` and wider unsigned types, the complex, ```QInt*```/```QUInt*``` and bits types) is refused when the filter opens it. A ```Bool``` tensor is passed through as uint8, so every byte fed to a ```Bool``` input must be 0 or 1; ExecuTorch kernels read it as C++ ```bool```, and any other value is undefined behavior.
 
+### ExecuTorch Llama
+- subplugin name: 'executorch-llama'
+
+This subplugin generates text with a language model exported to ExecuTorch, through the ExecuTorch LLM runner (```TextLLMRunner```). Give exactly the model and its tokenizer (tiktoken, sentencepiece, Hugging Face ```tokenizer.json``` or llama2.c) as ```model=model.pte,tokenizer.model``` and set ```invoke-dynamic=true```. Each input buffer is a prompt, generated from the beginning; the output is a flexible uint8 tensor holding the prompt followed by the generated text, which ends with the text of the end-of-sequence token (e.g., ```<|end_of_text|>```) when that token stopped the generation. Tokens are sampled at temperature 0.8 until an end-of-sequence token, or until the prompt and the text reach 128 tokens; for a model whose ```get_max_seq_len``` is below its ```get_max_context_len```, the runner applies the 128 to the generated text alone. A prompt that leaves no room to generate is an error. The runner also prints the text it generates and a statistics report for each buffer on the standard output.
+
+It needs ExecuTorch built with the LLM runner, which ```tools/executorch-install.sh``` does, and the ```executorch-llama-support``` meson option.
+
 ### MXNET
 ### NNFW
 ### ONNX Runtime

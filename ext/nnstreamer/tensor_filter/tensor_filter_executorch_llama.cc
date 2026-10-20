@@ -6,7 +6,7 @@
  * @brief   NNStreamer tensor-filter sub-plugin for ExecuTorch Llama
  * @author
  * @see     https://github.com/nnstreamer/nnstreamer
- *          https://github.com/pytorch/executorch/blob/main/examples/models/llama
+ *          https://github.com/pytorch/executorch/tree/main/extension/llm/runner
  * @bug     No known bugs.
  * @note    Currently experimental.
  * @details A pipeline example:
@@ -24,12 +24,11 @@
 #include <nnstreamer_util.h>
 #include <vector>
 
-#include <executorch/extension/module/module.h>
-#include <executorch/extension/tensor/tensor.h>
+#include <executorch/extension/llm/runner/llm_runner_helper.h>
+#include <executorch/extension/llm/runner/text_llm_runner.h>
 
-#include <executorch/examples/models/llama/runner/runner.h>
-
-using namespace torch::executor;
+namespace llm = ::executorch::extension::llm;
+using ::executorch::runtime::Error;
 
 namespace nnstreamer
 {
@@ -55,7 +54,7 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
   static executorch_llama_subplugin *registeredRepresentation;
 
   /* executorch */
-  std::unique_ptr<example::Runner> runner; /**< Runner for Llama model */
+  std::unique_ptr<llm::TextLLMRunner> runner; /**< Runner for Llama model */
 
   public:
   static void init_filter_executorch_llama ();
@@ -95,6 +94,9 @@ void
 executorch_llama_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   try {
+    if (prop->num_models != 2)
+      throw std::invalid_argument ("Exactly a model (.pte) and a tokenizer are required");
+
     /* Load model file (.pte) */
     if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
       const std::string err_msg
@@ -109,9 +111,21 @@ executorch_llama_subplugin::configure_instance (const GstTensorFilterProperties 
       throw std::invalid_argument (err_msg);
     }
 
+    std::unique_ptr<::tokenizers::Tokenizer> tokenizer
+        = llm::load_tokenizer (prop->model_files[1]);
+    if (!tokenizer) {
+      const std::string err_msg
+          = "Failed to load tokenizer " + (std::string) prop->model_files[1];
+      throw std::invalid_argument (err_msg);
+    }
+
     /* set llama runner */
-    runner = std::make_unique<example::Runner> (
-        prop->model_files[0], prop->model_files[1], 0.8f);
+    runner = llm::create_text_llm_runner (prop->model_files[0], std::move (tokenizer));
+    if (!runner) {
+      const std::string err_msg
+          = "Failed to load model " + (std::string) prop->model_files[0];
+      throw std::invalid_argument (err_msg);
+    }
   } catch (const std::exception &e) {
     /* throw exception upward */
     throw;
@@ -147,12 +161,17 @@ executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
 
   std::string prompt ((char *) input[0].data, input[0].size);
   std::string result = "";
+  llm::GenerationConfig config;
 
-  ET_CHECK_MSG (
-      runner->generate (prompt, 128,
+  config.seq_len = 128;
+  config.temperature = 0.8f;
+
+  /* Each buffer is a new prompt; do not continue from the previous one. */
+  runner->reset ();
+  if (runner->generate (prompt, config,
           [&result] (const std::string &generated) { result.append (generated); })
-          == Error::Ok,
-      "Generating text failed");
+      != Error::Ok)
+    throw std::runtime_error ("Generating text failed");
 
   /* replace null character with blankspace */
   std::replace (result.begin (), result.end (), '\0', ' ');
