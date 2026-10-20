@@ -1280,11 +1280,9 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   g_mutex_unlock (&self->mqtt_src_mutex);
 
   if (size < GST_MQTT_LEN_MSG_HDR) {
-    if (!self->err) {
-      self->err = g_error_new (self->gquark_err_tag, EPROTO,
-          "%s: the received message is %d bytes long while its header alone takes %d bytes",
-          __func__, size, GST_MQTT_LEN_MSG_HDR);
-    }
+    GST_WARNING_OBJECT (self,
+        "Dropped a message: it is %d bytes long while its header alone takes %d bytes",
+        size, GST_MQTT_LEN_MSG_HDR);
     goto ret_free_message;
   }
 
@@ -1293,11 +1291,8 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   received_mem = gst_memory_new_wrapped (0, data, size, 0, size, message,
       (GDestroyNotify) cb_memory_wrapped_destroy);
   if (!received_mem) {
-    if (!self->err) {
-      self->err = g_error_new (self->gquark_err_tag, ENODATA,
-          "%s: failed to wrap the raw data of received message in GstMemory: %s",
-          __func__, g_strerror (ENODATA));
-    }
+    GST_WARNING_OBJECT (self,
+        "Dropped a message: failed to wrap its raw data in GstMemory");
     goto ret_unref_clock;
   }
   /** The wrapped memory releases the message from now on */
@@ -1306,21 +1301,37 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   mqtt_msg_hdr = _extract_mqtt_msg_hdr_from (received_mem, &hdr_mem,
       &hdr_map_info);
   if (!mqtt_msg_hdr) {
-    if (!self->err) {
-      self->err = g_error_new (self->gquark_err_tag, ENODATA,
-          "%s: failed to extract header information from received message: %s",
-          __func__, g_strerror (ENODATA));
-    }
+    GST_WARNING_OBJECT (self,
+        "Dropped a message: failed to extract its header information");
     goto ret_unref_received_mem;
   }
 
   if (mqtt_msg_hdr->num_mems > GST_MQTT_MAX_NUM_MEMS) {
-    if (!self->err) {
-      self->err = g_error_new (self->gquark_err_tag, EPROTO,
-          "%s: the received message declares %u memory blocks while its header holds %d at most",
-          __func__, mqtt_msg_hdr->num_mems, GST_MQTT_MAX_NUM_MEMS);
-    }
+    GST_WARNING_OBJECT (self,
+        "Dropped a message: it declares %u memory blocks while its header holds %d at most",
+        mqtt_msg_hdr->num_mems, GST_MQTT_MAX_NUM_MEMS);
     goto ret_unmap_hdr_mem;
+  }
+
+  buffer = gst_buffer_new ();
+  offset = GST_MQTT_LEN_MSG_HDR;
+  for (i = 0; i < mqtt_msg_hdr->num_mems; ++i) {
+    GstMemory *each_memory;
+    gsize each_size;
+
+    each_size = mqtt_msg_hdr->size_mems[i];
+    if (each_size > (gsize) size - offset) {
+      GST_WARNING_OBJECT (self,
+          "Dropped a message: its memory block %u declares %" G_GSIZE_FORMAT
+          " bytes while %" G_GSIZE_FORMAT " bytes of its payload are left",
+          i, each_size, (gsize) size - offset);
+      gst_buffer_unref (buffer);
+      goto ret_unmap_hdr_mem;
+    }
+
+    each_memory = gst_memory_share (received_mem, offset, each_size);
+    gst_buffer_append_memory (buffer, each_memory);
+    offset += each_size;
   }
 
   memcpy (caps_str, mqtt_msg_hdr->gst_caps_str, GST_MQTT_MAX_LEN_GST_CAPS_STR);
@@ -1334,30 +1345,6 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     }
 
     gst_caps_unref (recv_caps);
-  }
-
-  buffer = gst_buffer_new ();
-  offset = GST_MQTT_LEN_MSG_HDR;
-  for (i = 0; i < mqtt_msg_hdr->num_mems; ++i) {
-    GstMemory *each_memory;
-    gsize each_size;
-
-    each_size = mqtt_msg_hdr->size_mems[i];
-    if (each_size > (gsize) size - offset) {
-      if (!self->err) {
-        self->err = g_error_new (self->gquark_err_tag, EPROTO,
-            "%s: the memory block %u of the received message declares %"
-            G_GSIZE_FORMAT " bytes while %" G_GSIZE_FORMAT
-            " bytes of its payload are left", __func__, i, each_size,
-            (gsize) size - offset);
-      }
-      gst_buffer_unref (buffer);
-      goto ret_unmap_hdr_mem;
-    }
-
-    each_memory = gst_memory_share (received_mem, offset, each_size);
-    gst_buffer_append_memory (buffer, each_memory);
-    offset += each_size;
   }
 
   /** Timestamp synchronization */

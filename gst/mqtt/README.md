@@ -16,6 +16,7 @@ The specifics will evolve as the corresponding developers' understangins of MQTT
 
 - Provides "ANY". Users are supposed to designate the capability with caps-filter as it may be used to find a corresponding mqttsink.
 - `max-buffers` bounds the messages received from the broker but not yet pushed. If the publisher sends faster than the pipeline processes, the oldest message is dropped. It is 0 (no limit) by default. Set it if the publisher or the broker is not trusted: without a limit, a publisher that keeps sending can exhaust the memory, as every waiting message is kept whole. A limit set while more messages are waiting takes effect when the next message arrives. A dropped message is reported in the debug log only; the buffers after it are not flagged.
+- A malformed message (shorter than its header, declaring more memory blocks than its header holds, or a memory block larger than the rest of its payload) is dropped with a warning in the debug log, and the stream goes on with the next message. A lost connection still stops the stream with an error.
 
 ## Usage Example
 
