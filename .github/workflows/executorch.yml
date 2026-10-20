@@ -53,12 +53,12 @@ jobs:
         # - the tensor_filter API and core the subplugin is built against
         # - the fixtures and the generator that SSAT suite runs on
         pattern='^\.github/workflows/executorch\.yml$'
-        pattern+='|^ext/nnstreamer/tensor_filter/(tensor_filter_executorch\.cc|meson\.build)$'
+        pattern+='|^ext/nnstreamer/tensor_filter/(tensor_filter_executorch(_llama)?\.cc|meson\.build)$'
         pattern+='|^gst/nnstreamer/(include|tensor_filter)/'
         pattern+='|^(meson\.build|meson_options\.txt|tests/meson\.build)$'
-        pattern+='|^tests/nnstreamer_filter_executorch/'
+        pattern+='|^tests/nnstreamer_filter_executorch(_llama)?/'
         pattern+='|^tests/nnstreamer_converter/generateTest\.py$'
-        pattern+='|^tests/test_models/models/[^/]*\.pte$'
+        pattern+='|^tests/test_models/models/([^/]*\.pte|llm_next_letter_tokenizer\.model)$'
         pattern+='|^tools/executorch-install\.sh$'
         # Not a pipe: grep -q leaves at the first match, and under pipefail a
         # writer killed by SIGPIPE would turn that match into "not relevant".
@@ -144,20 +144,21 @@ jobs:
         export PKG_CONFIG_PATH="${EXECUTORCH_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
         float16_opt=
         if [ '${{ matrix.os }}' == 'ubuntu-22.04-arm' ]; then float16_opt=-Denable-float16=true; fi
-        meson setup build/ -Dexecutorch-support=enabled ${float16_opt}
+        meson setup build/ -Dexecutorch-support=enabled -Dexecutorch-llama-support=enabled ${float16_opt}
         meson compile -C build/
         # -Dexecutorch-support=enabled already fails the configure when the
         # dependency is missing, but the subplugin can still be dropped from
         # the build for other reasons, and the SSAT script below reports
         # success with zero cases when the .so is absent.
         test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_executorch.so
+        test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_executorch-llama.so
 
-    - name: unit test the ExecuTorch subplugin
+    - name: unit test the ExecuTorch subplugins
       run: |
         export LD_LIBRARY_PATH="${EXECUTORCH_PREFIX}/lib:${LD_LIBRARY_PATH}"
         # Naming the test makes meson fail outright if it was not registered,
         # rather than reporting an empty run as success.
-        meson test -C build/ unittest_filter_executorch --print-errorlogs
+        meson test -C build/ unittest_filter_executorch unittest_filter_executorch_llama --print-errorlogs
 
     - name: SSAT run on filter-executorch
       run: |
