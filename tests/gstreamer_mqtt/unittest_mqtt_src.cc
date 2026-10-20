@@ -32,6 +32,8 @@
 #define DEFAULT_SUB_TIMEOUT (G_GINT64_CONSTANT (1000000))
 #define SETTLE_TIME_US (300 * G_TIME_SPAN_MILLISECOND)
 #define WAIT_TIMEOUT_US (5 * G_TIME_SPAN_SECOND)
+#define LONG_SUB_TIMEOUT (G_GINT64_CONSTANT (10000000))
+#define QUEUE_POLL_PASSED_US (1500 * G_TIME_SPAN_MILLISECOND)
 
 /**
  * @brief The mocked paho call a test case can hold open on another thread
@@ -809,6 +811,61 @@ _full_length_caps_str (void)
 }
 
 /**
+ * @brief Build a message shorter than the header it should carry
+ */
+static MQTTAsync_message *
+_new_short_message (void)
+{
+  MQTTAsync_message *msg = (MQTTAsync_message *) g_malloc0 (sizeof (*msg));
+
+  msg->payloadlen = GST_MQTT_LEN_MSG_HDR / 2;
+  msg->payload = g_malloc0 (msg->payloadlen);
+
+  return msg;
+}
+
+/**
+ * @brief Build a message with no payload at all
+ */
+static MQTTAsync_message *
+_new_empty_message (void)
+{
+  return (MQTTAsync_message *) g_malloc0 (sizeof (MQTTAsync_message));
+}
+
+/**
+ * @brief Build a message that declares more memory blocks than its header holds
+ */
+static MQTTAsync_message *
+_new_too_many_mems_message (void)
+{
+  GstMQTTMessageHdr hdr = {};
+  guint i;
+
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = GST_MQTT_MAX_NUM_MEMS + 1;
+  for (i = 0; i < GST_MQTT_MAX_NUM_MEMS; ++i)
+    hdr.size_mems[i] = 16;
+
+  return _new_message (&hdr, 16 * (GST_MQTT_MAX_NUM_MEMS + 1));
+}
+
+/**
+ * @brief Build a message whose memory block reaches past its payload
+ */
+static MQTTAsync_message *
+_new_mem_past_payload_message (void)
+{
+  GstMQTTMessageHdr hdr = {};
+
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 2048;
+
+  return _new_message (&hdr, 512);
+}
+
+/**
  * @brief mqttsrc pushes a buffer built from a well-formed message
  */
 TEST (testMqttSrc, messageArrived)
@@ -839,21 +896,11 @@ TEST (testMqttSrc, messageArrived)
 TEST (testMqttSrc, messageTooManyMems_n)
 {
   src_fixture_s fixture;
-  GstMQTTMessageHdr hdr = {};
-  MQTTAsync_message *msg;
-  guint i;
 
   ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
   ASSERT_TRUE (_fixture_play (&fixture));
 
-  _set_header_timestamps (fixture.src, &hdr);
-  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
-  hdr.num_mems = GST_MQTT_MAX_NUM_MEMS + 1;
-  for (i = 0; i < GST_MQTT_MAX_NUM_MEMS; ++i)
-    hdr.size_mems[i] = 16;
-  msg = _new_message (&hdr, 16 * (GST_MQTT_MAX_NUM_MEMS + 1));
-
-  EXPECT_TRUE (_deliver (msg));
+  EXPECT_TRUE (_deliver (_new_too_many_mems_message ()));
   g_usleep (SETTLE_TIME_US);
   EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
   EXPECT_EQ (_freed_messages (), 1U);
@@ -894,19 +941,11 @@ TEST (testMqttSrc, messageWithMaxMems)
 TEST (testMqttSrc, messageMemPastPayload_n)
 {
   src_fixture_s fixture;
-  GstMQTTMessageHdr hdr = {};
-  MQTTAsync_message *msg;
 
   ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
   ASSERT_TRUE (_fixture_play (&fixture));
 
-  _set_header_timestamps (fixture.src, &hdr);
-  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
-  hdr.num_mems = 1;
-  hdr.size_mems[0] = 2048;
-  msg = _new_message (&hdr, 512);
-
-  EXPECT_TRUE (_deliver (msg));
+  EXPECT_TRUE (_deliver (_new_mem_past_payload_message ()));
   g_usleep (SETTLE_TIME_US);
   EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
   EXPECT_EQ (_freed_messages (), 1U);
@@ -942,21 +981,53 @@ TEST (testMqttSrc, messageLastMemPastPayload_n)
 }
 
 /**
+ * @brief A message dropped for a memory block past its payload does not
+ *        replace the caps of the stream
+ */
+TEST (testMqttSrc, messageMemPastPayloadKeepsCaps_n)
+{
+  src_fixture_s fixture;
+  GstMQTTMessageHdr hdr = {};
+  GstCaps *expected;
+  GstMqttSrc *src;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+  src = GST_MQTT_SRC (fixture.src);
+
+  _set_header_timestamps (fixture.src, &hdr);
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 512;
+  EXPECT_TRUE (_deliver (_new_message (&hdr, 512)));
+  ASSERT_TRUE (_fixture_wait_buffers (&fixture, 1));
+
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=320,height=160", NULL);
+  hdr.size_mems[0] = 2048;
+  EXPECT_TRUE (_deliver (_new_message (&hdr, 512)));
+
+  expected = gst_caps_from_string ("video/x-raw,format=RGB,width=640,height=320");
+  ASSERT_TRUE (src->caps != NULL);
+  EXPECT_TRUE (gst_caps_is_equal (src->caps, expected));
+  gst_caps_unref (expected);
+
+  g_usleep (SETTLE_TIME_US);
+  EXPECT_EQ (_fixture_num_buffers (&fixture), 1U);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
  * @brief mqttsrc refuses a message that is shorter than the header it carries
  */
 TEST (testMqttSrc, messageShorterThanHeader_n)
 {
   src_fixture_s fixture;
-  MQTTAsync_message *msg;
 
   ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
   ASSERT_TRUE (_fixture_play (&fixture));
 
-  msg = (MQTTAsync_message *) g_malloc0 (sizeof (*msg));
-  msg->payloadlen = GST_MQTT_LEN_MSG_HDR / 2;
-  msg->payload = g_malloc0 (msg->payloadlen);
-
-  EXPECT_TRUE (_deliver (msg));
+  EXPECT_TRUE (_deliver (_new_short_message ()));
   g_usleep (SETTLE_TIME_US);
   EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
   EXPECT_EQ (_freed_messages (), 1U);
@@ -965,25 +1036,21 @@ TEST (testMqttSrc, messageShorterThanHeader_n)
 }
 
 /**
- * @brief mqttsrc rejects an empty payload before wrapping its null data pointer
+ * @brief mqttsrc drops an empty payload before wrapping its null data pointer,
+ *        without latching an error
  */
 TEST (testMqttSrc, messageEmptyPayload_n)
 {
   src_fixture_s fixture;
-  MQTTAsync_message *msg;
   GstMqttSrc *src;
 
   ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
   ASSERT_TRUE (_fixture_play (&fixture));
 
-  msg = (MQTTAsync_message *) g_malloc0 (sizeof (*msg));
-  EXPECT_TRUE (_deliver (msg));
+  EXPECT_TRUE (_deliver (_new_empty_message ()));
 
   src = GST_MQTT_SRC (fixture.src);
-  EXPECT_NE (src->err, nullptr);
-  if (src->err) {
-    EXPECT_EQ (src->err->code, EPROTO);
-  }
+  EXPECT_EQ (src->err, nullptr);
   EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
   EXPECT_EQ (_freed_messages (), 1U);
   EXPECT_EQ (_freed_topics (), 1U);
@@ -1008,10 +1075,7 @@ TEST (testMqttSrc, messageEmptyAllocatedPayload_n)
   EXPECT_TRUE (_deliver (msg));
 
   src = GST_MQTT_SRC (fixture.src);
-  EXPECT_NE (src->err, nullptr);
-  if (src->err) {
-    EXPECT_EQ (src->err->code, EPROTO);
-  }
+  EXPECT_EQ (src->err, nullptr);
   EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
   EXPECT_EQ (_freed_messages (), 1U);
   EXPECT_EQ (_freed_topics (), 1U);
@@ -1760,6 +1824,105 @@ TEST (testMqttSrc, messageClocklessPipeline)
 
   _fixture_teardown (&fixture);
   _ts_record_stop (&rec);
+}
+
+/**
+ * @brief A function that builds a malformed message
+ */
+typedef MQTTAsync_message *(*bad_message_builder) (void);
+
+/**
+ * @brief Deliver a malformed message, let the element find its queue empty at
+ *        least once, then check that a valid message still goes through
+ */
+static void
+_expect_stream_survives (bad_message_builder new_bad_message)
+{
+  src_fixture_s fixture;
+  GstMessage *error;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_object_set (fixture.src, "sub-timeout", LONG_SUB_TIMEOUT, NULL);
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  EXPECT_TRUE (_deliver (new_bad_message ()));
+  EXPECT_EQ (GST_MQTT_SRC (fixture.src)->err, nullptr);
+  EXPECT_EQ (_freed_messages (), 1U);
+
+  g_usleep (QUEUE_POLL_PASSED_US);
+  EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
+  EXPECT_TRUE (_deliver_valid_message (&fixture));
+  EXPECT_TRUE (_fixture_wait_buffers (&fixture, 1));
+
+  error = gst_bus_pop_filtered (fixture.bus, GST_MESSAGE_ERROR);
+  EXPECT_TRUE (error == NULL);
+  if (error)
+    gst_message_unref (error);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief A message shorter than its header does not end the stream
+ */
+TEST (testMqttSrc, messageShortThenValid_n)
+{
+  _expect_stream_survives (_new_short_message);
+}
+
+/**
+ * @brief An empty message does not end the stream
+ */
+TEST (testMqttSrc, messageEmptyThenValid_n)
+{
+  _expect_stream_survives (_new_empty_message);
+}
+
+/**
+ * @brief A message declaring too many memory blocks does not end the stream
+ */
+TEST (testMqttSrc, messageTooManyMemsThenValid_n)
+{
+  _expect_stream_survives (_new_too_many_mems_message);
+}
+
+/**
+ * @brief A message whose memory block reaches past its payload does not end the stream
+ */
+TEST (testMqttSrc, messageMemPastPayloadThenValid_n)
+{
+  _expect_stream_survives (_new_mem_past_payload_message);
+}
+
+/**
+ * @brief A malformed message does not hide a connection lost after it, which
+ *        still stops the stream with an error
+ */
+TEST (testMqttSrc, connectionLostAfterBadMessage_n)
+{
+  src_fixture_s fixture;
+  GstMessage *error;
+  GstMqttSrc *src;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_object_set (fixture.src, "sub-timeout", LONG_SUB_TIMEOUT, NULL);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  src = GST_MQTT_SRC (fixture.src);
+
+  EXPECT_TRUE (_deliver (_new_short_message ()));
+  EXPECT_EQ (src->err, nullptr);
+
+  _drop_connection ();
+  ASSERT_NE (src->err, nullptr);
+  EXPECT_EQ (src->err->code, EHOSTDOWN);
+
+  error = gst_bus_timed_pop_filtered (
+      fixture.bus, WAIT_TIMEOUT_US * GST_USECOND, GST_MESSAGE_ERROR);
+  EXPECT_TRUE (error != NULL);
+  if (error)
+    gst_message_unref (error);
+
+  _fixture_teardown (&fixture);
 }
 
 /**
