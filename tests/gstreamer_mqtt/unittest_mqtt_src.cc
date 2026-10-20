@@ -18,6 +18,7 @@
 #include <gst/gst.h>
 
 #include <MQTTAsync.h>
+#include <errno.h>
 #include <string.h>
 
 #include <initializer_list>
@@ -959,6 +960,61 @@ TEST (testMqttSrc, messageShorterThanHeader_n)
   g_usleep (SETTLE_TIME_US);
   EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
   EXPECT_EQ (_freed_messages (), 1U);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc rejects an empty payload before wrapping its null data pointer
+ */
+TEST (testMqttSrc, messageEmptyPayload_n)
+{
+  src_fixture_s fixture;
+  MQTTAsync_message *msg;
+  GstMqttSrc *src;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  msg = (MQTTAsync_message *) g_malloc0 (sizeof (*msg));
+  EXPECT_TRUE (_deliver (msg));
+
+  src = GST_MQTT_SRC (fixture.src);
+  EXPECT_NE (src->err, nullptr);
+  if (src->err) {
+    EXPECT_EQ (src->err->code, EPROTO);
+  }
+  EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
+  EXPECT_EQ (_freed_messages (), 1U);
+  EXPECT_EQ (_freed_topics (), 1U);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief a non-null pointer does not make a zero-length payload a complete header
+ */
+TEST (testMqttSrc, messageEmptyAllocatedPayload_n)
+{
+  src_fixture_s fixture;
+  MQTTAsync_message *msg;
+  GstMqttSrc *src;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  msg = (MQTTAsync_message *) g_malloc0 (sizeof (*msg));
+  msg->payload = g_malloc0 (1);
+  EXPECT_TRUE (_deliver (msg));
+
+  src = GST_MQTT_SRC (fixture.src);
+  EXPECT_NE (src->err, nullptr);
+  if (src->err) {
+    EXPECT_EQ (src->err->code, EPROTO);
+  }
+  EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
+  EXPECT_EQ (_freed_messages (), 1U);
+  EXPECT_EQ (_freed_topics (), 1U);
 
   _fixture_teardown (&fixture);
 }

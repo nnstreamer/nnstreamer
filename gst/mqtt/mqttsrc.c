@@ -1279,6 +1279,15 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   }
   g_mutex_unlock (&self->mqtt_src_mutex);
 
+  if (size < GST_MQTT_LEN_MSG_HDR) {
+    if (!self->err) {
+      self->err = g_error_new (self->gquark_err_tag, EPROTO,
+          "%s: the received message is %d bytes long while its header alone takes %d bytes",
+          __func__, size, GST_MQTT_LEN_MSG_HDR);
+    }
+    goto ret_free_message;
+  }
+
   basesrc = GST_BASE_SRC (self);
   clock = gst_element_get_clock (GST_ELEMENT (self));
   received_mem = gst_memory_new_wrapped (0, data, size, 0, size, message,
@@ -1293,15 +1302,6 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   }
   /** The wrapped memory releases the message from now on */
   message = NULL;
-
-  if (size < GST_MQTT_LEN_MSG_HDR) {
-    if (!self->err) {
-      self->err = g_error_new (self->gquark_err_tag, EPROTO,
-          "%s: the received message is %d bytes long while its header alone takes %d bytes",
-          __func__, size, GST_MQTT_LEN_MSG_HDR);
-    }
-    goto ret_unref_received_mem;
-  }
 
   mqtt_msg_hdr = _extract_mqtt_msg_hdr_from (received_mem, &hdr_mem,
       &hdr_map_info);
