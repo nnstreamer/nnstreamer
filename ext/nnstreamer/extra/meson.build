@@ -87,6 +87,9 @@ if have_python3
     install_dir: nnstreamer_libdir
   )
 
+  # ldconfig skips the helper (no "lib" prefix), so outside /usr the loader cannot find it without an rpath.
+  nnstreamer_python3_install_rpath = nnstreamer_prefix == '/usr' ? '' : nnstreamer_libdir
+
   nnstreamer_python3_helper_dep = declare_dependency(
     link_with: nnstreamer_python3_helper,
     dependencies: nnstreamer_python3_deps,

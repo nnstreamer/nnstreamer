@@ -390,6 +390,7 @@ if gtest_dep.found()
         join_paths('nnstreamer_converter', 'unittest_converter.cc'),
         dependencies: [nnstreamer_unittest_deps, flatbuf_dep, nnstreamer_python3_helper_dep],
         install: get_option('install-test'),
+        install_rpath: nnstreamer_python3_install_rpath,
         install_dir: unittest_install_dir
       )
 
