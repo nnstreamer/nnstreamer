@@ -326,10 +326,21 @@ _count_invalid_index_log (const gchar *, GLogLevelFlags, const gchar *message, g
 static guint
 _set_options_with_errno (GstElement *tif, const gchar *cv_option, const gchar *option, int err)
 {
-  GLogFunc prev_handler;
+  GLogLevelFlags fatal_mask;
+  guint handler, probe_count;
+
+  handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _count_invalid_index_log, NULL);
 
   invalid_index_log_cnt = 0;
-  prev_handler = g_log_set_default_handler (_count_invalid_index_log, NULL);
+  /* Relax fatal handling only for the intentional counter probe. */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log (NULL, G_LOG_LEVEL_CRITICAL, "[probe] Invalid tensor index");
+  probe_count = invalid_index_log_cnt;
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (probe_count, 1U);
+  invalid_index_log_cnt = 0;
 
   errno = err;
   g_object_set (tif, "then-option", option, NULL);
@@ -338,7 +349,7 @@ _set_options_with_errno (GstElement *tif, const gchar *cv_option, const gchar *o
   errno = err;
   g_object_set (tif, "compared-value-option", cv_option, NULL);
 
-  g_log_set_default_handler (prev_handler, NULL);
+  g_log_remove_handler (NULL, handler);
 
   return invalid_index_log_cnt;
 }
