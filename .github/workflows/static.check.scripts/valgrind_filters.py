@@ -46,13 +46,46 @@ def read_filters(workflow):
     return result
 
 
+def active_test_source(source):
+    """Remove literal #if 0/1 branches; leave unknown configurations possible."""
+    stack, lines, active = [], [], True
+    for line in source.splitlines():
+        directive = re.match(r"^\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b(.*)$", line)
+        if not directive:
+            if active:
+                lines.append(line)
+            continue
+        name, expression = directive.groups()
+        expression = expression.strip()
+        while expression.startswith("(") and expression.endswith(")"):
+            expression = expression[1:-1].strip()
+        condition = {"0": False, "1": True}.get(expression)
+        if name in ("if", "ifdef", "ifndef"):
+            if name != "if":
+                condition = None
+            stack.append([active, condition is not True])
+            active = active and condition is not False
+        elif stack:
+            parent, remaining = stack[-1]
+            if name == "endif":
+                stack.pop()
+                active = parent
+            else:
+                active = parent and remaining and (name == "else" or condition is not False)
+                stack[-1][1] = remaining and name != "else" and condition is not True
+    return "\n".join(lines)
+
+
 def test_names(source):
-    """Find non-parameterized tests, ignoring comments and string literals."""
+    """Find non-parameterized tests, ignoring literals and inactive branches."""
     tokens = re.compile(
-        r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'',
+        r'//[^\n]*|/\*.*?\*/|'
+        r'(?:u8|u|U|L)?R"(?P<delimiter>[^ ()\\\t\r\n\f\v]{0,16})\(.*?\)(?P=delimiter)"|'
+        r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'',
         re.DOTALL,
     )
-    source = tokens.sub(" ", source)
+    source = tokens.sub(lambda match: " " + "\n" * match[0].count("\n"), source)
+    source = active_test_source(source)
     # TEST_P names include their instantiation and parameter suffix at runtime;
     # a bare Suite.Case filter would not select those tests.
     return {
