@@ -2213,25 +2213,33 @@ typedef struct {
   gboolean entered;
   gboolean released;
   std::vector<gsize> sizes;
+  std::vector<std::string> caps;
   gulong probe_id;
 } flood_gate_s;
 
 /**
- * @brief Record the size of a pushed buffer and hold it until the gate opens
+ * @brief Record the size and the caps of a pushed buffer and hold it until the gate opens
  */
 static GstPadProbeReturn
 _flood_gate_probe (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
   flood_gate_s *gate = (flood_gate_s *) user_data;
-  (void) pad;
+  GstCaps *caps = gst_pad_get_current_caps (pad);
+  gchar *caps_str = caps ? gst_caps_to_string (caps) : NULL;
+
+  if (caps)
+    gst_caps_unref (caps);
 
   g_mutex_lock (&gate->lock);
   gate->sizes.push_back (gst_buffer_get_size (GST_PAD_PROBE_INFO_BUFFER (info)));
+  gate->caps.push_back (caps_str ? caps_str : "");
   gate->entered = TRUE;
   g_cond_broadcast (&gate->cond);
   while (!gate->released)
     g_cond_wait (&gate->cond, &gate->lock);
   g_mutex_unlock (&gate->lock);
+
+  g_free (caps_str);
 
   return GST_PAD_PROBE_OK;
 }
@@ -2551,6 +2559,385 @@ TEST (testMqttSrc, maxBuffersChangedDuringDelivery)
   _flood_gate_stop (&gate, &fixture);
   _fixture_teardown (&fixture);
   _flood_gate_clear (&gate);
+}
+
+#define CAPS_A "video/x-raw,format=RGB,width=640,height=320"
+#define CAPS_B "video/x-raw,format=RGB,width=320,height=240"
+
+/**
+ * @brief The caps events the element pushes and the threads it pushes them from
+ */
+typedef struct {
+  GMutex lock;
+  std::vector<std::string> caps;
+  std::vector<GThread *> threads;
+  gulong probe_id;
+} caps_event_record_s;
+
+/**
+ * @brief Record a caps event the element pushes
+ */
+static GstPadProbeReturn
+_caps_event_probe (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  caps_event_record_s *rec = (caps_event_record_s *) user_data;
+  GstEvent *event = GST_PAD_PROBE_INFO_EVENT (info);
+  GstCaps *caps;
+  gchar *caps_str;
+  (void) pad;
+
+  if (GST_EVENT_TYPE (event) != GST_EVENT_CAPS)
+    return GST_PAD_PROBE_OK;
+
+  gst_event_parse_caps (event, &caps);
+  caps_str = gst_caps_to_string (caps);
+
+  g_mutex_lock (&rec->lock);
+  rec->caps.push_back (caps_str);
+  rec->threads.push_back (g_thread_self ());
+  g_mutex_unlock (&rec->lock);
+
+  g_free (caps_str);
+
+  return GST_PAD_PROBE_OK;
+}
+
+/**
+ * @brief Start recording the caps events of the element
+ */
+static void
+_caps_event_record_start (caps_event_record_s *rec, src_fixture_s *fixture)
+{
+  g_mutex_init (&rec->lock);
+  rec->probe_id = gst_pad_add_probe (fixture->srcpad,
+      GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, _caps_event_probe, rec, NULL);
+}
+
+/**
+ * @brief Take a copy of the caps events recorded so far
+ */
+static std::vector<std::string>
+_caps_event_record_get (caps_event_record_s *rec)
+{
+  std::vector<std::string> caps;
+
+  g_mutex_lock (&rec->lock);
+  caps = rec->caps;
+  g_mutex_unlock (&rec->lock);
+
+  return caps;
+}
+
+/**
+ * @brief Check whether a caps event has been pushed from the given thread
+ */
+static gboolean
+_caps_event_record_has_thread (caps_event_record_s *rec, GThread *thread)
+{
+  gboolean found = FALSE;
+
+  g_mutex_lock (&rec->lock);
+  for (GThread *each : rec->threads)
+    found |= (each == thread);
+  g_mutex_unlock (&rec->lock);
+
+  return found;
+}
+
+/**
+ * @brief Stop recording before the fixture is torn down
+ */
+static void
+_caps_event_record_stop (caps_event_record_s *rec, src_fixture_s *fixture)
+{
+  gst_pad_remove_probe (fixture->srcpad, rec->probe_id);
+}
+
+/**
+ * @brief Release what the record holds, once the pipeline is torn down
+ */
+static void
+_caps_event_record_clear (caps_event_record_s *rec)
+{
+  g_mutex_clear (&rec->lock);
+}
+
+/**
+ * @brief Check whether a recorded caps string describes the given caps
+ */
+static gboolean
+_caps_str_equal (const std::string &recorded, const gchar *expected)
+{
+  GstCaps *a = gst_caps_from_string (recorded.c_str ());
+  GstCaps *b = gst_caps_from_string (expected);
+  gboolean equal = (a && b && gst_caps_is_equal (a, b));
+
+  if (a)
+    gst_caps_unref (a);
+  if (b)
+    gst_caps_unref (b);
+
+  return equal;
+}
+
+/**
+ * @brief Deliver a message with the given caps that its payload size tells apart: FLOOD_BASE_SIZE + index
+ */
+static void
+_deliver_with_caps (src_fixture_s *fixture, const gchar *caps_str, guint idx)
+{
+  GstMQTTMessageHdr hdr = {};
+
+  _set_header_timestamps (fixture->src, &hdr);
+  _set_header_caps (&hdr, caps_str, NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = FLOOD_BASE_SIZE + idx;
+  EXPECT_TRUE (_deliver (_new_message (&hdr, FLOOD_BASE_SIZE + idx)));
+}
+
+/**
+ * @brief A caps change goes out with the message that carries it: the
+ *        messages queued before it keep the old caps, and the caps event is
+ *        pushed on the streaming thread, not on the thread of the paho callback
+ */
+TEST (testMqttSrc, messageCapsChangeAfterQueuedMessages)
+{
+  src_fixture_s fixture;
+  flood_gate_s gate;
+  caps_event_record_s rec;
+  std::vector<std::string> events;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _caps_event_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  _flood_gate_start (&gate, &fixture);
+
+  _deliver_with_caps (&fixture, CAPS_A, 0);
+  EXPECT_TRUE (_flood_gate_wait_entered (&gate));
+  _deliver_with_caps (&fixture, CAPS_A, 1);
+  _deliver_with_caps (&fixture, CAPS_B, 2);
+  _deliver_with_caps (&fixture, CAPS_B, 3);
+  g_usleep (SETTLE_TIME_US);
+  /** the messages wait in the queue, so the caps have not changed yet */
+  EXPECT_EQ (_caps_event_record_get (&rec).size (), 1U);
+
+  _flood_gate_open (&gate);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 4), _flood_sizes ({ 0, 1, 2, 3 }));
+
+  g_mutex_lock (&gate.lock);
+  EXPECT_EQ (gate.caps.size (), 4U);
+  if (gate.caps.size () == 4U) {
+    EXPECT_TRUE (_caps_str_equal (gate.caps[0], CAPS_A));
+    EXPECT_TRUE (_caps_str_equal (gate.caps[1], CAPS_A));
+    EXPECT_TRUE (_caps_str_equal (gate.caps[2], CAPS_B));
+    EXPECT_TRUE (_caps_str_equal (gate.caps[3], CAPS_B));
+  }
+  g_mutex_unlock (&gate.lock);
+
+  events = _caps_event_record_get (&rec);
+  EXPECT_EQ (events.size (), 2U);
+  if (events.size () == 2U) {
+    EXPECT_TRUE (_caps_str_equal (events[0], CAPS_A));
+    EXPECT_TRUE (_caps_str_equal (events[1], CAPS_B));
+  }
+  EXPECT_FALSE (_caps_event_record_has_thread (&rec, g_thread_self ()));
+
+  _caps_event_record_stop (&rec, &fixture);
+  _flood_gate_stop (&gate, &fixture);
+  _fixture_teardown (&fixture);
+  _flood_gate_clear (&gate);
+  _caps_event_record_clear (&rec);
+}
+
+/**
+ * @brief A caps change survives the drop of the message that brought it, and
+ *        a publisher may go back to caps it used before
+ */
+TEST (testMqttSrc, messageCapsChangeDropped_n)
+{
+  src_fixture_s fixture;
+  flood_gate_s gate;
+  caps_event_record_s rec;
+  std::vector<std::string> events;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_object_set (fixture.src, "max-buffers", 2U, NULL);
+  _caps_event_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  _flood_gate_start (&gate, &fixture);
+
+  _deliver_with_caps (&fixture, CAPS_A, 0);
+  EXPECT_TRUE (_flood_gate_wait_entered (&gate));
+  _deliver_with_caps (&fixture, CAPS_A, 1);
+  /** message 2 is the first with CAPS_B and is dropped with message 1 */
+  _deliver_with_caps (&fixture, CAPS_B, 2);
+  _deliver_with_caps (&fixture, CAPS_B, 3);
+  _deliver_with_caps (&fixture, CAPS_B, 4);
+  EXPECT_EQ (_freed_messages (), 2U);
+
+  _flood_gate_open (&gate);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 3), _flood_sizes ({ 0, 3, 4 }));
+
+  _deliver_with_caps (&fixture, CAPS_A, 5);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 4), _flood_sizes ({ 0, 3, 4, 5 }));
+
+  g_mutex_lock (&gate.lock);
+  EXPECT_EQ (gate.caps.size (), 4U);
+  if (gate.caps.size () == 4U) {
+    EXPECT_TRUE (_caps_str_equal (gate.caps[0], CAPS_A));
+    EXPECT_TRUE (_caps_str_equal (gate.caps[1], CAPS_B));
+    EXPECT_TRUE (_caps_str_equal (gate.caps[2], CAPS_B));
+    EXPECT_TRUE (_caps_str_equal (gate.caps[3], CAPS_A));
+  }
+  g_mutex_unlock (&gate.lock);
+
+  events = _caps_event_record_get (&rec);
+  EXPECT_EQ (events.size (), 3U);
+  if (events.size () == 3U) {
+    EXPECT_TRUE (_caps_str_equal (events[0], CAPS_A));
+    EXPECT_TRUE (_caps_str_equal (events[1], CAPS_B));
+    EXPECT_TRUE (_caps_str_equal (events[2], CAPS_A));
+  }
+
+  _caps_event_record_stop (&rec, &fixture);
+  _flood_gate_stop (&gate, &fixture);
+  _fixture_teardown (&fixture);
+  _flood_gate_clear (&gate);
+  _caps_event_record_clear (&rec);
+}
+
+/**
+ * @brief Messages whose caps strings differ only in spelling do not renegotiate
+ */
+TEST (testMqttSrc, messageEquivalentCapsKept)
+{
+  src_fixture_s fixture;
+  caps_event_record_s rec;
+  std::vector<std::string> events;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _caps_event_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _deliver_with_caps (&fixture, CAPS_A, 0);
+  _deliver_with_caps (&fixture, CAPS_A, 1);
+  _deliver_with_caps (&fixture,
+      "video/x-raw, format=(string)RGB, width=(int)640, height=(int)320", 2);
+  _deliver_with_caps (&fixture, CAPS_A, 3);
+  EXPECT_TRUE (_fixture_wait_buffers (&fixture, 4));
+
+  events = _caps_event_record_get (&rec);
+  EXPECT_EQ (events.size (), 1U);
+  if (events.size () == 1U) {
+    EXPECT_TRUE (_caps_str_equal (events[0], CAPS_A));
+  }
+
+  _caps_event_record_stop (&rec, &fixture);
+  _fixture_teardown (&fixture);
+  _caps_event_record_clear (&rec);
+}
+
+/**
+ * @brief A message with caps mqttsrc cannot parse goes out with the caps of the message before it
+ */
+TEST (testMqttSrc, messageCapsUnparsableAfterValid_n)
+{
+  src_fixture_s fixture;
+  flood_gate_s gate;
+  caps_event_record_s rec;
+  std::vector<std::string> events;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _caps_event_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+  _flood_gate_start (&gate, &fixture);
+  _flood_gate_open (&gate);
+
+  _deliver_with_caps (&fixture, CAPS_A, 0);
+  _deliver_with_caps (&fixture, ",,,,", 1);
+  _deliver_with_caps (&fixture, CAPS_B, 2);
+  _deliver_with_caps (&fixture, ",,,,", 3);
+  EXPECT_EQ (_flood_gate_wait_sizes (&gate, 4), _flood_sizes ({ 0, 1, 2, 3 }));
+
+  g_mutex_lock (&gate.lock);
+  EXPECT_EQ (gate.caps.size (), 4U);
+  if (gate.caps.size () == 4U) {
+    EXPECT_TRUE (_caps_str_equal (gate.caps[1], CAPS_A));
+    EXPECT_TRUE (_caps_str_equal (gate.caps[3], CAPS_B));
+  }
+  g_mutex_unlock (&gate.lock);
+
+  events = _caps_event_record_get (&rec);
+  EXPECT_EQ (events.size (), 2U);
+  if (events.size () == 2U) {
+    EXPECT_TRUE (_caps_str_equal (events[0], CAPS_A));
+    EXPECT_TRUE (_caps_str_equal (events[1], CAPS_B));
+  }
+
+  _caps_event_record_stop (&rec, &fixture);
+  _flood_gate_stop (&gate, &fixture);
+  _fixture_teardown (&fixture);
+  _flood_gate_clear (&gate);
+  _caps_event_record_clear (&rec);
+}
+
+/**
+ * @brief mqttsrc sets its caps again after a restart, even if the publisher keeps them
+ */
+TEST (testMqttSrc, messageCapsAfterRestart)
+{
+  src_fixture_s fixture;
+  caps_event_record_s rec;
+  std::vector<std::string> events;
+  GstCaps *caps;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _caps_event_record_start (&rec, &fixture);
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _deliver_with_caps (&fixture, CAPS_A, 0);
+  EXPECT_TRUE (_fixture_wait_buffers (&fixture, 1));
+
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_NE (gst_element_get_state (fixture.pipeline, NULL, NULL, GST_CLOCK_TIME_NONE),
+      GST_STATE_CHANGE_FAILURE);
+  caps = gst_pad_get_current_caps (fixture.srcpad);
+  EXPECT_TRUE (caps == NULL);
+  if (caps)
+    gst_caps_unref (caps);
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.subscribe_count = 0;
+  g_mutex_unlock (&g_mock.lock);
+  /** A live source calls create () only once it plays, after the subscription */
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_TRUE (_wait_for_subscribe ());
+  EXPECT_TRUE (_fixture_play (&fixture));
+
+  /** The caps of the previous run are not taken for a message without its own */
+  _deliver_with_caps (&fixture, ",,,,", 1);
+  EXPECT_TRUE (_fixture_wait_buffers (&fixture, 2));
+  caps = gst_pad_get_current_caps (fixture.srcpad);
+  EXPECT_TRUE (caps == NULL);
+  if (caps)
+    gst_caps_unref (caps);
+
+  _deliver_with_caps (&fixture, CAPS_A, 2);
+  EXPECT_TRUE (_fixture_wait_buffers (&fixture, 3));
+
+  events = _caps_event_record_get (&rec);
+  EXPECT_EQ (events.size (), 2U);
+  if (events.size () == 2U) {
+    EXPECT_TRUE (_caps_str_equal (events[1], CAPS_A));
+  }
+  caps = gst_pad_get_current_caps (fixture.srcpad);
+  EXPECT_TRUE (caps != NULL);
+  if (caps)
+    gst_caps_unref (caps);
+
+  _caps_event_record_stop (&rec, &fixture);
+  _fixture_teardown (&fixture);
+  _caps_event_record_clear (&rec);
 }
 
 /**

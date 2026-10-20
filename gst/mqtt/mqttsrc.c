@@ -30,6 +30,8 @@ G_DEFINE_TYPE (GstMqttSrc, gst_mqtt_src, GST_TYPE_BASE_SRC);
 GST_DEBUG_CATEGORY_STATIC (gst_mqtt_src_debug);
 #define GST_CAT_DEFAULT gst_mqtt_src_debug
 
+static GQuark recv_caps_quark = 0;
+
 enum
 {
   PROP_0,
@@ -152,6 +154,7 @@ static void cb_memory_wrapped_destroy (void *p);
 
 static GstMQTTMessageHdr *_extract_mqtt_msg_hdr_from (GstMemory * mem,
     GstMemory ** hdr_mem, GstMapInfo * hdr_map_info);
+static void _update_recv_caps (GstMqttSrc * self, const gchar * caps_str);
 static void _put_timestamp_on_gst_buf (GstMqttSrc * self,
     GstMQTTMessageHdr * hdr, GstBuffer * buf);
 static guint _push_to_queue (GstMqttSrc * self, GstBuffer * buf,
@@ -250,6 +253,8 @@ gst_mqtt_src_init (GstMqttSrc * self)
   g_mutex_unlock (&self->mqtt_src_mutex);
   self->base_time_epoch = GST_CLOCK_TIME_NONE;
   self->caps = NULL;
+  self->recv_caps = NULL;
+  self->recv_caps_str = NULL;
   self->num_dumped = 0;
 
   gst_base_src_set_live (basesrc, self->is_live);
@@ -267,6 +272,7 @@ gst_mqtt_src_class_init (GstMqttSrcClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, GST_MQTT_ELEM_NAME_SRC, 0,
       "MQTT src");
+  recv_caps_quark = g_quark_from_static_string ("gst-mqtt-src-recv-caps");
 
   gobject_class->set_property = gst_mqtt_src_set_property;
   gobject_class->get_property = gst_mqtt_src_get_property;
@@ -509,6 +515,8 @@ gst_mqtt_src_class_finalize (GObject * object)
   g_free (self->mqtt_host_port);
   g_free (self->mqtt_topic);
   gst_caps_replace (&self->caps, NULL);
+  gst_caps_replace (&self->recv_caps, NULL);
+  g_free (self->recv_caps_str);
 
   if (self->err)
     g_error_free (self->err);
@@ -667,6 +675,10 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
   if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
 
+  /** A restarted element takes its caps from the messages of this client only */
+  gst_caps_replace (&self->recv_caps, NULL);
+  g_clear_pointer (&self->recv_caps_str, g_free);
+
   MQTTAsync_setCallbacks (self->mqtt_client_handle, self,
       cb_mqtt_on_connection_lost, cb_mqtt_on_message_arrived, NULL);
 
@@ -711,6 +723,9 @@ gst_mqtt_src_stop (GstBaseSrc * basesrc)
   if (!gst_mqtt_src_disconnect (self, 5)) {
     GST_WARNING_OBJECT (self, "MQTT disconnect failed, but continuing with cleanup");
   }
+
+  /** The pad has dropped its caps: take them from the next message again */
+  gst_caps_replace (&self->caps, NULL);
 
   return TRUE;
 }
@@ -833,6 +848,7 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
 {
   GstMqttSrc *self = GST_MQTT_SRC (basesrc);
   gint64 elapsed = self->mqtt_sub_timeout;
+  GstCaps *caps;
   UNUSED (offset);
   UNUSED (size);
 
@@ -924,6 +940,16 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
           "%s: Timeout for receiving a message has been expired. Regarding as an error",
           __func__);
     goto ret_flow_err;
+  }
+
+  caps = gst_mini_object_steal_qdata (GST_MINI_OBJECT_CAST (*buf),
+      recv_caps_quark);
+  if (caps) {
+    if (caps != self->caps) {
+      gst_caps_replace (&self->caps, caps);
+      gst_mqtt_src_renegotiate (basesrc);
+    }
+    gst_caps_unref (caps);
   }
 
   return GST_FLOW_OK;
@@ -1351,10 +1377,8 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   GstMemory *received_mem;
   GstMemory *hdr_mem;
   GstBuffer *buffer;
-  GstBaseSrc *basesrc;
   GstMqttSrc *self;
   GstClock *clock = NULL;
-  GstCaps *recv_caps;
   gchar caps_str[GST_MQTT_MAX_LEN_GST_CAPS_STR + 1];
   gsize offset;
   guint i;
@@ -1378,7 +1402,6 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     goto ret_free_message;
   }
 
-  basesrc = GST_BASE_SRC (self);
   clock = gst_element_get_clock (GST_ELEMENT (self));
   received_mem = gst_memory_new_wrapped (0, data, size, 0, size, message,
       (GDestroyNotify) cb_memory_wrapped_destroy);
@@ -1429,15 +1452,8 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   memcpy (caps_str, mqtt_msg_hdr->gst_caps_str, GST_MQTT_MAX_LEN_GST_CAPS_STR);
   caps_str[GST_MQTT_MAX_LEN_GST_CAPS_STR] = '\0';
 
-  recv_caps = gst_caps_from_string (caps_str);
-  if (recv_caps) {
-    if (!self->caps || !gst_caps_is_equal (self->caps, recv_caps)) {
-      gst_caps_replace (&self->caps, recv_caps);
-      gst_mqtt_src_renegotiate (basesrc);
-    }
-
-    gst_caps_unref (recv_caps);
-  }
+  if (g_strcmp0 (self->recv_caps_str, caps_str) != 0)
+    _update_recv_caps (self, caps_str);
 
   /** Timestamp synchronization */
   if (self->debug) {
@@ -1450,6 +1466,10 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
           GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
           g_async_queue_length (self->aqueue));
     }
+  }
+  if (self->recv_caps) {
+    gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (buffer), recv_caps_quark,
+        gst_caps_ref (self->recv_caps), (GDestroyNotify) gst_caps_unref);
   }
   _put_timestamp_on_gst_buf (self, mqtt_msg_hdr, buffer);
   max_buffers = gst_mqtt_src_get_max_buffers (self);
@@ -1756,6 +1776,29 @@ _extract_mqtt_msg_hdr_from (GstMemory * mem, GstMemory ** hdr_mem,
   }
 
   return (GstMQTTMessageHdr *) hdr_map_info->data;
+}
+
+/**
+ * @brief Parse the caps string of a received header and keep the caps for the buffers after it
+ * @note Called on the paho thread only. The caps object is replaced only when
+ *       the caps differ, so the streaming thread can tell a change by its pointer.
+ *       An unparsable string keeps the previous caps.
+ */
+static void
+_update_recv_caps (GstMqttSrc * self, const gchar * caps_str)
+{
+  GstCaps *caps = gst_caps_from_string (caps_str);
+
+  if (!caps)
+    return;
+
+  g_free (self->recv_caps_str);
+  self->recv_caps_str = g_strdup (caps_str);
+
+  if (self->recv_caps && gst_caps_is_equal (self->recv_caps, caps))
+    gst_caps_unref (caps);
+  else
+    gst_caps_take (&self->recv_caps, caps);
 }
 
 /**
