@@ -117,6 +117,20 @@ v4l2src name=cam_src ! videoscale ! videoconvert ! video/x-raw,width=640,height=
   - Graphical description of the pipeline
   ![combi-pipeline-img](./filter_input_combi.png)  
 
+## Model files are trusted code
+```model``` names files that the framework loads into the process, and several frameworks run them as native code or scripts, for example:
+- ```custom``` opens the model with ```g_module_open()```; ```framework=auto``` picks ```custom``` for a single model ending in ```.so``` (```.dylib``` on macOS) unless ```framework_priority_so``` (```framework_priority_dylib```) in the ini names another framework.
+- ```cpp```, ```tvm```, ```qnn``` and ```vivante``` load a shared library named in ```model```; ```framework=auto``` picks ```vivante``` for a ```.so``` and ```.nb``` pair.
+- ```python3``` imports the script, and ```lua``` runs the script file, or the ```model``` string itself as a script when no such file exists.
+
+Some frameworks also load libraries named in their ```custom``` property (e.g., an external delegate).
+
+nnstreamer does not confine ```model``` to the ```customfilters``` directories of ```nnstreamer.ini```, which only list custom filters by name (```nnsconf_get_fullpath()```): the custom filter accepts any regular file, and a symbolic link only with ```enable_symlink=true```, so custom filters can live in build directories or application data.
+
+Every way to set ```model``` is as trusted as the pipeline description: the property itself (```g_object_set()```, ML API), the ```config-file``` file (which can set ```framework``` too), the ```mlagent://``` URI (the path registered in the ML Agent), and the ```evt_update_model``` event with ```is-updatable=true```.
+An application that builds a pipeline from input it does not trust must check ```framework``` and ```model``` itself, e.g., allow an explicit list of frameworks instead of ```auto```, accept models only from a directory writable only by a trusted account (```lua``` takes a script in ```model``` itself), and not pass such input in ```config-file```.
+The ini files and the environment are trusted as well; see "Configuration file and the environment" in [getting-started-meson-build.md](../../../Documentation/getting-started-meson-build.md).
+
 ## Sub-Components
 
 ### Main ```tensor_filter.c```

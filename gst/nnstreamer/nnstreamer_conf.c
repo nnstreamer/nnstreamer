@@ -174,7 +174,7 @@ _validate_file (nnsconf_type_path type, const gchar * fullpath,
     return FALSE;
   if (type < 0 || type >= NNSCONF_PATH_END)
     return FALSE;
-  /** @todo how to validate with nnsconf type. */
+  /* Not confined to the conf paths of type; callers trust fullpath. */
   return TRUE;
 }
 
