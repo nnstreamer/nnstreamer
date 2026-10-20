@@ -103,6 +103,7 @@ nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type);
  * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)
  * @param[in] fullpath The full path to the file.
  * @return True if the file is regular and can be added to the list.
+ * @note It does not check that @a fullpath is under a directory configured for @a type.
  */
 extern gboolean
 nnsconf_validate_file (nnsconf_type_path type, const gchar * fullpath);
