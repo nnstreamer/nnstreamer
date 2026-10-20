@@ -75,6 +75,53 @@ class FilterChecks(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "llamacpp_cases"):
             checker.check(self.root)
 
+    def test_raw_string_does_not_hide_following_test_p(self):
+        for prefix in ("", "u8", "u", "U", "L"):
+            with self.subTest(prefix=prefix):
+                self.llama.write_text(
+                    'static const auto text = ' + prefix + 'R"example(a " quote\n#if 0\n)example";\n'
+                    'TEST_F (Llama, invalid_n) {}\n')
+                self.assertEqual(checker.check(self.root), 3)
+
+    def test_raw_string_cannot_supply_a_test_n(self):
+        for delimiter in ("", "example", "sixteen_chars_ok"):
+            with self.subTest(delimiter=delimiter):
+                self.llama.write_text(
+                    'static const auto text = R"' + delimiter +
+                    '("TEST_F (Llama, invalid_n) {}\n#if 0\n)' + delimiter + '";\n')
+                with self.assertRaisesRegex(ValueError, "Llama.invalid_n"):
+                    checker.check(self.root)
+
+    def test_unconditionally_inactive_test_n(self):
+        for directive in ("0", "(0)"):
+            with self.subTest(directive=directive):
+                self.llama.write_text(
+                    '#if ' + directive + '\n#if OPTIONAL\n'
+                    'TEST_F (Llama, invalid_n) {}\n#endif\n#endif\n')
+                with self.assertRaisesRegex(ValueError, "Llama.invalid_n"):
+                    checker.check(self.root)
+
+    def test_active_alternative_and_unknown_configuration_p(self):
+        for source in (
+                '#if 0\n#else\nTEST_F (Llama, invalid_n) {}\n#endif\n',
+                '#if 0\n#elif 1\nTEST_F (Llama, invalid_n) {}\n#endif\n',
+                '#ifdef OPTIONAL\nTEST_F (Llama, invalid_n) {}\n#endif\n',
+                '#ifndef OPTIONAL\nTEST_F (Llama, invalid_n) {}\n#endif\n',
+                '#if 0\n#elif OPTIONAL\nTEST_F (Llama, invalid_n) {}\n#endif\n'):
+            with self.subTest(source=source):
+                self.llama.write_text(source)
+                self.assertEqual(checker.check(self.root), 3)
+
+    def test_inactive_alternative_cannot_supply_a_test_n(self):
+        for source in (
+                '#if 1\n#else\nTEST_F (Llama, invalid_n) {}\n#endif\n',
+                '#if 1\n#elif OPTIONAL\nTEST_F (Llama, invalid_n) {}\n#endif\n',
+                '#if OPTIONAL\n#elif 0\nTEST_F (Llama, invalid_n) {}\n#endif\n'):
+            with self.subTest(source=source):
+                self.llama.write_text(source)
+                with self.assertRaisesRegex(ValueError, "Llama.invalid_n"):
+                    checker.check(self.root)
+
     def test_parameterized_definition_does_not_match_bare_filter_n(self):
         self.llama.write_text("TEST_P (Llama, invalid_n) {}\n")
         with self.assertRaisesRegex(ValueError, "Llama.invalid_n"):
