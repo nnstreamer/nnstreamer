@@ -2126,7 +2126,7 @@ TEST (tensorDecoderBoundingBox, palmTrackEveryType)
 }
 
 /**
- * @brief Collect every message logged to the default GLib log handler.
+ * @brief Collect messages at the selected levels in the default GLib domain.
  */
 static void
 collectLog (const gchar *log_domain, GLogLevelFlags log_level,
@@ -2155,6 +2155,40 @@ countLogLines (GPtrArray *log, const gchar *prefix)
 }
 
 /**
+ * @brief Capture selected default-domain levels and verify every handler level.
+ * @return The handler id, to be removed with g_log_remove_handler ().
+ */
+static guint
+startLogCapture (GLogFunc callback, GLogLevelFlags levels, GPtrArray *log)
+{
+  const GLogLevelFlags probes[]
+      = { G_LOG_LEVEL_INFO, G_LOG_LEVEL_WARNING, G_LOG_LEVEL_CRITICAL };
+  guint recorded[G_N_ELEMENTS (probes)] = { 0 };
+  guint size = log->len;
+  guint handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (levels | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION), callback, log);
+  GLogLevelFlags fatal_mask;
+
+  /* Relax fatal handling only for the intentional probes. */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  for (guint i = 0; i < G_N_ELEMENTS (probes); i++) {
+    if (levels & probes[i]) {
+      g_log (NULL, probes[i], "[probe] bounding-box log handler self-check");
+      recorded[i] = log->len - size;
+      g_ptr_array_set_size (log, size);
+    }
+  }
+  g_log_set_always_fatal (fatal_mask);
+
+  for (guint i = 0; i < G_N_ELEMENTS (probes); i++) {
+    if (levels & probes[i]) {
+      EXPECT_EQ (recorded[i], 1U) << "no live handler for log level " << probes[i];
+    }
+  }
+  return handler;
+}
+
+/**
  * @brief Decode the boxes of @a t with option7 set and collect what the decoder logs.
  */
 static gboolean
@@ -2162,7 +2196,7 @@ logSsdPpBoxes (const gchar *label_file, SsdPpBoxes *t, GPtrArray *log)
 {
   const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
   uint32_t frame[BOX_OUT_PIXELS] = { 0U };
-  GLogFunc old_handler;
+  guint handler;
   void *pdata = NULL;
   gboolean ret = FALSE;
 
@@ -2170,9 +2204,9 @@ logSsdPpBoxes (const gchar *label_file, SsdPpBoxes *t, GPtrArray *log)
     return FALSE;
 
   if (acceptsConfig (decoder, &pdata, &t->config)) {
-    old_handler = g_log_set_default_handler (collectLog, log);
+    handler = startLogCapture (collectLog, G_LOG_LEVEL_INFO, log);
     ret = decodeFrame (decoder, &pdata, &t->config, t->input, frame);
-    g_log_set_default_handler (old_handler, NULL);
+    g_log_remove_handler (NULL, handler);
   }
 
   decoder->exit (&pdata);
@@ -2234,7 +2268,7 @@ TEST (tensorDecoderBoundingBox, logBoxOfNegativeClass_n)
   uint32_t frame[BOX_OUT_PIXELS] = { 0U };
   GstTensorMemory input;
   GstTensorsConfig config;
-  GLogFunc old_handler;
+  guint handler;
   void *pdata = NULL;
 
   ASSERT_TRUE (decoder != NULL);
@@ -2252,9 +2286,9 @@ TEST (tensorDecoderBoundingBox, logBoxOfNegativeClass_n)
   input.size = sizeof (tensor);
 
   EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
-  old_handler = g_log_set_default_handler (collectLog, log);
+  handler = startLogCapture (collectLog, G_LOG_LEVEL_INFO, log);
   EXPECT_TRUE (decodeFrame (decoder, &pdata, &config, &input, frame));
-  g_log_set_default_handler (old_handler, NULL);
+  g_log_remove_handler (NULL, handler);
 
   EXPECT_EQ (countLogLines (log, "["), 0U);
 #ifndef __TIZEN__
@@ -2268,7 +2302,7 @@ TEST (tensorDecoderBoundingBox, logBoxOfNegativeClass_n)
 }
 
 /**
- * @brief Collect a critical or warning message logged to the default GLib log handler.
+ * @brief Collect a critical or warning message from the default GLib domain.
  * @details The message is prefixed with "CRITICAL: " or "WARNING: ".
  */
 static void
@@ -2286,7 +2320,7 @@ collectProblem (const gchar *log_domain, GLogLevelFlags log_level,
 /**
  * @brief The criticals and warnings logged while an instance lives.
  * @details nns_loge () and nns_logw () are g_critical () and g_warning () of
- *          the default domain, which the default handler receives. Criticals
+ *          the default domain, which the scoped handler receives. Criticals
  *          are made non-fatal meanwhile, so the refusals under test do not
  *          abort a run with G_DEBUG=fatal-criticals.
  */
@@ -2302,15 +2336,16 @@ class LogCapture
   {
     lines = g_ptr_array_new_with_free_func (g_free);
     old_fatal = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
-    old_handler = g_log_set_default_handler (collectProblem, lines);
+    handler = startLogCapture (collectProblem,
+        (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING), lines);
   }
 
   /**
-   * @brief Stop collecting and restore the handler and the fatal mask.
+   * @brief Stop collecting and restore the fatal mask.
    */
   ~LogCapture ()
   {
-    g_log_set_default_handler (old_handler, NULL);
+    g_log_remove_handler (NULL, handler);
     g_log_set_always_fatal (old_fatal);
     g_ptr_array_unref (lines);
   }
@@ -2348,9 +2383,46 @@ class LogCapture
   }
 
   private:
-  GLogFunc old_handler; /**< the default handler to restore */
+  guint handler; /**< the default-domain handler to remove */
   GLogLevelFlags old_fatal; /**< the fatal mask to restore */
 };
+
+/**
+ * @brief Capture default-domain warnings and failed assertions without probe messages.
+ */
+TEST (tensorDecoderBoundingBox, logCaptureDefaultDomain)
+{
+  LogCapture log;
+
+  EXPECT_EQ (log.lines->len, 0U);
+  g_log (NULL, G_LOG_LEVEL_WARNING, "bounding-box warning control");
+  g_log (NULL, G_LOG_LEVEL_CRITICAL, "bounding-box assertion control");
+  EXPECT_EQ (log.lines->len, 2U);
+  EXPECT_TRUE (log.has ({ "WARNING:", "warning control" }));
+  EXPECT_TRUE (log.has ({ "CRITICAL:", "assertion control" }));
+}
+
+/**
+ * @brief A warning in another domain must not be attributed to the decoder.
+ */
+TEST (tensorDecoderBoundingBox, logCaptureForeignWarning_n)
+{
+  LogCapture log;
+
+  g_log ("BoundingBoxForeignDomain", G_LOG_LEVEL_WARNING, "foreign warning control");
+  EXPECT_EQ (log.lines->len, 0U) << log.dump ();
+}
+
+/**
+ * @brief A failed assertion in another domain must not be attributed to the decoder.
+ */
+TEST (tensorDecoderBoundingBox, logCaptureForeignCritical_n)
+{
+  LogCapture log;
+
+  g_log ("BoundingBoxForeignDomain", G_LOG_LEVEL_CRITICAL, "foreign assertion control");
+  EXPECT_EQ (log.lines->len, 0U) << log.dump ();
+}
 
 #ifdef __TIZEN__
 /** @brief nns_loge () is dlog_print () on Tizen, which no GLib log handler receives. */
