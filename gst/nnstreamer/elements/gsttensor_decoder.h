@@ -31,6 +31,7 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
+#include <gst/video/video.h>
 
 #include "tensor_common.h"
 #include "nnstreamer_subplugin.h"
@@ -79,6 +80,8 @@ struct _GstTensorDecoder
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
   GstTensorsConfig tensor_config; /**< configured tensor info @todo support tensors in the future */
+  gboolean out_is_video; /**< TRUE if out_info describes the negotiated output caps */
+  GstVideoInfo out_info; /**< Default layout of the raw video output, which sub-plugins write */
 
   /** For tensor decoder custom */
   gboolean is_custom;

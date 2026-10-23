@@ -42,8 +42,14 @@ One always source pad.
 Downstream pools configured with `GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT` are
 not used, since decoder subplugins write the default layout described by the
 output caps. A sink requiring aligned storage may therefore copy the decoded
-output into its own pool. Custom pools that change the layout without declaring
-this option are not detected.
+output into its own pool.
+
+A pool may also choose its own layout without that option and describe it
+only in the `GstVideoMeta` of its buffers, for example the pitch of a DRM dumb
+buffer of `kmssink`. Such a buffer is not used either: when its meta differs
+from the default layout, it goes back to the pool and the subplugin decodes
+into a new buffer, which the sink may copy into its own. Such a pool still
+lends a buffer for every frame, which comes back unused.
 
 ## Properties
 
