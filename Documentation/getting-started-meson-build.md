@@ -122,6 +122,8 @@ Then, it will install:
 - subplugins to ```{libdir}/nnstreamer/PLUGIN-TYPE/``` (or ```{subplugindir}/PLUGIN-TYPE/``` when ```-Dsubplugindir``` is set)
 - common header files to ```{includedir}/```
 
+The python3 sub-plugins provide the ```nnstreamer_python``` module to the scripts they run. To import it from a python program of your own, put a link named ```nnstreamer_python.so``` to ```{libdir}/nnstreamer_python3.so``` in a directory on ```PYTHONPATH```, as the Debian and Tizen packages do in their python3 site directory.
+
 
 ***6. Verifying installation***
 
