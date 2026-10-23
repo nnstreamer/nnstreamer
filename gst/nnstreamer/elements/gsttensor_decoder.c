@@ -126,6 +126,8 @@ static gboolean gst_tensordec_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps);
 static gboolean gst_tensordec_decide_allocation (GstBaseTransform * trans,
     GstQuery * query);
+static GstFlowReturn gst_tensordec_prepare_output_buffer (GstBaseTransform *
+    trans, GstBuffer * inbuf, GstBuffer ** outbuf);
 static gboolean gst_tensordec_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
@@ -604,6 +606,8 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
   /** Allocation units */
   trans_class->decide_allocation =
       GST_DEBUG_FUNCPTR (gst_tensordec_decide_allocation);
+  trans_class->prepare_output_buffer =
+      GST_DEBUG_FUNCPTR (gst_tensordec_prepare_output_buffer);
   trans_class->transform_size =
       GST_DEBUG_FUNCPTR (gst_tensordec_transform_size);
 }
@@ -630,6 +634,7 @@ gst_tensordec_init (GstTensorDecoder * self)
   self->custom.func = NULL;
   self->custom.data = NULL;
   self->config_path = NULL;
+  self->out_is_video = FALSE;
   for (i = 0; i < TensorDecMaxOpNum; i++) {
     self->option[i] = NULL;
     self->option_order[i] = i;
@@ -1233,6 +1238,9 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
     compatible = gst_caps_is_always_compatible (outcaps, supposed);
     if (compatible) {
       self->negotiated = TRUE;
+      self->out_is_video =
+          gst_structure_has_name (gst_caps_get_structure (outcaps, 0),
+          "video/x-raw") && gst_video_info_from_caps (&self->out_info, outcaps);
     } else {
       GST_ERROR_OBJECT (self,
           "This is not compatible with the supposed output pad cap");
@@ -1252,7 +1260,8 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
  *          the row stride without telling the subplugin. Leave compatible
  *          pools to the base class, which also handles allocating without one.
  *          Only pools declaring GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT are
- *          excluded; custom layouts without this option are not detected.
+ *          excluded; a buffer whose video meta has another layout is replaced
+ *          in gst_tensordec_prepare_output_buffer ().
  */
 static gboolean
 gst_tensordec_decide_allocation (GstBaseTransform * trans, GstQuery * query)
@@ -1281,6 +1290,52 @@ gst_tensordec_decide_allocation (GstBaseTransform * trans, GstQuery * query)
 
   return GST_BASE_TRANSFORM_CLASS (parent_class)->decide_allocation (trans,
       query);
+}
+
+/**
+ * @brief Do not write into an output buffer laid out otherwise than the caps.
+ * @details Decoder subplugins write the default layout of the output caps. A
+ *          downstream pool may choose its own pitch without the alignment
+ *          option and describe it only in a GstVideoMeta, as kmssink does. Such
+ *          a buffer is given back to the pool, and the subplugin decodes into
+ *          a new empty buffer instead, which downstream may copy into its own.
+ */
+static GstFlowReturn
+gst_tensordec_prepare_output_buffer (GstBaseTransform * trans,
+    GstBuffer * inbuf, GstBuffer ** outbuf)
+{
+  GstTensorDecoder *self = GST_TENSOR_DECODER_CAST (trans);
+  const GstVideoInfo *info = &self->out_info;
+  GstVideoMeta *meta;
+  GstFlowReturn ret;
+  guint i;
+
+  ret = GST_BASE_TRANSFORM_CLASS (parent_class)->prepare_output_buffer (trans,
+      inbuf, outbuf);
+  if (ret != GST_FLOW_OK || !self->out_is_video || *outbuf == inbuf
+      || !(meta = gst_buffer_get_video_meta (*outbuf)))
+    return ret;
+
+  if (meta->format == GST_VIDEO_INFO_FORMAT (info)
+      && (gint) meta->width == GST_VIDEO_INFO_WIDTH (info)
+      && (gint) meta->height == GST_VIDEO_INFO_HEIGHT (info)
+      && meta->n_planes == GST_VIDEO_INFO_N_PLANES (info)) {
+    for (i = 0; i < meta->n_planes; i++) {
+      if (meta->offset[i] != GST_VIDEO_INFO_PLANE_OFFSET (info, i)
+          || meta->stride[i] != GST_VIDEO_INFO_PLANE_STRIDE (info, i))
+        break;
+    }
+    if (i == meta->n_planes)
+      return ret;
+  }
+
+  gst_buffer_unref (*outbuf);
+  *outbuf = gst_buffer_new ();
+  if (!GST_BASE_TRANSFORM_GET_CLASS (trans)->copy_metadata (trans, inbuf,
+          *outbuf))
+    GST_WARNING_OBJECT (self, "Cannot copy the metadata of the input buffer.");
+
+  return GST_FLOW_OK;
 }
 
 /**
