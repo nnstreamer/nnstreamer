@@ -902,6 +902,56 @@ TEST (nnstreamerDecoderPython3, describeIgnoredOption_n)
 }
 
 /**
+ * @brief Without nnstreamer_python.so on sys.path, the decoder still opens and decodes.
+ */
+TEST (nnstreamerDecoderPython3, openWithoutApiModuleOnSysPath)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  gboolean matched = FALSE;
+  const GstTensorDecoderDef *dec;
+
+  ASSERT_NE (nnstreamer_decoder_find ("python3"), nullptr);
+  ASSERT_TRUE (py_test_hide_api_module (NULL));
+  dec = _open_decoder (&pdata, "concat");
+  ASSERT_NE (dec, nullptr);
+  EXPECT_TRUE (py_test_api_module_in_process ());
+
+  _init_config (&config);
+  EXPECT_EQ (_decode_and_check (dec, &pdata, &config, 3, &matched), GST_FLOW_OK);
+  EXPECT_TRUE (matched);
+
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+  EXPECT_TRUE (py_test_restore_api_module ());
+}
+
+/**
+ * @brief A nnstreamer_python on sys.path that fails to import fails the decoder, not replaced by the in-process module.
+ */
+TEST (nnstreamerDecoderPython3, openBrokenApiModule_n)
+{
+  void *pdata = NULL;
+  const GstTensorDecoderDef *dec = nnstreamer_decoder_find ("python3");
+  gchar *script = _script_path ();
+  gchar *dir;
+
+  ASSERT_NE (dec, nullptr);
+  ASSERT_TRUE (dec->init (&pdata));
+  dir = py_test_put_broken_api_module (NULL);
+  ASSERT_NE (dir, nullptr);
+
+  EXPECT_FALSE (dec->setOption (&pdata, 0, script));
+  EXPECT_EQ (pdata, nullptr);
+  EXPECT_FALSE (py_test_api_module_in_process ());
+  if (pdata)
+    dec->exit (&pdata);
+
+  EXPECT_TRUE (py_test_remove_broken_api_module (dir));
+  g_free (script);
+}
+
+/**
  * @brief Main gtest
  */
 int

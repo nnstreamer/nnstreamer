@@ -16,6 +16,7 @@
 
 #include <Python.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 
 /** @brief Tracked objects a run of calls may leave behind (caches, lazy imports); a leaked container adds at least one per call */
 #define PY_TEST_GC_SLACK (20)
@@ -119,6 +120,192 @@ py_test_setenv (const char *name, const char *value)
   PyGILState_Release (gstate);
 
   return done;
+}
+
+/**
+ * @brief Make nnstreamer_python unimportable, as in a tree installed by meson without the module on sys.path.
+ * @param script The module name of the script to open next, dropped from sys.modules so that its own
+ *        import of nnstreamer_python runs again; NULL if the script does not import it.
+ * @return TRUE if importing it fails afterwards; FALSE also if no python sub-plugin has started the interpreter.
+ * @note sys.modules['nnstreamer_python'] = None makes import raise ModuleNotFoundError; a sub-plugin
+ *       replaces that entry with the module it creates. py_test_restore_api_module() drops the entry.
+ */
+static inline gboolean
+py_test_hide_api_module (const char *script)
+{
+  gboolean hidden = FALSE;
+  PyGILState_STATE gstate;
+  gchar *code;
+
+  if (!Py_IsInitialized ())
+    return FALSE;
+
+  code = g_strdup_printf ("import sys\nsys.modules.pop ('%s', None)\nsys.modules['nnstreamer_python'] = None\n",
+      script ? script : "nnstreamer_python");
+  gstate = PyGILState_Ensure ();
+  if (PyRun_SimpleString (code) == 0) {
+    PyObject *mod = PyImport_ImportModule ("nnstreamer_python");
+
+    hidden = (mod == NULL);
+    Py_XDECREF (mod);
+  }
+  PyErr_Clear ();
+  PyGILState_Release (gstate);
+  g_free (code);
+
+  return hidden;
+}
+
+/**
+ * @brief Drop nnstreamer_python from sys.modules, so that the next import loads it from sys.path again.
+ * @return TRUE if sys.modules was updated.
+ */
+static inline gboolean
+py_test_restore_api_module (void)
+{
+  gboolean done;
+  PyGILState_STATE gstate;
+
+  if (!Py_IsInitialized ())
+    return FALSE;
+
+  gstate = PyGILState_Ensure ();
+  done = (PyRun_SimpleString ("import sys\nsys.modules.pop ('nnstreamer_python', None)\n") == 0);
+  PyErr_Clear ();
+  PyGILState_Release (gstate);
+
+  return done;
+}
+
+/**
+ * @brief Take what py_test_put_broken_api_module() set, or the part of it that was set, out of the interpreter.
+ * @return TRUE if the restore ran.
+ */
+static inline gboolean
+_py_test_undo_broken_api_module (void)
+{
+  gboolean done;
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+
+  done = (PyRun_SimpleString ("import importlib, sys\n"
+                              "if getattr (sys, '_nns_test_dir', None) in sys.path:\n"
+                              "  sys.path.remove (sys._nns_test_dir)\n"
+                              "if hasattr (sys, '_nns_test_dwb'):\n"
+                              "  sys.dont_write_bytecode = sys._nns_test_dwb\n"
+                              "sys.__dict__.pop ('_nns_test_dir', None)\n"
+                              "sys.__dict__.pop ('_nns_test_dwb', None)\n"
+                              "sys.modules.pop ('nnstreamer_python', None)\n"
+                              "importlib.invalidate_caches ()\n")
+          == 0);
+  PyErr_Clear ();
+  PyGILState_Release (gstate);
+
+  return done;
+}
+
+/**
+ * @brief Put a nnstreamer_python.py first on sys.path, as a module file that fails to load.
+ * @param body The python source of that file; NULL for one that raises ImportError.
+ * @return The temporary directory holding it, to pass to py_test_remove_broken_api_module(); NULL on failure.
+ * @note No bytecode is written while it is there, so that the directory can be removed.
+ */
+static inline gchar *
+py_test_put_broken_api_module (const char *body)
+{
+  gchar *dir;
+  gchar *file;
+  gboolean done = FALSE;
+
+  if (!Py_IsInitialized () || (dir = g_dir_make_tmp ("nns-py-XXXXXX", NULL)) == NULL)
+    return NULL;
+
+  file = g_build_filename (dir, "nnstreamer_python.py", NULL);
+  if (g_file_set_contents (file, body ? body : "raise ImportError ('broken')\n", -1, NULL)) {
+    PyGILState_STATE gstate = PyGILState_Ensure ();
+    PyObject *entry = PyUnicode_FromString (dir);
+
+    done = entry && PySys_SetObject ("_nns_test_dir", entry) == 0
+           && PyRun_SimpleString ("import importlib, sys\nsys._nns_test_dwb = sys.dont_write_bytecode\n"
+                                  "sys.dont_write_bytecode = True\nsys.path.insert (0, sys._nns_test_dir)\n"
+                                  "sys.modules.pop ('nnstreamer_python', None)\nimportlib.invalidate_caches ()\n")
+                  == 0;
+    Py_XDECREF (entry);
+    PyErr_Clear ();
+    PyGILState_Release (gstate);
+    if (!done)
+      _py_test_undo_broken_api_module ();
+  }
+
+  if (!done) {
+    g_remove (file);
+    g_rmdir (dir);
+    g_clear_pointer (&dir, g_free);
+  }
+  g_free (file);
+
+  return dir;
+}
+
+/**
+ * @brief Undo py_test_put_broken_api_module() and free the directory name.
+ * @param dir The directory it returned.
+ * @return TRUE if sys.path and sys.dont_write_bytecode are restored and the directory is removed.
+ */
+static inline gboolean
+py_test_remove_broken_api_module (gchar *dir)
+{
+  gchar *file = g_build_filename (dir, "nnstreamer_python.py", NULL);
+  gboolean done = _py_test_undo_broken_api_module ();
+
+  done = (g_remove (file) == 0) && done;
+  done = (g_rmdir (dir) == 0) && done;
+  g_free (file);
+  g_free (dir);
+
+  return done;
+}
+
+/**
+ * @brief Whether a nnstreamer_python module file can be found on sys.path, whatever sys.modules holds.
+ * @return TRUE if the path finder finds it.
+ */
+static inline gboolean
+py_test_api_module_on_sys_path (void)
+{
+  gboolean found = FALSE;
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyObject *machinery = PyImport_ImportModule ("importlib.machinery");
+  PyObject *finder = machinery ? PyObject_GetAttrString (machinery, "PathFinder") : NULL;
+  PyObject *spec = finder ? PyObject_CallMethod (finder, "find_spec", "s", "nnstreamer_python") : NULL;
+
+  found = (spec != NULL && spec != Py_None);
+  Py_XDECREF (spec);
+  Py_XDECREF (finder);
+  Py_XDECREF (machinery);
+  PyErr_Clear ();
+  PyGILState_Release (gstate);
+
+  return found;
+}
+
+/**
+ * @brief Whether nnstreamer_python in sys.modules is the one created in-process, not loaded from a file.
+ * @return TRUE if the module is in sys.modules and has no __file__.
+ */
+static inline gboolean
+py_test_api_module_in_process (void)
+{
+  gboolean in_process = FALSE;
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyObject *modules = PyImport_GetModuleDict ();
+  PyObject *mod = modules ? PyDict_GetItemString (modules, "nnstreamer_python") : NULL;
+
+  if (mod && mod != Py_None)
+    in_process = !PyObject_HasAttrString (mod, "__file__");
+  PyErr_Clear ();
+  PyGILState_Release (gstate);
+
+  return in_process;
 }
 
 #endif /* __NNS_UNITTEST_PYTHON3_UTIL_H__ */

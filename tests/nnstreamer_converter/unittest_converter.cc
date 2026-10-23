@@ -1108,6 +1108,63 @@ TEST (tensorConverterPython, openInvalidScriptKeepsSysPath_n)
 }
 
 /**
+ * @brief Without nnstreamer_python.so on sys.path, the converter and its script still import nnstreamer_python.
+ */
+TEST (tensorConverterPython, openWithoutApiModuleOnSysPath)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const NNStreamerExternalConverter *ex = nnstreamer_converter_find ("python3");
+  void *py_core = NULL;
+  gchar *test_model;
+
+  /** supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  ASSERT_NE (nullptr, ex);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "custom_converter_test.py", NULL);
+  ASSERT_TRUE (py_test_hide_api_module ("custom_converter_test"));
+  EXPECT_EQ (0, ex->open (test_model, &py_core));
+  EXPECT_TRUE (py_test_api_module_in_process ());
+  if (py_core)
+    ex->close (&py_core);
+  EXPECT_TRUE (py_test_restore_api_module ());
+  g_free (test_model);
+}
+
+/**
+ * @brief A nnstreamer_python on sys.path that fails to import fails the converter, not replaced by the in-process module.
+ */
+TEST (tensorConverterPython, openBrokenApiModule_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const NNStreamerExternalConverter *ex = nnstreamer_converter_find ("python3");
+  void *py_core = NULL;
+  gchar *test_model;
+  gchar *dir;
+
+  /** supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  ASSERT_NE (nullptr, ex);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "custom_converter_test.py", NULL);
+  dir = py_test_put_broken_api_module (NULL);
+  ASSERT_NE (nullptr, dir);
+
+  EXPECT_NE (0, ex->open (test_model, &py_core));
+  EXPECT_EQ (nullptr, py_core);
+  EXPECT_FALSE (py_test_api_module_in_process ());
+  if (py_core)
+    ex->close (&py_core);
+
+  EXPECT_TRUE (py_test_remove_broken_api_module (dir));
+  g_free (test_model);
+}
+
+/**
  * @brief Main GTest
  */
 int
