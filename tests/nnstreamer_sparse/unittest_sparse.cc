@@ -8,17 +8,39 @@
  */
 
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <dlfcn.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api.h>
 #include <string.h>
 #include <tensor_common.h>
 #include <utility>
+#include <vector>
 
 #include "../gst/nnstreamer/elements/gsttensor_sparsedec.h"
 #include "../gst/nnstreamer/elements/gsttensor_sparseenc.h"
 #include "../gst/nnstreamer/elements/gsttensor_sparseutil.h"
 #include "../unittest_util.h"
+
+/** @brief Allocation requests made synchronously while decoding a test buffer. */
+static thread_local std::vector<gsize> dense_allocation_requests;
+/** @brief Observe only the decoder push, excluding fixture setup and teardown. */
+static thread_local bool observe_dense_allocations = false;
+
+/**
+ * @brief Observe real allocation requests without changing allocator behavior.
+ */
+extern "C" gpointer
+g_try_malloc0 (gsize n_bytes)
+{
+  using Allocator = gpointer (*) (gsize);
+  static Allocator allocate
+      = reinterpret_cast<Allocator> (dlsym (RTLD_NEXT, "g_try_malloc0"));
+  if (observe_dense_allocations)
+    dense_allocation_requests.push_back (n_bytes);
+  return allocate (n_bytes);
+}
 
 /**
  * @brief Dimension of a tensor no process can allocate: 4 * 10^18 int32 bytes.
@@ -360,7 +382,19 @@ TEST_P (TensorSparseLimitTest, oversizedTensor_n)
   ASSERT_NE (h, nullptr);
   gst_harness_set_sink_caps (h, _sparse_caps_with_size (count, 40));
   gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
-  EXPECT_EQ (gst_harness_push (h, _sparse_buffer_with_size (count, 40, TRUE)), GST_FLOW_ERROR);
+  GstBuffer *input = _sparse_buffer_with_size (count, 40, TRUE);
+  dense_allocation_requests.clear ();
+  observe_dense_allocations = true;
+  const GstFlowReturn result = gst_harness_push (h, input);
+  observe_dense_allocations = false;
+  EXPECT_EQ (result, GST_FLOW_ERROR);
+  EXPECT_EQ (std::count (dense_allocation_requests.begin (),
+                 dense_allocation_requests.end (), 41 * sizeof (gint32)),
+      0);
+  EXPECT_EQ (std::count (dense_allocation_requests.begin (),
+                 dense_allocation_requests.end (), 40 * sizeof (gint32)),
+      count - 1);
+
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
   EXPECT_EQ (gst_harness_push (h, _sparse_buffer_with_size (count, 40, FALSE)), GST_FLOW_OK);
   _sparse_check_output_size (h, count, 40);
