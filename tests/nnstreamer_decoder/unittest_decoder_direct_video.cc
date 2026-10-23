@@ -823,6 +823,678 @@ TEST_F (DecoderAllocation, consecutiveAlignedPools)
 }
 
 /**
+ * @brief How MetaPool lays out the buffers it hands out.
+ */
+typedef struct {
+  guint pitch_align; /**< The row stride is the default one rounded up to this */
+  guint pitch_planes; /**< Mask of the planes taking pitch_align, 0 for all of them */
+  gsize lead; /**< Size of a separate memory before the frame, 0 for none */
+  gsize meta_offset_extra; /**< Added to every offset the video meta declares */
+  gint meta_width_delta; /**< Added to the width the video meta declares */
+  GstVideoFormat meta_format; /**< Format of the video meta, UNKNOWN for the one of the caps */
+} MetaPoolLayout;
+
+/**
+ * @brief A pool choosing its own row pitch without the alignment option, as the
+ *        DRM dumb-buffer allocator of kmssink does. Every byte it allocates is
+ *        GUARD_BYTE, so that a write into its buffers can be seen.
+ */
+typedef struct {
+  GstBufferPool parent; /**< The parent object */
+  MetaPoolLayout layout; /**< The layout of the buffers */
+  GstVideoInfo info; /**< The negotiated video info */
+  gint stride[GST_VIDEO_MAX_PLANES]; /**< The row pitch of each plane */
+  gsize offset[GST_VIDEO_MAX_PLANES]; /**< The offset of each plane in the frame memory */
+  gsize frame_size; /**< The size of the frame memory of the buffers */
+  GstMemory *frame_mem; /**< The frame memory of the latest buffer, not referenced */
+  guint allocated; /**< The number of buffers allocated */
+} MetaPool;
+
+/**
+ * @brief The class of MetaPool.
+ */
+typedef struct {
+  GstBufferPoolClass parent_class; /**< The parent class */
+} MetaPoolClass;
+
+G_DEFINE_TYPE (MetaPool, meta_pool, GST_TYPE_BUFFER_POOL);
+
+/**
+ * @brief The number of rows of a plane.
+ */
+static guint
+plane_rows (const GstVideoInfo *info, guint plane)
+{
+  gint comp[GST_VIDEO_MAX_COMPONENTS];
+
+  gst_video_format_info_component (info->finfo, plane, comp);
+  if (comp[0] < 0)
+    return 0;
+  return GST_VIDEO_INFO_COMP_HEIGHT (info, comp[0]);
+}
+
+/**
+ * @brief Allocate a memory with GUARD_SIZE bytes of padding behind it, all of
+ *        them GUARD_BYTE.
+ */
+static GstMemory *
+guarded_memory (gsize size)
+{
+  GstAllocationParams params;
+  GstMemory *mem;
+  GstMapInfo map;
+
+  gst_allocation_params_init (&params);
+  params.padding = GUARD_SIZE;
+  mem = gst_allocator_alloc (NULL, size, &params);
+  if (gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+    memset (map.data, GUARD_BYTE, map.maxsize);
+    gst_memory_unmap (mem, &map);
+  }
+  return mem;
+}
+
+/**
+ * @brief MetaPool always attaches a video meta.
+ */
+static const gchar **
+meta_pool_get_options (GstBufferPool *pool)
+{
+  static const gchar *options[] = { GST_BUFFER_POOL_OPTION_VIDEO_META, NULL };
+
+  (void) pool;
+  return options;
+}
+
+/**
+ * @brief Lay out the buffers for the negotiated video info, and declare their real
+ *        size as the pool size, as real pools do, so that a reused buffer keeps it.
+ */
+static gboolean
+meta_pool_set_config (GstBufferPool *pool, GstStructure *config)
+{
+  MetaPool *self = (MetaPool *) pool;
+  const MetaPoolLayout *layout = &self->layout;
+  GstCaps *caps = NULL;
+  guint min, max;
+
+  if (!gst_buffer_pool_config_get_params (config, &caps, NULL, &min, &max)
+      || !caps || !gst_video_info_from_caps (&self->info, caps))
+    return FALSE;
+
+  self->frame_size = 0;
+  for (guint p = 0; p < GST_VIDEO_INFO_N_PLANES (&self->info); p++) {
+    const guint align
+        = (layout->pitch_planes == 0 || (layout->pitch_planes & (1U << p))) ?
+              MAX (layout->pitch_align, 1U) :
+              1U;
+
+    self->stride[p]
+        = (GST_VIDEO_INFO_PLANE_STRIDE (&self->info, p) + align - 1) / align * align;
+    self->offset[p] = self->frame_size;
+    self->frame_size += (gsize) self->stride[p] * plane_rows (&self->info, p);
+  }
+  self->frame_size += layout->meta_offset_extra;
+  gst_buffer_pool_config_set_params (
+      config, caps, layout->lead + self->frame_size, min, max);
+  return GST_BUFFER_POOL_CLASS (meta_pool_parent_class)->set_config (pool, config);
+}
+
+/**
+ * @brief Allocate a buffer with the configured pitch and memories.
+ */
+static GstFlowReturn
+meta_pool_alloc_buffer (
+    GstBufferPool *pool, GstBuffer **buffer, GstBufferPoolAcquireParams *params)
+{
+  MetaPool *self = (MetaPool *) pool;
+  const MetaPoolLayout *layout = &self->layout;
+  gint stride[GST_VIDEO_MAX_PLANES] = { 0 };
+  gsize offset[GST_VIDEO_MAX_PLANES] = { 0 };
+  GstVideoFormat format = layout->meta_format;
+
+  (void) params;
+  if (format == GST_VIDEO_FORMAT_UNKNOWN)
+    format = GST_VIDEO_INFO_FORMAT (&self->info);
+  for (guint p = 0; p < GST_VIDEO_INFO_N_PLANES (&self->info); p++) {
+    stride[p] = self->stride[p];
+    offset[p] = layout->lead + self->offset[p] + layout->meta_offset_extra;
+  }
+
+  *buffer = gst_buffer_new ();
+  if (layout->lead)
+    gst_buffer_append_memory (*buffer, guarded_memory (layout->lead));
+  self->frame_mem = guarded_memory (self->frame_size);
+  self->allocated++;
+  gst_buffer_append_memory (*buffer, self->frame_mem);
+  gst_buffer_add_video_meta_full (*buffer, GST_VIDEO_FRAME_FLAG_NONE, format,
+      GST_VIDEO_INFO_WIDTH (&self->info) + layout->meta_width_delta,
+      GST_VIDEO_INFO_HEIGHT (&self->info),
+      GST_VIDEO_INFO_N_PLANES (&self->info), offset, stride);
+  return GST_FLOW_OK;
+}
+
+/**
+ * @brief Install the virtual methods of MetaPool.
+ */
+static void
+meta_pool_class_init (MetaPoolClass *klass)
+{
+  GstBufferPoolClass *pool_class = GST_BUFFER_POOL_CLASS (klass);
+
+  pool_class->get_options = meta_pool_get_options;
+  pool_class->set_config = meta_pool_set_config;
+  pool_class->alloc_buffer = meta_pool_alloc_buffer;
+}
+
+/**
+ * @brief Nothing to initialize; the tests set the layout.
+ */
+static void
+meta_pool_init (MetaPool *self)
+{
+  (void) self;
+}
+
+/**
+ * @brief What the decoder sub-plugin of these tests saw, and what it writes.
+ */
+static struct {
+  gboolean saw_meta; /**< TRUE if the latest output buffer had a video meta */
+  gsize given_size; /**< Size of the latest output buffer when it was given */
+  const gchar *format; /**< Output format, NULL for BGRx of the tensor 4:W:H */
+  gint width; /**< Output width when format is given */
+  gint height; /**< Output height when format is given */
+  gboolean fail; /**< TRUE to fail the decode */
+} probe_state;
+
+/**
+ * @brief The sub-plugin keeps no private data.
+ */
+static int
+probe_init (void **pdata)
+{
+  *pdata = NULL;
+  return TRUE;
+}
+
+/**
+ * @brief The sub-plugin keeps no private data.
+ */
+static void
+probe_exit (void **pdata)
+{
+  (void) pdata;
+}
+
+/**
+ * @brief The sub-plugin takes no option.
+ */
+static int
+probe_set_option (void **pdata, int opNum, const char *param)
+{
+  (void) pdata;
+  (void) opNum;
+  (void) param;
+  return TRUE;
+}
+
+/**
+ * @brief Describe a tensor of 4:W:H as a BGRx frame, or the tensor as the given format.
+ */
+static GstCaps *
+probe_get_out_caps (void **pdata, const GstTensorsConfig *config)
+{
+  const guint32 *dim = config->info.info[0].dimension;
+  GstCaps *caps = gst_caps_new_simple ("video/x-raw", "format", G_TYPE_STRING,
+      probe_state.format ? probe_state.format : "BGRx", NULL);
+
+  (void) pdata;
+  if (probe_state.format)
+    gst_caps_set_simple (caps, "width", G_TYPE_INT, probe_state.width, "height",
+        G_TYPE_INT, probe_state.height, NULL);
+  else if (dim[1] > 0 && dim[2] > 0)
+    gst_caps_set_simple (caps, "width", G_TYPE_INT, (gint) dim[1], "height",
+        G_TYPE_INT, (gint) dim[2], NULL);
+  if (config->rate_n >= 0 && config->rate_d > 0)
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, config->rate_n,
+        config->rate_d, NULL);
+  return caps;
+}
+
+/**
+ * @brief Record the given buffer, then write the tensor, a frame in the default
+ *        layout, into it or into a new memory.
+ */
+static GstFlowReturn
+probe_decode (void **pdata, const GstTensorsConfig *config,
+    const GstTensorMemory *input, GstBuffer *outbuf)
+{
+  (void) pdata;
+  (void) config;
+  probe_state.saw_meta = gst_buffer_get_video_meta (outbuf) != NULL;
+  probe_state.given_size = gst_buffer_get_size (outbuf);
+  if (probe_state.fail)
+    return GST_FLOW_ERROR;
+  if (probe_state.given_size == 0)
+    gst_buffer_append_memory (outbuf, gst_allocator_alloc (NULL, input->size, NULL));
+  gst_buffer_fill (outbuf, 0, input->data, input->size);
+  return GST_FLOW_OK;
+}
+
+/**
+ * @brief The mode name of the decoder sub-plugin of these tests.
+ */
+static gchar probe_mode[] = "meta_probe_video";
+
+/**
+ * @brief The decoder sub-plugin of these tests, writing the default layout.
+ */
+static GstTensorDecoderDef probe_decoder = { probe_mode, probe_init, probe_exit,
+  probe_set_option, probe_get_out_caps, probe_decode, NULL };
+
+/**
+ * @brief Decode with downstream proposing a pool that chooses its own pitch.
+ */
+class DecoderVideoMeta : public testing::Test
+{
+  protected:
+  GstHarness *h = nullptr;
+  MetaPoolLayout layout = { 64, 0, 0, 0, 0, GST_VIDEO_FORMAT_UNKNOWN };
+  std::vector<MetaPool *> pools;
+  GstBuffer *output = nullptr;
+  gchar *negotiated = nullptr;
+
+  /** @brief Register the decoder sub-plugin of these tests. */
+  void SetUp () override
+  {
+    probe_state.saw_meta = FALSE;
+    probe_state.given_size = 0;
+    probe_state.format = NULL;
+    probe_state.fail = FALSE;
+    ASSERT_TRUE (nnstreamer_decoder_probe (&probe_decoder));
+  }
+
+  /** @brief Stop streaming before releasing the pools. */
+  void TearDown () override
+  {
+    if (output)
+      gst_buffer_unref (output);
+    if (h)
+      gst_harness_teardown (h);
+    for (auto pool : pools)
+      gst_object_unref (pool);
+    g_free (negotiated);
+    nnstreamer_decoder_exit (probe_mode);
+  }
+
+  /** @brief Answer every allocation query with a new MetaPool of the current layout. */
+  static GstPadProbeReturn proposePool (GstPad *, GstPadProbeInfo *info, gpointer data)
+  {
+    auto *self = static_cast<DecoderVideoMeta *> (data);
+    GstQuery *query = GST_PAD_PROBE_INFO_QUERY (info);
+    GstCaps *caps = NULL;
+    GstVideoInfo vinfo;
+    MetaPool *pool;
+
+    if (GST_QUERY_TYPE (query) != GST_QUERY_ALLOCATION)
+      return GST_PAD_PROBE_OK;
+
+    gst_query_parse_allocation (query, &caps, NULL);
+    if (!caps || !gst_video_info_from_caps (&vinfo, caps))
+      return GST_PAD_PROBE_OK;
+
+    pool = (MetaPool *) gst_object_ref_sink (g_object_new (meta_pool_get_type (), NULL));
+    pool->layout = self->layout;
+    self->pools.push_back (pool);
+    gst_query_add_allocation_pool (
+        query, GST_BUFFER_POOL (pool), GST_VIDEO_INFO_SIZE (&vinfo), 0, 0);
+    gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
+    return GST_PAD_PROBE_HANDLED;
+  }
+
+  /** @brief Start tensor_decoder in the given mode, with downstream proposing MetaPool. */
+  void start (const gchar *mode, const gchar *format = NULL)
+  {
+    GstElement *decoder = gst_element_factory_make ("tensor_decoder", NULL);
+    GstPad *srcpad;
+
+    ASSERT_NE (decoder, nullptr);
+    gst_object_ref_sink (decoder);
+    g_object_set (decoder, "mode", mode, NULL);
+    if (format)
+      g_object_set (decoder, "option1", format, NULL);
+    h = gst_harness_new_with_element (decoder, "sink", "src");
+    gst_object_unref (decoder);
+    ASSERT_NE (h, nullptr);
+    srcpad = gst_element_get_static_pad (h->element, "src");
+    gst_pad_add_probe (srcpad, GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM, proposePool, this, NULL);
+    gst_object_unref (srcpad);
+  }
+
+  /** @brief Negotiate a uint8 tensor of dims and the video caps, unless they are already, and push data. */
+  GstFlowReturn pushRaw (const gchar *video, const gchar *dims, guint8 *data, gsize size)
+  {
+    gchar *str = g_strdup_printf ("other/tensors,num_tensors=1,format=static,types=uint8,"
+                                  "dimensions=%s,framerate=0/1",
+        dims);
+    gchar *sink = g_strdup_printf ("video/x-raw,%s,framerate=0/1", video);
+    gchar *key = g_strconcat (str, ";", sink, NULL);
+
+    /* Formats of the same size share the tensor caps, so the video caps count too. */
+    if (g_strcmp0 (key, negotiated) != 0) {
+      gst_harness_set_sink_caps_str (h, sink);
+      gst_harness_set_src_caps_str (h, str);
+      g_free (negotiated);
+      negotiated = key;
+    } else {
+      g_free (key);
+    }
+    g_free (sink);
+    g_free (str);
+
+    if (output) {
+      gst_buffer_unref (output);
+      output = nullptr;
+    }
+    return gst_harness_push (h, gst_buffer_new_wrapped (data, size));
+  }
+
+  /** @brief Push a frame of the format in its default layout through the test sub-plugin. */
+  GstFlowReturn pushProbeFrame (GstVideoFormat format, guint width,
+      guint height, GstVideoInfo *info, std::vector<guint8> &frame)
+  {
+    gchar *video, *dims;
+    guint8 *data;
+    GstFlowReturn ret;
+
+    if (!gst_video_info_set_format (info, format, width, height))
+      return GST_FLOW_NOT_NEGOTIATED;
+    probe_state.format = gst_video_format_to_string (format);
+    probe_state.width = width;
+    probe_state.height = height;
+    frame.resize (GST_VIDEO_INFO_SIZE (info));
+    for (gsize i = 0; i < frame.size (); i++)
+      frame[i] = (guint8) (i * 7 + 1);
+
+    video = g_strdup_printf (
+        "format=%s,width=%u,height=%u", probe_state.format, width, height);
+    dims = g_strdup_printf ("%" G_GSIZE_FORMAT ":1:1:1", frame.size ());
+    data = (guint8 *) g_malloc (frame.size ());
+    memcpy (data, frame.data (), frame.size ());
+    ret = pushRaw (video, dims, data, frame.size ());
+    g_free (video);
+    g_free (dims);
+    return ret;
+  }
+
+  /**
+   * @brief Pull the output and check every pixel against the frame in the
+   * default layout, both unpacked by GStreamer.
+   */
+  void checkPixels (const GstVideoInfo *info, const guint8 *expected)
+  {
+    const GstVideoFormatInfo *unpack
+        = gst_video_format_get_info (info->finfo->unpack_format);
+    const gsize row = (gsize) GST_VIDEO_INFO_WIDTH (info)
+                      * GST_VIDEO_FORMAT_INFO_PSTRIDE (unpack, 0);
+    std::vector<guint8> want (row), got (row);
+    GstBuffer *reference;
+    GstVideoFrame frame, ref_frame;
+    guint mismatched = 0;
+
+    output = gst_harness_try_pull (h);
+    ASSERT_NE (output, nullptr);
+    ASSERT_TRUE (gst_video_frame_map (&frame, info, output, GST_MAP_READ));
+    reference = gst_buffer_new_allocate (NULL, GST_VIDEO_INFO_SIZE (info), NULL);
+    gst_buffer_fill (reference, 0, expected, GST_VIDEO_INFO_SIZE (info));
+    if (!gst_video_frame_map (&ref_frame, info, reference, GST_MAP_READ)) {
+      gst_video_frame_unmap (&frame);
+      gst_buffer_unref (reference);
+      FAIL () << "cannot map the reference frame";
+    }
+    for (gint y = 0; y < GST_VIDEO_INFO_HEIGHT (info); y++) {
+      info->finfo->unpack_func (info->finfo, GST_VIDEO_PACK_FLAG_NONE, want.data (),
+          ref_frame.data, ref_frame.info.stride, 0, y, GST_VIDEO_INFO_WIDTH (info));
+      info->finfo->unpack_func (info->finfo, GST_VIDEO_PACK_FLAG_NONE, got.data (),
+          frame.data, frame.info.stride, 0, y, GST_VIDEO_INFO_WIDTH (info));
+      mismatched += want != got;
+    }
+    gst_video_frame_unmap (&ref_frame);
+    gst_video_frame_unmap (&frame);
+    gst_buffer_unref (reference);
+    EXPECT_EQ (mismatched, 0U) << "rows with a pixel at the wrong place";
+  }
+
+  /** @brief Push a direct_video frame of channels:width:height and check its pixels. */
+  void decodeDirectVideo (const gchar *format, guint channels, guint width, guint height)
+  {
+    GstVideoInfo info;
+    std::vector<guint8> frame;
+    const gsize row = (gsize) channels * width;
+    gchar *video = g_strdup_printf ("format=%s,width=%u,height=%u", format, width, height);
+    gchar *dims = g_strdup_printf ("%u:%u:%u:1", channels, width, height);
+    guint8 *data = (guint8 *) g_malloc (row * height);
+    GstFlowReturn ret;
+
+    ASSERT_TRUE (gst_video_info_set_format (
+        &info, gst_video_format_from_string (format), width, height));
+    frame.assign (GST_VIDEO_INFO_SIZE (&info), 0);
+    for (gsize y = 0; y < height; y++)
+      for (gsize i = 0; i < row; i++)
+        data[y * row + i] = frame[y * GST_VIDEO_INFO_PLANE_STRIDE (&info, 0) + i]
+            = (guint8) (y * row + i + 1);
+
+    ret = pushRaw (video, dims, data, row * height);
+    g_free (video);
+    g_free (dims);
+    ASSERT_EQ (ret, GST_FLOW_OK);
+    ASSERT_NO_FATAL_FAILURE (checkPixels (&info, frame.data ()));
+  }
+
+  /** @brief The output is a new buffer, and nothing was written into the pool buffer. */
+  void checkReplaced ()
+  {
+    GstMapInfo map;
+    guint written = 0;
+
+    ASSERT_FALSE (pools.empty ());
+    EXPECT_EQ (output->pool, nullptr);
+    EXPECT_EQ (gst_buffer_get_video_meta (output), nullptr);
+    ASSERT_NE (pools.back ()->frame_mem, nullptr);
+    ASSERT_TRUE (gst_memory_map (pools.back ()->frame_mem, &map, GST_MAP_READ));
+    for (gsize i = 0; i < map.maxsize; i++)
+      written += map.data[i] != GUARD_BYTE;
+    gst_memory_unmap (pools.back ()->frame_mem, &map);
+    EXPECT_EQ (written, 0U) << "bytes written into the pool buffer";
+  }
+
+  /** @brief The output is the pool buffer itself, decoded in place. */
+  void checkInPool ()
+  {
+    ASSERT_FALSE (pools.empty ());
+    EXPECT_EQ (output->pool, GST_BUFFER_POOL (pools.back ()));
+    EXPECT_EQ (gst_buffer_peek_memory (output, 0), pools.back ()->frame_mem);
+  }
+};
+
+/** @brief A pool with its own pitch and no alignment option is not written into. */
+TEST_F (DecoderVideoMeta, paddedPitch)
+{
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "BGRx"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 6, 4));
+  checkReplaced ();
+}
+
+/** @brief Rows of three bytes per pixel, padded by default too, follow the same rule. */
+TEST_F (DecoderVideoMeta, paddedPitchRgbOddWidth)
+{
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "RGB"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("RGB", 3, 5, 3));
+  checkReplaced ();
+}
+
+/** @brief A frame placed after another memory has another offset, even at the default pitch. */
+TEST_F (DecoderVideoMeta, frameInSecondMemory)
+{
+  layout.pitch_align = 1;
+  layout.lead = 32;
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "BGRx"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 6, 4));
+  checkReplaced ();
+}
+
+/** @brief Only the offset in the frame memory differs; the stride is the default one. */
+TEST_F (DecoderVideoMeta, sameStrideOtherOffset)
+{
+  layout.pitch_align = 1;
+  layout.meta_offset_extra = 16;
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "RGB"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("RGB", 3, 5, 3));
+  checkReplaced ();
+}
+
+/** @brief A meta declaring another width than the caps does not describe the frame. */
+TEST_F (DecoderVideoMeta, metaWidthMismatch)
+{
+  layout.pitch_align = 1;
+  layout.meta_width_delta = -1;
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "BGRx"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 6, 4));
+  checkReplaced ();
+}
+
+/** @brief A meta declaring another format than the caps does not describe the frame. */
+TEST_F (DecoderVideoMeta, metaFormatMismatch)
+{
+  layout.pitch_align = 1;
+  layout.meta_format = GST_VIDEO_FORMAT_RGBx;
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "BGRx"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 6, 4));
+  checkReplaced ();
+}
+
+/** @brief A renegotiated size is compared with the layout of the new caps. */
+TEST_F (DecoderVideoMeta, renegotiatedSize)
+{
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "BGRx"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 6, 4));
+  checkReplaced ();
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 8, 2));
+  checkReplaced ();
+}
+
+/** @brief The pool buffer that is not used goes back to the pool and serves the next frame. */
+TEST_F (DecoderVideoMeta, replacedBufferBackToPool)
+{
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "BGRx"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 6, 4));
+  checkReplaced ();
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 6, 4));
+  checkReplaced ();
+  EXPECT_EQ (pools.back ()->allocated, 1U) << "the pool allocated another buffer";
+}
+
+/** @brief With another pitch, the sub-plugin is given an empty buffer without a meta. */
+TEST_F (DecoderVideoMeta, paddedPitchDecodedAside)
+{
+  GstVideoInfo info;
+  std::vector<guint8> frame;
+
+  ASSERT_NO_FATAL_FAILURE (start (probe_mode));
+  ASSERT_EQ (pushProbeFrame (GST_VIDEO_FORMAT_BGRx, 6, 4, &info, frame), GST_FLOW_OK);
+  ASSERT_NO_FATAL_FAILURE (checkPixels (&info, frame.data ()));
+  EXPECT_FALSE (probe_state.saw_meta);
+  EXPECT_EQ (probe_state.given_size, 0U);
+  checkReplaced ();
+}
+
+/** @brief Only the luma pitch of I420 differs; one plane is enough to refuse the buffer. */
+TEST_F (DecoderVideoMeta, lumaPitchOnlyI420)
+{
+  GstVideoInfo info;
+  std::vector<guint8> frame;
+
+  layout.pitch_planes = 1U << 0;
+  ASSERT_NO_FATAL_FAILURE (start (probe_mode));
+  ASSERT_EQ (pushProbeFrame (GST_VIDEO_FORMAT_I420, 5, 4, &info, frame), GST_FLOW_OK);
+  ASSERT_NO_FATAL_FAILURE (checkPixels (&info, frame.data ()));
+  checkReplaced ();
+}
+
+/** @brief A packed 4:2:2 format of an odd width comes out whole. */
+TEST_F (DecoderVideoMeta, packedYUY2OddWidth)
+{
+  GstVideoInfo info;
+  std::vector<guint8> frame;
+
+  ASSERT_NO_FATAL_FAILURE (start (probe_mode));
+  ASSERT_EQ (pushProbeFrame (GST_VIDEO_FORMAT_YUY2, 5, 4, &info, frame), GST_FLOW_OK);
+  ASSERT_NO_FATAL_FAILURE (checkPixels (&info, frame.data ()));
+  checkReplaced ();
+}
+
+/** @brief A pool buffer with the default layout is given to the sub-plugin as it is. */
+TEST_F (DecoderVideoMeta, defaultPitchDecodedInPlace)
+{
+  GstVideoInfo info;
+  std::vector<guint8> frame;
+
+  layout.pitch_align = 1;
+  ASSERT_NO_FATAL_FAILURE (start (probe_mode));
+  ASSERT_EQ (pushProbeFrame (GST_VIDEO_FORMAT_BGRx, 6, 4, &info, frame), GST_FLOW_OK);
+  ASSERT_NO_FATAL_FAILURE (checkPixels (&info, frame.data ()));
+  EXPECT_TRUE (probe_state.saw_meta);
+  EXPECT_EQ (probe_state.given_size, GST_VIDEO_INFO_SIZE (&info));
+  checkInPool ();
+}
+
+/** @brief Every plane of a planar format in the default layout matches, so the pool is used. */
+TEST_F (DecoderVideoMeta, defaultPitchI420InPlace)
+{
+  GstVideoInfo info;
+  std::vector<guint8> frame;
+
+  layout.pitch_align = 1;
+  ASSERT_NO_FATAL_FAILURE (start (probe_mode));
+  ASSERT_EQ (pushProbeFrame (GST_VIDEO_FORMAT_I420, 5, 4, &info, frame), GST_FLOW_OK);
+  ASSERT_NO_FATAL_FAILURE (checkPixels (&info, frame.data ()));
+  EXPECT_TRUE (probe_state.saw_meta);
+  checkInPool ();
+}
+
+/** @brief A sub-plugin failing on a replaced buffer stops the frame, and the next one decodes. */
+TEST_F (DecoderVideoMeta, failedDecodeThenNext_n)
+{
+  GstVideoInfo info;
+  std::vector<guint8> frame;
+
+  probe_state.fail = TRUE;
+  ASSERT_NO_FATAL_FAILURE (start (probe_mode));
+  EXPECT_EQ (pushProbeFrame (GST_VIDEO_FORMAT_BGRx, 6, 4, &info, frame), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  probe_state.fail = FALSE;
+  ASSERT_EQ (pushProbeFrame (GST_VIDEO_FORMAT_BGRx, 6, 4, &info, frame), GST_FLOW_OK);
+  ASSERT_NO_FATAL_FAILURE (checkPixels (&info, frame.data ()));
+  checkReplaced ();
+}
+
+/** @brief A sub-plugin failing on a pool buffer in the default layout stops the frame. */
+TEST_F (DecoderVideoMeta, failedDecodeInPlace_n)
+{
+  GstVideoInfo info;
+  std::vector<guint8> frame;
+
+  layout.pitch_align = 1;
+  probe_state.fail = TRUE;
+  ASSERT_NO_FATAL_FAILURE (start (probe_mode));
+  EXPECT_EQ (pushProbeFrame (GST_VIDEO_FORMAT_BGRx, 6, 4, &info, frame), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_TRUE (probe_state.saw_meta);
+}
+
+/**
  * @brief Main GTest
  */
 int
