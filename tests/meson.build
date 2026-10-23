@@ -190,7 +190,8 @@ if gtest_dep.found()
     # Run unittest_sparse
     unittest_sparse = executable('unittest_sparse',
       join_paths('nnstreamer_sparse', 'unittest_sparse.cc'),
-      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps, libdl_dep],
+      export_dynamic: true,
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
