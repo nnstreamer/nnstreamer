@@ -2940,6 +2940,275 @@ TEST (tensorIfPropRace, setFromAnotherThread)
 }
 
 /**
+ * @brief Capture a selected buffer without requiring a downstream element.
+ */
+static GstPadProbeReturn
+_capture_picked_buffer (GstPad *, GstPadProbeInfo *info, gpointer data)
+{
+  GstBuffer **output = static_cast<GstBuffer **> (data);
+  *output = gst_buffer_ref (GST_PAD_PROBE_INFO_BUFFER (info));
+  return GST_PAD_PROBE_DROP;
+}
+
+/**
+ * @brief Observe buffers on either dynamically created tensor_if source pad.
+ */
+static void
+_watch_picked_pad (GstElement *, GstPad *pad, gpointer data)
+{
+  gst_pad_push_event (pad, gst_event_new_stream_start ("tensorpick-output"));
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, _capture_picked_buffer, data, NULL);
+}
+
+/**
+ * @brief Select indices from identifiable tensors through either action branch.
+ * @param indices the tensorpick option
+ * @param then_branch whether the condition should take the then branch
+ * @param count the number of input tensors
+ * @param output the captured buffer, which the caller must unref when non-NULL
+ * @param posted whether the element posted an error
+ * @return the flow return of the chain
+ */
+static GstFlowReturn
+_pick_tensors (const gchar *indices, gboolean then_branch, guint count,
+    GstBuffer **output, gboolean *posted)
+{
+  GstElement *element = NULL;
+  GstPad *sinkpad = _start_tensor_if (&element);
+  GstBus *bus = gst_bus_new ();
+  GstCaps *caps = caps_with_tensors (count, count);
+  GstBuffer *input;
+  GstMessage *message;
+  GstSegment segment;
+  GstFlowReturn result;
+
+  EXPECT_NE (sinkpad, nullptr);
+  *output = NULL;
+  if (!sinkpad) {
+    gst_caps_unref (caps);
+    gst_object_unref (bus);
+    return GST_FLOW_CUSTOM_ERROR;
+  }
+
+  gst_element_set_bus (element, bus);
+  g_object_set (element, "operator", then_branch ? TIFOP_EQ : TIFOP_NE, "then",
+      TIFB_TENSORPICK, "then-option", indices, "else", TIFB_TENSORPICK,
+      "else-option", indices, NULL);
+  g_signal_connect (element, "pad-added", G_CALLBACK (_watch_picked_pad), output);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  gst_caps_unref (caps);
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_segment (&segment)));
+
+  input = gst_buffer_new ();
+  for (guint i = 0; i < count; i++) {
+    GstTensorInfo *info
+        = gst_tensors_info_get_nth_info (&GST_TENSOR_IF (element)->in_config.info, i);
+    GstMemory *memory = gst_allocator_alloc (NULL, gst_tensor_info_get_size (info), NULL);
+    GstMapInfo map;
+    if (gst_memory_map (memory, &map, GST_MAP_WRITE)) {
+      memset (map.data, i, map.size);
+      gst_memory_unmap (memory, &map);
+    } else {
+      ADD_FAILURE () << "Cannot initialize tensor " << i;
+    }
+    EXPECT_TRUE (gst_tensor_buffer_append_memory (input, memory, info));
+  }
+
+  result = gst_pad_chain (sinkpad, input);
+  message = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  *posted = message != NULL;
+  if (message)
+    gst_message_unref (message);
+
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_element_set_bus (element, NULL);
+  gst_object_unref (bus);
+  gst_object_unref (sinkpad);
+  gst_object_unref (element);
+  return result;
+}
+
+/**
+ * @brief Exercise out-of-range indices in both tensorpick branches.
+ */
+class TensorIfPickBoundsTest
+    : public ::testing::TestWithParam<std::tuple<bool, const char *>>
+{
+};
+
+/**
+ * @brief Reject an absent tensor without sending a partial output buffer.
+ */
+TEST_P (TensorIfPickBoundsTest, invalidIndex_n)
+{
+  GstBuffer *output = NULL;
+  gboolean posted = FALSE;
+  auto param = GetParam ();
+
+  EXPECT_EQ (_pick_tensors (std::get<1> (param), std::get<0> (param), 2, &output, &posted),
+      GST_FLOW_ERROR);
+  EXPECT_TRUE (posted);
+  EXPECT_EQ (output, nullptr);
+  if (output)
+    gst_buffer_unref (output);
+}
+
+INSTANTIATE_TEST_SUITE_P (InvalidIndices, TensorIfPickBoundsTest,
+    ::testing::Combine (::testing::Bool (),
+        ::testing::Values ("2", "0,2", "256", "2147483647")));
+
+/**
+ * @brief Preserve tensor order and repeated indices in both valid branches.
+ */
+class TensorIfPickValidTest
+    : public ::testing::TestWithParam<std::tuple<bool, const char *>>
+{
+};
+
+/**
+ * @brief Valid selection retains the requested tensor bytes and count.
+ */
+TEST_P (TensorIfPickValidTest, validSelection)
+{
+  GstBuffer *output = NULL;
+  gboolean posted = TRUE;
+  auto param = GetParam ();
+  const gchar *indices = std::get<1> (param);
+  g_auto (GStrv) tokens = g_strsplit (indices, ",", -1);
+  guint count = g_strv_length (tokens);
+
+  EXPECT_EQ (_pick_tensors (indices, std::get<0> (param), EXTRA_NUM_TENSORS, &output, &posted),
+      GST_FLOW_OK);
+  EXPECT_FALSE (posted);
+  ASSERT_NE (output, nullptr);
+  EXPECT_EQ (gst_tensor_buffer_get_count (output), count);
+  for (guint i = 0; i < count; i++) {
+    guint8 expected[4];
+    guint8 actual[4] = {};
+    GstMemory *memory = gst_tensor_buffer_get_nth_memory (output, i);
+    GstMapInfo map;
+    memset (expected, g_ascii_strtoull (tokens[i], NULL, 10), sizeof (expected));
+    if (gst_memory_map (memory, &map, GST_MAP_READ)) {
+      EXPECT_EQ (map.size, sizeof (actual));
+      memcpy (actual, map.data, MIN (map.size, sizeof (actual)));
+      gst_memory_unmap (memory, &map);
+    } else {
+      ADD_FAILURE () << "Cannot read selected tensor " << i;
+    }
+    gst_memory_unref (memory);
+    EXPECT_EQ (memcmp (actual, expected, sizeof (actual)), 0);
+  }
+  gst_buffer_unref (output);
+}
+
+INSTANTIATE_TEST_SUITE_P (ValidIndices, TensorIfPickValidTest,
+    ::testing::Combine (::testing::Bool (), ::testing::Values ("1,0", "0,0", "19,0", "0")));
+
+/**
+ * @brief Exercise repeated partial configurations in either tensorpick branch.
+ */
+class TensorIfPickNamedTest : public ::testing::TestWithParam<std::tuple<bool, guint>>
+{
+};
+
+/**
+ * @brief Failed picks release copied names and allow a subsequent valid pick.
+ */
+TEST_P (TensorIfPickNamedTest, repeatedInvalidSelection_n)
+{
+  const bool then_branch = std::get<0> (GetParam ());
+  const guint selected = std::get<1> (GetParam ());
+  GstElement *element = NULL;
+  GstPad *sinkpad = _start_tensor_if (&element);
+  ASSERT_NE (sinkpad, nullptr);
+  GstBus *bus = gst_bus_new ();
+  GstCaps *caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  GString *indices = g_string_new (NULL);
+  GstBuffer *output = NULL;
+  GstSegment segment;
+
+  for (guint i = 0; i < selected; i++) {
+    if (i)
+      g_string_append_c (indices, ',');
+    g_string_append_printf (indices, "%u", i);
+  }
+  gchar *valid_indices = g_strdup (indices->str);
+  g_string_append_printf (indices, ",%u", EXTRA_NUM_TENSORS);
+  gst_element_set_bus (element, bus);
+  g_object_set (element, "operator", then_branch ? TIFOP_EQ : TIFOP_NE, "then",
+      TIFB_TENSORPICK, "then-option", indices->str, "else", TIFB_TENSORPICK,
+      "else-option", indices->str, NULL);
+  g_signal_connect (element, "pad-added", G_CALLBACK (_watch_picked_pad), &output);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  gst_caps_unref (caps);
+  GstTensorsInfo *input = &GST_TENSOR_IF (element)->in_config.info;
+  GstTensorsInfo *config = &GST_TENSOR_IF (element)
+                                ->out_config[then_branch ? TIFSP_THEN_PAD : TIFSP_ELSE_PAD]
+                                .info;
+  /* Names are internal tensor metadata, not part of tensor caps. */
+  for (guint i = 0; i < EXTRA_NUM_TENSORS; i++)
+    gst_tensors_info_get_nth_info (input, i)->name = g_strdup_printf ("input%u", i);
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_segment (&segment)));
+
+  for (guint attempt = 0; attempt < 3; attempt++) {
+    EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_tensors (input)), GST_FLOW_ERROR);
+    GstMessage *message = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+    EXPECT_NE (message, nullptr);
+    if (message)
+      gst_message_unref (message);
+    EXPECT_EQ (config->num_tensors, 0U);
+    EXPECT_EQ (config->extra, nullptr);
+    for (guint i = 0; i < NNS_TENSOR_MEMORY_MAX; i++)
+      EXPECT_EQ (config->info[i].name, nullptr);
+    EXPECT_EQ (output, nullptr);
+  }
+
+  /* Reuse the same element after correcting the invalid selection. */
+  g_object_set (element, "then-option", valid_indices, "else-option", valid_indices, NULL);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_tensors (input)), GST_FLOW_OK);
+  EXPECT_NE (output, nullptr);
+  EXPECT_EQ (config->num_tensors, selected);
+  for (guint i = 0; i < selected; i++) {
+    GstTensorInfo *actual = gst_tensors_info_get_nth_info (config, i);
+    GstTensorInfo *expected = gst_tensors_info_get_nth_info (input, i);
+    EXPECT_STREQ (actual->name, expected->name);
+    EXPECT_NE (actual->name, expected->name);
+  }
+  if (output)
+    gst_buffer_unref (output);
+  output = NULL;
+
+  /* A later bad pick must not clear the already negotiated configuration. */
+  gchar *first_name = config->info[0].name;
+  GstTensorInfo *extra = config->extra;
+  g_object_set (element, "then-option", indices->str, "else-option", indices->str, NULL);
+  EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_tensors (input)), GST_FLOW_ERROR);
+  GstMessage *message = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  EXPECT_NE (message, nullptr);
+  if (message)
+    gst_message_unref (message);
+  EXPECT_EQ (config->num_tensors, selected);
+  EXPECT_EQ (config->info[0].name, first_name);
+  EXPECT_EQ (config->extra, extra);
+  EXPECT_EQ (output, nullptr);
+  if (output)
+    gst_buffer_unref (output);
+  g_free (valid_indices);
+  g_string_free (indices, TRUE);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_element_set_bus (element, NULL);
+  gst_object_unref (bus);
+  gst_object_unref (sinkpad);
+  gst_object_unref (element);
+}
+
+INSTANTIATE_TEST_SUITE_P (NamedTensors, TensorIfPickNamedTest,
+    ::testing::Combine (
+        ::testing::Bool (), ::testing::Values (1U, NNS_TENSOR_MEMORY_MAX + 1U)));
+
+/**
  * @brief Main GTest
  */
 int
