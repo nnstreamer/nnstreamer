@@ -61,6 +61,14 @@ typedef struct {
   gboolean fail_subscribe;
   gboolean fail_unsubscribe;
   gboolean fail_reconnect;
+  gboolean fail_disconnect;
+  gboolean omit_disconnect_callback;
+  MQTTAsync_onSuccess *disconnect_callback;
+  void *disconnect_context;
+  gboolean deliver_during_destroy;
+  gboolean destroy_callback_done;
+  gboolean destroy_drained_callback;
+  guint destroy_count;
 
   std::string last_client_id;
   std::string last_server_uri;
@@ -100,6 +108,14 @@ _mock_reset (void)
   g_mock.fail_subscribe = FALSE;
   g_mock.fail_unsubscribe = FALSE;
   g_mock.fail_reconnect = FALSE;
+  g_mock.fail_disconnect = FALSE;
+  g_mock.omit_disconnect_callback = FALSE;
+  g_mock.disconnect_callback = NULL;
+  g_mock.disconnect_context = NULL;
+  g_mock.deliver_during_destroy = FALSE;
+  g_mock.destroy_callback_done = FALSE;
+  g_mock.destroy_drained_callback = FALSE;
+  g_mock.destroy_count = 0;
   g_mock.last_client_id.clear ();
   g_mock.last_server_uri.clear ();
   g_mock.has_username = FALSE;
@@ -414,8 +430,19 @@ int
 MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *options)
 {
   (void) handle;
+  gboolean fail, omit_callback;
 
-  if (!options)
+  g_mutex_lock (&g_mock.lock);
+  fail = g_mock.fail_disconnect;
+  omit_callback = g_mock.omit_disconnect_callback;
+  g_mock.disconnect_callback = options ? options->onSuccess : NULL;
+  g_mock.disconnect_context = options ? options->context : NULL;
+  g_mutex_unlock (&g_mock.lock);
+
+  if (fail)
+    return MQTTASYNC_FAILURE;
+
+  if (!options || omit_callback)
     return MQTTASYNC_SUCCESS;
 
   /** The element waits for this callback with its own lock held */
@@ -435,11 +462,57 @@ MQTTAsync_isConnected (MQTTAsync handle)
 }
 
 /**
- * @brief A mock function for MQTTAsync_destroy () in paho-mqtt-c
+ * @brief Deliver a message whose callback must finish before client destruction.
+ */
+static void
+_deliver_during_destroy (MQTTAsync_messageArrived *callback, void *context,
+    MQTTAsync_onSuccess *disconnect_callback, void *disconnect_context)
+{
+  MQTTAsync_message *message = g_new0 (MQTTAsync_message, 1);
+  GstMQTTMessageHdr *header;
+
+  /* A disconnect completion can arrive after the caller's wait timed out. */
+  if (disconnect_callback)
+    _run_success_cb (disconnect_callback, disconnect_context);
+
+  message->payloadlen = GST_MQTT_LEN_MSG_HDR + 1;
+  message->payload = g_malloc0 (message->payloadlen);
+  header = (GstMQTTMessageHdr *) message->payload;
+  header->num_mems = 1;
+  header->size_mems[0] = 1;
+  g_strlcpy (header->gst_caps_str, "application/octet-stream", sizeof (header->gst_caps_str));
+  callback (context, g_strdup ("test_topic"), 0, message);
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.destroy_callback_done = TRUE;
+  g_cond_broadcast (&g_mock.cond);
+  g_mutex_unlock (&g_mock.lock);
+}
+
+/**
+ * @brief Model paho destruction waiting for a receive callback to release its lock.
+ * @details The bounded wait records a lock inversion without hanging the test
+ *          process; the callback is joined after stop releases the element lock.
  */
 void
 MQTTAsync_destroy (MQTTAsync *handle)
 {
+  g_mutex_lock (&g_mock.lock);
+  g_mock.destroy_count++;
+  if (g_mock.deliver_during_destroy) {
+    gint64 deadline = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+
+    g_mock.destroy_callback_done = FALSE;
+    g_mock_threads.push_back (std::thread (_deliver_during_destroy, g_mock.message_arrived,
+        g_mock.context, g_mock.omit_disconnect_callback ? g_mock.disconnect_callback : NULL,
+        g_mock.disconnect_context));
+    while (!g_mock.destroy_callback_done) {
+      if (!g_cond_wait_until (&g_mock.cond, &g_mock.lock, deadline))
+        break;
+    }
+    g_mock.destroy_drained_callback = g_mock.destroy_callback_done;
+  }
+  g_mutex_unlock (&g_mock.lock);
   *handle = NULL;
 }
 
@@ -2938,6 +3011,88 @@ TEST (testMqttSrc, messageCapsAfterRestart)
   _caps_event_record_stop (&rec, &fixture);
   _fixture_teardown (&fixture);
   _caps_event_record_clear (&rec);
+}
+
+/**
+ * @brief Exercise the source lifecycle while destruction drains a receive callback.
+ */
+static void
+_check_disconnect_callback (gboolean fail, gboolean omit_callback, guint cycles)
+{
+  g_autoptr (GstElement) src = gst_element_factory_make ("mqttsrc", NULL);
+  GstMqttSrc *self;
+  GstBaseSrcClass *klass;
+
+  ASSERT_NE (src, nullptr);
+  gst_object_ref_sink (src);
+  self = GST_MQTT_SRC (src);
+  klass = GST_BASE_SRC_GET_CLASS (src);
+  _mock_reset ();
+
+  for (guint i = 0; i < cycles; i++) {
+    ASSERT_TRUE (klass->start (GST_BASE_SRC (src)));
+
+    /* Drive the lifecycle hooks without a streaming task or a real broker. */
+    g_mutex_lock (&self->mqtt_src_mutex);
+    self->is_subscribed = TRUE;
+    g_mutex_unlock (&self->mqtt_src_mutex);
+    g_mutex_lock (&g_mock.lock);
+    g_mock.fail_disconnect = fail;
+    g_mock.omit_disconnect_callback = omit_callback;
+    g_mock.deliver_during_destroy = TRUE;
+    g_mutex_unlock (&g_mock.lock);
+
+    EXPECT_TRUE (klass->stop (GST_BASE_SRC (src)));
+    _mock_join_threads ();
+
+    g_mutex_lock (&g_mock.lock);
+    gboolean drained = g_mock.destroy_drained_callback;
+    guint destroyed = g_mock.destroy_count;
+    guint messages = g_mock.free_message_count;
+    guint topics = g_mock.free_topic_count;
+    g_mutex_unlock (&g_mock.lock);
+    EXPECT_TRUE (drained) << "destroy could not drain the message callback";
+    EXPECT_EQ (destroyed, i + 1);
+    EXPECT_EQ (messages, i + 1);
+    EXPECT_EQ (topics, i + 1);
+    EXPECT_EQ (g_async_queue_length (self->aqueue), 0);
+    EXPECT_EQ (self->mqtt_client_handle, nullptr);
+    EXPECT_FALSE (self->is_connected);
+    EXPECT_FALSE (self->is_subscribed);
+    EXPECT_FALSE (self->is_disconnect_finished);
+  }
+}
+
+/**
+ * @brief A receive callback can complete while stop destroys the client.
+ */
+TEST (testMqttSrc, stopDrainsMessageCallback)
+{
+  _check_disconnect_callback (FALSE, FALSE, 1);
+}
+
+/**
+ * @brief A source can start again after draining a callback at shutdown.
+ */
+TEST (testMqttSrc, restartAfterDrainingMessageCallback)
+{
+  _check_disconnect_callback (FALSE, FALSE, 2);
+}
+
+/**
+ * @brief A refused disconnect still destroys the client and drains its callback.
+ */
+TEST (testMqttSrc, disconnectFailureDrainsMessageCallback_n)
+{
+  _check_disconnect_callback (TRUE, FALSE, 1);
+}
+
+/**
+ * @brief A missing disconnect response does not block destruction of the client.
+ */
+TEST (testMqttSrc, disconnectTimeoutDrainsMessageCallback_n)
+{
+  _check_disconnect_callback (FALSE, TRUE, 1);
 }
 
 /**
