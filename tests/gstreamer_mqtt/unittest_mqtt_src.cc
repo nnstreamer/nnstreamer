@@ -1869,6 +1869,142 @@ _deliver_valid_message (src_fixture_s *fixture)
 }
 
 /**
+ * @brief Wait beyond a queue poll before delivering the first message.
+ */
+static void
+_expect_delayed_first_message (src_fixture_s *fixture)
+{
+  g_object_set (fixture->src, "sub-timeout", LONG_SUB_TIMEOUT, NULL);
+  ASSERT_TRUE (_fixture_play (fixture));
+
+  /* An old error must not shorten the new stream's receive timeout. */
+  g_usleep (QUEUE_POLL_PASSED_US);
+  EXPECT_TRUE (_deliver_valid_message (fixture));
+  EXPECT_TRUE (_fixture_wait_buffers (fixture, 1));
+  EXPECT_EQ (_fixture_num_buffers (fixture), 1U);
+}
+
+/**
+ * @brief Stop the previous client before checking the same source's next stream.
+ */
+static void
+_expect_restart_after_error (src_fixture_s *fixture, GstState stopped_state)
+{
+  EXPECT_NE (gst_element_set_state (fixture->pipeline, stopped_state), GST_STATE_CHANGE_FAILURE);
+  EXPECT_NE (gst_element_get_state (fixture->pipeline, NULL, NULL, WAIT_TIMEOUT_US * GST_USECOND),
+      GST_STATE_CHANGE_FAILURE);
+  _mock_join_threads ();
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.subscribe_count = 0;
+  g_mutex_unlock (&g_mock.lock);
+  _expect_delayed_first_message (fixture);
+}
+
+/**
+ * @brief A fresh source waits for a message for its configured receive timeout.
+ */
+TEST (testMqttSrc, delayedFirstMessage)
+{
+  src_fixture_s fixture;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _expect_delayed_first_message (&fixture);
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief Correcting rejected credentials recovers the same source instance.
+ */
+TEST (testMqttSrc, restartAfterRejectedCredentials_n)
+{
+  for (GstState stopped_state : { GST_STATE_READY, GST_STATE_NULL }) {
+    src_fixture_s fixture;
+
+    EXPECT_FALSE (_fixture_start (
+        &fixture, "an-mqtt-user", "a-wrong-password", "the-right-password"));
+    ASSERT_NE (fixture.src, nullptr);
+    EXPECT_NE (GST_MQTT_SRC (fixture.src)->err, nullptr);
+
+    g_object_set (fixture.src, "password", "the-right-password", NULL);
+    _expect_restart_after_error (&fixture, stopped_state);
+    _fixture_teardown (&fixture);
+  }
+}
+
+/**
+ * @brief A source restarted after losing its broker accepts a delayed message.
+ */
+TEST (testMqttSrc, restartAfterConnectionLoss_n)
+{
+  for (GstState stopped_state : { GST_STATE_READY, GST_STATE_NULL }) {
+    src_fixture_s fixture;
+    GstMessage *error;
+
+    ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+    g_object_set (fixture.src, "sub-timeout", LONG_SUB_TIMEOUT, NULL);
+    ASSERT_TRUE (_fixture_play (&fixture));
+    _drop_connection ();
+    error = gst_bus_timed_pop_filtered (
+        fixture.bus, WAIT_TIMEOUT_US * GST_USECOND, GST_MESSAGE_ERROR);
+    EXPECT_NE (error, nullptr);
+    if (error)
+      gst_message_unref (error);
+
+    _expect_restart_after_error (&fixture, stopped_state);
+    _fixture_teardown (&fixture);
+  }
+}
+
+/**
+ * @brief A receive timeout does not shorten the next stream's receive timeout.
+ */
+TEST (testMqttSrc, restartAfterReceiveTimeout_n)
+{
+  for (GstState stopped_state : { GST_STATE_READY, GST_STATE_NULL }) {
+    src_fixture_s fixture;
+    GstMessage *error;
+
+    ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+    ASSERT_TRUE (_fixture_play (&fixture));
+    error = gst_bus_timed_pop_filtered (
+        fixture.bus, WAIT_TIMEOUT_US * GST_USECOND, GST_MESSAGE_ERROR);
+    EXPECT_NE (error, nullptr);
+    if (error)
+      gst_message_unref (error);
+
+    _expect_restart_after_error (&fixture, stopped_state);
+    _fixture_teardown (&fixture);
+  }
+}
+
+/**
+ * @brief A retry reports its own failure before a later corrected retry succeeds.
+ */
+TEST (testMqttSrc, restartPreservesNewConnectionFailure_n)
+{
+  src_fixture_s fixture;
+
+  EXPECT_FALSE (_fixture_start (
+      &fixture, "an-mqtt-user", "a-wrong-password", "the-right-password"));
+  ASSERT_NE (fixture.src, nullptr);
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_NULL), GST_STATE_CHANGE_FAILURE);
+  _mock_join_threads ();
+
+  g_object_set (fixture.src, "password", "another-wrong-password", NULL);
+  EXPECT_EQ (gst_element_set_state (fixture.pipeline, GST_STATE_PLAYING),
+      GST_STATE_CHANGE_FAILURE);
+  EXPECT_NE (GST_MQTT_SRC (fixture.src)->err, nullptr);
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_STREQ (g_mock.last_password.c_str (), "another-wrong-password");
+  g_mutex_unlock (&g_mock.lock);
+
+  g_object_set (fixture.src, "password", "the-right-password", NULL);
+  _expect_restart_after_error (&fixture, GST_STATE_READY);
+  _fixture_teardown (&fixture);
+}
+
+/**
  * @brief mqttsrc moves wire timestamps onto its own running time unchanged
  * @note GstBaseSrc offsets a live stream so that its first buffer lands on the
  *       running time it is pushed at, so the cases check the PTS-DTS distance.
