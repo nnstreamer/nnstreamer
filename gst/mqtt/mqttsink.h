@@ -18,6 +18,7 @@
 #include <MQTTAsync.h>
 
 #include "mqttcommon.h"
+#include "mqtttls.h"
 
 G_BEGIN_DECLS
 
@@ -91,6 +92,7 @@ struct _GstMqttSink {
   gsize mqtt_msg_buf_size;
   gboolean is_static_sized_buf;
 
+  GstMqttTls mqtt_tls; /**< configured TLS properties and reconnect snapshot */
   MQTTAsync mqtt_client_handle;
   MQTTAsync_connectOptions mqtt_conn_opts;
   MQTTAsync_responseOptions mqtt_respn_opts;
