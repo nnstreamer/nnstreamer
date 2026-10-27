@@ -2065,7 +2065,7 @@ TEST (testTensorTransform, optionChangeFromAnotherThread)
     gst_memory_unmap (mem, &info);
     gst_buffer_unref (out_buf);
 
-    /* Require updates during the stream, including a late-starting worker.
+    /** Require updates during the stream, including a late-starting worker.
      * The condition wait gives instrumentation a scheduling opportunity. */
     if (b % 50 == 0) {
       gboolean progressed = _wait_for_transform_prop_change (&data);
