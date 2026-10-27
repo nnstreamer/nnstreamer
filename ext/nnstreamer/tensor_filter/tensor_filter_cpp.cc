@@ -71,18 +71,26 @@ static GstTensorFilterFramework NNS_support_cpp = { .version = GST_TENSOR_FILTER
         .allocateInInvoke = tensor_filter_cpp::allocateInInvoke,
     } } };
 
+#if defined(__ANDROID__)
+/* The Android ML API initializes and finalizes this module explicitly. */
+G_BEGIN_DECLS
+void init_filter_cpp (void) __attribute__ ((constructor));
+void fini_filter_cpp (void) __attribute__ ((destructor));
+G_END_DECLS
+#else
 static void init_filter_cpp (void) __attribute__ ((constructor));
 static void fini_filter_cpp (void) __attribute__ ((destructor));
+#endif
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
-static void
+void
 init_filter_cpp (void)
 {
   nnstreamer_filter_probe (&NNS_support_cpp);
 }
 
 /** @brief Destruct the subplugin */
-static void
+void
 fini_filter_cpp (void)
 {
   nnstreamer_filter_exit (NNS_support_cpp.v0.name);
