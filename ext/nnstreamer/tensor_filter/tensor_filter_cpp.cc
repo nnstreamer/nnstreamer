@@ -71,25 +71,23 @@ static GstTensorFilterFramework NNS_support_cpp = { .version = GST_TENSOR_FILTER
         .allocateInInvoke = tensor_filter_cpp::allocateInInvoke,
     } } };
 
-G_BEGIN_DECLS
-void init_filter_cpp (void) __attribute__ ((constructor));
-void fini_filter_cpp (void) __attribute__ ((destructor));
+static void init_filter_cpp (void) __attribute__ ((constructor));
+static void fini_filter_cpp (void) __attribute__ ((destructor));
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
-void
+static void
 init_filter_cpp (void)
 {
   nnstreamer_filter_probe (&NNS_support_cpp);
 }
 
 /** @brief Destruct the subplugin */
-void
+static void
 fini_filter_cpp (void)
 {
   nnstreamer_filter_exit (NNS_support_cpp.v0.name);
   tensor_filter_cpp::close_all_handles ();
 }
-G_END_DECLS
 
 #define loadClass(name, ptr)                                    \
   class tensor_filter_cpp *name = (tensor_filter_cpp *) *(ptr); \
