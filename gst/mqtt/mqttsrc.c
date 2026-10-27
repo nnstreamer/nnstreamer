@@ -1732,7 +1732,7 @@ gst_mqtt_src_disconnect (GstMqttSrc * self, gint wait_time)
     goto done;
   }
 
-  /* The lifecycle caller owns the handle until destruction below. Paho may
+  /** The lifecycle caller owns the handle until destruction below. Paho may
    * acquire its library mutex while a receive callback waits for ours. */
   client = self->mqtt_client_handle;
   g_mutex_unlock (&self->mqtt_src_mutex);

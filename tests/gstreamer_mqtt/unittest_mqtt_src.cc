@@ -454,7 +454,7 @@ MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *optio
   if (model_lock) {
     gint64 deadline = g_get_monotonic_time () + 2 * G_TIME_SPAN_SECOND;
     gboolean acquired;
-    /* Paho 1.3.14 takes its library lock before checking the request.
+    /** Paho 1.3.14 takes its library lock before checking the request.
      * Bound this model so a regression fails instead of hanging the suite. */
     while (!(acquired = g_mutex_trylock (&mock_paho_mutex)) && g_get_monotonic_time () < deadline)
       g_usleep (1000);
