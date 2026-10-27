@@ -10,6 +10,12 @@
 #       Use with "unit_test 1" to do it with as many cases as possible:
 #       $ gbs -c .TAOS-CI/.gbs.conf build --define "unit_test 1" --define "testcoverage 1"
 #
+# gbs -c .TAOS-CI/.gbs.conf build --define "unit_test 1" --define "grpc_memcheck 1" \
+#     -R http://download.tizen.org/snapshots/TIZEN/Tizen/Tizen-Base/reference/repos/standard/debug/
+#       Also run the gRPC unit tests under valgrind memcheck and fail the build
+#       on memory errors or definite leaks in this repository's code.
+#       Valgrind needs glibc-debuginfo, which only the debug repository has.
+#
 
 %define		gstpostfix	gstreamer-1.0
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
@@ -320,8 +326,15 @@ BuildRequires:  pkgconfig(amlogic-vsi-npu-sdk)
 BuildRequires: tensorrt-devel
 %endif
 
+%if 0%{?grpc_memcheck} && !(0%{?unit_test} && 0%{?grpc_support})
+%{error:grpc_memcheck needs unit_test and gRPC support}
+%endif
 %if 0%{?grpc_support}
 BuildRequires:  grpc-devel
+%if 0%{?unit_test} && 0%{?grpc_memcheck}
+BuildRequires:  valgrind
+BuildRequires:  glibc-debuginfo
+%endif
 %endif
 
 %if %{with tizen}
@@ -1089,6 +1102,14 @@ popd
 # If "unit_test"==0, don't run these for the sake of build speed.
 %if 0%{?unit_test}
     LD_LIBRARY_PATH=./ext/nnstreamer/extra bash %{test_script} ./tests
+%if 0%{?grpc_support} && 0%{?grpc_memcheck}
+    # The only memcheck of the gRPC sub-plugins: the Ubuntu valgrind job cannot build them.
+    G_SLICE=always-malloc G_DEBUG=gc-friendly UNITTEST_TIMEOUT=600 LD_LIBRARY_PATH=./ext/nnstreamer/extra \
+      bash %{test_script} --valgrind ./tests/unittest_grpc > valgrind-grpc.log 2>&1 || { cat valgrind-grpc.log; exit 1; }
+    bash tools/debugging/check_valgrind_log.sh --require-output valgrind-grpc.log > valgrind-grpc.check 2>&1 || \
+      { cat valgrind-grpc.log valgrind-grpc.check; exit 1; }
+    cat valgrind-grpc.check
+%endif
     bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
 %if 0%{?datarepo_support}

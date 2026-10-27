@@ -61,13 +61,15 @@
 # such as a buffer from an upstream element on a streaming thread: no frame of
 # ours is on that stack, so such a leak passes as a library one.
 #
-# Two callers are exempt even so: a block allocated while the dynamic loader
+# Three callers are exempt even so: a block allocated while the dynamic loader
 # loads a library or runs its initialisers belongs to the loader or to that
-# library, and GStreamer leaks the list of log functions it replaces on
-# purpose. A stack that passes through either before reaching a frame of ours
-# is not ours. Possible and indirect leaks are only counted, the former being
-# mostly the thread-local storage of threads still running at exit and the
-# latter reachable only through a definite one.
+# library, GStreamer leaks the list of log functions it replaces on purpose,
+# and GLib never frees the table its quarks and interned strings live in, so
+# which call happens to grow it is chance. A stack that passes through any of
+# them before reaching a frame of ours is not ours. Possible and indirect
+# leaks are only counted, the former being mostly the thread-local storage of
+# threads still running at exit and the latter reachable only through a
+# definite one.
 #
 # --require-output additionally fails when the log holds no memcheck output at
 # all. A caller that always runs memcheck wants that, because a log that lost
@@ -186,7 +188,7 @@ function is_ours(where,   file) {
 function is_exempt_from_leaks(frame,   symbol) {
   symbol = frame
   sub(/^(at|by) 0x[0-9A-Fa-f]+: /, "", symbol)
-  return symbol ~ /^(_dl_init|_dl_open|gst_debug_add_log_function|gst_debug_remove_log_function)[. ]/
+  return symbol ~ /^(_dl_init|_dl_open|gst_debug_add_log_function|gst_debug_remove_log_function|g_quark_from_string|g_quark_from_static_string|g_intern_string|g_intern_static_string)[. ]/
 }
 
 function record_leak(what, where, frame,   key) {
