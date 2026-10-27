@@ -24,9 +24,9 @@ One "Always" sink pad exists. It accepts a single tensor (`other/tensor`, or `ot
 
   For example, `tensorseg=1:100:100,2:100:100` cuts a `3:100:100` uint8 tensor into a `1:100:100` segment (the first 10000 bytes) and a `2:100:100` segment (the next 20000 bytes).
 
-  Set it before the stream starts. The first buffer fixes it, and a later set to another rule is refused with a warning; see [Changing what the element does](#changing-what-the-element-does).
+  Set it before the stream starts. After the first buffer, only a rule with the same number of segments is taken, which changes the dimensions of the pads; any other rule is refused with a warning. See [Changing what the element does](#changing-what-the-element-does).
 
-- tensorpick: Optional. The indices of the `tensorseg` segments to output, separated by commas. The other segments are dropped. Like `tensorseg`, it is fixed by the first buffer.
+- tensorpick: Optional. The indices of the `tensorseg` segments to output, separated by commas. The other segments are dropped. It is fixed by the first buffer.
 
   The pad numbering does not follow the indices. Pads are numbered in the order they are created, so when `tensorseg` and `tensorpick` are set before the stream starts, the picked segments go out on `src_0`, `src_1`, ... in ascending index order. Each pad carries the dimensions of the segment it outputs, not those of the segment with the same number.
 
@@ -41,13 +41,19 @@ One "Always" sink pad exists. It accepts a single tensor (`other/tensor`, or `ot
 
 ## Changing what the element does
 
-A source pad takes its caps when it is created, and its dimensions come from `tensorseg`. The two ways the pads could end up announcing something they no longer carry are handled differently.
+A source pad takes its caps when it is created, and its dimensions come from `tensorseg`. The ways the pads could end up announcing something they no longer carry are handled differently.
 
-### The rules are fixed by the first buffer
+### The set of pads is fixed by the first buffer
 
-The first buffer to be split fixes `tensorseg` and `tensorpick`, whether or not any segment of it was output. Setting either of them to something else afterwards is refused: the element keeps the value it had and posts a warning on the bus, since `g_object_set()` cannot report the refusal itself. Setting one to the rule it already has changes nothing and is not reported. The pads therefore never carry a segment of another size than they announce, and no pad is ever added after `no-more-pads`.
+The first buffer to be split fixes `tensorpick` and the number of segments in `tensorseg`, whether or not any segment of it was output. Setting `tensorpick` to another selection, or `tensorseg` to a rule with another number of segments, is refused: the element keeps the value it had and posts a warning on the bus, since `g_object_set()` cannot report the refusal itself. Setting one to the rule it already has changes nothing and is not reported. No pad is therefore added or removed while the stream runs, and none is added after `no-more-pads`.
 
 To change them, stop the pipeline to `READY` or `NULL`, set the properties, and play it again. The source pads are removed on the way down and created anew, with the new caps and numbering, when the next stream starts, so link the new pads again (for example, from the `pad-added` signal).
+
+### The segment dimensions may change while the stream runs
+
+A `tensorseg` with the same number of segments is taken while the stream runs. The first buffer that arrives after the set is cut by it, and before that buffer every source pad is given its new dimensions, so no buffer is cut by one rule and announced by the other. `g_object_get()` returns the new rule from the moment it is set.
+
+The new rule is not taken if a segment that goes out, or one before it, is empty, or if a segment that goes out does not fit in the incoming buffer, or if what is linked to a pad does not accept its new dimensions. The element then keeps the old rule, posts a warning on the bus and goes on with the stream, and `g_object_get()` returns the old rule again. Every peer is asked before any pad changes, so a refusal leaves all the pads as they were. If a pad then still cannot take the caps its peer accepted, the stream fails with a negotiation error, as it does for a renegotiated input. A rule set again before the next buffer replaces the one still waiting, and a rule still waiting when the pipeline stops is the one the next stream starts with.
 
 ### The input may be renegotiated
 

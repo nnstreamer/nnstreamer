@@ -16980,10 +16980,10 @@ TEST (testTensorSplit, tensorpickWithGap)
 }
 
 /**
- * @brief A tensorseg set while the stream runs is refused, rule and pads intact.
- * @details The caps of a source pad are taken when it is created, so a rule
- *          that changed under it would leave it carrying a segment of another
- *          size than it announces. The rule is fixed by the first buffer.
+ * @brief A tensorseg of another segment count set while the stream runs is
+ *        refused, rule and pads intact.
+ * @details Another number of segments would add or remove source pads while
+ *          the stream runs, so it is fixed by the first buffer.
  */
 TEST (testTensorSplit, setTensorsegWhileStreaming_n)
 {
@@ -17328,14 +17328,7 @@ TEST (testTensorSplit, setSameRuleWhileStreaming)
   g_object_set (h->element, "tensorseg", "1:4:4;2:4:4", NULL);
   EXPECT_TRUE (gst_bus_pop_filtered (bus, GST_MESSAGE_WARNING) == NULL);
 
-  /* as many segments of as many bytes, cut in another order, is another rule */
-  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
-  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_WARNING);
-  EXPECT_TRUE (msg != NULL);
-  if (msg)
-    gst_message_unref (msg);
-
-  /* so is a selection that is the start of the one it holds */
+  /* a selection that is the start of the one it holds is another one */
   g_object_set (h->element, "tensorpick", "0", NULL);
   msg = gst_bus_pop_filtered (bus, GST_MESSAGE_WARNING);
   EXPECT_TRUE (msg != NULL);
@@ -17348,6 +17341,7 @@ TEST (testTensorSplit, setSameRuleWhileStreaming)
   EXPECT_EQ (out[0].buffer_size, 16U);
   EXPECT_EQ (out[1].buffers, 2U);
   EXPECT_EQ (out[1].buffer_size, 32U);
+  EXPECT_TRUE (gst_bus_pop_filtered (bus, GST_MESSAGE_WARNING) == NULL);
 
   _split_harness_bus_clear (h, bus);
   _split_outputs_clear (out);
@@ -17712,6 +17706,556 @@ TEST (testTensorSplit, renegotiateRefusedLeavesEveryPad_n)
     gst_caps_unref (open.taken);
   if (pinned.accepted)
     gst_caps_unref (pinned.accepted);
+}
+
+/**
+ * @brief Get the dimensions a tensor_split source pad announces.
+ * @return the dimension string of the caps, to be freed, or NULL
+ */
+static gchar *
+_split_pad_dimension (GstElement *element, const gchar *name)
+{
+  GstPad *pad = gst_element_get_static_pad (element, name);
+  GstCaps *caps;
+  gchar *dimension = NULL;
+
+  if (pad == NULL)
+    return NULL;
+
+  caps = gst_pad_get_current_caps (pad);
+  if (caps) {
+    GstStructure *structure = gst_caps_get_structure (caps, 0);
+
+    dimension = g_strdup (gst_structure_get_string (structure,
+        gst_structure_has_field (structure, "dimensions") ? "dimensions" : "dimension"));
+    gst_caps_unref (caps);
+  }
+  gst_object_unref (pad);
+
+  return dimension;
+}
+
+/**
+ * @brief Pop a warning of tensor_split from the bus and check what it is about.
+ * @return TRUE if a RESOURCE/SETTINGS warning was there
+ */
+static gboolean
+_split_pop_settings_warning (GstBus *bus)
+{
+  GstMessage *msg = gst_bus_pop_filtered (bus, GST_MESSAGE_WARNING);
+  GError *err = NULL;
+  gboolean found;
+
+  if (msg == NULL)
+    return FALSE;
+
+  gst_message_parse_warning (msg, &err, NULL);
+  found = (err->domain == GST_RESOURCE_ERROR && err->code == GST_RESOURCE_ERROR_SETTINGS);
+  g_clear_error (&err);
+  gst_message_unref (msg);
+
+  return found;
+}
+
+/**
+ * @brief A tensorseg of as many segments, set while the stream runs, cuts the next buffer.
+ * @details The pads stay as they are and announce the new dimensions before
+ *          the buffer cut by the new rule, so caps and buffers agree on both
+ *          sides of the change.
+ */
+TEST (testTensorSplit, resizeSegmentsWhileStreaming)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gchar *tensorseg = NULL;
+  gchar *dimension;
+  gsize size;
+  GstHarness *h = _split_harness_new ("3:4:4", out, &size);
+  GstBus *bus = _split_harness_bus (h);
+
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  EXPECT_FALSE (_split_pop_settings_warning (bus));
+  g_object_get (h->element, "tensorseg", &tensorseg, NULL);
+  EXPECT_TRUE (g_str_has_prefix (tensorseg, "2:4:4:"));
+  g_free (tensorseg);
+
+  /* nothing changes before the next buffer */
+  dimension = _split_pad_dimension (h->element, "src_0");
+  EXPECT_STREQ (dimension, "1:4:4");
+  g_free (dimension);
+
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 2U);
+  EXPECT_FALSE (_split_pop_settings_warning (bus));
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimension, "2:4:4");
+  EXPECT_EQ (out[0].caps_size, 32U);
+  EXPECT_EQ (out[0].buffer_size, 32U);
+  EXPECT_EQ (out[0].first_byte, 0U);
+
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_STREQ (out[1].dimension, "1:4:4");
+  EXPECT_EQ (out[1].caps_size, 16U);
+  EXPECT_EQ (out[1].buffer_size, 16U);
+  EXPECT_EQ (out[1].first_byte, 32U);
+
+  _split_harness_bus_clear (h, bus);
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A picked segment takes its new dimensions and offset while the stream runs.
+ * @details The pad keeps the segment index it was made for, so it follows
+ *          that segment wherever the new rule puts it in the input.
+ */
+TEST (testTensorSplit, resizePickedSegmentWhileStreaming)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _split_harness_new ("3:4:4", out, &size);
+
+  g_object_set (h->element, "tensorseg", "1:4:4,1:4:4,1:4:4", "tensorpick", "2", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_STREQ (out[0].dimension, "1:4:4");
+  EXPECT_EQ (out[0].first_byte, 32U);
+
+  g_object_set (h->element, "tensorseg", "1:2:4,1:2:4,2:4:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 1U);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimension, "2:4:4");
+  EXPECT_EQ (out[0].caps_size, 32U);
+  EXPECT_EQ (out[0].buffer_size, 32U);
+  EXPECT_EQ (out[0].first_byte, 16U);
+
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief The last tensorseg set before a buffer is the one it is cut by.
+ * @details Setting the running rule again before the next buffer replaces a
+ *          rule still waiting with the running one, so nothing changes.
+ */
+TEST (testTensorSplit, resizeSetAgainBeforeBuffer)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _split_harness_new ("3:4:4", out, &size);
+
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  g_object_set (h->element, "tensorseg", "1:2:4,1:2:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_STREQ (out[0].dimension, "1:2:4");
+  EXPECT_EQ (out[0].buffer_size, 8U);
+  EXPECT_STREQ (out[1].dimension, "1:2:4");
+  EXPECT_EQ (out[1].buffer_size, 8U);
+  EXPECT_EQ (out[1].first_byte, 8U);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  g_object_set (h->element, "tensorseg", "1:2:4,1:2:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (out[0].buffers, 3U);
+  EXPECT_STREQ (out[0].dimension, "1:2:4");
+  EXPECT_EQ (out[0].buffer_size, 8U);
+  EXPECT_EQ (out[1].buffers, 3U);
+  EXPECT_EQ (out[1].buffer_size, 8U);
+
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A new tensorseg the incoming buffer is too small for is not taken.
+ * @details The stream goes on with the old rule rather than failing, and the
+ *          application learns from the bus that its rule was dropped.
+ */
+TEST (testTensorSplit, resizePastBuffer_n)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gchar *tensorseg = NULL;
+  gsize size;
+  GstHarness *h = _split_harness_new ("3:4:4", out, &size);
+  GstBus *bus = _split_harness_bus (h);
+
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,2:4:4", NULL);
+  EXPECT_FALSE (_split_pop_settings_warning (bus));
+
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_TRUE (_split_pop_settings_warning (bus));
+
+  g_object_get (h->element, "tensorseg", &tensorseg, NULL);
+  EXPECT_TRUE (g_str_has_prefix (tensorseg, "1:4:4:"));
+  g_free (tensorseg);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimension, "1:4:4");
+  EXPECT_EQ (out[0].buffer_size, 16U);
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_STREQ (out[1].dimension, "2:4:4");
+  EXPECT_EQ (out[1].buffer_size, 32U);
+  EXPECT_EQ (out[1].first_byte, 16U);
+
+  /* the dropped rule is not tried again */
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_FALSE (_split_pop_settings_warning (bus));
+  EXPECT_EQ (out[1].buffers, 3U);
+
+  _split_harness_bus_clear (h, bus);
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A new tensorseg with an empty or uncountable segment is not taken.
+ * @details Neither can be announced as a tensor or cut out of a buffer, so
+ *          both are dropped with a warning before any pad changes.
+ */
+TEST (testTensorSplit, resizeInvalidSegment_n)
+{
+  const gchar *rules[] = { "0:4:4,3:4:4", "1:4:4,65536:65536:65536:65536" };
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (rules); i++) {
+    splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+    gsize size;
+    GstHarness *h = _split_harness_new ("3:4:4", out, &size);
+    GstBus *bus = _split_harness_bus (h);
+
+    SCOPED_TRACE (rules[i]);
+    g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+    EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+    g_object_set (h->element, "tensorseg", rules[i], NULL);
+    EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+    EXPECT_TRUE (_split_pop_settings_warning (bus));
+
+    EXPECT_EQ (out[0].buffers, 2U);
+    EXPECT_STREQ (out[0].dimension, "1:4:4");
+    EXPECT_EQ (out[0].buffer_size, 16U);
+    EXPECT_EQ (out[1].buffers, 2U);
+    EXPECT_STREQ (out[1].dimension, "2:4:4");
+    EXPECT_EQ (out[1].buffer_size, 32U);
+
+    _split_harness_bus_clear (h, bus);
+    _split_outputs_clear (out);
+    gst_harness_teardown (h);
+  }
+}
+
+/**
+ * @brief A new tensorseg is taken when no segment goes out.
+ * @details tensorpick names only a segment the rule does not have, so no pad
+ *          exists and nothing has to fit or be announced.
+ */
+TEST (testTensorSplit, resizeWithNothingPicked)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gchar *tensorseg = NULL;
+  gsize size;
+  GstHarness *h = _split_harness_new ("3:4:4", out, &size);
+  GstBus *bus = _split_harness_bus (h);
+
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", "tensorpick", "5", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 0U);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_FALSE (_split_pop_settings_warning (bus));
+  EXPECT_EQ ((guint) h->element->numsrcpads, 0U);
+
+  g_object_get (h->element, "tensorseg", &tensorseg, NULL);
+  EXPECT_TRUE (g_str_has_prefix (tensorseg, "2:4:4:"));
+  g_free (tensorseg);
+
+  _split_harness_bus_clear (h, bus);
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A new tensorseg is measured in the element type the input has when it is taken.
+ * @details The input is renegotiated to float32 between the set and the next
+ *          buffer, so the new segments are four times as many bytes as the
+ *          rule had in uint8, and the pads announce both changes.
+ */
+TEST (testTensorSplit, resizeAfterRenegotiatedType)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _split_harness_new ("3:4:4", out, &size);
+
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  size = _split_set_src_caps (h, "3:4:4", _NNS_FLOAT32, 0, 1);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimension, "2:4:4");
+  EXPECT_EQ (out[0].type, _NNS_FLOAT32);
+  EXPECT_EQ (out[0].caps_size, 128U);
+  EXPECT_EQ (out[0].buffer_size, 128U);
+  EXPECT_EQ (out[0].first_byte, 0U);
+
+  EXPECT_EQ (out[1].buffers, 2U);
+  EXPECT_STREQ (out[1].dimension, "1:4:4");
+  EXPECT_EQ (out[1].type, _NNS_FLOAT32);
+  EXPECT_EQ (out[1].caps_size, 64U);
+  EXPECT_EQ (out[1].buffer_size, 64U);
+  EXPECT_EQ (out[1].first_byte, 128U);
+
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A source pad that cannot take the caps its peer accepted fails the stream.
+ * @details src_1 is put in flushing with its caps kept, so it refuses the
+ *          caps event although nothing linked to it said no. src_0 has already
+ *          announced the new rule by then, so cutting by the old one would
+ *          push buffers that disagree with its caps; the buffer is refused
+ *          instead, with a negotiation error.
+ */
+TEST (testTensorSplit, resizePadCannotTakeCaps_n)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  GstMessage *msg;
+  GstPad *srcpad;
+  guint errors = 0;
+  gsize size;
+  GstHarness *h = _split_harness_new ("3:4:4", out, &size);
+  GstBus *bus = _split_harness_bus (h);
+
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+  srcpad = gst_element_get_static_pad (h->element, "src_1");
+  ASSERT_TRUE (srcpad != NULL);
+  gst_pad_push_event (srcpad, gst_event_new_flush_start ());
+  EXPECT_TRUE (GST_PAD_IS_FLUSHING (srcpad));
+  gst_object_unref (srcpad);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_NOT_NEGOTIATED);
+
+  while ((msg = gst_bus_pop (bus)) != NULL) {
+    GError *err = NULL;
+
+    EXPECT_NE (GST_MESSAGE_TYPE (msg), GST_MESSAGE_WARNING);
+    if (GST_MESSAGE_TYPE (msg) == GST_MESSAGE_ERROR) {
+      gst_message_parse_error (msg, &err, NULL);
+      EXPECT_EQ (err->domain, GST_CORE_ERROR);
+      EXPECT_EQ (err->code, (gint) GST_CORE_ERROR_NEGOTIATION);
+      g_clear_error (&err);
+      errors++;
+    }
+    gst_message_unref (msg);
+  }
+  EXPECT_EQ (errors, 1U);
+  EXPECT_EQ (out[0].buffers, 1U);
+  EXPECT_EQ (out[1].buffers, 1U);
+
+  _split_harness_bus_clear (h, bus);
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Only the segments that go out have to fit the incoming buffer.
+ * @details A segment past the buffer that no pad carries is never copied.
+ */
+TEST (testTensorSplit, resizeUnpickedSegmentPastBuffer)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _split_harness_new ("3:4:4", out, &size);
+
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", "tensorpick", "0", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,4:4:4", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (out[0].buffers, 2U);
+  EXPECT_STREQ (out[0].dimension, "2:4:4");
+  EXPECT_EQ (out[0].buffer_size, 32U);
+
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A new tensorseg a peer does not accept is not taken, and the stream goes on.
+ * @details Pushing the new segments on a pad whose peer is pinned to the old
+ *          caps would make every push fail. The old rule is kept instead.
+ */
+TEST (testTensorSplit, resizeRefusedDownstream_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  splitPinnedSink sink = { NULL, 0, 0 };
+  GstPad *sinkpad = gst_pad_new ("sink", GST_PAD_SINK);
+  gchar *dimension;
+  GstBus *bus;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  gst_pad_set_event_function (sinkpad, _split_pinned_sink_event);
+  gst_pad_set_query_function (sinkpad, _split_pinned_sink_query);
+  gst_pad_set_chain_function (sinkpad, _split_pinned_sink_chain);
+  gst_pad_set_element_private (sinkpad, &sink);
+  gst_pad_set_active (sinkpad, TRUE);
+
+  bus = _split_harness_bus (h);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_first_pad), sinkpad);
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", "tensorpick", "0", NULL);
+
+  size = _split_set_src_caps (h, "3:4:4", _NNS_UINT8, 0, 1);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (sink.buffers, 1U);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_GT (sink.refused, 0U);
+  EXPECT_TRUE (_split_pop_settings_warning (bus));
+  EXPECT_TRUE (gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR) == NULL);
+  EXPECT_EQ (sink.buffers, 2U);
+
+  dimension = _split_pad_dimension (h->element, "src_0");
+  EXPECT_STREQ (dimension, "1:4:4");
+  g_free (dimension);
+
+  _split_harness_bus_clear (h, bus);
+  gst_harness_teardown (h);
+  gst_pad_set_active (sinkpad, FALSE);
+  gst_object_unref (sinkpad);
+  if (sink.accepted)
+    gst_caps_unref (sink.accepted);
+}
+
+/**
+ * @brief A new tensorseg one peer refuses leaves every source pad as it was.
+ * @details Every peer is asked before any pad changes, so the peer that would
+ *          take the new dimensions is not handed them for a rule that is not
+ *          taken.
+ */
+TEST (testTensorSplit, resizeRefusedLeavesEveryPad_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  splitAnySink open = { NULL, NULL, 0 };
+  splitPinnedSink pinned = { NULL, 0, 0 };
+  GstPad *sinkpads[] = { gst_pad_new ("open", GST_PAD_SINK),
+    gst_pad_new ("pinned", GST_PAD_SINK), NULL };
+  gchar *dimension;
+  GstBus *bus;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  open.query_caps = gst_caps_from_string ("other/tensors");
+  gst_pad_set_event_function (sinkpads[0], _split_any_sink_event);
+  gst_pad_set_query_function (sinkpads[0], _split_any_sink_query);
+  gst_pad_set_chain_function (sinkpads[0], _split_any_sink_chain);
+  gst_pad_set_element_private (sinkpads[0], &open);
+  gst_pad_set_event_function (sinkpads[1], _split_pinned_sink_event);
+  gst_pad_set_query_function (sinkpads[1], _split_pinned_sink_query);
+  gst_pad_set_chain_function (sinkpads[1], _split_pinned_sink_chain);
+  gst_pad_set_element_private (sinkpads[1], &pinned);
+  gst_pad_set_active (sinkpads[0], TRUE);
+  gst_pad_set_active (sinkpads[1], TRUE);
+
+  bus = _split_harness_bus (h);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_pad_by_index), sinkpads);
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+
+  size = _split_set_src_caps (h, "3:4:4", _NNS_UINT8, 0, 1);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_GT (pinned.refused, 0U);
+  EXPECT_TRUE (_split_pop_settings_warning (bus));
+
+  dimension = _split_pad_dimension (h->element, "src_0");
+  EXPECT_STREQ (dimension, "1:4:4");
+  g_free (dimension);
+  EXPECT_TRUE (open.taken != NULL);
+  if (open.taken) {
+    EXPECT_STREQ (gst_structure_get_string (gst_caps_get_structure (open.taken, 0), "dimensions"),
+        "1:4:4");
+  }
+  EXPECT_EQ (open.buffers, 2U);
+  EXPECT_EQ (pinned.buffers, 2U);
+
+  _split_harness_bus_clear (h, bus);
+  gst_harness_teardown (h);
+  gst_pad_set_active (sinkpads[0], FALSE);
+  gst_pad_set_active (sinkpads[1], FALSE);
+  gst_object_unref (sinkpads[0]);
+  gst_object_unref (sinkpads[1]);
+  gst_caps_unref (open.query_caps);
+  if (open.taken)
+    gst_caps_unref (open.taken);
+  if (pinned.accepted)
+    gst_caps_unref (pinned.accepted);
+}
+
+/**
+ * @brief A pad given new dimensions keeps the media type it was created with.
+ * @details A peer that can take other/tensor would get it if the caps were
+ *          built from the config again once the pad is linked.
+ */
+TEST (testTensorSplit, resizeKeepsMediaType)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  splitAnySink sink = { NULL, NULL, 0 };
+  GstPad *sinkpad = gst_pad_new ("sink", GST_PAD_SINK);
+  GstStructure *structure;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  sink.query_caps = gst_caps_from_string ("other/tensor; other/tensors");
+  gst_pad_set_event_function (sinkpad, _split_any_sink_event);
+  gst_pad_set_query_function (sinkpad, _split_any_sink_query);
+  gst_pad_set_chain_function (sinkpad, _split_any_sink_chain);
+  gst_pad_set_element_private (sinkpad, &sink);
+  gst_pad_set_active (sinkpad, TRUE);
+
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_first_pad), sinkpad);
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", "tensorpick", "0", NULL);
+
+  size = _split_set_src_caps (h, "3:4:4", _NNS_FLOAT32, 0, 1);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (sink.buffers, 2U);
+
+  EXPECT_TRUE (sink.taken != NULL);
+  if (sink.taken) {
+    structure = gst_caps_get_structure (sink.taken, 0);
+    EXPECT_STREQ (gst_structure_get_name (structure), "other/tensors");
+    EXPECT_STREQ (gst_structure_get_string (structure, "dimensions"), "2:4:4");
+    EXPECT_STREQ (gst_structure_get_string (structure, "types"), "float32");
+  }
+
+  gst_harness_teardown (h);
+  gst_pad_set_active (sinkpad, FALSE);
+  gst_object_unref (sinkpad);
+  gst_caps_unref (sink.query_caps);
+  if (sink.taken)
+    gst_caps_unref (sink.taken);
 }
 
 /**
@@ -19161,6 +19705,91 @@ TEST (testTensorSplit, restartKeepsTensorseg)
   EXPECT_TRUE (pad != NULL);
   if (pad)
     gst_object_unref (pad);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A tensorseg set while running but not taken before the stop holds for the next run.
+ * @details No buffer came after the set, so the rule was still waiting when
+ *          the element went down to READY, where any rule is taken as it is.
+ */
+TEST (testTensorSplit, restartTakesWaitingTensorseg)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  splitRestartOutput out = { 0, 0, 0 };
+  gchar *tensorseg = NULL;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_restart_pad_added), &out);
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", "tensorpick", "0", NULL);
+
+  size = _split_restart_start_stream (h, "3:4:4");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (out.bytes, 16U);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  _split_restart_cycle (h);
+
+  g_object_get (h->element, "tensorseg", &tensorseg, NULL);
+  EXPECT_TRUE (g_str_has_prefix (tensorseg, "2:4:4:"));
+  g_free (tensorseg);
+
+  size = _split_restart_start_stream (h, "3:4:4");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (out.buffers, 2U);
+  EXPECT_EQ (out.bytes, 48U);
+  EXPECT_EQ (out.mismatched, 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Thread setting two tensorseg rules of the same segment count in turn.
+ */
+static gpointer
+_split_resize_toggle (gpointer data)
+{
+  GstElement *element = GST_ELEMENT (data);
+  guint i;
+
+  for (i = 0; i < 200; i++) {
+    g_object_set (element, "tensorseg", (i % 2) ? "1:4:4,2:4:4" : "2:4:4,1:4:4", NULL);
+    g_thread_yield ();
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief Every buffer agrees with the caps of its pad while tensorseg changes under the stream.
+ * @details The rule is set from another thread while buffers are pushed, so
+ *          some sets land while a buffer is being cut. Each buffer is cut by
+ *          the rule its pads announce, whichever rule that is.
+ */
+TEST (testTensorSplit, resizeWhilePushing)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  splitRestartOutput out = { 0, 0, 0 };
+  GThread *thread;
+  gsize size;
+  guint i;
+
+  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_restart_pad_added), &out);
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+  size = _split_restart_start_stream (h, "3:4:4");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+
+  thread = g_thread_new ("split-resize", _split_resize_toggle, h->element);
+  for (i = 0; i < 200; i++)
+    EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  g_thread_join (thread);
+
+  EXPECT_EQ (out.buffers, 402U);
+  EXPECT_EQ (out.bytes, 402U / 2 * 48U);
+  EXPECT_EQ (out.mismatched, 0U);
 
   gst_harness_teardown (h);
 }

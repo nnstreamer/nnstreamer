@@ -32,9 +32,11 @@
  * The outputs are always in the format of other/tensor.
  * With tensorpick, only the picked segments are pushed. Source pads are named
  * src_0, src_1, ... in the order they are created, which is ascending segment
- * index. Both tensorseg and tensorpick are fixed once the first buffer is
- * split; setting either to a different rule is refused until the element goes
- * back to READY.
+ * index. Once the first buffer is split, tensorpick and the number of
+ * segments in tensorseg are fixed: setting a different one is refused until
+ * the element goes back to READY. A tensorseg with the same number of segments
+ * is taken from the next buffer on, and the source pads announce its
+ * dimensions before that buffer.
  * The input may be renegotiated while the stream runs: the source pads keep
  * the dimensions of their segments and follow the new type and framerate.
  *
@@ -144,8 +146,9 @@ gst_tensor_split_class_init (GstTensorSplitClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_TENSORSEG,
       g_param_spec_string ("tensorseg", "TensorSeg",
-          "How to split tensor ? Setting it to another rule after the first "
-          "buffer is refused", "", G_PARAM_READWRITE));
+          "How to split tensor ? After the first buffer, only a rule with the "
+          "same number of segments is taken, from the next buffer on; any "
+          "other rule is refused", "", G_PARAM_READWRITE));
 
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_tensor_split_change_state);
@@ -183,6 +186,7 @@ gst_tensor_split_init (GstTensorSplit * split)
   split->silent = TRUE;
   split->tensorpick = NULL;
   split->tensorseg = NULL;
+  split->pending_tensorseg = NULL;
   split->have_group_id = FALSE;
   split->group_id = G_MAXUINT;
   split->rules_locked = FALSE;
@@ -220,25 +224,28 @@ gst_tensor_split_finalize (GObject * object)
   g_list_free (split->tensorpick);
   if (split->tensorseg)
     g_array_unref (split->tensorseg);
+  if (split->pending_tensorseg)
+    g_array_unref (split->pending_tensorseg);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
- * @brief Build the caps a source pad carries after the input is renegotiated.
- * @details Only the element type and the framerate of the input can reach a
- *          pad while the stream runs: its dimensions come from tensorseg,
- *          which is fixed by then. The caps the pad already announced are
- *          therefore the ones to keep, with those two fields replaced.
+ * @brief Build the caps a source pad carries after the input or the rule
+ *        changes while the stream runs.
+ * @details The element type and the framerate come from the input, and the
+ *          dimensions from the segment of tensorseg the pad carries. The caps
+ *          the pad already announced are kept with those fields replaced.
  *          Building them from the config again would ask the peer, which
  *          answers other/tensor where a pad created without one, as they all
  *          are, announced other/tensors.
  * @param current the caps the pad announces now
- * @param config the renegotiated input
+ * @param config the input
+ * @param dim the new dimensions of the segment, or NULL to keep them
  * @return the caps of the pad, to be released by the caller
  */
 static GstCaps *
 gst_tensor_split_retyped_caps (GstCaps * current,
-    const GstTensorsConfig * config)
+    const GstTensorsConfig * config, const tensor_dim * dim)
 {
   GstCaps *caps = gst_caps_copy (current);
   GstStructure *structure = gst_caps_get_structure (caps, 0);
@@ -253,25 +260,37 @@ gst_tensor_split_retyped_caps (GstCaps * current,
       config->rate_n, config->rate_d, NULL);
   gst_structure_set (structure, field, G_TYPE_STRING, type, NULL);
 
+  if (dim) {
+    g_autofree gchar *dim_str = gst_tensor_get_dimension_string (*dim);
+
+    field = gst_structure_has_name (structure, NNS_MIMETYPE_TENSORS) ?
+        "dimensions" : "dimension";
+    gst_structure_set (structure, field, G_TYPE_STRING, dim_str, NULL);
+  }
+
   return caps;
 }
 
 /**
- * @brief Let the source pads that already exist carry a renegotiated input.
+ * @brief Let the source pads that already exist carry a renegotiated input or
+ *        a new tensorseg.
  * @details A pad takes its caps when it is created, so an input type or
- *          framerate that changes afterwards would leave it announcing what it
- *          no longer carries. An input reshaped on its own changes nothing a
- *          pad says, and is passed on to no one.
+ *          framerate, or a segment rule, that changes afterwards would leave
+ *          it announcing what it no longer carries. An input reshaped on its
+ *          own changes nothing a pad says, and is passed on to no one.
  *          What a pad is linked to is asked before the caps are set: a sticky
  *          caps event is not reported back by gst_pad_set_caps(), and the
  *          question is the one gst_pad_send_event() asks the peer itself
  *          before handing it a caps event. Every peer is asked before any pad
  *          is changed, so a refusal leaves all of them as they were.
  * @param split TensorSplit object
+ * @param tensorseg the new rule, or NULL to keep the dimensions of the pads
+ * @param[out] refused set TRUE if a pad was refused before any changed (nullable)
  * @return TRUE if every source pad took its new caps
  */
 static gboolean
-gst_tensor_split_update_src_caps (GstTensorSplit * split)
+gst_tensor_split_update_src_caps (GstTensorSplit * split, GArray * tensorseg,
+    gboolean * refused)
 {
   GPtrArray *pads = g_ptr_array_new ();
   GPtrArray *pads_caps =
@@ -291,12 +310,14 @@ gst_tensor_split_update_src_caps (GstTensorSplit * split)
       break;
     }
 
-    caps = gst_tensor_split_retyped_caps (current, &split->in_config);
+    caps = gst_tensor_split_retyped_caps (current, &split->in_config,
+        tensorseg ? g_array_index (tensorseg, tensor_dim *, tensorpad->nth) :
+        NULL);
     if (gst_caps_is_equal (caps, current)) {
       gst_caps_unref (caps);
     } else if (!gst_pad_peer_query_accept_caps (tensorpad->pad, caps)) {
       GST_WARNING_OBJECT (tensorpad->pad,
-          "Cannot carry %" GST_PTR_FORMAT " of the renegotiated input.", caps);
+          "The peer does not accept %" GST_PTR_FORMAT ".", caps);
       gst_caps_unref (caps);
       ret = FALSE;
     } else {
@@ -306,6 +327,9 @@ gst_tensor_split_update_src_caps (GstTensorSplit * split)
 
     gst_caps_unref (current);
   }
+
+  if (refused)
+    *refused = !ret;
 
   for (i = 0; ret && i < pads->len; i++) {
     ret = gst_pad_set_caps (g_ptr_array_index (pads, i),
@@ -340,7 +364,8 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
         break;
       }
 
-      if (split->srcpads && !gst_tensor_split_update_src_caps (split)) {
+      if (split->srcpads
+          && !gst_tensor_split_update_src_caps (split, NULL, NULL)) {
         GST_ELEMENT_ERROR (split, CORE, NEGOTIATION,
             ("The source pads cannot carry the renegotiated input."), NULL);
         gst_event_unref (event);
@@ -567,13 +592,126 @@ gst_tensor_split_get_splitted (GstTensorSplit * split, GArray * tensorseg,
 }
 
 /**
+ * @brief Tell whether every segment that goes out is a valid tensor lying in
+ *        the buffer.
+ * @param split TensorSplit object
+ * @param tensorseg the rule to check
+ * @param tensorpick the segments that go out, or NULL for all of them
+ * @param size bytes of the buffer
+ * @return TRUE if the buffer can be cut by the rule
+ */
+static gboolean
+gst_tensor_split_fits (GstTensorSplit * split, GArray * tensorseg,
+    GList * tensorpick, gsize size)
+{
+  guint64 element_size =
+      gst_tensor_get_element_size (split->in_config.info.info[0].type);
+  guint64 end = 0, bytes;
+  guint i, last = tensorseg->len;
+  GList *list;
+
+  if (tensorseg->len == 0)
+    return TRUE;
+
+  if (tensorpick == NULL) {
+    last = tensorseg->len - 1;
+  } else {
+    for (list = tensorpick; list != NULL; list = list->next) {
+      guint nth = GPOINTER_TO_UINT (list->data);
+
+      if (nth < tensorseg->len && (last == tensorseg->len || nth > last))
+        last = nth;
+    }
+    if (last == tensorseg->len)
+      return TRUE;
+  }
+
+  /* the segments up to the last one that goes out give its offset */
+  for (i = 0; i <= last; i++) {
+    tensor_dim *dim = g_array_index (tensorseg, tensor_dim *, i);
+    guint64 count = gst_tensor_get_element_count (*dim);
+
+    /* 0 for an empty segment or one too large to count */
+    if (count == 0 || (*dim)[0] == 0)
+      return FALSE;
+
+    if (!g_uint64_checked_mul (&bytes, count, element_size)
+        || !g_uint64_checked_add (&end, end, bytes))
+      return FALSE;
+  }
+
+  return end <= size;
+}
+
+/**
+ * @brief Switch to a tensorseg set while the stream runs, before the buffer
+ *        that is cut by it.
+ * @details The source pads are announced the new dimensions first. If the
+ *          buffer cannot be cut by the new rule or a peer refuses its new
+ *          caps, no pad changes and the stream goes on with the old rule. A
+ *          pad that cannot take the caps every peer accepted fails the stream,
+ *          as a renegotiated input does.
+ * @param split TensorSplit object
+ * @param tensorseg the rule the buffer would be cut by otherwise (consumed)
+ * @param pending the rule set while running (consumed)
+ * @param tensorpick the segments that go out, or NULL for all of them
+ * @param buf the buffer to be cut
+ * @return the rule to cut the buffer by, to be released by the caller, or
+ *         NULL if the pads could not announce the new rule
+ */
+static GArray *
+gst_tensor_split_switch_tensorseg (GstTensorSplit * split, GArray * tensorseg,
+    GArray * pending, GList * tensorpick, GstBuffer * buf)
+{
+  gboolean refused = !gst_tensor_split_fits (split, pending, tensorpick,
+      gst_buffer_get_size (buf));
+  gboolean applied = !refused
+      && gst_tensor_split_update_src_caps (split, pending, &refused);
+  GArray *old = NULL;
+
+  GST_OBJECT_LOCK (split);
+  /* a rule set again in the meantime waits for the next buffer */
+  if (split->pending_tensorseg == pending) {
+    split->pending_tensorseg = NULL;
+    g_array_unref (pending);
+  }
+  if (applied) {
+    old = split->tensorseg;
+    split->tensorseg = g_array_ref (pending);
+  }
+  GST_OBJECT_UNLOCK (split);
+
+  if (old)
+    g_array_unref (old);
+
+  if (refused) {
+    GST_ELEMENT_WARNING (split, RESOURCE, SETTINGS,
+        ("Cannot apply the new tensorseg to the running stream."),
+        ("Either the incoming buffer cannot be cut by it, or a downstream "
+            "element refuses the new dimensions."));
+    g_array_unref (pending);
+    return tensorseg;
+  }
+
+  g_array_unref (tensorseg);
+  if (!applied) {
+    GST_ELEMENT_ERROR (split, CORE, NEGOTIATION,
+        ("The source pads cannot announce the new tensorseg."), NULL);
+    g_array_unref (pending);
+    return NULL;
+  }
+
+  return pending;
+}
+
+/**
  * @brief chain function for sink (gst element vmethod)
  */
 static GstFlowReturn
 gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstTensorSplit *split;
-  GArray *tensorseg;
+  GArray *tensorseg, *pending;
   GList *tensorpick;
   guint num_tensors, i;
   GstFlowReturn res = GST_FLOW_OK;
@@ -584,10 +722,22 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GST_OBJECT_LOCK (split);
   num_tensors = split->num_tensors;
   tensorseg = split->tensorseg ? g_array_ref (split->tensorseg) : NULL;
+  pending = split->pending_tensorseg ?
+      g_array_ref (split->pending_tensorseg) : NULL;
   tensorpick = g_list_copy (split->tensorpick);
   if (tensorseg)
     split->rules_locked = TRUE;
   GST_OBJECT_UNLOCK (split);
+
+  if (pending) {
+    tensorseg = gst_tensor_split_switch_tensorseg (split, tensorseg, pending,
+        tensorpick, buf);
+    if (tensorseg == NULL) {
+      g_list_free (tensorpick);
+      gst_buffer_unref (buf);
+      return GST_FLOW_NOT_NEGOTIATED;
+    }
+  }
 
   GST_DEBUG_OBJECT (split, " Number of Tensors: %d", num_tensors);
 
@@ -686,6 +836,11 @@ gst_tensor_split_change_state (GstElement * element, GstStateChange transition)
       split->have_group_id = FALSE;
       gst_tensor_split_remove_src_pads (split);
       GST_OBJECT_LOCK (split);
+      if (split->pending_tensorseg) {
+        g_array_unref (split->tensorseg);
+        split->tensorseg = split->pending_tensorseg;
+        split->pending_tensorseg = NULL;
+      }
       split->rules_locked = FALSE;
       GST_OBJECT_UNLOCK (split);
       break;
@@ -818,8 +973,19 @@ gst_tensor_split_set_property (GObject * object, guint prop_id,
       g_strfreev (strv);
 
       if (split->rules_locked) {
-        refused = !_tensorseg_is_equal (split->tensorseg, tensorseg);
-        g_array_unref (tensorseg);
+        GArray *target = split->pending_tensorseg ?
+            split->pending_tensorseg : split->tensorseg;
+
+        if (_tensorseg_is_equal (target, tensorseg)) {
+          g_array_unref (tensorseg);
+        } else if (split->tensorseg->len != tensorseg->len) {
+          refused = TRUE;
+          g_array_unref (tensorseg);
+        } else {
+          if (split->pending_tensorseg)
+            g_array_unref (split->pending_tensorseg);
+          split->pending_tensorseg = tensorseg;
+        }
         break;
       }
 
@@ -878,18 +1044,21 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
     }
     case PROP_TENSORSEG:
     {
-      if ((split->tensorseg) && (split->tensorseg->len > 0)) {
+      GArray *tensorseg = split->pending_tensorseg ?
+          split->pending_tensorseg : split->tensorseg;
+
+      if ((tensorseg) && (tensorseg->len > 0)) {
         tensor_dim *dim = NULL;
         gchar *strv = NULL;
         guint i, j;
 
 
-        for (i = 0; i < split->tensorseg->len; i++) {
+        for (i = 0; i < tensorseg->len; i++) {
           GPtrArray *arr = g_ptr_array_new ();
           gchar *p = NULL;
           gchar **strings;
 
-          dim = g_array_index (split->tensorseg, tensor_dim *, i);
+          dim = g_array_index (tensorseg, tensor_dim *, i);
           for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
             g_ptr_array_add (arr, g_strdup_printf ("%i", (*dim)[j]));
           }

@@ -58,6 +58,7 @@ struct _GstTensorSplit
   guint32 num_srcpads;
   GList *tensorpick;
   GArray *tensorseg;
+  GArray *pending_tensorseg; /**< waits for the next buffer */
   gboolean have_group_id;
   guint group_id;
   gboolean rules_locked;
