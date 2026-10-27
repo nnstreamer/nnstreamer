@@ -440,9 +440,23 @@ if not get_option('grpc-support').disabled()
 endif
 
 # mqtt (paho.mqtt.c)
+if get_option('mqtt-tls') and get_option('mqtt-support').disabled()
+  error('mqtt-tls requires MQTT support')
+endif
 pahomqttc_dep = dependency('', required: false)
 if not get_option('mqtt-support').disabled()
   pahomqttc_dep = dependency('paho-mqtt-c', required: false)
+  if get_option('mqtt-tls')
+    pahomqttc_ssl = cxx.find_library('paho-mqtt3as', required: true)
+    pahomqttc_openssl = dependency('openssl', required: true)
+    if pahomqttc_dep.found()
+      pahomqttc_dep = declare_dependency(dependencies: [pahomqttc_ssl, pahomqttc_openssl,
+        pahomqttc_dep.partial_dependency(compile_args: true, includes: true)])
+    else
+      pahomqttc_dep = declare_dependency(dependencies: [pahomqttc_ssl, pahomqttc_openssl])
+    endif
+    add_project_arguments('-DENABLE_MQTT_TLS', language: ['c', 'cpp'])
+  endif
   if (not pahomqttc_dep.found() and get_option('mqtt-support').enabled())
     message('mqtt-support is enabled while its pkgconfig is not found. Hardcoded build configuration is used.')
     pahomqttc_lib1 = cxx.find_library('paho-mqtt3a', required: true)

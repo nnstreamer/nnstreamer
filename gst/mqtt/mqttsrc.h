@@ -19,6 +19,7 @@
 #include <MQTTAsync.h>
 
 #include "mqttcommon.h"
+#include "mqtttls.h"
 
 G_BEGIN_DECLS
 
@@ -73,6 +74,7 @@ struct _GstMqttSrc {
   gboolean is_subscribed;
   gboolean is_disconnect_finished;
 
+  GstMqttTls mqtt_tls; /**< configured TLS properties and reconnect snapshot */
   MQTTAsync mqtt_client_handle;
   MQTTAsync_connectOptions mqtt_conn_opts;
   MQTTAsync_responseOptions mqtt_respn_opts;

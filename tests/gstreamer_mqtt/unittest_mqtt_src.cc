@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <gst/gst.h>
 
 #include <MQTTAsync.h>
@@ -34,6 +35,29 @@
 #define WAIT_TIMEOUT_US (5 * G_TIME_SPAN_SECOND)
 #define LONG_SUB_TIMEOUT (G_GINT64_CONSTANT (10000000))
 #define QUEUE_POLL_PASSED_US (1500 * G_TIME_SPAN_MILLISECOND)
+
+/** TLS settings copied synchronously when the mocked client connects. */
+static bool last_connect_tls;
+static int last_connect_verify;
+static int last_connect_auth;
+static std::string last_connect_ca;
+static std::string last_connect_cert;
+static std::string last_connect_key;
+static std::string last_connect_key_password;
+
+/** @brief Record options while they are valid, without borrowing their storage. */
+static void
+_record_tls_options (const MQTTAsync_connectOptions *options)
+{
+  const MQTTAsync_SSLOptions *ssl = options->ssl;
+  last_connect_tls = ssl != nullptr;
+  last_connect_verify = ssl ? ssl->verify : 0;
+  last_connect_auth = ssl ? ssl->enableServerCertAuth : 0;
+  last_connect_ca = ssl && ssl->trustStore ? ssl->trustStore : "";
+  last_connect_cert = ssl && ssl->keyStore ? ssl->keyStore : "";
+  last_connect_key = ssl && ssl->privateKey ? ssl->privateKey : "";
+  last_connect_key_password = ssl && ssl->privateKeyPassword ? ssl->privateKeyPassword : "";
+}
 
 /**
  * @brief The mocked paho call a test case can hold open on another thread
@@ -303,6 +327,7 @@ MQTTAsync_setCallbacks (MQTTAsync handle, void *context, MQTTAsync_connectionLos
 int
 MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
 {
+  _record_tls_options (options);
   gboolean async;
   gboolean fail;
 
@@ -2939,6 +2964,107 @@ TEST (testMqttSrc, messageCapsAfterRestart)
   _fixture_teardown (&fixture);
   _caps_event_record_clear (&rec);
 }
+
+
+/** @brief A TLS URI cannot bypass the verified, explicit TLS settings. */
+TEST (testMqttSrc, tlsSchemeWithoutSwitch_n)
+{
+  for (const char *host : { "ssl://localhost", "mqtts://localhost", "wss://localhost" }) {
+    src_fixture_s fixture;
+    ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+    GstElement *element = fixture.src;
+    GstElement *pipeline = fixture.pipeline;
+    g_object_set (element, "host", host, NULL);
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+    _fixture_teardown (&fixture);
+  }
+}
+
+/** @brief TLS defaults to off, and a key password is write-only. */
+TEST (testMqttSrc, tlsProperties)
+{
+  src_fixture_s fixture;
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GstElement *element = fixture.src;
+  GstElement *pipeline = fixture.pipeline;
+  gboolean enabled = TRUE;
+  gchar *ca = nullptr;
+  g_object_get (element, "tls", &enabled, "tls-ca-file", &ca, NULL);
+  EXPECT_FALSE (enabled);
+  EXPECT_EQ (ca, nullptr);
+  GParamSpec *pspec = g_object_class_find_property (
+      G_OBJECT_GET_CLASS (element), "tls-key-password");
+  ASSERT_NE (pspec, nullptr);
+  EXPECT_FALSE (pspec->flags & G_PARAM_READABLE);
+  EXPECT_TRUE (pspec->flags & G_PARAM_WRITABLE);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (last_connect_tls);
+  _fixture_teardown (&fixture);
+}
+
+/** @brief Unsupported TLS or invalid files fail before connecting. */
+TEST (testMqttSrc, tlsInvalidSettings_n)
+{
+  src_fixture_s fixture;
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GstElement *element = fixture.src;
+  GstElement *pipeline = fixture.pipeline;
+  g_object_set (element, "tls", TRUE, "tls-ca-file", "/nonexistent/mqtt-ca.pem", NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  _fixture_teardown (&fixture);
+}
+
+#ifdef ENABLE_MQTT_TLS
+/** @brief Pass verified TLS and copied client credentials to the Paho client. */
+TEST (testMqttSrc, tlsOptionsPassedToConnect)
+{
+  src_fixture_s fixture;
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GstElement *element = fixture.src;
+  GstElement *pipeline = fixture.pipeline;
+  gchar *file = nullptr;
+  int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
+  ASSERT_GE (fd, 0);
+  close (fd);
+  g_object_set (element, "tls", TRUE, "tls-ca-file", file, "tls-cert-file",
+      file, "tls-key-file", file, "tls-key-password", "test-key-password", NULL);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_TRUE (last_connect_tls);
+  EXPECT_EQ (last_connect_verify, 1);
+  EXPECT_EQ (last_connect_auth, 1);
+  EXPECT_STREQ (last_connect_ca.c_str (), file);
+  EXPECT_STREQ (last_connect_cert.c_str (), file);
+  EXPECT_STREQ (last_connect_key.c_str (), file);
+  EXPECT_STREQ (last_connect_key_password.c_str (), "test-key-password");
+  EXPECT_EQ (g_mock.last_server_uri.find ("ssl://"), 0U);
+  /* Changing a property must not invalidate Paho's reconnect options. */
+  g_object_set (element, "tls-ca-file", NULL, "tls-key-password", NULL, NULL);
+  GstMqttSrc *self = GST_MQTT_SRC (element);
+  ASSERT_NE (self->mqtt_conn_opts.ssl, nullptr);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->trustStore, file);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->privateKeyPassword, "test-key-password");
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  g_object_set (element, "tls", FALSE, NULL);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (last_connect_tls);
+  EXPECT_EQ (self->mqtt_conn_opts.ssl, nullptr);
+  _fixture_teardown (&fixture);
+  g_unlink (file);
+  g_free (file);
+}
+
+/** @brief Refuse a client private key without a client certificate. */
+TEST (testMqttSrc, tlsKeyWithoutCertificate_n)
+{
+  src_fixture_s fixture;
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GstElement *element = fixture.src;
+  GstElement *pipeline = fixture.pipeline;
+  g_object_set (element, "tls", TRUE, "tls-key-file", "/nonexistent/key.pem", NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  _fixture_teardown (&fixture);
+}
+#endif
 
 /**
  * @brief Main GTest
