@@ -1937,6 +1937,8 @@ typedef struct {
   GstElement *element; /**< tensor_transform to be changed */
   gint stop; /**< set to stop the thread */
   guint changes; /**< number of times the properties were changed */
+  GMutex progress_lock; /**< protects changes while the worker runs */
+  GCond progress_cond; /**< signaled after a property change completes */
 } transform_prop_changer_s;
 
 /**
@@ -1955,11 +1957,34 @@ _toggle_transform_props (gpointer user_data)
     g_object_get (data->element, "option", &option, NULL);
     g_free (option);
 
+    g_mutex_lock (&data->progress_lock);
     data->changes++;
+    g_cond_broadcast (&data->progress_cond);
+    g_mutex_unlock (&data->progress_lock);
     g_thread_yield ();
   }
 
   return NULL;
+}
+
+/**
+ * @brief Wait for a new property update between batches of streaming buffers.
+ */
+static gboolean
+_wait_for_transform_prop_change (transform_prop_changer_s *data)
+{
+  gboolean progressed;
+  gint64 deadline = g_get_monotonic_time () + 5 * G_TIME_SPAN_SECOND;
+
+  g_mutex_lock (&data->progress_lock);
+  guint before = data->changes;
+  while (data->changes == before) {
+    if (!g_cond_wait_until (&data->progress_cond, &data->progress_lock, deadline))
+      break;
+  }
+  progressed = data->changes > before;
+  g_mutex_unlock (&data->progress_lock);
+  return progressed;
 }
 
 /**
@@ -1997,6 +2022,8 @@ TEST (testTensorTransform, optionChangeFromAnotherThread)
   data.element = h->element;
   data.stop = 0;
   data.changes = 0;
+  g_mutex_init (&data.progress_lock);
+  g_cond_init (&data.progress_cond);
   thread = g_thread_new ("transform-props", _toggle_transform_props, &data);
 
   for (b = 0; b < num_buffers && mismatched == 0; b++) {
@@ -2037,10 +2064,21 @@ TEST (testTensorTransform, optionChangeFromAnotherThread)
 
     gst_memory_unmap (mem, &info);
     gst_buffer_unref (out_buf);
+
+    /* Require updates during the stream, including a late-starting worker.
+     * The condition wait gives instrumentation a scheduling opportunity. */
+    if (b % 50 == 0) {
+      gboolean progressed = _wait_for_transform_prop_change (&data);
+      EXPECT_TRUE (progressed) << "property worker made no progress during the stream";
+      if (!progressed)
+        break;
+    }
   }
 
   g_atomic_int_set (&data.stop, 1);
   g_thread_join (thread);
+  g_cond_clear (&data.progress_cond);
+  g_mutex_clear (&data.progress_lock);
 
   EXPECT_EQ (mismatched, 0U);
   EXPECT_EQ (b, num_buffers);
