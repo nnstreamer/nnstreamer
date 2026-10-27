@@ -69,6 +69,10 @@ typedef struct {
   gboolean destroy_callback_done;
   gboolean destroy_drained_callback;
   guint destroy_count;
+  gboolean model_disconnect_lock;
+  gboolean receive_lock_held;
+  gboolean disconnect_entered;
+  gboolean disconnect_acquired_lock;
 
   std::string last_client_id;
   std::string last_server_uri;
@@ -90,6 +94,7 @@ typedef struct {
 } mqtt_mock_s;
 
 static mqtt_mock_s g_mock;
+static GMutex mock_paho_mutex;
 static std::vector<std::thread> g_mock_threads;
 
 /**
@@ -116,6 +121,10 @@ _mock_reset (void)
   g_mock.destroy_callback_done = FALSE;
   g_mock.destroy_drained_callback = FALSE;
   g_mock.destroy_count = 0;
+  g_mock.model_disconnect_lock = FALSE;
+  g_mock.receive_lock_held = FALSE;
+  g_mock.disconnect_entered = FALSE;
+  g_mock.disconnect_acquired_lock = FALSE;
   g_mock.last_client_id.clear ();
   g_mock.last_server_uri.clear ();
   g_mock.has_username = FALSE;
@@ -430,14 +439,32 @@ int
 MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *options)
 {
   (void) handle;
-  gboolean fail, omit_callback;
+  gboolean fail, omit_callback, model_lock;
 
   g_mutex_lock (&g_mock.lock);
   fail = g_mock.fail_disconnect;
   omit_callback = g_mock.omit_disconnect_callback;
+  model_lock = g_mock.model_disconnect_lock;
+  g_mock.disconnect_entered = TRUE;
+  g_cond_broadcast (&g_mock.cond);
   g_mock.disconnect_callback = options ? options->onSuccess : NULL;
   g_mock.disconnect_context = options ? options->context : NULL;
   g_mutex_unlock (&g_mock.lock);
+
+  if (model_lock) {
+    gint64 deadline = g_get_monotonic_time () + 2 * G_TIME_SPAN_SECOND;
+    gboolean acquired;
+    /* Paho 1.3.14 takes its library lock before checking the request.
+     * Bound this model so a regression fails instead of hanging the suite. */
+    while (!(acquired = g_mutex_trylock (&mock_paho_mutex)) && g_get_monotonic_time () < deadline)
+      g_usleep (1000);
+    g_mutex_lock (&g_mock.lock);
+    g_mock.disconnect_acquired_lock = acquired;
+    g_mutex_unlock (&g_mock.lock);
+    if (!acquired)
+      return MQTTASYNC_FAILURE;
+    g_mutex_unlock (&mock_paho_mutex);
+  }
 
   if (fail)
     return MQTTASYNC_FAILURE;
@@ -445,8 +472,11 @@ MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *optio
   if (!options || omit_callback)
     return MQTTASYNC_SUCCESS;
 
-  /** The element waits for this callback with its own lock held */
-  _spawn_cb_thread (options->onSuccess, options->context);
+  /* A fast completion must remain visible when disconnect returns. */
+  if (model_lock)
+    _run_success_cb (options->onSuccess, options->context);
+  else
+    _spawn_cb_thread (options->onSuccess, options->context);
 
   return MQTTASYNC_SUCCESS;
 }
@@ -3093,6 +3123,101 @@ TEST (testMqttSrc, disconnectFailureDrainsMessageCallback_n)
 TEST (testMqttSrc, disconnectTimeoutDrainsMessageCallback_n)
 {
   _check_disconnect_callback (FALSE, TRUE, 1);
+}
+
+/**
+ * @brief Stop while a receive callback holds the Paho-style library mutex.
+ */
+static void
+_check_disconnect_library_lock (gboolean fail, guint cycles)
+{
+  g_autoptr (GstElement) src = gst_element_factory_make ("mqttsrc", NULL);
+  ASSERT_NE (src, nullptr);
+  gst_object_ref_sink (src);
+  GstMqttSrc *self = GST_MQTT_SRC (src);
+  GstBaseSrcClass *klass = GST_BASE_SRC_GET_CLASS (src);
+  _mock_reset ();
+
+  for (guint i = 0; i < cycles; i++) {
+    ASSERT_TRUE (klass->start (GST_BASE_SRC (src)));
+    g_mutex_lock (&self->mqtt_src_mutex);
+    self->is_subscribed = TRUE;
+    g_mutex_unlock (&self->mqtt_src_mutex);
+    g_mutex_lock (&g_mock.lock);
+    g_mock.model_disconnect_lock = TRUE;
+    g_mock.fail_disconnect = fail;
+    g_mock.receive_lock_held = FALSE;
+    g_mock.disconnect_entered = FALSE;
+    g_mock.disconnect_acquired_lock = FALSE;
+    g_mutex_unlock (&g_mock.lock);
+
+    std::thread receive ([] {
+      g_mutex_lock (&mock_paho_mutex);
+      g_mutex_lock (&g_mock.lock);
+      g_mock.receive_lock_held = TRUE;
+      g_cond_broadcast (&g_mock.cond);
+      gint64 deadline = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+      while (!g_mock.disconnect_entered) {
+        if (!g_cond_wait_until (&g_mock.cond, &g_mock.lock, deadline))
+          break;
+      }
+      MQTTAsync_messageArrived *callback = g_mock.message_arrived;
+      void *context = g_mock.context;
+      g_mutex_unlock (&g_mock.lock);
+      _deliver_during_destroy (callback, context, NULL, NULL);
+      g_mutex_unlock (&mock_paho_mutex);
+    });
+
+    g_mutex_lock (&g_mock.lock);
+    gint64 deadline = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+    while (!g_mock.receive_lock_held) {
+      if (!g_cond_wait_until (&g_mock.cond, &g_mock.lock, deadline))
+        break;
+    }
+    gboolean held = g_mock.receive_lock_held;
+    g_mutex_unlock (&g_mock.lock);
+    EXPECT_TRUE (held);
+
+    EXPECT_TRUE (klass->stop (GST_BASE_SRC (src)));
+    receive.join ();
+    _mock_join_threads ();
+    /* Delivery before disconnect can leave a buffer owned by the queue. */
+    GstBuffer *buffer;
+    while ((buffer = (GstBuffer *) g_async_queue_try_pop (self->aqueue)))
+      gst_buffer_unref (buffer);
+    g_mutex_lock (&g_mock.lock);
+    gboolean acquired = g_mock.disconnect_acquired_lock;
+    guint destroyed = g_mock.destroy_count;
+    guint messages = g_mock.free_message_count;
+    guint topics = g_mock.free_topic_count;
+    g_mutex_unlock (&g_mock.lock);
+    EXPECT_TRUE (acquired) << "disconnect could not acquire the callback's library lock";
+    EXPECT_EQ (destroyed, i + 1);
+    EXPECT_EQ (messages, i + 1);
+    EXPECT_EQ (topics, i + 1);
+    EXPECT_EQ (self->mqtt_client_handle, nullptr);
+    EXPECT_FALSE (self->is_connected);
+    EXPECT_FALSE (self->is_subscribed);
+    EXPECT_FALSE (self->is_disconnect_finished);
+  }
+}
+
+/** @brief Receive delivery already holds the library lock before disconnect. */
+TEST (testMqttSrc, disconnectWhileReceiveHoldsLibraryLock)
+{
+  _check_disconnect_library_lock (FALSE, 1);
+}
+
+/** @brief A rejected disconnect still releases and destroys the client. */
+TEST (testMqttSrc, disconnectFailureWhileReceiveHoldsLibraryLock_n)
+{
+  _check_disconnect_library_lock (TRUE, 1);
+}
+
+/** @brief Restart preserves the lock order and clears a fast completion. */
+TEST (testMqttSrc, restartWhileReceiveHoldsLibraryLock)
+{
+  _check_disconnect_library_lock (FALSE, 2);
 }
 
 /**

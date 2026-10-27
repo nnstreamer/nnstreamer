@@ -1732,7 +1732,12 @@ gst_mqtt_src_disconnect (GstMqttSrc * self, gint wait_time)
     goto done;
   }
 
-  ret = MQTTAsync_disconnect (self->mqtt_client_handle, &opts);
+  /* The lifecycle caller owns the handle until destruction below. Paho may
+   * acquire its library mutex while a receive callback waits for ours. */
+  client = self->mqtt_client_handle;
+  g_mutex_unlock (&self->mqtt_src_mutex);
+  ret = MQTTAsync_disconnect (client, &opts);
+  g_mutex_lock (&self->mqtt_src_mutex);
   if (ret == MQTTASYNC_SUCCESS) {
     /* Wait for disconnect callback to complete */
     while (!self->is_disconnect_finished) {
