@@ -147,7 +147,7 @@ LOCAL_STATIC_LIBRARIES := tensorflow-lite cpufeatures
 
 LOCAL_ARM_NEON      := true
 LOCAL_CFLAGS        += -DVERSION=\"$(NNSTREAMER_VERSION)\"
-LOCAL_CXXFLAGS      += -DVERSION=\"$(NNSTREAMER_VERSION)\"
+LOCAL_CXXFLAGS      += -DVERSION=\"$(NNSTREAMER_VERSION)\" -frtti -fexceptions
 LOCAL_CFLAGS        += -pthread -fopenmp
 
 LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)

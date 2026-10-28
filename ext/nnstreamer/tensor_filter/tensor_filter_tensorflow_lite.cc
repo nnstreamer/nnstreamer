@@ -28,15 +28,14 @@
 
 #include <algorithm>
 #include <limits.h>
+#include <stdexcept>
 #include <thread>
 #include <unistd.h>
 
+#include <nnstreamer_conf.h>
+#include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
-#define NO_ANONYMOUS_NESTED_STRUCT
-#include <nnstreamer_plugin_api_filter.h>
-#undef NO_ANONYMOUS_NESTED_STRUCT
-#include <nnstreamer_conf.h>
 #include <nnstreamer_util.h>
 
 #if TFLITE_VERSION_MAJOR < 2
@@ -150,7 +149,7 @@ typedef enum QNNPerformanceMode {
  */
 typedef struct {
   const gchar *model_file; /**< path to tensorflow-lite model file */
-  const gchar *accelerators; /**< accelerators set for this subplugin */
+  accl_hw accelerator; /**< accelerator set for this subplugin */
   tflite_delegate_e delegate; /**< tensorflow-lite delegate */
   gint num_threads; /**< the number of threads */
   const gchar *ext_delegate_path; /**< path to external delegate lib */
@@ -160,17 +159,16 @@ typedef struct {
 } tflite_option_s;
 
 /**
- * @brief Possible accelerators.
+ * @brief Possible accelerators. ACCL_CPU_NEON is an alias of ACCL_CPU_SIMD.
  */
-static const gchar *tflite_accl_support[] = { ACCL_CPU_NEON_STR,
-  ACCL_CPU_SIMD_STR, ACCL_CPU_STR, ACCL_GPU_STR, ACCL_NPU_STR, NULL };
+static const accl_hw tflite_accl_support[] = { ACCL_CPU_SIMD, ACCL_CPU, ACCL_GPU, ACCL_NPU };
 
 #if defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)
-static const gchar *tflite_accl_auto = ACCL_CPU_SIMD_STR;
+static const accl_hw tflite_accl_auto = ACCL_CPU_SIMD;
 #else
-static const gchar *tflite_accl_auto = ACCL_CPU_STR;
+static const accl_hw tflite_accl_auto = ACCL_CPU;
 #endif
-static const gchar *tflite_accl_default = ACCL_CPU_STR;
+static const accl_hw tflite_accl_default = ACCL_CPU;
 
 static GstTensorFilterFrameworkStatistics tflite_internal_stats = {
   .total_invoke_num = 0,
@@ -282,7 +280,6 @@ class TFLiteCore
   ~TFLiteCore ();
   int init (tflite_option_s *option);
   int loadModel ();
-  gboolean compareModelPath (const char *model_path);
   int setInputTensorProp ();
   int setOutputTensorProp ();
   int getInputTensorDim (GstTensorsInfo *info);
@@ -307,7 +304,7 @@ class TFLiteCore
   gchar *shared_tensor_filter_key;
   gboolean checkSharedInterpreter (const GstTensorFilterProperties *prop);
   int reloadInterpreter (TFLiteInterpreter *new_interpreter);
-  void setAccelerator (const char *accelerators, tflite_delegate_e d);
+  void setAccelerator (accl_hw hw, tflite_delegate_e d);
 };
 
 extern "C" {
@@ -1078,11 +1075,9 @@ unlock_and_exit:
  * @brief	Set the accelerator for the tf engine
  */
 void
-TFLiteCore::setAccelerator (const char *accelerators, tflite_delegate_e d)
+TFLiteCore::setAccelerator (accl_hw hw, tflite_delegate_e d)
 {
-  accelerator = parse_accl_hw (
-      accelerators, tflite_accl_support, tflite_accl_auto, tflite_accl_default);
-
+  accelerator = hw;
   delegate = d;
 
   /* set possible tensorflow-lite delegate from accelerator */
@@ -1120,7 +1115,7 @@ TFLiteCore::init (tflite_option_s *option)
   num_threads = option->num_threads;
   int err;
 
-  setAccelerator (option->accelerators, option->delegate);
+  setAccelerator (option->accelerator, option->delegate);
   g_message ("accl = %s", get_accl_hw_str (accelerator));
 
   if ((err = loadModel ())) {
@@ -1141,22 +1136,6 @@ TFLiteCore::init (tflite_option_s *option)
     return -4;
   }
   return 0;
-}
-
-/**
- * @brief	compare the model path
- * @return TRUE if tflite core has the same model path
- */
-gboolean
-TFLiteCore::compareModelPath (const char *model_path)
-{
-  gboolean is_same;
-
-  interpreter->lock ();
-  is_same = (g_strcmp0 (model_path, interpreter->getModelPath ()) == 0);
-  interpreter->unlock ();
-
-  return is_same;
 }
 
 /**
@@ -1430,7 +1409,8 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
     return -1;
 
   option->model_file = prop->model_files[0];
-  option->accelerators = prop->accl_str;
+  /* the first accelerator the tensor-filter resolved, as parse_accl_hw () picks */
+  option->accelerator = (prop->num_hw > 0) ? prop->hw_list[0] : tflite_accl_default;
   option->delegate = TFLITE_DELEGATE_NONE;
   option->num_threads = -1;
   option->ext_delegate_path = nullptr;
@@ -1533,146 +1513,6 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
   return 0;
 }
 
-/**
- * @brief Free privateData and move on.
- */
-static void
-tflite_close (const GstTensorFilterProperties *prop, void **private_data)
-{
-  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
-  UNUSED (prop);
-
-  if (!core)
-    return;
-
-  delete core;
-  *private_data = NULL;
-}
-
-/**
- * @brief Load tensorflow lite modelfile
- * @param prop property of tensor_filter instance
- * @param private_data : tensorflow lite plugin's private data
- * @return 0 if successfully loaded. 1 if skipped (already loaded).
- *        -1 if the object construction is failed.
- *        -2 if the object initialization if failed
- */
-static int
-tflite_loadModelFile (const GstTensorFilterProperties *prop, void **private_data)
-{
-  int ret = 0;
-  TFLiteCore *core;
-  tflite_option_s option = {};
-
-  if (tflite_parseCustomOption (prop, &option) != 0) {
-    g_printerr ("Failed to parse options to initialize tensorflow-lite model.");
-    ret = -1;
-    goto done;
-  }
-
-  core = static_cast<TFLiteCore *> (*private_data);
-
-  if (core != NULL) {
-    if (core->compareModelPath (option.model_file)) {
-      ret = 1; /* skipped */
-      goto done;
-    }
-
-    tflite_close (prop, private_data);
-  }
-
-  core = new TFLiteCore (prop);
-  if (core->init (&option) != 0) {
-    *private_data = NULL;
-    delete core;
-
-    g_printerr ("failed to initialize the object: Tensorflow-lite");
-    ret = -2;
-    goto done;
-  }
-
-  *private_data = core;
-
-done:
-  g_free ((gpointer) option.ext_delegate_path);
-  option.ext_delegate_path = nullptr;
-
-  if (option.ext_delegate_kv_table)
-    g_hash_table_unref (option.ext_delegate_kv_table);
-  option.ext_delegate_kv_table = nullptr;
-
-  return ret;
-}
-
-/**
- * @brief The open callback for GstTensorFilterFramework. Called before anything else
- * @param prop property of tensor_filter instance
- * @param private_data : tensorflow lite plugin's private data
- */
-static int
-tflite_open (const GstTensorFilterProperties *prop, void **private_data)
-{
-#if TFLITE_VERSION_MAJOR < 2
-  ml_logw ("tensor_filter of TensorFlow Lite version 1.X is deprecated. Please use of TF Lite 2.X");
-#endif
-  int status = tflite_loadModelFile (prop, private_data);
-
-  return status;
-}
-
-/**
- * @brief The mandatory callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : tensorflow lite plugin's private data
- * @param[in] input The array of input tensors
- * @param[out] output The array of output tensors
- * @return 0 if OK. non-zero if error.
- */
-static int
-tflite_invoke (const GstTensorFilterProperties *prop, void **private_data,
-    const GstTensorMemory *input, GstTensorMemory *output)
-{
-  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
-  g_return_val_if_fail (core && input && output, -EINVAL);
-  UNUSED (prop);
-
-  return core->invoke (input, output);
-}
-
-/**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : tensorflow lite plugin's private data
- * @param[out] info The dimensions and types of input tensors
- */
-static int
-tflite_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
-    GstTensorsInfo *info)
-{
-  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
-  g_return_val_if_fail (core && info, -EINVAL);
-  UNUSED (prop);
-
-  return core->getInputTensorDim (info);
-}
-
-/**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : tensorflow lite plugin's private data
- * @param[out] info The dimensions and types of output tensors
- */
-static int
-tflite_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
-    GstTensorsInfo *info)
-{
-  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
-  g_return_val_if_fail (core && info, -EINVAL);
-  UNUSED (prop);
-
-  return core->getOutputTensorDim (info);
-}
-
 #define tryRecovery(failedAt, status, location, exp) \
   do {                                               \
     status = (exp);                                  \
@@ -1707,25 +1547,17 @@ recovery_fail:
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : tensorflow lite plugin's private data
+ * @brief Set the input tensor info and get the output tensor info of the model
+ * @param core the tensorflow-lite core of the filter instance
  * @param in_info The dimensions and types of input tensors
  * @param[out] out_info The dimensions and types of output tensors
  * @detail Output Tensor info is recalculated based on the set Input Tensor Info
  */
 static int
-tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
-    const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
+tflite_setInputDim (TFLiteCore *core, const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
-  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   GstTensorsInfo cur_in_info;
   int status;
-  UNUSED (prop);
-
-  g_return_val_if_fail (core, -EINVAL);
-  g_return_val_if_fail (in_info, -EINVAL);
-  g_return_val_if_fail (out_info, -EINVAL);
 
   /** get current input tensor info for resetting */
   status = core->getInputTensorDim (&cur_in_info);
@@ -1773,71 +1605,188 @@ exit:
   return status;
 }
 
+using nnstreamer::tensor_filter_subplugin;
+
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : tensorflow lite plugin's private data
- * @return 0 if OK. non-zero if error.
+ * @brief The tensor_filter sub-plugin class of tensorflow-lite
  */
-static int
-tflite_reloadModel (const GstTensorFilterProperties *prop, void **private_data)
+class tflite_subplugin final : public tensor_filter_subplugin
 {
-  TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
-  g_return_val_if_fail (core, -EINVAL);
+  public:
+  static void init_filter_tflite ();
+  static void fini_filter_tflite ();
 
-  if (prop->num_models != 1)
-    return -1;
+  tflite_subplugin ();
+  ~tflite_subplugin ();
 
-  return core->reloadModel (prop->model_files[0]);
+  tensor_filter_subplugin &getEmptyInstance ();
+  void configure_instance (const GstTensorFilterProperties *prop);
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  void invoke_dynamic (GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output);
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
+  int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
+
+  private:
+  TFLiteCore *core; /**< the model of this filter instance; null in an empty instance */
+
+  static const char *name;
+  static tflite_subplugin *registeredRepresentation;
+};
+
+const char *tflite_subplugin::name = TFLITE_SUBPLUGIN_NAME;
+tflite_subplugin *tflite_subplugin::registeredRepresentation = nullptr;
+
+/**
+ * @brief Construct an empty instance.
+ */
+tflite_subplugin::tflite_subplugin ()
+    : tensor_filter_subplugin (), core (nullptr)
+{
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param[in] hw backend accelerator hardware
- * @return 0 if supported. -errno if not supported.
+ * @brief Close the model of this instance, if any.
  */
-static int
-tflite_checkAvailability (accl_hw hw)
+tflite_subplugin::~tflite_subplugin ()
 {
-  if (g_strv_contains (tflite_accl_support, get_accl_hw_str (hw)))
-    return 0;
-
-  return -ENOENT;
+  delete core;
 }
 
-static gchar filter_subplugin_tensorflow_lite[] = TFLITE_SUBPLUGIN_NAME;
-
-static GstTensorFilterFramework NNS_support_tensorflow_lite
-    = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-        .open = tflite_open,
-        .close = tflite_close,
-        { .v0 = {
-              .name = filter_subplugin_tensorflow_lite,
-              .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-              .allocate_in_invoke = FALSE,
-              .run_without_model = FALSE,
-              .verify_model_path = TRUE,
-              .statistics = &tflite_internal_stats,
-              .invoke_NN = tflite_invoke,
-              .getInputDimension = tflite_getInputDim,
-              .getOutputDimension = tflite_getOutputDim,
-              .setInputDimension = tflite_setInputDim,
-              .destroyNotify = nullptr,
-              .reloadModel = tflite_reloadModel,
-              .handleEvent = nullptr,
-              .checkAvailability = tflite_checkAvailability,
-              .allocateInInvoke = nullptr,
-          } } };
+/**
+ * @brief Return a new empty instance.
+ */
+tensor_filter_subplugin &
+tflite_subplugin::getEmptyInstance ()
+{
+  return *(new tflite_subplugin ());
+}
 
 /**
- * @brief Internal function to register the filter.
+ * @brief Load the tensorflow-lite model given by the filter properties.
+ * @throws std::invalid_argument if the options cannot be parsed.
+ * @throws std::runtime_error if the model cannot be loaded.
  */
-static void
-_nns_filter_register_tflite (void)
+void
+tflite_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
-  nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
-  nnstreamer_filter_set_custom_property_desc (NNS_support_tensorflow_lite.v0.name,
-      "NumThreads", "Number of threads. Set 0 for default behaviors.", "Delegate",
+  tflite_option_s option = {};
+  int err;
+
+#if TFLITE_VERSION_MAJOR < 2
+  ml_logw ("tensor_filter of TensorFlow Lite version 1.X is deprecated. Please use of TF Lite 2.X");
+#endif
+  if (tflite_parseCustomOption (prop, &option) != 0)
+    throw std::invalid_argument ("Failed to parse options to initialize tensorflow-lite model.");
+
+  core = new TFLiteCore (prop);
+  err = core->init (&option);
+
+  g_free ((gpointer) option.ext_delegate_path);
+  if (option.ext_delegate_kv_table)
+    g_hash_table_unref (option.ext_delegate_kv_table);
+
+  if (err != 0) {
+    delete core;
+    core = nullptr;
+    throw std::runtime_error ("failed to initialize the object: Tensorflow-lite");
+  }
+}
+
+/**
+ * @brief Run the model with the input.
+ * @param[in] input The array of input tensors
+ * @param[out] output The array of output tensors
+ */
+void
+tflite_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
+{
+  if (!input || !output)
+    throw std::invalid_argument (
+        "The input and output tensors of tensorflow-lite should not be null.");
+
+  if (core->invoke (input, output) != 0)
+    throw std::runtime_error ("Failed to invoke tensorflow-lite model.");
+}
+
+/**
+ * @brief Refuse invoke-dynamic, which tensorflow-lite does not support.
+ */
+void
+tflite_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  UNUSED (prop);
+  UNUSED (input);
+  UNUSED (output);
+  throw std::invalid_argument ("tensorflow-lite does not support invoke-dynamic.");
+}
+
+/**
+ * @brief Describe the tensorflow-lite sub-plugin.
+ */
+void
+tflite_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
+{
+  info.name = name;
+  info.allow_in_place = FALSE; /** @todo: support this to optimize performance later. */
+  info.allocate_in_invoke = FALSE;
+  info.run_without_model = FALSE;
+  info.verify_model_path = TRUE;
+  info.hw_list = tflite_accl_support;
+  info.num_hw = G_N_ELEMENTS (tflite_accl_support);
+  info.accl_auto = tflite_accl_auto;
+  info.accl_default = tflite_accl_default;
+  info.statistics = &tflite_internal_stats;
+}
+
+/**
+ * @brief Get the input and output tensor info, or set the input tensor info.
+ * @return 0 if OK. -ENOENT if the ops is not supported. Other non-zero if error.
+ */
+int
+tflite_subplugin::getModelInfo (
+    model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
+{
+  switch (ops) {
+    case GET_IN_OUT_INFO:
+      if (core->getInputTensorDim (&in_info) != 0)
+        return -EINVAL;
+      return core->getOutputTensorDim (&out_info);
+    case SET_INPUT_INFO:
+      return tflite_setInputDim (core, &in_info, &out_info);
+    default:
+      return -ENOENT;
+  }
+}
+
+/**
+ * @brief Reload the model; no other event is handled.
+ * @return 0 if OK. -ENOENT if the event is not supported. Other non-zero if error.
+ */
+int
+tflite_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
+{
+  if (ops != RELOAD_MODEL)
+    return -ENOENT;
+
+  if (data.num_models != 1 || data.model_files == NULL)
+    return -EINVAL;
+
+  return core->reloadModel (data.model_files[0]);
+}
+
+/**
+ * @brief Register the tensorflow-lite sub-plugin.
+ */
+void
+tflite_subplugin::init_filter_tflite ()
+{
+  registeredRepresentation
+      = tensor_filter_subplugin::register_subplugin<tflite_subplugin> ();
+  nnstreamer_filter_set_custom_property_desc (name, "NumThreads",
+      "Number of threads. Set 0 for default behaviors.", "Delegate",
       "TF-Lite delegation options: {'NNAPI', 'GPU', 'XNNPACK', 'External', 'QNN'}."
       " Do not specify to disable delegation.",
       "ExtDelegateLib", "Path to external delegate shared library", "ExtDelegateKeyVal",
@@ -1846,16 +1795,26 @@ _nns_filter_register_tflite (void)
       NULL);
 }
 
+/**
+ * @brief Unregister the tensorflow-lite sub-plugin.
+ */
+void
+tflite_subplugin::fini_filter_tflite ()
+{
+  g_assert (registeredRepresentation != nullptr);
+  tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
+}
+
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_tflite (void)
 {
-  _nns_filter_register_tflite ();
+  tflite_subplugin::init_filter_tflite ();
 }
 
 /** @brief Destruct the subplugin */
 void
 fini_filter_tflite (void)
 {
-  nnstreamer_filter_exit (NNS_support_tensorflow_lite.v0.name);
+  tflite_subplugin::fini_filter_tflite ();
 }
