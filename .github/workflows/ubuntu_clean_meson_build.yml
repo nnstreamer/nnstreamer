@@ -39,7 +39,7 @@ jobs:
         # This PPA follows nnstreamer-edge daily, and a leak of its own is
         # reported against whichever of our elements called into it, so if one
         # ever arrives, fix it there and suppress it here meanwhile.
-        sudo apt-get install -y ssat libpaho-mqtt-dev nnstreamer-edge-dev
+        sudo apt-get install -y ssat libpaho-mqtt-dev libssl-dev nnstreamer-edge-dev
         sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
         sudo apt-get install -y libarmnn-dev libarmnntfliteparser-dev libarmnn-cpuref-backend22
         # The armnn subplugin auto-selects the NEON-accelerated CpuAcc backend on arm.
@@ -159,7 +159,11 @@ jobs:
         # FLOAT16_SUPPORT-only unit tests; the x86 entry keeps it off.
         float16_opt=
         if [ '${{ matrix.os }}' == 'ubuntu-22.04-arm' ]; then float16_opt=-Denable-float16=true; fi
-        meson setup build/ -Darmnn-support=enabled -Dmqtt-support=enabled -Dinstall-test=true ${float16_opt}
+        # Exercise TLS in both the native and Valgrind passes on x86. Keep
+        # the arm entry non-TLS so the default build stays covered as well.
+        mqtt_tls=false
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then mqtt_tls=true; fi
+        meson setup build/ -Darmnn-support=enabled -Dmqtt-support=enabled -Dmqtt-tls=${mqtt_tls} -Dinstall-test=true ${float16_opt}
 
         # This job installs the newest meson from PyPI, so it configures
         # happily with a construct that the meson on a target distro does not
