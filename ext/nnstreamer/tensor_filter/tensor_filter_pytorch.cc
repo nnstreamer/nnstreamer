@@ -88,7 +88,6 @@ class TorchCore
   tensor_type getTensorTypeFromTorch (torch::Dtype torchType);
   bool getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType);
   int validateOutputTensor (at::Tensor output, unsigned int idx);
-  int fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim);
   int processIValue (const torch::jit::IValue &value, GstTensorMemory *output,
       unsigned int idx);
   int serializeOutput (const torch::jit::IValue &value, GstTensorMemory *output,
@@ -553,28 +552,6 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
   gint64 stop_time = g_get_real_time ();
   g_message ("Invoke() is finished: %" G_GINT64_FORMAT, (stop_time - start_time));
 #endif
-
-  return 0;
-}
-
-/**
- * @brief	fill tensor dimension
- * @param tensor_meta	pytorch tensor variable
- * @param[out] dim the array of the tensor dimension
- * @return 0 if OK. non-zero if error.
- */
-int
-TorchCore::fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim)
-{
-  int num_dim = tensor_meta.ndimension ();
-  g_assert (num_dim <= NNS_TENSOR_RANK_LIMIT);
-  /** the order of dimension is reversed at CAPS negotiation */
-  std::reverse_copy (tensor_meta.sizes ().begin (), tensor_meta.sizes ().end (), dim);
-
-  /** fill the remnants with 0 */
-  for (int idx = num_dim; idx < NNS_TENSOR_RANK_LIMIT; ++idx) {
-    dim[idx] = 0;
-  }
 
   return 0;
 }
