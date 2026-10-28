@@ -506,15 +506,18 @@ TEST_F (tensorDecoderPose, loadLabelFileWithBlankLine)
   GstTensorsConfig config;
   guint critical = 0;
   guint handler = g_log_set_handler ("GLib",
-      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       countGLibCritical, &critical);
+  GLogLevelFlags fatal_mask;
 
   EXPECT_TRUE (decoder->setOption (&pdata, 1, "5:5"));
   EXPECT_TRUE (setLabels ("a 2\n\nb 0\n"));
   EXPECT_EQ (critical, 0U);
 
   /* The handler is live: a critical of the domain is counted */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log ("GLib", G_LOG_LEVEL_CRITICAL, "self-check of the counter");
+  g_log_set_always_fatal (fatal_mask);
   EXPECT_EQ (critical, 1U);
   g_log_remove_handler ("GLib", handler);
 

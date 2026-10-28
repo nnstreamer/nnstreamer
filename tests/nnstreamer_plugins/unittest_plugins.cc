@@ -14727,6 +14727,7 @@ TEST (testTensorCrop, cropNoResultBuffer_n)
 {
   crop_test_data_s crop_test;
   guint handler_id;
+  GLogLevelFlags fatal_mask;
 
   _crop_test_init (&crop_test);
 
@@ -14749,7 +14750,9 @@ TEST (testTensorCrop, cropNoResultBuffer_n)
       _crop_record_critical, NULL);
 
   /* the assertion below says nothing unless the handler is live */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "tensor_crop test probe");
+  g_log_set_always_fatal (fatal_mask);
   EXPECT_TRUE (tensor_crop_logged_critical);
   tensor_crop_logged_critical = FALSE;
 
@@ -14795,6 +14798,7 @@ TEST (testTensorCrop, cropRawPadLosesCaps_n)
   GstPad *raw;
   GstCaps *caps;
   guint handler_id;
+  GLogLevelFlags fatal_mask;
 
   _crop_test_init (&crop_test);
   _crop_test_prepare_single_region (&crop_test);
@@ -14818,7 +14822,9 @@ TEST (testTensorCrop, cropRawPadLosesCaps_n)
       _crop_record_critical, NULL);
 
   /* the assertion below says nothing unless the handler is live */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "tensor_crop test probe");
+  g_log_set_always_fatal (fatal_mask);
   EXPECT_TRUE (tensor_crop_logged_critical);
   tensor_crop_logged_critical = FALSE;
 
@@ -15344,9 +15350,12 @@ _sparse_watch_gst_critical (void)
   guint handler = g_log_set_handler ("GStreamer",
       (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _sparse_count_gst_critical, NULL);
+  GLogLevelFlags fatal_mask;
 
   sparse_gst_critical_count = 0;
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "tensor_sparse test: counter self-check");
+  g_log_set_always_fatal (fatal_mask);
   EXPECT_EQ (sparse_gst_critical_count, 1U);
 
   sparse_gst_critical_count = 0;
@@ -15911,9 +15920,12 @@ _sparse_watch_setcaps_critical (void)
   guint handler = g_log_set_handler (NULL,
       (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _sparse_count_setcaps_critical, NULL);
+  GLogLevelFlags fatal_mask;
 
   sparse_setcaps_critical_count = 0;
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_critical ("tensor_sparse test: gst_pad_set_caps counter self-check");
+  g_log_set_always_fatal (fatal_mask);
   EXPECT_EQ (sparse_setcaps_critical_count, 1U);
 
   sparse_setcaps_critical_count = 0;
@@ -20572,9 +20584,12 @@ _decoder_watch_gst_critical (void)
   guint handler = g_log_set_handler ("GStreamer",
       (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _decoder_count_gst_critical, NULL);
+  GLogLevelFlags fatal_mask;
 
   decoder_gst_critical_count = 0;
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "tensor_decoder test: counter self-check");
+  g_log_set_always_fatal (fatal_mask);
   EXPECT_EQ (decoder_gst_critical_count, 1U);
 
   decoder_gst_critical_count = 0;
