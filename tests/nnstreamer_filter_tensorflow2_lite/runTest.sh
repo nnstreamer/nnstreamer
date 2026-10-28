@@ -205,6 +205,11 @@ run_pipeline true:${auto_accl},cpu
 cat info | grep "accl = ${auto_accl}$"
 testResult $? 2-17 "accelerator set test" 0 1
 
+# Property reading test for accelerator before setting the framework (analogous test is 2-3)
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter accelerator=true:!npu,gpu framework=tensorflow2-lite model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log 2>info
+cat info | grep "accl = gpu$"
+testResult $? 2-18 "accelerator set test" 0 1
+
 # Dimension declaration test cases
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! \"other/tensors,num_tensors=1,dimensions=1001:1:1\" ! filesink location=tensorfilter.out.log" 3 0 0 $PERFORMANCE
 python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
