@@ -70,9 +70,7 @@
 #include <glib.h>
 #include <errno.h>
 
-#define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
-#undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
@@ -472,17 +470,18 @@ vivante_close (const GstTensorFilterProperties * prop, void **private_data)
  *  5. Do prost-process to output data.
  */
 static int
-vivante_invoke (const GstTensorFilterProperties * prop,
-    void **private_data, const GstTensorMemory * input,
-    GstTensorMemory * output)
+vivante_invoke (const GstTensorFilterFramework * self,
+    GstTensorFilterProperties * prop, void *private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
   int ret = 0;
   unsigned i;
-  vivante_pdata *pdata = *private_data;
+  vivante_pdata *pdata = private_data;
   vsi_status status = VSI_FAILURE;
 
+  UNUSED (self);
   UNUSED (prop);
-  g_assert (*private_data);
+  g_assert (pdata);
 
 #if 1
   /**
@@ -565,75 +564,86 @@ vivante_invoke (const GstTensorFilterProperties * prop,
   return 0;
 }
 
-
-/**
- * @brief The standard tensor_filter callback for static input/output dimension.
- * @note If you want to support flexible/dynamic input/output dimension,
- *       read nnstreamer_plugin_api_filter.h and supply the
- *       setInputDimension callback.
- */
-static int
-vivante_getInputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
-{
-  vivante_pdata *pdata = (vivante_pdata *) * private_data;
-
-  UNUSED (prop);
-  if (!pdata)
-    return -1;
-
-  gst_tensors_info_copy (info, &pdata->input_tensor);
-  return 0;
-}
-
-/**
- * @brief The standard tensor_filter callback for static input/output dimension.
- * @note If you want to support flexible/dynamic input/output dimension,
- *       read nnstreamer_plugin_api_filter.h and supply the
- *       setInputDimension callback.
- */
-static int
-vivante_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
-{
-  vivante_pdata *pdata = (vivante_pdata *) * private_data;
-
-  UNUSED (prop);
-  if (!pdata)
-    return -1;
-
-  gst_tensors_info_copy (info, &pdata->output_tensor);
-
-  return 0;
-}
-
 static gchar filter_subplugin_vivante[] = "vivante";
 
+/**
+ * @brief The tensor_filter callback to get the information of the framework
+ */
+static int
+vivante_getFrameworkInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo * fw_info)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+
+  fw_info->name = filter_subplugin_vivante;
+  fw_info->allow_in_place = FALSE;
+  fw_info->allocate_in_invoke = FALSE;
+  fw_info->run_without_model = FALSE;
+  fw_info->verify_model_path = FALSE;
+  fw_info->hw_list = NULL;
+  fw_info->num_hw = 0;
+  fw_info->accl_auto = ACCL_NONE;
+  fw_info->accl_default = ACCL_NONE;
+  fw_info->statistics = NULL;
+
+  return 0;
+}
+
+/**
+ * @brief The tensor_filter callback to get the input and output information
+ * @note The model has static dimensions, so the input information cannot be set.
+ */
+static int
+vivante_getModelInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+{
+  vivante_pdata *pdata = private_data;
+
+  UNUSED (self);
+  UNUSED (prop);
+
+  if (ops != GET_IN_OUT_INFO)
+    return -ENOENT;
+
+  if (!pdata)
+    return -EINVAL;
+
+  gst_tensors_info_copy (in_info, &pdata->input_tensor);
+  gst_tensors_info_copy (out_info, &pdata->output_tensor);
+  return 0;
+}
+
+/**
+ * @brief The tensor_filter callback to handle an event
+ * @note No event is supported, the model reload included.
+ */
+static int
+vivante_eventHandler (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData * data)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  UNUSED (ops);
+  UNUSED (data);
+
+  return -ENOENT;
+}
+
 static GstTensorFilterFramework NNS_support_vivante = {
-#ifdef GST_TENSOR_FILTER_API_VERSION_DEFINED
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-#endif
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V1,
   .open = vivante_open,
   .close = vivante_close,
-  {
-        .v0 = {
-              .name = filter_subplugin_vivante,
-              .allow_in_place = FALSE,
-              .allocate_in_invoke = FALSE,
-              .run_without_model = FALSE,
-              .verify_model_path = FALSE,
-              .statistics = NULL,
-              .invoke_NN = vivante_invoke,
-              .getInputDimension = vivante_getInputDim,
-              .getOutputDimension = vivante_getOutputDim,
-              .setInputDimension = NULL,
-              .destroyNotify = NULL,
-              .reloadModel = NULL,
-              .handleEvent = NULL,
-              .checkAvailability = NULL,
-              .allocateInInvoke = NULL,
-            }
-      }
+  .invoke = vivante_invoke,
+  .getFrameworkInfo = vivante_getFrameworkInfo,
+  .getModelInfo = vivante_getModelInfo,
+  .eventHandler = vivante_eventHandler,
+  .subplugin_data = NULL,
 };
 
 /**@brief Initialize this object for tensor_filter subplugin runtime register */
@@ -641,7 +651,7 @@ void
 init_filter_vivante (void)
 {
   nnstreamer_filter_probe (&NNS_support_vivante);
-  nnstreamer_filter_set_custom_property_desc (NNS_support_vivante.v0.name,
+  nnstreamer_filter_set_custom_property_desc (filter_subplugin_vivante,
       "postprocess", "If this option is specified, a post process function"
       " defined as 'vnn_PostProcessNeuralNetwork()' is dlopened from the"
       " model file and invoked as a post processor.",
@@ -652,5 +662,5 @@ init_filter_vivante (void)
 void
 fini_filter_vivante (void)
 {
-  nnstreamer_filter_exit (NNS_support_vivante.v0.name);
+  nnstreamer_filter_exit (filter_subplugin_vivante);
 }
