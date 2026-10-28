@@ -28,6 +28,12 @@
 #include <string>
 #include <vector>
 
+namespace torch_mock
+{
+/** @brief Whether moving a tensor to or from a CUDA device fails. */
+bool cudaFails ();
+} /* namespace torch_mock */
+
 namespace c10
 {
 /**
@@ -278,6 +284,9 @@ class Tensor
   /** @brief The same data, tagged as living on the given device. */
   Tensor to (DeviceType device) const
   {
+    if ((device == DeviceType::CUDA || device_ == DeviceType::CUDA)
+        && torch_mock::cudaFails ())
+      throw std::runtime_error ("mock CUDA error");
     Tensor tensor (*this);
     tensor.device_ = device;
     return tensor;

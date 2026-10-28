@@ -20,6 +20,8 @@
  *  - scalar: return a 0-dim tensor of the type of the first input
  *  - throw_runtime, throw_exception, throw_unknown: forward() throws a
  *    std::runtime_error, a std::exception or an int
+ *  - throw_after_first: like identity on the first forward() call after
+ *    reset(); every later call throws a std::runtime_error
  *  - load_invalid_argument, load_unknown: load() throws a
  *    std::invalid_argument or an int
  * Any other content, or a missing file, makes load() throw a runtime_error.
@@ -35,6 +37,8 @@ namespace torch_mock
 void reset ();
 /** @brief Whether load() accepts a CUDA device (default: false). */
 void setCudaAvailable (bool available);
+/** @brief Whether Tensor::to() from or to CUDA throws (default: false). */
+void setCudaFails (bool fails);
 /** @brief The number of Module::eval() calls. */
 int evalCount ();
 /** @brief The number of Module::forward() calls. */
