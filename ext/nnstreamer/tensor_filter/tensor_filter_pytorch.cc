@@ -327,8 +327,8 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   auto tensor_shape = output.sizes ();
   tensor_type otype;
   gsize num_gst_tensor, num_torch_tensor;
-  at::Tensor sliced_output = output.slice (0);
-  c10::IntArrayRef sliced_output_sizes = sliced_output.sizes ();
+  at::Tensor sliced_output;
+  c10::IntArrayRef sliced_output_sizes;
   GstTensorInfo *_info;
 
   /** if idx is in bounds */
@@ -340,17 +340,24 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
 
   _info = gst_tensors_info_get_nth_info (&outputTensorMeta, idx);
 
-  /** when output is a scalar */
-  if (tensor_shape[0] == 0) {
+  /** when output is a scalar or has no element */
+  if (output.ndimension () == 0 || tensor_shape[0] == 0) {
     otype = getTensorTypeFromTorch (output.scalar_type ());
     if (_info->type != otype) {
       ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
           idx, idx, otype);
       return -2;
     }
+    if (output.ndimension () == 0 && gst_tensor_get_element_count (_info->dimension) != 1) {
+      ml_loge ("Invalid output meta: the output at index %u is a scalar. Update the tensor shape to 1.",
+          idx);
+      return -3;
+    }
     goto done;
   }
 
+  sliced_output = output.slice (0);
+  sliced_output_sizes = sliced_output.sizes ();
   otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
   if (_info->type != otype) {
     ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
