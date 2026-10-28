@@ -25,18 +25,18 @@
  */
 
 #include <glib.h>
+#include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
-#define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
-#undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_util.h>
 #ifdef __OPENVINO_CPU_EXT__
 #include <ext_list.hpp>
 #endif /* __OPENVINO_CPU_EXT__ */
 #include <inference_engine.hpp>
 #include <iostream>
-#include <nnstreamer_util.h>
+#include <memory>
 #include <string>
+#include <system_error>
 #include <vector>
 #include "tensor_filter_openvino.hh"
 
@@ -48,10 +48,6 @@ void fini_filter_openvino (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-static const gchar *openvino_accl_support[]
-    = { ACCL_NPU_MOVIDIUS_STR, /** ACCL for default and auto config */
-        ACCL_NPU_STR, ACCL_CPU_STR, NULL };
 
 std::map<accl_hw, std::string> TensorFilterOpenvino::_nnsAcclHwToOVDevMap = {
   { ACCL_CPU, "CPU" },
@@ -351,7 +347,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo *info)
   }
 
   for (inputDataMapIter = inputsDataMap->begin (), i = 0;
-       inputDataMapIter != inputsDataMap->end (); ++inputDataMapIter, ++i) {
+      inputDataMapIter != inputsDataMap->end (); ++inputDataMapIter, ++i) {
     InferenceEngine::SizeVector::reverse_iterator sizeVecRIter;
     InferenceEngine::TensorDesc eachInputTensorDesc;
     InferenceEngine::InputInfo::Ptr eachInputInfo;
@@ -373,7 +369,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo *info)
     _info = gst_tensors_info_get_nth_info (info, i);
 
     for (sizeVecRIter = dimsSizeVec.rbegin (), j = 0;
-         sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
+        sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
       _info->dimension[j] = (*sizeVecRIter != 0 ? *sizeVecRIter : 1);
     }
 
@@ -425,7 +421,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo *info)
   }
 
   for (outputDataMapIter = outputsDataMap->begin (), i = 0;
-       outputDataMapIter != outputsDataMap->end (); ++outputDataMapIter, ++i) {
+      outputDataMapIter != outputsDataMap->end (); ++outputDataMapIter, ++i) {
     InferenceEngine::SizeVector::reverse_iterator sizeVecRIter;
     InferenceEngine::TensorDesc eachOutputTensorDesc;
     InferenceEngine::SizeVector dimsSizeVec;
@@ -447,7 +443,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo *info)
     _info = gst_tensors_info_get_nth_info (info, i);
 
     for (sizeVecRIter = dimsSizeVec.rbegin (), j = 0;
-         sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
+        sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
       _info->dimension[j] = (*sizeVecRIter != 0 ? *sizeVecRIter : 1);
     }
 
@@ -476,14 +472,15 @@ failed:
 
 /**
  * @brief Do inference using Inference Engine of the OpenVino framework
- * @param prop property of tensor_filter instance
+ * @param inInfo the tensor info configured for the input tensors
+ * @param outInfo the tensor info configured for the output tensors
  * @param[in] input the array of input tensors
  * @param[out] output the array of output tensors
  * @return RetSuccess if OK. non-zero if error
  */
 int
-TensorFilterOpenvino::invoke (const GstTensorFilterProperties *prop,
-    const GstTensorMemory *input, GstTensorMemory *output)
+TensorFilterOpenvino::invoke (const GstTensorsInfo *inInfo,
+    const GstTensorsInfo *outInfo, const GstTensorMemory *input, GstTensorMemory *output)
 {
   InferenceEngine::BlobMap inBlobMap;
   InferenceEngine::BlobMap outBlobMap;
@@ -491,11 +488,11 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties *prop,
   guint num_tensors;
   guint i;
 
-  num_tensors = (prop->input_meta).num_tensors;
+  num_tensors = inInfo->num_tensors;
   for (i = 0; i < num_tensors; ++i) {
     std::string name;
 
-    info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->input_meta, i);
+    info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) inInfo, i);
     if (!getBlobName (this->_inputTensorNames, info, i, name)) {
       ml_loge ("Failed to get the name of the input tensor: %u", i);
       return RetEInval;
@@ -511,11 +508,11 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties *prop,
   }
   this->_inferRequest.SetInput (inBlobMap);
 
-  num_tensors = (prop->output_meta).num_tensors;
+  num_tensors = outInfo->num_tensors;
   for (i = 0; i < num_tensors; ++i) {
     std::string name;
 
-    info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->output_meta, i);
+    info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) outInfo, i);
     if (!getBlobName (this->_outputTensorNames, info, i, name)) {
       ml_loge ("Failed to get the name of the output tensor: %u", i);
       return RetEInval;
@@ -536,220 +533,274 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties *prop,
   return RetSuccess;
 }
 
+
+namespace nnstreamer
+{
+namespace tensorfilter_openvino
+{
+
 /**
- * @brief The mandatory callback for GstTensorFilterFramework
+ * @brief The tensor_filter sub-plugin running a model with TensorFilterOpenvino
+ */
+class openvino_subplugin final : public tensor_filter_subplugin
+{
+  public:
+  static void init_filter_openvino ();
+  static void fini_filter_openvino ();
+
+  openvino_subplugin ();
+  ~openvino_subplugin ();
+
+  tensor_filter_subplugin &getEmptyInstance ();
+  void configure_instance (const GstTensorFilterProperties *prop);
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
+
+  private:
+  static accl_hw getAccelerator (const GstTensorFilterProperties *prop);
+  static void getModelPaths (const GstTensorFilterProperties *prop,
+      std::string &pathXml, std::string &pathBin);
+
+  static const char *name;
+  static const accl_hw hw_list[];
+  static const int num_hw;
+  static openvino_subplugin *registeredRepresentation;
+
+  std::unique_ptr<TensorFilterOpenvino> tfOv;
+  GstTensorsInfo inputInfo;
+  GstTensorsInfo outputInfo;
+};
+
+const char *openvino_subplugin::name = "openvino";
+/** The first one is the accelerator for the default and the auto config */
+const accl_hw openvino_subplugin::hw_list[] = { ACCL_NPU_MOVIDIUS, ACCL_NPU, ACCL_CPU };
+const int openvino_subplugin::num_hw = G_N_ELEMENTS (openvino_subplugin::hw_list);
+openvino_subplugin *openvino_subplugin::registeredRepresentation = nullptr;
+
+/**
+ * @brief Construct an empty instance
+ */
+openvino_subplugin::openvino_subplugin ()
+    : tensor_filter_subplugin (), tfOv (nullptr)
+{
+  gst_tensors_info_init (&inputInfo);
+  gst_tensors_info_init (&outputInfo);
+}
+
+/**
+ * @brief Destruct the instance
+ */
+openvino_subplugin::~openvino_subplugin ()
+{
+  gst_tensors_info_free (&inputInfo);
+  gst_tensors_info_free (&outputInfo);
+}
+
+/**
+ * @brief Get a new empty instance of the sub-plugin
+ */
+tensor_filter_subplugin &
+openvino_subplugin::getEmptyInstance ()
+{
+  return *(new openvino_subplugin ());
+}
+
+/**
+ * @brief Get the accelerator to load the model onto
  * @param prop property of tensor_filter instance
- * @param private_data TensorFilterOpenvino plugin's private data
- * @param[in] input the array of input tensors
- * @param[out] output the array of output tensors
- * @return 0 if OK. non-zero if error
+ * @return the accelerator
  */
-static int
-ov_invoke (const GstTensorFilterProperties *prop, void **private_data,
-    const GstTensorMemory *input, GstTensorMemory *output)
+accl_hw
+openvino_subplugin::getAccelerator (const GstTensorFilterProperties *prop)
 {
-  TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
+  accl_hw hw;
+  int i;
 
-  return tfOv->invoke (prop, input, output);
+  if (prop->num_hw <= 0 || prop->hw_list == NULL)
+    return hw_list[0];
+
+  /** The model is loaded onto the first accelerator only */
+  hw = prop->hw_list[0];
+  if (hw == ACCL_AUTO || hw == ACCL_DEFAULT)
+    return hw_list[0];
+
+  for (i = 0; i < num_hw; ++i) {
+    if (hw_list[i] == hw)
+      return hw;
+  }
+
+  throw std::invalid_argument (std::string ("'") + get_accl_hw_str (hw)
+                               + "' is not a valid value for the 'accelerator' property. "
+                                 "An acceptable format is 'true:[cpu|npu.movidius]', "
+                                 "and 'cpu' is only for the x86_64 architecture.");
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
+ * @brief Get the paths of the model files in the XML and the bin format
  * @param prop property of tensor_filter instance
- * @param private_data TensorFilterOpenvino plugin's private data
- * @param[out] info the dimensions and types of input tensors
- * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
+ * @param[out] pathXml the path of the model file in the XML format
+ * @param[out] pathBin the path of the model file in the bin format
  */
-static int
-ov_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
+void
+openvino_subplugin::getModelPaths (const GstTensorFilterProperties *prop,
+    std::string &pathXml, std::string &pathBin)
 {
-  UNUSED (prop);
-  TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
-
-  g_return_val_if_fail (tfOv != nullptr, TensorFilterOpenvino::RetEInval);
-
-  return tfOv->getInputTensorDim (info);
-}
-
-/**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data TensorFilterOpenvino plugin's private data
- * @param[out] info The dimensions and types of output tensors
- * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
- */
-static int
-ov_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
-    GstTensorsInfo *info)
-{
-  UNUSED (prop);
-  TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
-
-  g_return_val_if_fail (tfOv != nullptr, TensorFilterOpenvino::RetEInval);
-
-  return tfOv->getOutputTensorDim (info);
-}
-
-/**
- * @brief Standard tensor_filter callback to close sub-plugin
- */
-static void
-ov_close (const GstTensorFilterProperties *prop, void **private_data)
-{
-  UNUSED (prop);
-  TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
-
-  delete tfOv;
-  *private_data = NULL;
-}
-
-/**
- * @brief Standard tensor_filter callback to open sub-plugin
- * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
- */
-static int
-ov_open (const GstTensorFilterProperties *prop, void **private_data)
-{
-  std::string path_model_prefix;
-  std::string model_path_xml;
-  std::string model_path_bin;
+  const std::string &extXml = TensorFilterOpenvino::extXml;
+  const std::string &extBin = TensorFilterOpenvino::extBin;
   guint num_models_xml = 0;
   guint num_models_bin = 0;
-  TensorFilterOpenvino *tfOv = nullptr;
+
+  if (prop->num_models == 1) {
+    std::string path_model_prefix (prop->model_files[0]);
+
+    if (g_str_has_suffix (prop->model_files[0], extBin.c_str ())
+        || g_str_has_suffix (prop->model_files[0], extXml.c_str ()))
+      path_model_prefix.resize (path_model_prefix.length () - 4);
+
+    pathXml = path_model_prefix + extXml;
+    pathBin = path_model_prefix + extBin;
+  } else {
+    for (gint i = 0; i < prop->num_models; ++i) {
+      if (g_str_has_suffix (prop->model_files[i], extXml.c_str ())) {
+        num_models_xml++;
+        pathXml = std::string (prop->model_files[i]);
+      } else if (g_str_has_suffix (prop->model_files[i], extBin.c_str ())) {
+        num_models_bin++;
+        pathBin = std::string (prop->model_files[i]);
+      }
+
+      if (num_models_xml > 1)
+        throw std::invalid_argument ("Too many model files in a XML format are provided.");
+      else if (num_models_bin > 1)
+        throw std::invalid_argument ("Too many model files in a BIN format are provided.");
+    }
+  }
+
+  if (!g_file_test (pathXml.c_str (), G_FILE_TEST_IS_REGULAR))
+    throw std::invalid_argument ("Failed to open the XML model file, " + pathXml);
+  if (!g_file_test (pathBin.c_str (), G_FILE_TEST_IS_REGULAR))
+    throw std::invalid_argument ("Failed to open the BIN model file, " + pathBin);
+}
+
+/**
+ * @brief Load the given model onto the accelerator
+ * @param prop property of tensor_filter instance
+ */
+void
+openvino_subplugin::configure_instance (const GstTensorFilterProperties *prop)
+{
+  std::string pathXml;
+  std::string pathBin;
   accl_hw accelerator;
   int ret;
 
-  accelerator = parse_accl_hw (prop->accl_str, openvino_accl_support, NULL, NULL);
+  accelerator = getAccelerator (prop);
 #ifndef __OPENVINO_CPU_EXT__
-  if (accelerator == ACCL_CPU) {
-    ml_loge ("Accelerating via CPU is not supported on the current platform");
-    return TensorFilterOpenvino::RetEInval;
-  }
+  if (accelerator == ACCL_CPU)
+    throw std::invalid_argument ("Accelerating via CPU is not supported on the current platform");
 #endif
-  if (accelerator == ACCL_NONE) {
-    if (prop->accl_str != NULL) {
-      ml_loge ("'%s' is not valid value for the 'accelerator' property", prop->accl_str);
-    } else {
-      ml_loge ("Invalid value for the 'accelerator' property");
-    }
-    ml_loge ("An acceptable format is as follows: 'true:[cpu|npu.movidius]'."
-             "Note that 'cpu' is only for the x86_64 architecture.");
 
-    return TensorFilterOpenvino::RetEInval;
-  }
+  getModelPaths (prop, pathXml, pathBin);
 
-  if (prop->num_models == 1) {
-    if (g_str_has_suffix (prop->model_files[0], TensorFilterOpenvino::extBin.c_str ())
-        || g_str_has_suffix (prop->model_files[0], TensorFilterOpenvino::extXml.c_str ())) {
-      std::string model_path = std::string (prop->model_files[0]);
+  tfOv.reset (new TensorFilterOpenvino (pathXml, pathBin));
+  ret = tfOv->loadModel (accelerator);
+  if (ret != TensorFilterOpenvino::RetSuccess)
+    throw std::system_error (-ret, std::generic_category (), "Failed to load the given model");
 
-      path_model_prefix = model_path.substr (0, model_path.length () - 4);
-    } else {
-      path_model_prefix = std::string (prop->model_files[0]);
-    }
+  /** The framework keeps the tensor info it has once the model is opened, and
+   *  takes the one of the model when it has none. */
+  if (prop->input_meta.num_tensors > 0)
+    gst_tensors_info_copy (&inputInfo, &prop->input_meta);
+  else if ((ret = tfOv->getInputTensorDim (&inputInfo)) != TensorFilterOpenvino::RetSuccess)
+    throw std::system_error (
+        -ret, std::generic_category (), "Failed to get the input tensor info");
 
-    model_path_xml = path_model_prefix + TensorFilterOpenvino::extXml;
-    model_path_bin = path_model_prefix + TensorFilterOpenvino::extBin;
-  } else {
-    for (gint i = 0; i < prop->num_models; ++i) {
-      if (g_str_has_suffix (prop->model_files[i], TensorFilterOpenvino::extXml.c_str ())) {
-        num_models_xml++;
-        model_path_xml = std::string (prop->model_files[i]);
-      } else if (g_str_has_suffix (prop->model_files[i],
-                     TensorFilterOpenvino::extBin.c_str ())) {
-        num_models_bin++;
-        model_path_bin = std::string (prop->model_files[i]);
-      }
-
-      if (num_models_xml > 1) {
-        ml_loge ("Too many model files in a XML format are provided.");
-        return TensorFilterOpenvino::RetEInval;
-      } else if (num_models_bin > 1) {
-        ml_loge ("Too many model files in a BIN format are provided.");
-        return TensorFilterOpenvino::RetEInval;
-      }
-    }
-  }
-
-  if (!g_file_test (model_path_xml.c_str (), G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("Failed to open the XML model file, %s", model_path_xml.c_str ());
-    return TensorFilterOpenvino::RetEInval;
-  }
-  if (!g_file_test (model_path_bin.c_str (), G_FILE_TEST_IS_REGULAR)) {
-    ml_loge ("Failed to open the BIN model file, %s", model_path_bin.c_str ());
-    return TensorFilterOpenvino::RetEInval;
-  }
-
-  tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
-  if (tfOv != nullptr) {
-    if (tfOv->isModelLoaded ()) {
-      if ((tfOv->getPathModelBin () == model_path_bin)
-          && (tfOv->getPathModelXml () == model_path_xml)) {
-        return TensorFilterOpenvino::RetSuccess;
-      }
-    }
-
-    ov_close (prop, private_data);
-    tfOv = nullptr;
-  }
-
-  try {
-    tfOv = new TensorFilterOpenvino (model_path_xml, model_path_bin);
-    ret = tfOv->loadModel (accelerator);
-  } catch (const std::exception &e) {
-    /** tfOv is still a nullptr if the constructor is the one that threw */
-    ml_loge ("Failed to open the given model: %s", e.what ());
-    ret = TensorFilterOpenvino::RetEInval;
-  }
-
-  if (ret != TensorFilterOpenvino::RetSuccess) {
-    delete tfOv;
-    *private_data = NULL;
-
-    return ret;
-  }
-
-  *private_data = tfOv;
-
-  return ret;
+  if (prop->output_meta.num_tensors > 0)
+    gst_tensors_info_copy (&outputInfo, &prop->output_meta);
+  else if ((ret = tfOv->getOutputTensorDim (&outputInfo)) != TensorFilterOpenvino::RetSuccess)
+    throw std::system_error (
+        -ret, std::generic_category (), "Failed to get the output tensor info");
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param[in] hw backend accelerator hardware
- * @return 0 if supported. -errno if not supported.
+ * @brief Run an inference with the loaded model
+ * @param[in] input the array of input tensors
+ * @param[out] output the array of output tensors
  */
-static int
-ov_checkAvailability (accl_hw hw)
+void
+openvino_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  if (g_strv_contains (openvino_accl_support, get_accl_hw_str (hw)))
-    return 0;
+  int ret = tfOv->invoke (&inputInfo, &outputInfo, input, output);
 
-  return -ENOENT;
+  if (ret != TensorFilterOpenvino::RetSuccess)
+    throw std::system_error (-ret, std::generic_category (), "Failed to invoke the model");
 }
 
-static gchar filter_subplugin_openvino[] = "openvino";
+/**
+ * @brief Get the information about the framework
+ * @param[out] info the information of the framework
+ */
+void
+openvino_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
+{
+  info.name = name;
+  info.allow_in_place = FALSE;
+  info.allocate_in_invoke = FALSE;
+  info.run_without_model = FALSE;
+  info.verify_model_path = FALSE;
+  info.hw_list = hw_list;
+  info.num_hw = num_hw;
+  info.accl_auto = hw_list[0];
+  info.accl_default = hw_list[0];
+  info.statistics = nullptr;
+}
 
-static GstTensorFilterFramework NNS_support_openvino = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-  .open = ov_open,
-  .close = ov_close,
-  { .v0 = {
-        .name = filter_subplugin_openvino,
-        .allow_in_place = FALSE,
-        .allocate_in_invoke = FALSE,
-        .run_without_model = FALSE,
-        .verify_model_path = FALSE,
-        .statistics = nullptr,
-        .invoke_NN = ov_invoke,
-        .getInputDimension = ov_getInputDim,
-        .getOutputDimension = ov_getOutputDim,
-        .setInputDimension = nullptr,
-        .destroyNotify = nullptr,
-        .reloadModel = nullptr,
-        .handleEvent = nullptr,
-        .checkAvailability = ov_checkAvailability,
-        .allocateInInvoke = nullptr,
-    } } };
+/**
+ * @brief Get the tensor info of the loaded model
+ * @param ops the operation to do; only GET_IN_OUT_INFO is supported
+ * @param[out] in_info the dimensions and types of the input tensors
+ * @param[out] out_info the dimensions and types of the output tensors
+ * @return 0 if OK, -ENOENT if the operation is not supported, other negative values if error
+ */
+int
+openvino_subplugin::getModelInfo (
+    model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
+{
+  int ret;
+
+  if (ops != GET_IN_OUT_INFO)
+    return -ENOENT;
+
+  ret = tfOv->getInputTensorDim (&in_info);
+  if (ret != TensorFilterOpenvino::RetSuccess)
+    return ret;
+
+  return tfOv->getOutputTensorDim (&out_info);
+}
+
+/**
+ * @brief Register the sub-plugin
+ */
+void
+openvino_subplugin::init_filter_openvino ()
+{
+  registeredRepresentation
+      = tensor_filter_subplugin::register_subplugin<openvino_subplugin> ();
+}
+
+/**
+ * @brief Unregister the sub-plugin
+ */
+void
+openvino_subplugin::fini_filter_openvino ()
+{
+  assert (registeredRepresentation != nullptr);
+  tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
+}
+
+} /* namespace tensorfilter_openvino */
+} /* namespace nnstreamer */
 
 /**
  * @brief Initialize this object for tensor_filter sub-plugin runtime register
@@ -757,7 +808,7 @@ static GstTensorFilterFramework NNS_support_openvino = { .version = GST_TENSOR_F
 void
 init_filter_openvino (void)
 {
-  nnstreamer_filter_probe (&NNS_support_openvino);
+  nnstreamer::tensorfilter_openvino::openvino_subplugin::init_filter_openvino ();
 }
 
 /**
@@ -766,5 +817,5 @@ init_filter_openvino (void)
 void
 fini_filter_openvino (void)
 {
-  nnstreamer_filter_exit (NNS_support_openvino.v0.name);
+  nnstreamer::tensorfilter_openvino::openvino_subplugin::fini_filter_openvino ();
 }
