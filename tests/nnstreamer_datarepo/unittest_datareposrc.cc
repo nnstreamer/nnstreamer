@@ -1464,6 +1464,20 @@ _repo_json_log_cb (const gchar *domain, GLogLevelFlags level,
 }
 
 /**
+ * @brief Prove that the handler counting into @a count receives @a level of @a domain, then reset the count.
+ */
+static void
+_expect_log_handler_live (const gchar *domain, GLogLevelFlags level, guint *count)
+{
+  GLogLevelFlags fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+
+  g_log (domain, level, "[probe] datareposrc test log handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (*count, 1U) << "no live handler for the " << domain << " domain";
+  *count = 0;
+}
+
+/**
  * @brief Run a pipeline with a fakesink named sink0 until EOS, ERROR or timeout.
  */
 static void
@@ -1482,8 +1496,11 @@ _run_repo_pipeline (GstElement *pipeline, repo_run_s *run)
   watch_id = gst_bus_add_watch (bus, _repo_bus_cb, run);
   timeout_id = g_timeout_add (10000, _repo_timeout_cb, run->loop);
   log_id = g_log_set_handler ("Json",
-      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING),
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING
+                        | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _repo_json_log_cb, &run->json_logs);
+  _expect_log_handler_live ("Json", G_LOG_LEVEL_CRITICAL, &run->json_logs);
+  _expect_log_handler_live ("Json", G_LOG_LEVEL_WARNING, &run->json_logs);
 
   if (gst_element_set_state (pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE)
     run->type = GST_MESSAGE_ANY;
@@ -2811,7 +2828,10 @@ TEST (datareposrc, openFailureClosesNothing_n)
   gst_bus_add_watch (bus, bus_callback, loop);
   g_clear_pointer (&bus, gst_object_unref);
 
-  handler = g_log_set_handler ("GLib", G_LOG_LEVEL_CRITICAL, _count_log_cb, &n_critical);
+  handler = g_log_set_handler ("GLib",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _count_log_cb, &n_critical);
+  _expect_log_handler_live ("GLib", G_LOG_LEVEL_CRITICAL, &n_critical);
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
   g_main_loop_run (loop);
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);

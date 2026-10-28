@@ -761,6 +761,7 @@ TEST (tensorIfProp, suppliedValue2_n)
   GstElement *gstpipe, *tif_handle;
   gchar *str_val = NULL;
   guint handler_id;
+  GLogLevelFlags fatal_mask;
 
   pipeline = g_strdup_printf (
       "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
@@ -777,6 +778,11 @@ TEST (tensorIfProp, suppliedValue2_n)
   handler_id = g_log_set_handler ("GLib",
       (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _count_glib_critical, NULL);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GLib", G_LOG_LEVEL_CRITICAL, "[probe] tensor_if test GLib handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (1U, glib_critical_cnt);
+  glib_critical_cnt = 0;
   g_object_set (tif_handle, "supplied-value", NULL, NULL);
   g_log_remove_handler ("GLib", handler_id);
 

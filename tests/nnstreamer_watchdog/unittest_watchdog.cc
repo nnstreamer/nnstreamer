@@ -476,11 +476,19 @@ TEST (NnstWatchdog, createThreadFail_n)
   guint critical_count = 0;
   guint handler;
   gboolean ret;
+  GLogLevelFlags fatal_mask;
+
+  handler = g_log_set_handler ("GLib",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _count_critical_logs, &critical_count);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GLib", G_LOG_LEVEL_CRITICAL, "[probe] watchdog test GLib handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (1U, critical_count);
+  critical_count = 0;
 
   hook_thread_new_calls = 0;
   hook_thread_new_fail = true;
-  handler = g_log_set_handler (
-      "GLib", G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
 
   ret = nnstreamer_watchdog_create (&watchdog_h);
 
