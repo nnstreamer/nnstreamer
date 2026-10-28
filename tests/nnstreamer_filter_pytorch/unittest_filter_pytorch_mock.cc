@@ -564,6 +564,29 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeUnsupportedInputType_n)
   FreeTensors (out, 1);
 }
 
+#ifndef FLOAT16_SUPPORT
+/**
+ * @brief A float16 input is refused when nnstreamer is built without float16.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeFloat16Unsupported_n)
+{
+  GstTensorMemory in[1], out[1];
+  const gsize size[1] = { 12 };
+
+  SetModel (MakeModel ("identity"));
+  AddInput (_NNS_FLOAT16, "3:2");
+  AddOutput (_NNS_FLOAT16, "3:2");
+  ASSERT_EQ (Open (), 0);
+
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -1);
+  EXPECT_EQ (torch_mock::forwardCount (), 0);
+  EXPECT_TRUE (AllBytes (&out[0], 0xEE));
+
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+}
+#endif
+
 /**
  * @brief A model is run again without validating its outputs again.
  */
