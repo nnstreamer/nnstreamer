@@ -81,7 +81,6 @@ class TorchCore
   GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
   unsigned int configured;
-  bool first_run; /**< must be reset after setting input info */
 
   std::shared_ptr<torch::jit::script::Module> model;
 
@@ -113,7 +112,6 @@ TorchCore::TorchCore (const char *_model_path)
   model_path = g_strdup (_model_path);
   configured = 0;
   use_gpu = false;
-  first_run = true;
   accelerator = ACCL_NONE;
 
   gst_tensors_info_init (&inputTensorMeta);
@@ -174,7 +172,6 @@ TorchCore::init (const GstTensorFilterProperties *prop)
     return -1;
   }
 
-  first_run = true;
   return 0;
 }
 
@@ -542,27 +539,7 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
     input_feeds.emplace_back (tensor);
   }
 
-  /**
-   * As the input information has not been verified, the first run for the model
-   * is encapsulated in a try-catch block
-   */
-  if (first_run) {
-    try {
-      output_value = model->forward (input_feeds);
-      first_run = false;
-    } catch (const std::runtime_error &re) {
-      ml_loge ("Runtime error while running the model: %s", re.what ());
-      return -4;
-    } catch (const std::exception &ex) {
-      ml_loge ("Exception while running the model : %s", ex.what ());
-      return -4;
-    } catch (...) {
-      ml_loge ("Unknown exception while running the model");
-      return -4;
-    }
-  } else {
-    output_value = model->forward (input_feeds);
-  }
+  output_value = model->forward (input_feeds);
 
   unsigned int idx = 0;
   int retval = serializeOutput (output_value, output, &idx, outputTensorMeta.num_tensors);
@@ -693,7 +670,16 @@ torch_invoke (const GstTensorFilterProperties *prop, void **private_data,
   TorchCore *core = static_cast<TorchCore *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
 
-  return core->invoke (prop, input, output);
+  /** an exception must not escape into the C code of tensor_filter */
+  try {
+    return core->invoke (prop, input, output);
+  } catch (const std::exception &ex) {
+    ml_loge ("Exception while invoking the model: %s", ex.what ());
+  } catch (...) {
+    ml_loge ("Unknown exception while invoking the model");
+  }
+
+  return -4;
 }
 
 /**

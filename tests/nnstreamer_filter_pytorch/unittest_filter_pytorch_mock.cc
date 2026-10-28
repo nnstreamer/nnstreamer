@@ -946,6 +946,59 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeFirstRunThrows_n)
 }
 
 /**
+ * @brief A model that throws after a successful run fails that invoke.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeLaterRunThrows_n)
+{
+  GstTensorMemory in[1], out[1];
+  const gsize size[1] = { 6 };
+
+  SetModel (MakeModel ("throw_after_first"));
+  AddInput (_NNS_UINT8, "3:2");
+  AddOutput (_NNS_UINT8, "3:2");
+  ASSERT_EQ (Open (), 0);
+
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), 0);
+  EXPECT_TRUE (AllBytes (&out[0], 0x11));
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+
+  for (int i = 0; i < 2; i++) {
+    EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -4);
+    EXPECT_TRUE (AllBytes (&out[0], 0xEE));
+    FreeTensors (in, 1);
+    FreeTensors (out, 1);
+  }
+  EXPECT_EQ (torch_mock::forwardCount (), 3);
+}
+
+/**
+ * @brief A LibTorch error outside forward() fails that invoke.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeCudaError_n)
+{
+  GstTensorMemory in[1], out[1];
+  const gsize size[1] = { 6 };
+
+  torch_mock::setCudaAvailable (true);
+  SetModel (MakeModel ("identity"), "true:gpu");
+  AddInput (_NNS_UINT8, "3:2");
+  AddOutput (_NNS_UINT8, "3:2");
+  ASSERT_EQ (Open (), 0);
+
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), 0);
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+
+  torch_mock::setCudaFails (true);
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -4);
+  EXPECT_TRUE (AllBytes (&out[0], 0xEE));
+  EXPECT_EQ (torch_mock::forwardCount (), 1);
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+}
+
+/**
  * @brief The sub-plugin runs in a pipeline through tensor_filter.
  */
 TEST_F (NNStreamerFilterPytorchMockTest, pipeline)

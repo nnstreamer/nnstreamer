@@ -15,6 +15,7 @@
 namespace
 {
 bool cuda_available = false;
+bool cuda_fails = false;
 int eval_count = 0;
 int forward_count = 0;
 int load_count = 0;
@@ -45,7 +46,7 @@ isForwardBehaviour (const std::string &behaviour)
 {
   static const char *known[] = { "identity", "tuple", "list", "nested", "none",
     "bool", "grow", "empty", "scalar", "throw_runtime", "throw_exception",
-    "throw_unknown" };
+    "throw_unknown", "throw_after_first" };
 
   for (const char *k : known) {
     if (behaviour == k)
@@ -62,6 +63,7 @@ void
 reset ()
 {
   cuda_available = false;
+  cuda_fails = false;
   eval_count = forward_count = load_count = 0;
   last_load_device = c10::DeviceType::CPU;
   last_inputs.clear ();
@@ -72,6 +74,20 @@ void
 setCudaAvailable (bool available)
 {
   cuda_available = available;
+}
+
+/** @brief Whether Tensor::to() from or to CUDA throws. */
+void
+setCudaFails (bool fails)
+{
+  cuda_fails = fails;
+}
+
+/** @brief Whether moving a tensor to or from a CUDA device fails. */
+bool
+cudaFails ()
+{
+  return cuda_fails;
 }
 
 /** @brief The number of Module::eval() calls. */
@@ -136,6 +152,8 @@ Module::forward (std::vector<IValue> inputs)
     throw std::exception ();
   if (behaviour_ == "throw_unknown")
     throw 42;
+  if (behaviour_ == "throw_after_first" && forward_count > 1)
+    throw std::runtime_error ("mock runtime error after the first run");
   if (behaviour_ == "none" || inputs.empty ())
     return IValue ();
 
