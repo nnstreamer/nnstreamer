@@ -187,6 +187,8 @@ jobs:
         # into the memcheck pass; if nnstreamer-edge stopped being detected
         # they would leave it without a word.
         test -f build/gst/edge/libgstedge.so
+        # This job is the only one that builds and tests the armnn sub-plugin.
+        test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_armnn.so
 
         if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then
           # Fail loudly if meson stopped detecting llama.cpp; otherwise the
