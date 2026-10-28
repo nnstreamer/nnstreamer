@@ -11,7 +11,8 @@
  * the next token from the last one alone, so the generated text is exact: a
  * lowercase letter is followed by the next letter and 'z' by <|end_of_text|>,
  * a digit by the next digit (forever), anything else by 'a'. The prompt is
- * echoed in front of the generated text.
+ * echoed in front of the generated text; the text of <|end_of_text|> is left
+ * out of what is generated.
  */
 
 #include <gtest/gtest.h>
@@ -140,7 +141,8 @@ TEST_F (nnstreamerFilterExecutorchLlama, openClose)
 }
 
 /**
- * @brief The prompt is echoed and generation ends at the end-of-text token.
+ * @brief The prompt is echoed and generation ends at the end-of-text token,
+ *        whose text is not part of the output.
  */
 TEST_F (nnstreamerFilterExecutorchLlama, generateUntilEos)
 {
@@ -153,7 +155,28 @@ TEST_F (nnstreamerFilterExecutorchLlama, generateUntilEos)
   ASSERT_EQ (sp->open (&prop, &data), 0);
 
   EXPECT_EQ (generate (&prop, &data, "Hi, w", result), 0);
-  EXPECT_EQ (result, std::string ("Hi, wxyz") + LLM_EOS);
+  EXPECT_EQ (result, "Hi, wxyz");
+
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief The echoed prompt is kept as it is, even when it is the text of the
+ *        end-of-text token; only the generated one is left out.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, generateEosInPrompt)
+{
+  void *data = NULL;
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  GstTensorFilterProperties prop;
+  std::string result;
+
+  _SetFilterProp (&prop, model_files);
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  EXPECT_EQ (generate (&prop, &data, LLM_EOS, result), 0);
+  EXPECT_EQ (result, std::string (LLM_EOS) + "abcdefghijklmnopqrstuvwxyz");
 
   gst_tensors_info_free (&prop.output_meta);
   sp->close (&prop, &data);
@@ -204,7 +227,7 @@ TEST_F (nnstreamerFilterExecutorchLlama, generateRepeatedly)
   EXPECT_EQ (generate (&prop, &data, "0", second), 0);
   EXPECT_EQ (second, first);
   EXPECT_EQ (generate (&prop, &data, "x", third), 0);
-  EXPECT_EQ (third, std::string ("xyz") + LLM_EOS);
+  EXPECT_EQ (third, "xyz");
 
   gst_tensors_info_free (&prop.output_meta);
   sp->close (&prop, &data);
@@ -410,7 +433,7 @@ TEST_F (nnstreamerFilterExecutorchLlama, pipeline)
   gst_message_unref (msg);
 
   ASSERT_TRUE (g_file_get_contents (out_file, &contents, &len, NULL));
-  EXPECT_EQ (std::string (contents, len), std::string ("Once upon a time, uvwxyz") + LLM_EOS);
+  EXPECT_EQ (std::string (contents, len), "Once upon a time, uvwxyz");
 
   g_unlink (in_file);
   g_unlink (out_file);

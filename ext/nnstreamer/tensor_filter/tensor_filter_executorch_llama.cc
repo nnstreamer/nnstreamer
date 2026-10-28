@@ -22,10 +22,12 @@
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
+#include <unordered_set>
 #include <vector>
 
 #include <executorch/extension/llm/runner/llm_runner_helper.h>
 #include <executorch/extension/llm/runner/text_llm_runner.h>
+#include <executorch/extension/module/module.h>
 
 namespace llm = ::executorch::extension::llm;
 using ::executorch::runtime::Error;
@@ -55,15 +57,16 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
 
   /* executorch */
   std::unique_ptr<llm::TextLLMRunner> runner; /**< Runner for Llama model */
+  std::unordered_set<std::string> eos_texts; /**< Text of the tokens that end generation */
 
   public:
   static void init_filter_executorch_llama ();
   static void fini_filter_executorch_llama ();
 
   /** @brief Construct an unconfigured subplugin instance */
-  executorch_llama_subplugin (){};
+  executorch_llama_subplugin () = default;
   /** @brief Destruct the instance, releasing the Llama runner */
-  ~executorch_llama_subplugin (){};
+  ~executorch_llama_subplugin () = default;
 
   tensor_filter_subplugin &getEmptyInstance () override;
   void configure_instance (const GstTensorFilterProperties *prop) override;
@@ -119,6 +122,15 @@ executorch_llama_subplugin::configure_instance (const GstTensorFilterProperties 
       throw std::invalid_argument (err_msg);
     }
 
+    /* The runner passes the end-of-sequence token on as text; find that text to leave it out. */
+    ::executorch::extension::Module module (
+        prop->model_files[0], ::executorch::extension::Module::LoadMode::Mmap);
+    for (uint64_t eos : llm::get_eos_ids (tokenizer.get (), &module)) {
+      auto text = tokenizer->decode (eos, eos);
+      if (text.ok () && !text.get ().empty ())
+        eos_texts.insert (text.get ());
+    }
+
     /* set llama runner */
     runner = llm::create_text_llm_runner (prop->model_files[0], std::move (tokenizer));
     if (!runner) {
@@ -162,14 +174,22 @@ executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   std::string prompt ((char *) input[0].data, input[0].size);
   std::string result = "";
   llm::GenerationConfig config;
+  bool echoing;
 
   config.seq_len = 128;
   config.temperature = 0.8f;
 
   /* Each buffer is a new prompt; do not continue from the previous one. */
   runner->reset ();
+  echoing = config.echo;
   if (runner->generate (prompt, config,
-          [&result] (const std::string &generated) { result.append (generated); })
+          [this, &result, &echoing] (const std::string &generated) {
+            /* The echoed prompt comes first and is kept as it is. */
+            if (!echoing && eos_texts.count (generated))
+              return;
+            echoing = false;
+            result.append (generated);
+          })
       != Error::Ok)
     throw std::runtime_error ("Generating text failed");
 
