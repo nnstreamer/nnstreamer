@@ -32,6 +32,8 @@
 
 #include <map>
 #include <memory>
+#include <stdexcept>
+#include <system_error>
 #include <vector>
 
 #include <armnn/ArmNN.hpp>
@@ -43,11 +45,9 @@
 #include <armnnTfLiteParser/ITfLiteParser.hpp>
 #endif
 
-#include <nnstreamer_log.h>
-#define NO_ANONYMOUS_NESTED_STRUCT
-#include <nnstreamer_plugin_api_filter.h>
-#undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
+#include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
@@ -66,7 +66,6 @@ class ArmNNCore
 
   int init (const GstTensorFilterProperties *prop);
   int loadModel (const GstTensorFilterProperties *prop);
-  const char *getModelPath ();
   int setInputTensorProp ();
   int setOutputTensorProp ();
   int getInputTensorDim (GstTensorsInfo *info);
@@ -169,16 +168,6 @@ ArmNNCore::init (const GstTensorFilterProperties *prop)
     return err;
   }
   return 0;
-}
-
-/**
- * @brief	get the model path
- * @return the model path.
- */
-const char *
-ArmNNCore::getModelPath ()
-{
-  return model_path;
 }
 
 #if defined(ENABLE_ARMNN_CAFFE)
@@ -643,179 +632,172 @@ ArmNNCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
   return 0;
 }
 
-/**
- * @brief Free privateData and move on.
- */
-static void
-armnn_close (const GstTensorFilterProperties *prop, void **private_data)
+namespace nnstreamer
 {
-  ArmNNCore *core;
-  UNUSED (prop);
+namespace tensorfilter_armnn
+{
+/**
+ * @brief Class for the armnn tensor_filter subplugin.
+ */
+class armnn_subplugin final : public tensor_filter_subplugin
+{
+  private:
+  std::unique_ptr<ArmNNCore> core; /**< The opened model; empty in an empty instance */
 
-  core = static_cast<ArmNNCore *> (*private_data);
-  if (core == NULL)
-    return;
+  static const char *name;
+  static const accl_hw hw_list[];
+  static const int num_hw;
+  static armnn_subplugin *registeredRepresentation;
 
-  delete core;
-  *private_data = NULL;
+  public:
+  static void init_filter_armnn ();
+  static void fini_filter_armnn ();
+
+  armnn_subplugin ();
+
+  tensor_filter_subplugin &getEmptyInstance ();
+  void configure_instance (const GstTensorFilterProperties *prop);
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
+};
+
+const char *armnn_subplugin::name = "armnn";
+#if defined(__aarch64__) || defined(__arm__)
+const accl_hw armnn_subplugin::hw_list[] = { ACCL_CPU_NEON, ACCL_CPU, ACCL_GPU };
+#else
+/** ACCL_CPU_NEON is ACCL_CPU_SIMD off arm, which armnn does not have */
+const accl_hw armnn_subplugin::hw_list[] = { ACCL_CPU, ACCL_GPU };
+#endif
+const int armnn_subplugin::num_hw = G_N_ELEMENTS (armnn_subplugin::hw_list);
+armnn_subplugin *armnn_subplugin::registeredRepresentation = nullptr;
+
+/**
+ * @brief Construct an empty armnn subplugin instance
+ */
+armnn_subplugin::armnn_subplugin () : tensor_filter_subplugin (), core (nullptr)
+{
 }
 
 /**
- * @brief The open callback for GstTensorFilterFramework. Called before anything else
- * @param prop property of tensor_filter instance
- * @param private_data : armnn plugin's private data
+ * @brief Return a newly created empty instance
  */
-static int
-armnn_open (const GstTensorFilterProperties *prop, void **private_data)
+tensor_filter_subplugin &
+armnn_subplugin::getEmptyInstance ()
 {
-  ArmNNCore *core;
+  return *(new armnn_subplugin ());
+}
+
+/**
+ * @brief Load the model given in the tensor_filter properties
+ * @details The first accelerator of prop->hw_list picks the armnn backend.
+ *          An unset list, cpu.neon on a cpu without NEON, and anything armnn
+ *          does not support fall back to the default of this system.
+ */
+void
+armnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
+{
   accl_hw hw;
   int err;
 
-  core = static_cast<ArmNNCore *> (*private_data);
+  if (prop->num_models < 1 || prop->model_files == NULL || prop->model_files[0] == NULL)
+    throw std::invalid_argument ("The model file is not given.");
 
-  if (core != NULL) {
-    if (g_strcmp0 (prop->model_files[0], core->getModelPath ()) != 0) {
-      armnn_close (prop, private_data);
-    } else {
-      return 1;
-    }
-  }
+  hw = (prop->num_hw > 0 && prop->hw_list != NULL) ? prop->hw_list[0] : ACCL_DEFAULT;
+  if (hw != ACCL_NONE && hw != ACCL_CPU && hw != ACCL_GPU)
+    hw = parse_accl_hw (NULL, armnn_accl_support, NULL, NULL);
 
-  if (prop->model_files[0] == NULL)
-    return -EINVAL;
+  std::unique_ptr<ArmNNCore> new_core (new ArmNNCore (prop->model_files[0], hw));
 
-  hw = parse_accl_hw (prop->accl_str, armnn_accl_support, NULL, NULL);
-  try {
-    core = new ArmNNCore (prop->model_files[0], hw);
-  } catch (const std::bad_alloc &ex) {
-    g_printerr ("Failed to allocate memory for filter subplugin.");
-    return -ENOMEM;
-  }
+  if ((err = new_core->init (prop)) != 0)
+    throw std::system_error (-err, std::generic_category (),
+        "Failed to initialize the object for armnn.");
 
-  if ((err = core->init (prop)) != 0) {
-    g_printerr ("failed to initialize the object for armnn");
-    delete core;
+  core = std::move (new_core);
+}
+
+/**
+ * @brief Run the model with the input
+ */
+void
+armnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
+{
+  if (input == NULL || output == NULL)
+    throw std::invalid_argument ("Input or output tensors are not given.");
+
+  if (core->invoke (input, output) != 0)
+    throw std::invalid_argument ("Failed to invoke the armnn model.");
+}
+
+/**
+ * @brief Get the armnn framework info
+ */
+void
+armnn_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
+{
+  info.name = name;
+  info.allow_in_place = FALSE; /** @todo: support this to optimize performance later. */
+  info.allocate_in_invoke = FALSE;
+  info.run_without_model = FALSE;
+  info.verify_model_path = FALSE;
+  info.hw_list = hw_list;
+  info.num_hw = num_hw;
+  info.accl_auto = hw_list[0];
+  info.accl_default = hw_list[0];
+  info.statistics = nullptr;
+}
+
+/**
+ * @brief Get the input and output tensor info of the opened model
+ */
+int
+armnn_subplugin::getModelInfo (
+    model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
+{
+  int err;
+
+  if (ops != GET_IN_OUT_INFO)
+    return -ENOENT;
+
+  if ((err = core->getInputTensorDim (std::addressof (in_info))) != 0)
     return err;
-  }
 
-  *private_data = core;
-  return 0;
+  return core->getOutputTensorDim (std::addressof (out_info));
 }
 
 /**
- * @brief The mandatory callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : armnn plugin's private data
- * @param[in] input The array of input tensors
- * @param[out] output The array of output tensors
- * @return 0 if OK. non-zero if error.
+ * @brief Register the armnn subplugin
  */
-static int
-armnn_invoke (const GstTensorFilterProperties *prop, void **private_data,
-    const GstTensorMemory *input, GstTensorMemory *output)
+void
+armnn_subplugin::init_filter_armnn (void)
 {
-  ArmNNCore *core;
-  UNUSED (prop);
-
-  g_return_val_if_fail (private_data != NULL, -EINVAL);
-  g_return_val_if_fail (*private_data != NULL, -EINVAL);
-  g_return_val_if_fail (input != NULL, -EINVAL);
-  g_return_val_if_fail (output != NULL, -EINVAL);
-
-  core = static_cast<ArmNNCore *> (*private_data);
-
-  return core->invoke (input, output);
+  registeredRepresentation
+      = tensor_filter_subplugin::register_subplugin<armnn_subplugin> ();
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : armnn plugin's private data
- * @param[out] info The dimensions and types of input tensors
+ * @brief Unregister the armnn subplugin
  */
-static int
-armnn_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
-    GstTensorsInfo *info)
+void
+armnn_subplugin::fini_filter_armnn (void)
 {
-  ArmNNCore *core;
-  UNUSED (prop);
-
-  g_return_val_if_fail (*private_data != NULL, -EINVAL);
-  g_return_val_if_fail (info != NULL, -EINVAL);
-
-  core = static_cast<ArmNNCore *> (*private_data);
-
-  return core->getInputTensorDim (info);
+  assert (registeredRepresentation != nullptr);
+  tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
 
-/**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : armnn plugin's private data
- * @param[out] info The dimensions and types of output tensors
- */
-static int
-armnn_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
-    GstTensorsInfo *info)
-{
-  ArmNNCore *core;
-  UNUSED (prop);
-
-  g_return_val_if_fail (*private_data != NULL, -EINVAL);
-  g_return_val_if_fail (info != NULL, -EINVAL);
-
-  core = static_cast<ArmNNCore *> (*private_data);
-
-  return core->getOutputTensorDim (info);
-}
-
-/**
- * @brief Check support of the backend
- * @param hw: backend to check support of
- */
-static int
-armnn_checkAvailability (accl_hw hw)
-{
-  if (g_strv_contains (armnn_accl_support, get_accl_hw_str (hw)))
-    return 0;
-
-  return -ENOENT;
-}
-
-static gchar filter_subplugin_armnn[] = "armnn";
-
-static GstTensorFilterFramework NNS_support_armnn = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-  .open = armnn_open,
-  .close = armnn_close,
-  { .v0 = {
-        .name = filter_subplugin_armnn,
-        .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-        .allocate_in_invoke = FALSE,
-        .run_without_model = FALSE,
-        .verify_model_path = FALSE,
-        .statistics = nullptr,
-        .invoke_NN = armnn_invoke,
-        .getInputDimension = armnn_getInputDim,
-        .getOutputDimension = armnn_getOutputDim,
-        .setInputDimension = nullptr,
-        .destroyNotify = nullptr,
-        .reloadModel = nullptr,
-        .handleEvent = nullptr,
-        .checkAvailability = armnn_checkAvailability,
-        .allocateInInvoke = nullptr,
-    } } };
+} /* namespace tensorfilter_armnn */
+} /* namespace nnstreamer */
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_armnn (void)
 {
-  nnstreamer_filter_probe (&NNS_support_armnn);
+  nnstreamer::tensorfilter_armnn::armnn_subplugin::init_filter_armnn ();
 }
 
 /** @brief Destruct the subplugin */
 void
 fini_filter_armnn (void)
 {
-  nnstreamer_filter_exit (NNS_support_armnn.v0.name);
+  nnstreamer::tensorfilter_armnn::armnn_subplugin::fini_filter_armnn ();
 }
