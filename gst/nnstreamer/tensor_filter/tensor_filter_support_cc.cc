@@ -245,6 +245,9 @@ tensor_filter_subplugin::cpp_getModelInfo (const GstTensorFilterFramework *tf,
   UNUSED (tf);
   UNUSED (prop);
 
+  if (in_info == NULL || out_info == NULL)
+    return -EINVAL;
+
   int ret;
   try {
     ret = obj->getModelInfo (ops, *in_info, *out_info);
