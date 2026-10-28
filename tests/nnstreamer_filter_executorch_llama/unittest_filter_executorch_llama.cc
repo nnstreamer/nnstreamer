@@ -116,6 +116,30 @@ class nnstreamerFilterExecutorchLlama : public ::testing::Test
     g_free (output.data);
     return ret;
   }
+
+  /**
+   * @brief Open an instance with the custom property, run one prompt and close it.
+   */
+  int generateOnce (const gchar *custom, const std::string &prompt, std::string &result)
+  {
+    void *data = NULL;
+    const gchar *model_files[] = { model, tokenizer, NULL };
+    GstTensorFilterProperties prop;
+    int ret;
+
+    result.clear ();
+    _SetFilterProp (&prop, model_files);
+    prop.custom_properties = custom;
+    ret = sp->open (&prop, &data);
+    EXPECT_EQ (ret, 0) << custom;
+    if (ret != 0)
+      return ret;
+
+    ret = generate (&prop, &data, prompt, result);
+    gst_tensors_info_free (&prop.output_meta);
+    sp->close (&prop, &data);
+    return ret;
+  }
 };
 
 /**
@@ -204,6 +228,172 @@ TEST_F (nnstreamerFilterExecutorchLlama, generateUpToSeqLen)
 
   gst_tensors_info_free (&prop.output_meta);
   sp->close (&prop, &data);
+}
+
+/**
+ * @brief The custom options are case-insensitive keys, spaces and empty
+ *        entries are ignored, and options left out keep their defaults.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, customFormat)
+{
+  std::string result;
+
+  EXPECT_EQ (generateOnce ("", "Hi, w", result), 0);
+  EXPECT_EQ (result, "Hi, wxyz");
+  EXPECT_EQ (generateOnce (" ECHO : False ,, Temperature:0 ,", "Hi, w", result), 0);
+  EXPECT_EQ (result, "xyz");
+  EXPECT_EQ (generateOnce ("echo:false,echo:true", "Hi, w", result), 0);
+  EXPECT_EQ (result, "Hi, wxyz");
+}
+
+/**
+ * @brief echo:false leaves the prompt out of the output.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, customEcho)
+{
+  std::string result;
+
+  EXPECT_EQ (generateOnce ("echo:false", "Hi, w", result), 0);
+  EXPECT_EQ (result, "xyz");
+  EXPECT_EQ (generateOnce ("echo:true", "Hi, w", result), 0);
+  EXPECT_EQ (result, "Hi, wxyz");
+}
+
+/**
+ * @brief keep_eos:true keeps the text of the end-of-sequence token.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, customKeepEos)
+{
+  std::string result;
+
+  EXPECT_EQ (generateOnce ("keep_eos:true", "Hi, w", result), 0);
+  EXPECT_EQ (result, std::string ("Hi, wxyz") + LLM_EOS);
+  EXPECT_EQ (generateOnce ("keep_eos:false", "Hi, w", result), 0);
+  EXPECT_EQ (result, "Hi, wxyz");
+}
+
+/**
+ * @brief max_new_tokens bounds the generated tokens, seq_len the prompt and
+ *        the generated tokens together; -1 leaves either to the model.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, customTokenLimits)
+{
+  std::string result, digits;
+  guint i;
+
+  for (i = 0; i < 256; i++)
+    digits += (char) ('0' + i % 10);
+
+  EXPECT_EQ (generateOnce ("max_new_tokens:2", "Hi, w", result), 0);
+  EXPECT_EQ (result, "Hi, wxy");
+  EXPECT_EQ (generateOnce ("max_new_tokens:5", "0", result), 0);
+  EXPECT_EQ (result, "012345");
+  /* The smaller of the two wins. */
+  EXPECT_EQ (generateOnce ("max_new_tokens:200", "0", result), 0);
+  EXPECT_EQ (result, digits.substr (0, 128));
+  EXPECT_EQ (generateOnce ("seq_len:200", "0", result), 0);
+  EXPECT_EQ (result, digits.substr (0, 200));
+  /* The model's context is 256 tokens. */
+  EXPECT_EQ (generateOnce ("seq_len:-1", "0", result), 0);
+  EXPECT_EQ (result, digits);
+  EXPECT_EQ (generateOnce ("seq_len:-1,max_new_tokens:-1", "0", result), 0);
+  EXPECT_EQ (result, digits);
+  EXPECT_EQ (generateOnce ("seq_len:-1,max_new_tokens:3", "0", result), 0);
+  EXPECT_EQ (result, "0123");
+}
+
+/**
+ * @brief ignore_eos:true goes on past the end-of-sequence token.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, customIgnoreEos)
+{
+  std::string result;
+
+  EXPECT_EQ (generateOnce ("ignore_eos:true,max_new_tokens:6", "x", result), 0);
+  EXPECT_EQ (result, "xyzabc");
+  EXPECT_EQ (generateOnce ("ignore_eos:true,max_new_tokens:6,keep_eos:true", "x", result), 0);
+  EXPECT_EQ (result, std::string ("xyz") + LLM_EOS + "abc");
+  EXPECT_EQ (generateOnce ("ignore_eos:false,max_new_tokens:6", "x", result), 0);
+  EXPECT_EQ (result, "xyz");
+}
+
+/**
+ * @brief num_bos and num_eos add tokens around the prompt, which count in
+ *        seq_len and change what the model sees last.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, customBosEos)
+{
+  std::string result, expected;
+  guint i;
+
+  for (i = 0; i < 127; i++)
+    expected += (char) ('0' + (3 + i) % 10);
+
+  EXPECT_EQ (generateOnce ("num_bos:1", "345", result), 0);
+  EXPECT_EQ (result, expected);
+  EXPECT_EQ (generateOnce ("num_eos:1", "Hi", result), 0);
+  EXPECT_EQ (result, "Hiabcdefghijklmnopqrstuvwxyz");
+  EXPECT_EQ (generateOnce ("num_bos:0,num_eos:0", "Hi, w", result), 0);
+  EXPECT_EQ (result, "Hi, wxyz");
+}
+
+/**
+ * @brief temperature is taken as given, from 0 to 1; the fixture's margin
+ *        makes the result the same at any of these.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, customTemperature)
+{
+  std::string result;
+
+  EXPECT_EQ (generateOnce ("temperature:0", "Hi, w", result), 0);
+  EXPECT_EQ (result, "Hi, wxyz");
+  EXPECT_EQ (generateOnce ("temperature:0.5", "Hi, w", result), 0);
+  EXPECT_EQ (result, "Hi, wxyz");
+  EXPECT_EQ (generateOnce ("temperature:1", "Hi, w", result), 0);
+  EXPECT_EQ (result, "Hi, wxyz");
+}
+
+/**
+ * @brief Negative case: an invalid custom option fails to open.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, openInvalidCustom_n)
+{
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  const gchar *invalid[] = { "unknown:1", ":1", "echo", "echo:", "echo:yes",
+    "echo:1", "keep_eos:on", "ignore_eos:no", "max_new_tokens:0",
+    "max_new_tokens:-2", "max_new_tokens:12a", "max_new_tokens:2147483648",
+    "seq_len:0", "seq_len:-2", "seq_len:1.5", "temperature:-0.1",
+    "temperature:nan", "temperature:inf", "temperature:", "temperature:1e40",
+    "temperature:0.5x", "temperature:1.5", "temperature:2", "num_bos:-1",
+    "num_bos:128", "num_eos:x", "num_eos:128", "echo:false,unknown:1", NULL };
+  GstTensorFilterProperties prop;
+  guint i;
+
+  for (i = 0; invalid[i]; i++) {
+    void *data = NULL;
+
+    _SetFilterProp (&prop, model_files);
+    prop.custom_properties = invalid[i];
+    EXPECT_NE (sp->open (&prop, &data), 0) << invalid[i];
+    EXPECT_TRUE (data == NULL) << invalid[i];
+  }
+}
+
+/**
+ * @brief Negative case: a prompt for which nothing is left to output is an
+ *        error, since a flexible tensor cannot be empty.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, generateNoText_n)
+{
+  std::string result;
+
+  /* 'z' is followed by the end-of-sequence token alone. */
+  EXPECT_NE (generateOnce ("echo:false,max_new_tokens:1", "z", result), 0);
+
+  EXPECT_EQ (generateOnce ("echo:false,max_new_tokens:1,keep_eos:true", "z", result), 0);
+  EXPECT_EQ (result, LLM_EOS);
+  EXPECT_EQ (generateOnce ("echo:false,max_new_tokens:1", "y", result), 0);
+  EXPECT_EQ (result, "z");
 }
 
 /**

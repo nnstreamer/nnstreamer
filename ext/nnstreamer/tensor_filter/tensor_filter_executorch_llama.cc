@@ -58,6 +58,10 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
   /* executorch */
   std::unique_ptr<llm::TextLLMRunner> runner; /**< Runner for Llama model */
   std::unordered_set<std::string> eos_texts; /**< Text of the tokens that end generation */
+  llm::GenerationConfig config; /**< Generation options of the custom property */
+  bool keep_eos = false; /**< Keep the text of the end-of-sequence tokens */
+
+  void parseCustomProperties (const char *custom);
 
   public:
   static void init_filter_executorch_llama ();
@@ -91,6 +95,100 @@ executorch_llama_subplugin::getEmptyInstance ()
 }
 
 /**
+ * @brief Parse an integer option value within [min, max].
+ */
+static int32_t
+parse_int_option (const gchar *key, const gchar *value, gint64 min, gint64 max)
+{
+  gint64 parsed;
+
+  if (!g_ascii_string_to_signed (value, 10, min, max, &parsed, NULL))
+    throw std::invalid_argument (
+        std::string ("Invalid value of ") + key + ": '" + value + "'");
+
+  return (int32_t) parsed;
+}
+
+/**
+ * @brief Parse a boolean option value, "true" or "false".
+ */
+static bool
+parse_bool_option (const gchar *key, const gchar *value)
+{
+  if (g_ascii_strcasecmp (value, "true") == 0)
+    return true;
+  if (g_ascii_strcasecmp (value, "false") == 0)
+    return false;
+
+  throw std::invalid_argument (std::string ("Invalid value of ") + key + ": '"
+                               + value + "', true or false is expected");
+}
+
+/**
+ * @brief Parse the custom property, "key:value" options separated by commas.
+ */
+void
+executorch_llama_subplugin::parseCustomProperties (const char *custom)
+{
+  g_auto (GStrv) options = NULL;
+  guint i;
+
+  if (!custom)
+    return;
+
+  options = g_strsplit (custom, ",", -1);
+  for (i = 0; options[i]; i++) {
+    g_auto (GStrv) option = NULL;
+    g_autofree gchar *key = NULL;
+    gchar *value;
+
+    if (*g_strstrip (options[i]) == '\0')
+      continue;
+
+    option = g_strsplit (options[i], ":", 2);
+    if (!option[1])
+      throw std::invalid_argument (
+          std::string ("Custom option '") + options[i] + "' is not key:value");
+
+    key = g_ascii_strdown (g_strstrip (option[0]), -1);
+    value = g_strstrip (option[1]);
+
+    if (g_str_equal (key, "max_new_tokens") || g_str_equal (key, "seq_len")) {
+      /* -1 leaves it to the model's context length; 0 generates nothing. */
+      int32_t limit = parse_int_option (key, value, -1, G_MAXINT32);
+      if (limit == 0)
+        throw std::invalid_argument (std::string (key) + " is -1 or positive");
+      if (g_str_equal (key, "max_new_tokens"))
+        config.max_new_tokens = limit;
+      else
+        config.seq_len = limit;
+    } else if (g_str_equal (key, "temperature")) {
+      gchar *end;
+      gdouble temperature = g_ascii_strtod (value, &end);
+
+      /* The token generator refuses any other value when it generates. */
+      if (end == value || *end != '\0' || !(temperature >= 0.0 && temperature <= 1.0))
+        throw std::invalid_argument (
+            std::string ("Invalid value of temperature: '") + value + "'");
+      config.temperature = (float) temperature;
+    } else if (g_str_equal (key, "echo")) {
+      config.echo = parse_bool_option (key, value);
+    } else if (g_str_equal (key, "ignore_eos")) {
+      config.ignore_eos = parse_bool_option (key, value);
+    } else if (g_str_equal (key, "keep_eos")) {
+      keep_eos = parse_bool_option (key, value);
+    } else if (g_str_equal (key, "num_bos")) {
+      /* The tokenizer takes the counts as int8_t. */
+      config.num_bos = parse_int_option (key, value, 0, G_MAXINT8);
+    } else if (g_str_equal (key, "num_eos")) {
+      config.num_eos = parse_int_option (key, value, 0, G_MAXINT8);
+    } else {
+      throw std::invalid_argument (std::string ("Unknown custom option '") + key + "'");
+    }
+  }
+}
+
+/**
  * @brief Method to prepare/configure ExecuTorch instance.
  */
 void
@@ -99,6 +197,10 @@ executorch_llama_subplugin::configure_instance (const GstTensorFilterProperties 
   try {
     if (prop->num_models != 2)
       throw std::invalid_argument ("Exactly a model (.pte) and a tokenizer are required");
+
+    config.seq_len = 128;
+    config.temperature = 0.8f;
+    parseCustomProperties (prop->custom_properties);
 
     /* Load model file (.pte) */
     if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
@@ -173,11 +275,7 @@ executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
 
   std::string prompt ((char *) input[0].data, input[0].size);
   std::string result = "";
-  llm::GenerationConfig config;
   bool echoing;
-
-  config.seq_len = 128;
-  config.temperature = 0.8f;
 
   /* Each buffer is a new prompt; do not continue from the previous one. */
   runner->reset ();
@@ -185,13 +283,15 @@ executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   if (runner->generate (prompt, config,
           [this, &result, &echoing] (const std::string &generated) {
             /* The echoed prompt comes first and is kept as it is. */
-            if (!echoing && eos_texts.count (generated))
+            if (!echoing && !keep_eos && eos_texts.count (generated))
               return;
             echoing = false;
             result.append (generated);
           })
       != Error::Ok)
     throw std::runtime_error ("Generating text failed");
+  if (result.empty ())
+    throw std::runtime_error ("Generated no text to output");
 
   /* replace null character with blankspace */
   std::replace (result.begin (), result.end (), '\0', ' ');
