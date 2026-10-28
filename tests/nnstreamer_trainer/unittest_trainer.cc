@@ -2626,6 +2626,20 @@ trainer_count_push (guint num_inputs, guint num_labels, guint caps_tensors,
   gst_object_unref (trainer);
   ASSERT_NE (h, nullptr);
 
+#ifndef GST_DISABLE_GST_DEBUG
+  {
+    GstDebugCategory *cat;
+
+    /* the counted warnings say nothing unless the log function sees the category */
+    GST_DEBUG_CATEGORY_GET (cat, "tensor_trainer");
+    EXPECT_NE (cat, nullptr);
+    if (cat)
+      GST_CAT_WARNING (cat, "[probe] more than num-inputs: log function self-check");
+    EXPECT_EQ (g_atomic_int_get (&fake_stat.extra_warnings), 1);
+    g_atomic_int_set (&fake_stat.extra_warnings, 0);
+  }
+#endif
+
   trainer_count_set_caps (h, caps_tensors);
   for (i = 0; i < num_buffers; i++)
     result->ret = trainer_count_push_buffer (h, num_tensors, caps_tensors == 0);

@@ -1774,6 +1774,25 @@ _drop_counter_stop (DropCounter *counter)
 }
 
 /**
+ * @brief Prove that the log function counts the category being counted, then reset the count.
+ * Call it once the element registering the category exists: a count of zero says nothing otherwise.
+ */
+static void
+_drop_counter_probe (DropCounter *counter)
+{
+#ifndef GST_DISABLE_GST_DEBUG
+  GstDebugCategory *cat;
+
+  GST_DEBUG_CATEGORY_GET (cat, counter->category);
+  EXPECT_NE (cat, nullptr);
+  if (cat)
+    GST_CAT_DEBUG (cat, "Dropped 1 [probe] log function self-check");
+  EXPECT_EQ (g_atomic_int_get (&counter->dropped), 1);
+  g_atomic_int_set (&counter->dropped, 0);
+#endif
+}
+
+/**
  * @brief Wait until the counter reaches @a num, then a little longer to catch extra drops.
  * @return The number of dropped data.
  */
@@ -1835,6 +1854,7 @@ _flood_serversrc (guint max_buffers, IdLog *log, guint expected)
     _drop_counter_stop (&counter);
     return 0;
   }
+  _drop_counter_probe (&counter);
 
   element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   g_signal_connect (element, "handoff", (GCallback) _log_id, log);
@@ -1994,6 +2014,8 @@ _answer_client_twice (guint max_buffers, IdLog *log, guint *dropped)
   EXPECT_NE (gstpipe, nullptr);
   if (!gstpipe)
     goto done;
+
+  _drop_counter_probe (&counter);
 
   element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   g_signal_connect (element, "handoff", (GCallback) _log_id, log);
