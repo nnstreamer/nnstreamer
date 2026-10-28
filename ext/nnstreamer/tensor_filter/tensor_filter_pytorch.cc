@@ -296,10 +296,11 @@ TorchCore::getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType
     case _NNS_FLOAT16:
 #ifdef FLOAT16_SUPPORT
       *torchType = torch::kF16;
+      break;
 #else
       ml_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      return false;
 #endif
-      break;
     case _NNS_FLOAT32:
       *torchType = torch::kF32;
       break;
