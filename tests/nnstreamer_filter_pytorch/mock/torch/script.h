@@ -428,11 +428,6 @@ from_blob (void *data, const std::vector<int64_t> &sizes, const TensorOptions &o
   return at::Tensor (data, sizes, options.dtype ());
 }
 
-namespace autograd
-{
-using Variable = at::Tensor;
-}
-
 namespace jit
 {
 using c10::IValue;
