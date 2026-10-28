@@ -93,6 +93,8 @@ The generation is configured with ```custom=key:value,key:value,...```, using th
 
 Both limits apply when both are given, and the model's context always does.
 
+With ```invoke-async=true```, the text is streamed instead: the prompt (when echoed) and the text of each generated token go out as output buffers of their own, as they are generated; the prompt goes out together with the first generated text, i.e., only once the prompt has been processed. A token's text is what the tokenizer decodes for it, so a character of several UTF-8 bytes may be split across buffers. The prompts are queued and generated in order by a thread of the filter; the queue has no bound, so prompts that come faster than they are generated pile up in memory. The invoke for each input buffer outputs an empty buffer of its own (#5161). The size of each piece reaches ```tensor_filter``` only through its shared output information, which its streaming thread reads without a lock, so this mode has a data race until the core changes (#5172). A prompt that the runner refuses, e.g. one that leaves no room to generate, is logged and outputs nothing; a failure later on keeps what has been output. Closing the filter stops the generation in progress after its current token and drops the prompts still queued.
+
 It needs ExecuTorch built with the LLM runner, which ```tools/executorch-install.sh``` does, and the ```executorch-llama-support``` meson option.
 
 ### MXNET

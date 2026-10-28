@@ -17,11 +17,17 @@
  *          application/octet-stream ! filesink location=result.txt
  */
 
+#include <algorithm>
+#include <atomic>
+#include <condition_variable>
 #include <glib.h>
+#include <mutex>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
+#include <queue>
+#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -61,7 +67,17 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
   llm::GenerationConfig config; /**< Generation options of the custom property */
   bool keep_eos = false; /**< Keep the text of the end-of-sequence tokens */
 
+  /* invoke-async */
+  std::thread worker; /**< Generates the queued prompts */
+  std::mutex queue_lock; /**< Guards prompts */
+  std::condition_variable queue_cond; /**< Signals a queued prompt or stopping */
+  std::queue<std::pair<GstTensorFilterProperties *, std::string>> prompts; /**< Prompts waiting for the worker */
+  std::atomic<bool> stopping{ false }; /**< The instance is being closed */
+
   void parseCustomProperties (const char *custom);
+  std::string generate (GstTensorFilterProperties *prop, const std::string &prompt);
+  void dispatchPiece (GstTensorFilterProperties *prop, const std::string &piece);
+  void workerLoop ();
 
   public:
   static void init_filter_executorch_llama ();
@@ -69,8 +85,7 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
 
   /** @brief Construct an unconfigured subplugin instance */
   executorch_llama_subplugin () = default;
-  /** @brief Destruct the instance, releasing the Llama runner */
-  ~executorch_llama_subplugin () = default;
+  ~executorch_llama_subplugin ();
 
   tensor_filter_subplugin &getEmptyInstance () override;
   void configure_instance (const GstTensorFilterProperties *prop) override;
@@ -84,6 +99,21 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
 };
 
 const char *executorch_llama_subplugin::fw_name = "executorch-llama";
+
+/**
+ * @brief Destruct the instance, releasing the Llama runner. The generation in
+ *        progress is stopped and the prompts still queued are dropped.
+ */
+executorch_llama_subplugin::~executorch_llama_subplugin ()
+{
+  {
+    std::lock_guard<std::mutex> lock (queue_lock);
+    stopping = true;
+  }
+  queue_cond.notify_one ();
+  if (worker.joinable ())
+    worker.join ();
+}
 
 /**
  * @brief Method to get empty object.
@@ -260,36 +290,153 @@ executorch_llama_subplugin::invoke (const GstTensorMemory *input, GstTensorMemor
 }
 
 /**
+ * @brief Describe the output as one flexible uint8 tensor of the given size.
+ */
+static void
+set_output_info (GstTensorFilterProperties *prop, guint size)
+{
+  GstTensorInfo *_info;
+
+  gst_tensors_info_free (&prop->output_meta);
+
+  prop->output_meta.num_tensors = 1;
+  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
+  _info->type = _NNS_UINT8;
+  _info->dimension[0] = size;
+}
+
+/**
+ * @brief Generate text for the prompt. With invoke-async each piece is
+ *        dispatched as an output of its own and nothing is returned.
+ */
+std::string
+executorch_llama_subplugin::generate (GstTensorFilterProperties *prop, const std::string &prompt)
+{
+  std::string result = "";
+  bool echoing = config.echo;
+
+  /* Each buffer is a new prompt; do not continue from the previous one. */
+  runner->reset ();
+  if (runner->generate (prompt, config,
+          [this, prop, &result, &echoing] (const std::string &generated) {
+            bool is_prompt = echoing;
+
+            /* Before the end-of-sequence check, as a left-out piece is a token too. */
+            if (prop->invoke_async && stopping) {
+              runner->stop ();
+              return;
+            }
+            /* The echoed prompt comes first and is kept as it is. */
+            if (!echoing && !keep_eos && eos_texts.count (generated))
+              return;
+            echoing = false;
+            if (!prop->invoke_async) {
+              result.append (generated);
+            } else if (is_prompt) {
+              /* Held back until a token comes, as the runner may still refuse the prompt. */
+              result = generated;
+            } else {
+              dispatchPiece (prop, result);
+              result.clear ();
+              dispatchPiece (prop, generated);
+            }
+          })
+      != Error::Ok)
+    throw std::runtime_error ("Generating text failed");
+
+  if (prop->invoke_async) {
+    if (!stopping)
+      dispatchPiece (prop, result);
+    result.clear ();
+  }
+
+  return result;
+}
+
+/**
+ * @brief Dispatch a generated piece as an output buffer of its own, unless it is empty.
+ */
+void
+executorch_llama_subplugin::dispatchPiece (
+    GstTensorFilterProperties *prop, const std::string &piece)
+{
+  GstTensorMemory output;
+
+  if (piece.empty ())
+    return;
+
+  output.size = piece.size ();
+  output.data = g_malloc (output.size);
+  /* replace null character with blankspace */
+  std::replace_copy (piece.begin (), piece.end (), (char *) output.data, '\0', ' ');
+
+  /* The core takes the size only from here, and its streaming thread reads it unlocked (#5172). */
+  gst_tensors_info_get_nth_info (&prop->output_meta, 0)->dimension[0] = output.size;
+  nnstreamer_filter_dispatch_output_async (prop, &output);
+}
+
+/**
+ * @brief Generate the queued prompts in order until the instance is closed.
+ */
+void
+executorch_llama_subplugin::workerLoop ()
+{
+  std::unique_lock<std::mutex> lock (queue_lock);
+
+  while (true) {
+    queue_cond.wait (lock, [this] { return stopping || !prompts.empty (); });
+    if (stopping)
+      return;
+
+    std::pair<GstTensorFilterProperties *, std::string> next
+        = std::move (prompts.front ());
+    prompts.pop ();
+    lock.unlock ();
+
+    try {
+      generate (next.first, next.second);
+    } catch (const std::exception &e) {
+      ml_loge ("executorch-llama: %s", e.what ());
+    } catch (...) {
+      ml_loge ("executorch-llama: Generating text failed");
+    }
+
+    lock.lock ();
+  }
+}
+
+/**
  * @brief Method to execute the model.
  */
 void
 executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
-  GstTensorInfo *_info;
-
   if (!input)
     throw std::runtime_error ("Invalid input buffer, it is NULL.");
   if (!output)
     throw std::runtime_error ("Invalid output buffer, it is NULL.");
+  if (!input[0].data || input[0].size == 0)
+    throw std::invalid_argument ("The prompt is empty.");
 
   std::string prompt ((char *) input[0].data, input[0].size);
-  std::string result = "";
-  bool echoing;
 
-  /* Each buffer is a new prompt; do not continue from the previous one. */
-  runner->reset ();
-  echoing = config.echo;
-  if (runner->generate (prompt, config,
-          [this, &result, &echoing] (const std::string &generated) {
-            /* The echoed prompt comes first and is kept as it is. */
-            if (!echoing && !keep_eos && eos_texts.count (generated))
-              return;
-            echoing = false;
-            result.append (generated);
-          })
-      != Error::Ok)
-    throw std::runtime_error ("Generating text failed");
+  if (prop->invoke_async) {
+    std::lock_guard<std::mutex> lock (queue_lock);
+
+    /* The generated text goes out as dispatched; this invoke itself outputs nothing. */
+    if (!worker.joinable ()) {
+      set_output_info (prop, 1);
+      worker = std::thread (&executorch_llama_subplugin::workerLoop, this);
+    }
+    prompts.emplace (prop, std::move (prompt));
+    queue_cond.notify_one ();
+    return;
+  }
+
+  std::string result = generate (prop, prompt);
   if (result.empty ())
     throw std::runtime_error ("Generated no text to output");
 
@@ -300,14 +447,7 @@ executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   output[0].data = g_malloc0 (output[0].size);
   memcpy (output[0].data, result.c_str (), result.size ());
 
-  gst_tensors_info_free (&prop->output_meta);
-
-  prop->output_meta.num_tensors = 1;
-  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-
-  _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
-  _info->type = _NNS_UINT8;
-  _info->dimension[0] = result.size ();
+  set_output_info (prop, result.size ());
 }
 
 /**

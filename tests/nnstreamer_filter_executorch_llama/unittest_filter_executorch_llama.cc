@@ -18,10 +18,17 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <gst/app/gstappsink.h>
+#include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 
+#include <chrono>
+#include <condition_variable>
 #include <cstring>
+#include <mutex>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api_util.h>
@@ -55,6 +62,68 @@ _SetFilterProp (GstTensorFilterProperties *prop, const gchar **models)
   prop->model_files = models;
   prop->num_models = models ? g_strv_length ((gchar **) models) : 0;
   prop->invoke_dynamic = TRUE;
+}
+
+/**
+ * @brief The text pieces an invoke-async instance has dispatched, in order.
+ */
+struct AsyncPieces {
+  std::mutex lock; /**< Guards the members below */
+  std::condition_variable cond; /**< Signals a new piece, a hold or a release */
+  std::vector<std::string> pieces; /**< The pieces dispatched so far */
+  bool info_ok = true; /**< Every output info described its piece */
+  size_t hold_at = 0; /**< Hold the dispatching thread at this many pieces; 0 not to */
+  bool held = false; /**< The dispatching thread is being held */
+  bool released = false; /**< Let a held dispatching thread go on */
+
+  /**
+   * @brief Return the pieces joined, waiting up to 10 seconds for them to be @a text.
+   */
+  std::string waitFor (const std::string &text)
+  {
+    std::unique_lock<std::mutex> l (lock);
+
+    cond.wait_for (l, std::chrono::seconds (10),
+        [this, &text] { return joined () == text; });
+    return joined ();
+  }
+
+  /**
+   * @brief Return the pieces joined. Call with the lock held.
+   */
+  std::string joined ()
+  {
+    std::string text;
+
+    for (const std::string &piece : pieces)
+      text += piece;
+    return text;
+  }
+};
+
+/**
+ * @brief Async output callback: record the piece and release its data.
+ */
+static int
+_AsyncOutputCb (GstTensorMemory *data, GstTensorsInfo *info, void *user_data)
+{
+  AsyncPieces *p = (AsyncPieces *) user_data;
+  GstTensorInfo *_info = gst_tensors_info_get_nth_info (info, 0);
+  std::unique_lock<std::mutex> l (p->lock);
+
+  if (info->num_tensors != 1 || info->format != _NNS_TENSOR_FORMAT_FLEXIBLE
+      || _info->type != _NNS_UINT8 || _info->dimension[0] != data[0].size)
+    p->info_ok = false;
+  p->pieces.emplace_back ((const char *) data[0].data, data[0].size);
+  g_free (data[0].data);
+  p->cond.notify_all ();
+
+  if (p->pieces.size () == p->hold_at) {
+    p->held = true;
+    p->cond.notify_all ();
+    p->cond.wait (l, [p] { return p->released; });
+  }
+  return 0;
 }
 
 /**
@@ -138,6 +207,39 @@ class nnstreamerFilterExecutorchLlama : public ::testing::Test
     ret = generate (&prop, &data, prompt, result);
     gst_tensors_info_free (&prop.output_meta);
     sp->close (&prop, &data);
+    return ret;
+  }
+
+  /**
+   * @brief Open an invoke-async instance that hands its pieces to @a pieces.
+   */
+  int openAsync (GstTensorFilterProperties *prop, void **data,
+      const gchar **model_files, const gchar *custom, AsyncPieces *pieces)
+  {
+    _SetFilterProp (prop, model_files);
+    prop->custom_properties = custom;
+    prop->invoke_async = TRUE;
+    prop->async_callback = _AsyncOutputCb;
+    prop->async_user_data = pieces;
+    return sp->open (prop, data);
+  }
+
+  /**
+   * @brief Queue a prompt to an invoke-async instance, which outputs nothing itself.
+   */
+  int invokeAsync (GstTensorFilterProperties *prop, void *data, const std::string &prompt)
+  {
+    GstTensorMemory input, output;
+    int ret;
+
+    input.data = (gpointer) prompt.data ();
+    input.size = prompt.size ();
+    output.data = NULL;
+    output.size = 0;
+
+    ret = sp->invoke (sp, prop, data, &input, &output);
+    EXPECT_TRUE (output.data == NULL);
+    EXPECT_EQ (output.size, 0U);
     return ret;
   }
 };
@@ -397,6 +499,259 @@ TEST_F (nnstreamerFilterExecutorchLlama, generateNoText_n)
 }
 
 /**
+ * @brief With invoke-async the prompt and each generated token go out as
+ *        outputs of their own, the end-of-sequence text left out.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, asyncStream)
+{
+  void *data = NULL;
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  GstTensorFilterProperties prop;
+  AsyncPieces pieces;
+
+  ASSERT_EQ (openAsync (&prop, &data, model_files, NULL, &pieces), 0);
+
+  EXPECT_EQ (invokeAsync (&prop, data, "Hi, w"), 0);
+  EXPECT_EQ (pieces.waitFor ("Hi, wxyz"), "Hi, wxyz");
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (pieces.pieces, std::vector<std::string> ({ "Hi, w", "x", "y", "z" }));
+  EXPECT_TRUE (pieces.info_ok);
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
+ * @brief With invoke-async the custom options apply as they do without it.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, asyncCustom)
+{
+  void *data = NULL;
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  GstTensorFilterProperties prop;
+  AsyncPieces pieces;
+  const std::string expected = std::string ("xyz") + LLM_EOS + "a";
+
+  ASSERT_EQ (openAsync (&prop, &data, model_files,
+                 "echo:false,keep_eos:true,ignore_eos:true,max_new_tokens:5", &pieces),
+      0);
+
+  EXPECT_EQ (invokeAsync (&prop, data, "w"), 0);
+  EXPECT_EQ (pieces.waitFor (expected), expected);
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (pieces.pieces, std::vector<std::string> ({ "x", "y", "z", LLM_EOS, "a" }));
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
+ * @brief Prompts queued with invoke-async are generated in order, each from
+ *        the beginning.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, asyncQueue)
+{
+  void *data = NULL;
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  GstTensorFilterProperties prop;
+  AsyncPieces pieces;
+
+  ASSERT_EQ (openAsync (&prop, &data, model_files, NULL, &pieces), 0);
+
+  EXPECT_EQ (invokeAsync (&prop, data, "x"), 0);
+  EXPECT_EQ (invokeAsync (&prop, data, "Hi, w"), 0);
+  EXPECT_EQ (invokeAsync (&prop, data, "x"), 0);
+  EXPECT_EQ (pieces.waitFor ("xyzHi, wxyzxyz"), "xyzHi, wxyzxyz");
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (pieces.pieces.size (), 10U);
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
+ * @brief With invoke-async the echoed prompt goes out even when no token
+ *        text follows it.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, asyncPromptOnly)
+{
+  void *data = NULL;
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  GstTensorFilterProperties prop;
+  AsyncPieces pieces;
+
+  ASSERT_EQ (openAsync (&prop, &data, model_files, "max_new_tokens:1", &pieces), 0);
+
+  /* 'z' is followed by the end-of-sequence token alone. */
+  EXPECT_EQ (invokeAsync (&prop, data, "z"), 0);
+  EXPECT_EQ (invokeAsync (&prop, data, "y"), 0);
+  EXPECT_EQ (pieces.waitFor ("zyz"), "zyz");
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (pieces.pieces, std::vector<std::string> ({ "z", "y", "z" }));
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
+ * @brief Negative case: with invoke-async an empty prompt fails the invoke,
+ *        and a prompt that the runner refuses outputs nothing, not even its
+ *        echo, while the next one is still generated.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, asyncInvalidPrompt_n)
+{
+  void *data = NULL;
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  GstTensorFilterProperties prop;
+  AsyncPieces pieces;
+
+  ASSERT_EQ (openAsync (&prop, &data, model_files, NULL, &pieces), 0);
+
+  EXPECT_NE (invokeAsync (&prop, data, ""), 0);
+  /* Too long for the model's context, found only by the generation itself. */
+  EXPECT_EQ (invokeAsync (&prop, data, std::string (300, '0')), 0);
+  /* Refused after the runner has echoed it: no room left within seq_len. */
+  EXPECT_EQ (invokeAsync (&prop, data, std::string (128, '0')), 0);
+  EXPECT_EQ (invokeAsync (&prop, data, "x"), 0);
+  EXPECT_EQ (pieces.waitFor ("xyz"), "xyz");
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (pieces.pieces, std::vector<std::string> ({ "x", "y", "z" }));
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
+ * @brief Closing an invoke-async instance stops the generation in progress
+ *        and drops the prompts still queued.
+ *
+ * The callback holds the generation at its second piece, so the close starts
+ * while 254 more tokens are still to come for the first prompt.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, asyncCloseStops)
+{
+  void *data = NULL;
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  GstTensorFilterProperties prop;
+  AsyncPieces pieces;
+
+  pieces.hold_at = 2;
+  ASSERT_EQ (openAsync (&prop, &data, model_files, "seq_len:-1", &pieces), 0);
+
+  EXPECT_EQ (invokeAsync (&prop, data, "0"), 0);
+  EXPECT_EQ (invokeAsync (&prop, data, "x"), 0);
+  {
+    std::unique_lock<std::mutex> l (pieces.lock);
+    ASSERT_TRUE (pieces.cond.wait_for (
+        l, std::chrono::seconds (10), [&pieces] { return pieces.held; }));
+  }
+
+  bool closing = false;
+  std::thread closer ([this, &prop, &data, &pieces, &closing] {
+    {
+      std::lock_guard<std::mutex> l (pieces.lock);
+      closing = true;
+    }
+    pieces.cond.notify_all ();
+    sp->close (&prop, &data);
+  });
+  {
+    std::unique_lock<std::mutex> l (pieces.lock);
+    pieces.cond.wait (l, [&closing] { return closing; });
+  }
+  /* The close only has to begin before 10 pieces, of the 256, have gone out. */
+  std::this_thread::sleep_for (std::chrono::milliseconds (200));
+  {
+    std::lock_guard<std::mutex> l (pieces.lock);
+    pieces.released = true;
+  }
+  pieces.cond.notify_all ();
+  closer.join ();
+
+  EXPECT_TRUE (data == NULL);
+  EXPECT_LT (pieces.pieces.size (), 10U);
+  EXPECT_EQ (pieces.joined ().find ('x'), std::string::npos);
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
+ * @brief Closing an invoke-async instance stops the generation at a token
+ *        whose text is left out, too.
+ *
+ * The callback holds the generation at "z", which is followed by the
+ * end-of-sequence token and then 'a' with ignore_eos. The runner prints each
+ * token it generates on the standard output, so 'a' after the end-of-sequence
+ * text there means that the left-out token did not stop the generation.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, asyncCloseStopsAtLeftOutEos)
+{
+  void *data = NULL;
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  GstTensorFilterProperties prop;
+  AsyncPieces pieces;
+  std::string printed;
+
+  pieces.hold_at = 2;
+  ASSERT_EQ (openAsync (&prop, &data, model_files, "seq_len:-1,ignore_eos:true", &pieces), 0);
+
+  testing::internal::CaptureStdout ();
+  EXPECT_EQ (invokeAsync (&prop, data, "y"), 0);
+  {
+    std::unique_lock<std::mutex> l (pieces.lock);
+    EXPECT_TRUE (pieces.cond.wait_for (
+        l, std::chrono::seconds (10), [&pieces] { return pieces.held; }));
+  }
+
+  bool closing = false;
+  std::thread closer ([this, &prop, &data, &pieces, &closing] {
+    {
+      std::lock_guard<std::mutex> l (pieces.lock);
+      closing = true;
+    }
+    pieces.cond.notify_all ();
+    sp->close (&prop, &data);
+  });
+  {
+    std::unique_lock<std::mutex> l (pieces.lock);
+    pieces.cond.wait (l, [&closing] { return closing; });
+  }
+  /* The close has to begin before the end-of-sequence token comes. */
+  std::this_thread::sleep_for (std::chrono::milliseconds (200));
+  {
+    std::lock_guard<std::mutex> l (pieces.lock);
+    pieces.released = true;
+  }
+  pieces.cond.notify_all ();
+  closer.join ();
+  printed = testing::internal::GetCapturedStdout ();
+
+  EXPECT_TRUE (data == NULL);
+  EXPECT_EQ (pieces.joined (), "yz");
+  EXPECT_NE (printed.find ("yz" LLM_EOS), std::string::npos);
+  EXPECT_EQ (printed.find (LLM_EOS "a"), std::string::npos);
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
+ * @brief Closing an invoke-async instance with nothing queued, or one that
+ *        has never been invoked, returns at once.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, asyncCloseIdle)
+{
+  void *data = NULL;
+  const gchar *model_files[] = { model, tokenizer, NULL };
+  GstTensorFilterProperties prop;
+  AsyncPieces pieces;
+
+  ASSERT_EQ (openAsync (&prop, &data, model_files, NULL, &pieces), 0);
+  sp->close (&prop, &data);
+  EXPECT_TRUE (data == NULL);
+
+  ASSERT_EQ (openAsync (&prop, &data, model_files, NULL, &pieces), 0);
+  EXPECT_EQ (invokeAsync (&prop, data, "y"), 0);
+  EXPECT_EQ (pieces.waitFor ("yz"), "yz");
+  sp->close (&prop, &data);
+  EXPECT_TRUE (data == NULL);
+  EXPECT_EQ (pieces.pieces.size (), 2U);
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
  * @brief Each buffer is a new prompt, not a continuation of the previous one.
  *
  * The runner keeps its position across calls. Without a reset the second
@@ -628,6 +983,74 @@ TEST_F (nnstreamerFilterExecutorchLlama, pipeline)
   g_unlink (in_file);
   g_unlink (out_file);
   g_rmdir (tmp_dir);
+}
+
+/**
+ * @brief Pull the non-empty buffers of the appsink until they make up @a text.
+ *
+ * tensor_filter also pushes an empty buffer for each invoke-async invoke.
+ */
+static std::vector<std::string>
+_PullPieces (GstElement *sink, const std::string &text)
+{
+  std::vector<std::string> pieces;
+  std::string joined;
+
+  while (joined != text) {
+    GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 10 * GST_SECOND);
+    GstMapInfo map;
+
+    if (!sample)
+      break;
+    if (gst_buffer_map (gst_sample_get_buffer (sample), &map, GST_MAP_READ)) {
+      if (map.size > 0) {
+        pieces.emplace_back ((const char *) map.data, map.size);
+        joined += pieces.back ();
+      }
+      gst_buffer_unmap (gst_sample_get_buffer (sample), &map);
+    }
+    gst_sample_unref (sample);
+  }
+
+  return pieces;
+}
+
+/**
+ * @brief The pipeline with invoke-async: the prompt and each generated token
+ *        arrive as buffers of their own, in order, for each input buffer.
+ */
+TEST_F (nnstreamerFilterExecutorchLlama, pipelineAsync)
+{
+  const std::string prompt = "Once upon a time, u";
+
+  g_autofree gchar *desc = g_strdup_printf (
+      "appsrc name=src caps=application/octet-stream ! tensor_converter ! "
+      "other/tensors,format=flexible ! "
+      "tensor_filter framework=" FW_NAME " model=%s,%s invoke-dynamic=true invoke-async=true ! "
+      "other/tensors,format=flexible ! tensor_decoder mode=octet_stream ! "
+      "application/octet-stream ! appsink name=sink sync=false",
+      model, tokenizer);
+  GstElement *pipeline = gst_parse_launch (desc, NULL);
+  ASSERT_TRUE (pipeline != NULL);
+  GstElement *src = gst_bin_get_by_name (GST_BIN (pipeline), "src");
+  GstElement *sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (src),
+                 gst_buffer_new_wrapped (g_strdup (prompt.c_str ()), prompt.size ())),
+      GST_FLOW_OK);
+  EXPECT_EQ (_PullPieces (sink, prompt + "vwxyz"),
+      std::vector<std::string> ({ prompt, "v", "w", "x", "y", "z" }));
+
+  EXPECT_EQ (gst_app_src_push_buffer (
+                 GST_APP_SRC (src), gst_buffer_new_wrapped (g_strdup ("x"), 1)),
+      GST_FLOW_OK);
+  EXPECT_EQ (_PullPieces (sink, "xyz"), std::vector<std::string> ({ "x", "y", "z" }));
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (src);
+  gst_object_unref (sink);
+  gst_object_unref (pipeline);
 }
 
 /**
