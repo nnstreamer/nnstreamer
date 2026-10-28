@@ -95,8 +95,11 @@ ifeq ($(DEB_HOST_ARCH), amd64)
 	if [ -f './tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw' ]; then ./packaging/run_unittests_binaries.sh ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw; fi
 # The block is amd64 because part of the suite expects openvino-cpu-mkldnn,
 # which the PPA ships for amd64 only; running here asserts nothing about an
-# arm64 build that no job exercises.
+# arm64 build that no job exercises. The runner passes when it finds no
+# binary, so a sub-plugin or a suite that is not built has to fail here.
 ifeq ($(ENABLE_OPENVINO), true)
+	test -f ./build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_openvino.so
+	test -x ./build/tests/nnstreamer_filter_openvino/unittest_openvino
 	./packaging/run_unittests_binaries.sh ./tests/nnstreamer_filter_openvino
 endif
 endif
