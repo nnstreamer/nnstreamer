@@ -60,9 +60,15 @@ template <typename T> class ArrayRef
   {
     return length_;
   }
-  /** @brief The idx-th element; the caller checks the bound as with LibTorch. */
+  /**
+   * @brief The idx-th element.
+   * @details LibTorch leaves the bound to the caller; the mock throws instead,
+   * so that a test sees an out-of-bound read.
+   */
   const T &operator[] (size_t idx) const
   {
+    if (idx >= length_)
+      throw std::out_of_range ("mock ArrayRef index out of range");
     return data_[idx];
   }
 
@@ -253,10 +259,15 @@ class Tensor
   {
     return data_;
   }
-  /** @brief A view of the whole tensor along the given dimension. */
+  /**
+   * @brief A view of the whole tensor along the given dimension.
+   * @details Like LibTorch, a 0-dim tensor cannot be sliced.
+   */
   Tensor slice (int64_t dim = 0) const
   {
     (void) dim;
+    if (sizes_.empty ())
+      throw std::out_of_range ("slice() cannot be applied to a 0-dim tensor.");
     return *this;
   }
   /** @brief The tensor itself; the mock keeps every tensor contiguous. */

@@ -723,6 +723,69 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeEmptyOutput)
 }
 
 /**
+ * @brief A 0-dim (scalar) output is copied out after checking its type.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeScalarOutput)
+{
+  GstTensorMemory in[1], out[1];
+  const gsize in_size[1] = { 6 };
+  const gsize out_size[1] = { 1 };
+
+  SetModel (MakeModel ("scalar"));
+  AddInput (_NNS_UINT8, "3:2");
+  AddOutput (_NNS_UINT8, "1");
+  ASSERT_EQ (Open (), 0);
+
+  for (int i = 0; i < 2; i++) {
+    EXPECT_EQ (Invoke (in, out, in_size, 1, out_size, 1), 0);
+    EXPECT_TRUE (AllBytes (&out[0], 0x00));
+    FreeTensors (in, 1);
+    FreeTensors (out, 1);
+  }
+}
+
+/**
+ * @brief A 0-dim (scalar) output is refused when its type differs.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeScalarOutputType_n)
+{
+  GstTensorMemory in[1], out[1];
+  const gsize in_size[1] = { 6 };
+  const gsize out_size[1] = { 4 };
+
+  SetModel (MakeModel ("scalar"));
+  AddInput (_NNS_UINT8, "3:2");
+  AddOutput (_NNS_FLOAT32, "1");
+  ASSERT_EQ (Open (), 0);
+
+  EXPECT_EQ (Invoke (in, out, in_size, 1, out_size, 1), -2);
+  EXPECT_TRUE (AllBytes (&out[0], 0xEE));
+
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+}
+
+/**
+ * @brief A 0-dim (scalar) output is refused when more elements are expected.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeScalarOutputSize_n)
+{
+  GstTensorMemory in[1], out[1];
+  const gsize size[1] = { 6 };
+
+  SetModel (MakeModel ("scalar"));
+  AddInput (_NNS_UINT8, "3:2");
+  AddOutput (_NNS_UINT8, "3:2");
+  ASSERT_EQ (Open (), 0);
+
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -2);
+  EXPECT_TRUE (AllBytes (&out[0], 0xEE));
+
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+}
+
+/**
  * @brief An output whose first dimension is 0 is refused when its type differs.
  */
 TEST_F (NNStreamerFilterPytorchMockTest, invokeEmptyOutputType_n)

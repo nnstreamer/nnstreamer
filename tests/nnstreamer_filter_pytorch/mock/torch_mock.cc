@@ -44,7 +44,8 @@ bool
 isForwardBehaviour (const std::string &behaviour)
 {
   static const char *known[] = { "identity", "tuple", "list", "nested", "none",
-    "bool", "grow", "empty", "throw_runtime", "throw_exception", "throw_unknown" };
+    "bool", "grow", "empty", "scalar", "throw_runtime", "throw_exception",
+    "throw_unknown" };
 
   for (const char *k : known) {
     if (behaviour == k)
@@ -165,6 +166,8 @@ Module::forward (std::vector<IValue> inputs)
     sizes[0] = 0;
     return IValue (at::Tensor (sizes, first.scalar_type ()));
   }
+  if (behaviour_ == "scalar")
+    return IValue (at::Tensor (std::vector<int64_t> (), first.scalar_type ()));
 
   return inputs[0];
 }
