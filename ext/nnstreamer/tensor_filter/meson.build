@@ -21,6 +21,10 @@ if nnfw_runtime_support_is_available
 endif
 
 if armnn_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for ARMNN.')
+  endif
+
   filter_sub_armnn_sources = [
     'tensor_filter_armnn.cc'
   ]
