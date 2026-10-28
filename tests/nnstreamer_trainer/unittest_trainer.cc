@@ -2369,6 +2369,7 @@ trainer_map_test_push (guint num_mems, gsize mem_size, gboolean refuse_first,
   GstHarness *h = make_fake_trainer_harness ();
   GstBuffer *buf;
   guint handler;
+  GLogLevelFlags fatal_mask;
 
   memset (result, 0, sizeof (*result));
   result->first = trainer_map_test_allocator_new (refuse_first);
@@ -2384,8 +2385,14 @@ trainer_map_test_push (guint num_mems, gsize mem_size, gboolean refuse_first,
   if (num_mems > 1)
     trainer_map_test_append_memory (buf, result->second, mem_size, 8);
 
-  handler = g_log_set_handler ("GStreamer", G_LOG_LEVEL_CRITICAL,
+  handler = g_log_set_handler ("GStreamer",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       trainer_count_critical_log, &result->num_critical);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "[probe] tensor_trainer test handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (result->num_critical, 1U);
+  result->num_critical = 0;
   result->ret = gst_harness_push (h, buf);
   g_log_remove_handler ("GStreamer", handler);
 

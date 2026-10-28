@@ -1340,10 +1340,16 @@ _client_with_server_caps (const gchar *caps_info, guint timeout_ms,
 {
   const gsize sizes[] = { 4 };
   guint handler, critical = 0;
+  GLogLevelFlags fatal_mask;
 
   handler = g_log_set_handler ("GStreamer",
-      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _count_gst_critical, &critical);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "[probe] tensor_query test handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ ((guint) g_atomic_int_get ((gint *) &critical), 1U);
+  g_atomic_int_set ((gint *) &critical, 0);
 
   _run_client (QUERY_TEST_CAPS, caps_info, timeout_ms, _static_input (),
       _make_edge_data (sizes, 1), received, requested);
