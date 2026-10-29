@@ -704,6 +704,7 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   /* Invoke with dummy. NNFW updates output info after the invoke is done. */
   if (!nnfw_invoke_dummy (pdata, nnfw_in_info, &pdata->out_info)) {
     nns_loge ("Failed to invoke the model with changed input info.");
+    err = -EINVAL;
     goto error;
   }
 
