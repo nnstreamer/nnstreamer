@@ -1184,15 +1184,20 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
  * @param[in] prop Struct containing the properties of the framework
  * @param[in] accelerators user given input for hardware accelerators
  * @note The order of preference set by the user is maintained
+ * @note As parse_accl_hw_fill () does for V0, NEON is dropped from the
+ *       accelerators of the framework if this device does not support it.
+ *       It is matched by value, so ACCL_CPU_SIMD, the same value, goes too.
  */
 static void
 gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const char *accelerators)
 {
-  gint status, idx;
+  gint status, idx, num_support;
   GstTensorFilterFrameworkInfo info;
   const gchar **accl_support;
   GList *match_accl, *iter;
+  accl_hw first_hw = ACCL_NONE, auto_hw, default_hw;
+  gboolean neon_available;
 
   prop->num_hw = 0;
   g_free (prop->hw_list);
@@ -1214,13 +1219,29 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
    * Extra 2 entries for basic accelerators : auto and default
    */
   accl_support = g_malloc (sizeof (gchar *) * (info.num_hw + 2 + 1));
+  neon_available = (cpu_neon_accel_available () == 0);
 
-  for (idx = 0; idx < info.num_hw; idx++) {
-    accl_support[idx] = get_accl_hw_str (info.hw_list[idx]);
+  for (idx = 0, num_support = 0; idx < info.num_hw; idx++) {
+    if (info.hw_list[idx] == ACCL_CPU_NEON && !neon_available) {
+      ml_logw ("Neon instructions are not available on this device.");
+      continue;
+    }
+    if (num_support == 0)
+      first_hw = info.hw_list[idx];
+    accl_support[num_support++] = get_accl_hw_str (info.hw_list[idx]);
   }
-  accl_support[info.num_hw] = ACCL_AUTO_STR;
-  accl_support[info.num_hw + 1] = ACCL_DEFAULT_STR;
-  accl_support[info.num_hw + 2] = NULL;
+  accl_support[num_support] = ACCL_AUTO_STR;
+  accl_support[num_support + 1] = ACCL_DEFAULT_STR;
+  accl_support[num_support + 2] = NULL;
+
+  auto_hw = info.accl_auto;
+  if ((gint) auto_hw < (gint) ACCL_NONE || (auto_hw == ACCL_CPU_NEON
+          && !neon_available))
+    auto_hw = first_hw;
+  default_hw = info.accl_default;
+  if ((gint) default_hw < (gint) ACCL_NONE || (default_hw == ACCL_CPU_NEON
+          && !neon_available))
+    default_hw = first_hw;
 
   /** Parse the user given h/w accelerators intersected with supported h/w */
   match_accl = parse_accl_hw_all (accelerators, accl_support);
@@ -1231,15 +1252,10 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
   prop->hw_list = g_malloc (sizeof (accl_hw) * prop->num_hw);
   for (iter = match_accl, idx = 0; iter != NULL; iter = iter->next, idx++) {
     prop->hw_list[idx] = GPOINTER_TO_INT (iter->data);
-    if (prop->hw_list[idx] == ACCL_AUTO) {
-      prop->hw_list[idx] = info.accl_auto;
-      if (info.accl_auto < ACCL_NONE)
-        prop->hw_list[idx] = info.hw_list[0];
-    } else if (prop->hw_list[idx] == ACCL_DEFAULT) {
-      prop->hw_list[idx] = info.accl_default;
-      if (info.accl_default < ACCL_NONE)
-        prop->hw_list[idx] = info.hw_list[0];
-    }
+    if (prop->hw_list[idx] == ACCL_AUTO)
+      prop->hw_list[idx] = auto_hw;
+    else if (prop->hw_list[idx] == ACCL_DEFAULT)
+      prop->hw_list[idx] = default_hw;
   }
   g_list_free (match_accl);
 }
@@ -1777,6 +1793,8 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
         g_free_const (prop->accl_str);
         prop->accl_str = g_strdup (accelerators);
       } else {
+        ml_loge ("Cannot change accelerator to %s; the framework refused it "
+            "(%d).", accelerators ? accelerators : "(null)", status);
         prop->num_hw = _prop.num_hw;
         g_free (prop->hw_list);
         prop->hw_list = _prop.hw_list;
@@ -2294,30 +2312,12 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     }
     case PROP_ACCELERATOR:
-    {
-      gint idx;
-      GString *accl;
-
-      if (priv->fw == NULL || GST_TF_FW_V0 (priv->fw)) {
-        if (prop->accl_str != NULL) {
-          g_value_set_string (value, prop->accl_str);
-        } else {
-          g_value_set_string (value, "");
-        }
-      } else if (GST_TF_FW_V1 (priv->fw)) {
-        if (prop->num_hw == 0) {
-          g_value_set_string (value, "");
-        } else {
-          accl = g_string_new (NULL);
-
-          for (idx = 0; idx < prop->num_hw; idx++) {
-            g_string_append (accl, get_accl_hw_str (prop->hw_list[idx]));
-          }
-          g_value_take_string (value, g_string_free (accl, FALSE));
-        }
+      if (prop->accl_str != NULL) {
+        g_value_set_string (value, prop->accl_str);
+      } else {
+        g_value_set_string (value, "");
       }
       break;
-    }
     case PROP_IS_UPDATABLE:
       g_value_set_boolean (value, priv->is_updatable);
       break;
