@@ -16,6 +16,8 @@
  *  - none: return a value that is not a tensor, tuple or list
  *  - bool: return a bool tensor of the shape of the first input
  *  - grow: return a tensor of the type of the first input, twice as large
+ *  - grow_after_first: like identity on the first forward() call after
+ *    reset(); like grow on every later call
  *  - empty: return a tensor whose first dimension is 0
  *  - scalar: return a 0-dim tensor of the type of the first input
  *  - throw_runtime, throw_exception, throw_unknown: forward() throws a

@@ -80,7 +80,6 @@ class TorchCore
 
   GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
-  unsigned int configured;
 
   std::shared_ptr<torch::jit::script::Module> model;
 
@@ -109,7 +108,6 @@ TorchCore::TorchCore (const char *_model_path)
 {
   g_assert (_model_path != NULL);
   model_path = g_strdup (_model_path);
-  configured = 0;
   use_gpu = false;
   accelerator = ACCL_NONE;
 
@@ -349,7 +347,7 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
           idx);
       return -3;
     }
-    goto done;
+    return 0;
   }
 
   sliced_output = output.slice (0);
@@ -375,8 +373,6 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
     return -3;
   }
 
-done:
-  configured++;
   return 0;
 }
 
@@ -426,9 +422,7 @@ TorchCore::processIValue (
   /** make the memory contiguous for direct access */
   output_tensor = output_tensor.contiguous ();
 
-  /* validate output tensor once */
-  if (configured < outputTensorMeta.num_tensors
-      && validateOutputTensor (output_tensor, idx)) {
+  if (validateOutputTensor (output_tensor, idx)) {
     ml_loge ("Output Tensor Information at index %d is not valid", idx);
     return -1;
   }
