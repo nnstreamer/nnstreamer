@@ -1774,6 +1774,8 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
           (priv->fw, &_prop, priv->privateData, SET_ACCELERATOR, &data);
       if (status == 0) {
         g_free (_prop.hw_list);
+        g_free_const (prop->accl_str);
+        prop->accl_str = g_strdup (accelerators);
       } else {
         prop->num_hw = _prop.num_hw;
         g_free (prop->hw_list);
@@ -1783,17 +1785,10 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
     return 0;
   }
 
-  if (priv->fw) {
-    if (GST_TF_FW_V0 (priv->fw)) {
-      g_free_const (prop->accl_str);
-      prop->accl_str = g_strdup (accelerators);
-    } else if (GST_TF_FW_V1 (priv->fw)) {
-      gst_tensor_filter_parse_accelerator (priv, prop, accelerators);
-    }
-  } else {
-    g_free_const (prop->accl_str);
-    prop->accl_str = g_strdup (accelerators);
-  }
+  g_free_const (prop->accl_str);
+  prop->accl_str = g_strdup (accelerators);
+  if (priv->fw && GST_TF_FW_V1 (priv->fw))
+    gst_tensor_filter_parse_accelerator (priv, prop, prop->accl_str);
   return 0;
 }
 
