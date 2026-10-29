@@ -588,7 +588,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeFloat16Unsupported_n)
 #endif
 
 /**
- * @brief A model is run again without validating its outputs again.
+ * @brief Repeated invocations succeed with valid outputs.
  */
 TEST_F (NNStreamerFilterPytorchMockTest, invokeTwice)
 {
@@ -844,6 +844,60 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeOutputSize_n)
 
   FreeTensors (in, 1);
   FreeTensors (out, 1);
+}
+
+/**
+ * @brief An output that grows after a valid run is refused before the copy.
+ * @details The output buffer is twice the configured size, so that a copy of
+ * the grown output stays in the buffer and shows as a failure.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeOutputSizeLaterRun_n)
+{
+  GstTensorMemory in[1], out[1];
+  const gsize in_size[1] = { 6 };
+  const gsize out_size[1] = { 12 };
+
+  SetModel (MakeModel ("grow_after_first"));
+  AddInput (_NNS_UINT8, "3:2");
+  AddOutput (_NNS_UINT8, "3:2");
+  ASSERT_EQ (Open (), 0);
+
+  EXPECT_EQ (Invoke (in, out, in_size, 1, in_size, 1), 0);
+  EXPECT_TRUE (AllBytes (&out[0], 0x11));
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+
+  EXPECT_EQ (Invoke (in, out, in_size, 1, out_size, 1), -2);
+  EXPECT_TRUE (AllBytes (&out[0], 0xEE));
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+  EXPECT_EQ (torch_mock::forwardCount (), 2);
+}
+
+/**
+ * @brief A wrong output after a valid one is refused on every invoke.
+ * @details The second output buffer is as large as the second input, so that
+ * a copy of the wrong output stays in the buffer and shows as a failure.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeTupleOutputSizeRetry_n)
+{
+  GstTensorMemory in[2], out[2];
+  const gsize size[2] = { 6, 8 };
+
+  SetModel (MakeModel ("tuple"));
+  AddInput (_NNS_UINT8, "3:2");
+  AddInput (_NNS_UINT8, "4:2");
+  AddOutput (_NNS_UINT8, "3:2");
+  AddOutput (_NNS_UINT8, "2:2");
+  ASSERT_EQ (Open (), 0);
+
+  for (int i = 0; i < 2; i++) {
+    EXPECT_EQ (Invoke (in, out, size, 2, size, 2), -2);
+    EXPECT_TRUE (AllBytes (&out[1], 0xEE));
+    FreeTensors (in, 2);
+    FreeTensors (out, 2);
+  }
+  EXPECT_EQ (torch_mock::forwardCount (), 2);
 }
 
 /**
