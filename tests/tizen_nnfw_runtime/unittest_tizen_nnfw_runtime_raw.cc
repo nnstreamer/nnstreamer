@@ -8,7 +8,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <dlfcn.h>
 #include <glib.h>
+#include <nnfw.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
@@ -210,6 +212,139 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
   gst_tensors_info_free (&res);
+  g_free (model_file);
+}
+
+/**
+ * @brief Number of the next nnfw_run () calls that fail.
+ */
+static int nnfw_run_fail = 0;
+
+/**
+ * @brief Make nnfw_run () of the ONE runtime fail on demand.
+ * @note The test executable exports this definition, so the nnfw sub-plugin
+ *       calls it instead of the runtime's. The runtime need not be in the
+ *       global scope, so look up the real one among the sub-plugin's
+ *       dependencies.
+ */
+extern "C" NNFW_STATUS
+nnfw_run (nnfw_session *session)
+{
+  static NNFW_STATUS (*real_run) (nnfw_session *) = NULL;
+  const GstTensorFilterFramework *sp;
+  Dl_info dl;
+  void *handle;
+
+  if (nnfw_run_fail > 0) {
+    nnfw_run_fail--;
+    return NNFW_STATUS_ERROR;
+  }
+
+  if (real_run == NULL) {
+    sp = nnstreamer_filter_find ("nnfw");
+    if (sp && dladdr ((void *) sp->open, &dl) != 0) {
+      handle = dlopen (dl.dli_fname, RTLD_LAZY | RTLD_NOLOAD);
+      if (handle) {
+        real_run = (NNFW_STATUS (*) (nnfw_session *)) dlsym (handle, "nnfw_run");
+        dlclose (handle);
+      }
+    }
+  }
+
+  if (real_run == NULL)
+    return NNFW_STATUS_ERROR;
+
+  return real_run (session);
+}
+
+/**
+ * @brief Set input dimensions with nnfw subplugin when the dummy invoke fails
+ */
+TEST (nnstreamerNnfwRuntimeRawFunctions, setDimensionInvokeFail_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorsInfo in_info, out_info, res, cur_in, cur_out;
+  GstTensorMemory input, output;
+  gchar *model_file;
+  guint idx, num;
+  GstTensorFilterProperties prop;
+  model_file = get_model_file ();
+  ASSERT_TRUE (model_file != nullptr);
+  const gchar *model_files[] = {
+    model_file,
+    NULL,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
+  ASSERT_NE (sp, (void *) NULL);
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  gst_tensors_info_init (&res);
+  gst_tensors_info_init (&cur_in);
+  gst_tensors_info_init (&cur_out);
+  _SetFilterProp (&prop, "nnfw", model_files);
+
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
+
+  ret = sp->getInputDimension (&prop, &data, &in_info);
+  EXPECT_EQ (ret, 0);
+  ret = sp->getOutputDimension (&prop, &data, &out_info);
+  EXPECT_EQ (ret, 0);
+
+  res.num_tensors = 1;
+  res.info[0].type = _NNS_FLOAT32;
+  res.info[0].dimension[0] = 5;
+  EXPECT_FALSE (gst_tensors_info_is_equal (&res, &in_info));
+
+  /** the runtime accepts the new input info, but the dummy invoke fails */
+  nnfw_run_fail = 1;
+  ret = sp->setInputDimension (&prop, &data, &res, &cur_out);
+  EXPECT_NE (ret, 0);
+  EXPECT_EQ (nnfw_run_fail, 0);
+  nnfw_run_fail = 0;
+  gst_tensors_info_free (&cur_out);
+  gst_tensors_info_init (&cur_out);
+
+  /** the input and output info are still those before the change */
+  ret = sp->getInputDimension (&prop, &data, &cur_in);
+  EXPECT_EQ (ret, 0);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&in_info, &cur_in));
+
+  ret = sp->getOutputDimension (&prop, &data, &cur_out);
+  EXPECT_EQ (ret, 0);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&out_info, &cur_out));
+
+  /** and the model still runs with them */
+  input.size = gst_tensor_info_get_size (&in_info.info[0]);
+  output.size = gst_tensor_info_get_size (&out_info.info[0]);
+  ASSERT_EQ (input.size, output.size);
+
+  input.data = g_malloc (input.size);
+  output.data = g_malloc0 (output.size);
+
+  num = input.size / sizeof (float);
+  for (idx = 0; idx < num; idx++)
+    ((float *) input.data)[idx] = (float) idx;
+
+  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  EXPECT_EQ (ret, 0);
+
+  for (idx = 0; idx < num; idx++)
+    EXPECT_FLOAT_EQ (((float *) output.data)[idx], (float) (idx + 2));
+
+  g_free (input.data);
+  g_free (output.data);
+
+  sp->close (&prop, &data);
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  gst_tensors_info_free (&res);
+  gst_tensors_info_free (&cur_in);
+  gst_tensors_info_free (&cur_out);
   g_free (model_file);
 }
 
