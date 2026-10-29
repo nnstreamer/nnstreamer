@@ -148,9 +148,9 @@ typedef struct _GstTensorFilterProperties
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];  /**< the rank list of output tensors, it is calculated based on the dimension string. */
 
   const char *custom_properties; /**< sub-plugin specific custom property values in string */
-  accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only */
+  accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only. NEON (ACCL_CPU_NEON) is left out on a device without it; ACCL_NONE if nothing is left. */
   int num_hw;       /**< number of hardware accelerators in the hw_list supported by the framework */
-  const char *accl_str; /**< accelerator configuration passed in as parameter, as given to the "accelerator" property. GstTensorFilterFramework V1 gets hw_list parsed from it as well. Valid until the accelerator or framework property is set again; copy it to keep it longer. */
+  const char *accl_str; /**< accelerator configuration passed in as parameter, as given to the "accelerator" property. GstTensorFilterFramework V1 gets hw_list parsed from it as well. The "accelerator" property reads this string back for V0 and V1. Valid until the accelerator or framework property is set again; copy it to keep it longer. */
   char *shared_tensor_filter_key; /**< the shared instance key to use same model representation */
 
   int latency; /**< The average latency over the recent 10 inferences in microseconds */

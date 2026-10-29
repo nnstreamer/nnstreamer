@@ -1138,6 +1138,7 @@ class accl_mock_subplugin : public nnstreamer::tensor_filter_subplugin
   static gint seen_num_hw;
   static accl_hw seen_hw;
   static int event_ret;
+  static accl_hw basic_hw;
 
   /** @brief mandatory method */
   tensor_filter_subplugin &getEmptyInstance () override
@@ -1171,8 +1172,8 @@ class accl_mock_subplugin : public nnstreamer::tensor_filter_subplugin
     info.verify_model_path = FALSE;
     info.hw_list = hw_list;
     info.num_hw = 3;
-    info.accl_auto = ACCL_CPU;
-    info.accl_default = ACCL_CPU;
+    info.accl_auto = basic_hw;
+    info.accl_default = basic_hw;
   }
 
   /** @brief mandatory method */
@@ -1213,6 +1214,7 @@ gchar *accl_mock_subplugin::seen_accl_str = nullptr;
 gint accl_mock_subplugin::seen_num_hw = 0;
 accl_hw accl_mock_subplugin::seen_hw = ACCL_NONE;
 int accl_mock_subplugin::event_ret = 0;
+accl_hw accl_mock_subplugin::basic_hw = ACCL_CPU;
 
 /**
  * @brief V1 C++ sub-plugin supporting the CPU only.
@@ -1258,6 +1260,105 @@ accl_cpu_mock_subplugin *accl_cpu_mock_subplugin::cpu_registered = nullptr;
 const accl_hw accl_cpu_mock_subplugin::cpu_hw_list[] = { ACCL_CPU };
 
 /**
+ * @brief V1 C++ sub-plugin preferring NEON, then the GPU.
+ */
+class accl_neon_mock_subplugin : public accl_mock_subplugin
+{
+  public:
+  static const char *neon_mock_name;
+  static accl_neon_mock_subplugin *neon_registered;
+  static const accl_hw neon_hw_list[];
+  static int neon_num_hw;
+
+  /** @brief mandatory method */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new accl_neon_mock_subplugin ());
+  }
+
+  /** @brief list NEON first, and use it for auto and default */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    accl_mock_subplugin::getFrameworkInfo (info);
+    info.name = neon_mock_name;
+    info.hw_list = neon_hw_list;
+    info.num_hw = neon_num_hw;
+    info.accl_auto = ACCL_CPU_NEON;
+    info.accl_default = ACCL_CPU_NEON;
+  }
+
+  /** @brief register this mock subplugin */
+  static void init ()
+  {
+    neon_registered = register_subplugin<accl_neon_mock_subplugin> ();
+  }
+
+  /** @brief unregister this mock subplugin */
+  static void fini ()
+  {
+    unregister_subplugin<accl_neon_mock_subplugin> (neon_registered);
+    neon_registered = nullptr;
+  }
+};
+
+const char *accl_neon_mock_subplugin::neon_mock_name = "accl_neon_mock_subplugin";
+accl_neon_mock_subplugin *accl_neon_mock_subplugin::neon_registered = nullptr;
+const accl_hw accl_neon_mock_subplugin::neon_hw_list[] = { ACCL_CPU_NEON, ACCL_GPU };
+int accl_neon_mock_subplugin::neon_num_hw = 2;
+
+static gint fake_neon_ret = 0;
+static guint fake_neon_calls = 0;
+
+/**
+ * @brief Replace the NEON check of libnnstreamer to test a device without NEON.
+ * @return fake_neon_ret, 0 (NEON available) unless a test changes it.
+ */
+extern "C" gint
+cpu_neon_accel_available (void)
+{
+  fake_neon_calls++;
+  return fake_neon_ret;
+}
+
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+/**
+ * @brief Count the critical messages of the default log domain.
+ */
+static void
+_count_accl_critical (const gchar *log_domain, GLogLevelFlags log_level,
+    const gchar *message, gpointer user_data)
+{
+  UNUSED (log_domain);
+  UNUSED (log_level);
+  UNUSED (message);
+  (*(guint *) user_data)++;
+}
+
+/**
+ * @brief Start counting the critical messages of the default log domain, after checking the handler gets them.
+ * @param count the counter, reset to 0 once the handler is checked
+ * @return The handler id, to be removed with g_log_remove_handler ().
+ */
+static guint
+_start_accl_critical_count (guint *count)
+{
+  guint handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      _count_accl_critical, count);
+  GLogLevelFlags fatal_mask;
+
+  *count = 0;
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log (NULL, G_LOG_LEVEL_CRITICAL, "[probe] accelerator log handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (*count, 1U) << "no live handler for critical messages";
+  *count = 0;
+
+  return handler;
+}
+#endif
+
+/**
  * @brief Test fixture setting the accelerator property of a filter the way a pipeline description does.
  */
 class testFilterAccelerator : public ::testing::Test
@@ -1272,8 +1373,13 @@ class testFilterAccelerator : public ::testing::Test
     accl_mock_subplugin::seen_num_hw = 0;
     accl_mock_subplugin::seen_hw = ACCL_NONE;
     accl_mock_subplugin::event_ret = 0;
+    accl_mock_subplugin::basic_hw = ACCL_CPU;
     accl_mock_subplugin::init ();
     accl_cpu_mock_subplugin::init ();
+    accl_neon_mock_subplugin::neon_num_hw = 2;
+    accl_neon_mock_subplugin::init ();
+    fake_neon_ret = 0;
+    fake_neon_calls = 0;
 
     gst_tensor_filter_common_init_property (&priv);
   }
@@ -1283,8 +1389,10 @@ class testFilterAccelerator : public ::testing::Test
   {
     gst_tensor_filter_common_close_fw (&priv);
     gst_tensor_filter_common_free_property (&priv);
+    accl_neon_mock_subplugin::fini ();
     accl_cpu_mock_subplugin::fini ();
     accl_mock_subplugin::fini ();
+    fake_neon_ret = 0;
 
     g_free (accl_mock_subplugin::seen_accl_str);
     accl_mock_subplugin::seen_accl_str = nullptr;
@@ -1303,6 +1411,19 @@ class testFilterAccelerator : public ::testing::Test
     g_value_set_string (&value, str);
     EXPECT_TRUE (gst_tensor_filter_common_set_property (&priv, prop_id, &value, NULL));
     g_value_unset (&value);
+  }
+
+  /**
+   * @brief Check that the NEON check of libnnstreamer is replaced in this build.
+   * @return true if cpu_neon_accel_available () of this test is called.
+   */
+  bool neonReplaced ()
+  {
+    const gchar *probe_list[] = { ACCL_CPU_NEON_STR, NULL };
+
+    fake_neon_calls = 0;
+    parse_accl_hw ("true", probe_list, NULL, NULL);
+    return fake_neon_calls > 0;
   }
 
   /**
@@ -1326,6 +1447,7 @@ class testFilterAccelerator : public ::testing::Test
 /**
  * @brief A V1 sub-plugin opened after "framework=... accelerator=..." gets the
  *        string the pipeline set, as a V0 sub-plugin does, and the parsed list.
+ *        The string is read back as it was set.
  */
 TEST_F (testFilterAccelerator, afterFramework)
 {
@@ -1342,7 +1464,7 @@ TEST_F (testFilterAccelerator, afterFramework)
   EXPECT_EQ (priv.prop.hw_list[1], ACCL_GPU);
 
   read = getAccelerator ();
-  EXPECT_STREQ (read, "npu.edgetpugpu");
+  EXPECT_STREQ (read, "true:npu.edgetpu,gpu");
 }
 
 /**
@@ -1361,7 +1483,7 @@ TEST_F (testFilterAccelerator, beforeFramework)
   EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_NPU_EDGE_TPU);
 
   read = getAccelerator ();
-  EXPECT_STREQ (read, "npu.edgetpugpu");
+  EXPECT_STREQ (read, "true:npu.edgetpu,gpu");
 }
 
 /**
@@ -1415,7 +1537,7 @@ TEST_F (testFilterAccelerator, frameworkV1ToV0)
 }
 
 /**
- * @brief "false" set after a V1 framework disables the acceleration and is kept as it was set.
+ * @brief "false" set after a V1 framework disables the acceleration and is read back as it was set.
  */
 TEST_F (testFilterAccelerator, disabledAfterFramework)
 {
@@ -1430,7 +1552,7 @@ TEST_F (testFilterAccelerator, disabledAfterFramework)
   EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_NONE);
 
   read = getAccelerator ();
-  EXPECT_STREQ (read, "none");
+  EXPECT_STREQ (read, "false");
 }
 
 /**
@@ -1448,20 +1570,33 @@ TEST_F (testFilterAccelerator, unsupportedAfterFramework_n)
 }
 
 /**
- * @brief An opened V1 framework refusing a new accelerator keeps the one it was opened with.
+ * @brief An opened V1 framework refusing a new accelerator keeps the one it
+ *        was opened with, and the refusal is logged as V0 logs it.
  */
 TEST_F (testFilterAccelerator, changeRefusedWhileOpened_n)
 {
+  g_autofree gchar *read = NULL;
+
   setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
   setString (PROP_ACCELERATOR, "true:gpu");
   ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
 
   accl_mock_subplugin::event_ret = -ENOENT;
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  guint critical_count;
+  guint handler = _start_accl_critical_count (&critical_count);
+#endif
   setString (PROP_ACCELERATOR, "true:npu.edgetpu");
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (critical_count, 1U);
+#endif
 
   EXPECT_STREQ (priv.prop.accl_str, "true:gpu");
   ASSERT_EQ (priv.prop.num_hw, 1);
   EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:gpu");
 }
 
 /**
@@ -1469,15 +1604,27 @@ TEST_F (testFilterAccelerator, changeRefusedWhileOpened_n)
  */
 TEST_F (testFilterAccelerator, changeWhileOpened)
 {
+  g_autofree gchar *read = NULL;
+
   setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
   setString (PROP_ACCELERATOR, "true:gpu");
   ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
 
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  guint critical_count;
+  guint handler = _start_accl_critical_count (&critical_count);
+#endif
   setString (PROP_ACCELERATOR, "true:npu.edgetpu");
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (critical_count, 0U);
+#endif
 
   EXPECT_STREQ (priv.prop.accl_str, "true:npu.edgetpu");
   ASSERT_EQ (priv.prop.num_hw, 1);
   EXPECT_EQ (priv.prop.hw_list[0], ACCL_NPU_EDGE_TPU);
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:npu.edgetpu");
 }
 
 /**
@@ -1499,6 +1646,170 @@ TEST_F (testFilterAccelerator, frameworkV1ToV1)
   EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:gpu");
   EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 1);
   EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_GPU);
+}
+
+/**
+ * @brief A V1 framework leaving auto and default at -1 gets the first accelerator it lists for them.
+ */
+TEST_F (testFilterAccelerator, basicUnsetFirstHw)
+{
+  accl_mock_subplugin::basic_hw = (accl_hw) -1;
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+
+  setString (PROP_ACCELERATOR, "true:auto");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU);
+
+  setString (PROP_ACCELERATOR, "true:default");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU);
+}
+
+/**
+ * @brief The value read back from a V1 framework can be set again and gives the same accelerators.
+ */
+TEST_F (testFilterAccelerator, readBackSetAgain)
+{
+  g_autofree gchar *read = NULL;
+  g_autofree gchar *read_again = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:!npu.edgetpu,gpu,cpu");
+  ASSERT_EQ (priv.prop.num_hw, 2);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+  EXPECT_EQ (priv.prop.hw_list[1], ACCL_CPU);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:!npu.edgetpu,gpu,cpu");
+  setString (PROP_ACCELERATOR, read);
+  ASSERT_EQ (priv.prop.num_hw, 2);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+  EXPECT_EQ (priv.prop.hw_list[1], ACCL_CPU);
+
+  read_again = getAccelerator ();
+  EXPECT_STREQ (read_again, read);
+}
+
+/**
+ * @brief A V1 framework with no accelerator set reads back an empty string, as a V0 one does.
+ */
+TEST_F (testFilterAccelerator, notSetV1)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+  EXPECT_EQ (priv.prop.num_hw, 0);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "");
+}
+
+/**
+ * @brief A V1 framework keeps NEON for auto and default on a device with NEON.
+ */
+TEST_F (testFilterAccelerator, neonAvailable)
+{
+  g_autofree gchar *neon_gpu
+      = g_strdup_printf ("true:%s,gpu", get_accl_hw_str (ACCL_CPU_NEON));
+
+  if (!neonReplaced ())
+    GTEST_SKIP () << "cpu_neon_accel_available () cannot be replaced in this build.";
+
+  setString (PROP_FRAMEWORK, accl_neon_mock_subplugin::neon_mock_name);
+  setString (PROP_ACCELERATOR, "true:auto");
+
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU_NEON);
+
+  setString (PROP_ACCELERATOR, "true:default");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU_NEON);
+
+  setString (PROP_ACCELERATOR, neon_gpu);
+  ASSERT_EQ (priv.prop.num_hw, 2);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU_NEON);
+  EXPECT_EQ (priv.prop.hw_list[1], ACCL_GPU);
+}
+
+/**
+ * @brief A V1 framework drops NEON on a device without NEON, so auto and
+ *        default fall back on its next accelerator.
+ */
+TEST_F (testFilterAccelerator, neonUnavailable_n)
+{
+  g_autofree gchar *neon_gpu
+      = g_strdup_printf ("true:%s,gpu", get_accl_hw_str (ACCL_CPU_NEON));
+
+  if (!neonReplaced ())
+    GTEST_SKIP () << "cpu_neon_accel_available () cannot be replaced in this build.";
+
+  fake_neon_ret = -EINVAL;
+  setString (PROP_FRAMEWORK, accl_neon_mock_subplugin::neon_mock_name);
+  setString (PROP_ACCELERATOR, "true:auto");
+
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  setString (PROP_ACCELERATOR, "true:default");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  setString (PROP_ACCELERATOR, "true:gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  setString (PROP_ACCELERATOR, "true:cpu.neon,gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  setString (PROP_ACCELERATOR, "true:cpu.neon");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  /* NEON by the name of this architecture (cpu.simd on non-ARM) */
+  setString (PROP_ACCELERATOR, neon_gpu);
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+}
+
+/**
+ * @brief A V1 framework supporting NEON only gets no acceleration on a device without NEON.
+ */
+TEST_F (testFilterAccelerator, neonOnlyUnavailable_n)
+{
+  if (!neonReplaced ())
+    GTEST_SKIP () << "cpu_neon_accel_available () cannot be replaced in this build.";
+
+  fake_neon_ret = -EINVAL;
+  accl_neon_mock_subplugin::neon_num_hw = 1;
+  setString (PROP_FRAMEWORK, accl_neon_mock_subplugin::neon_mock_name);
+  setString (PROP_ACCELERATOR, "true:auto");
+
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_NONE);
+}
+
+/**
+ * @brief V0 and V1 frameworks listing the same accelerators resolve "auto" to
+ *        the same one on a device without NEON.
+ */
+TEST_F (testFilterAccelerator, neonUnavailableSameAsV0_n)
+{
+  const gchar *v0_hw_list[] = { ACCL_CPU_NEON_STR, ACCL_GPU_STR, NULL };
+  accl_hw v0_hw;
+
+  if (!neonReplaced ())
+    GTEST_SKIP () << "cpu_neon_accel_available () cannot be replaced in this build.";
+
+  fake_neon_ret = -EINVAL;
+  v0_hw = parse_accl_hw ("true:auto", v0_hw_list, ACCL_CPU_NEON_STR, ACCL_CPU_NEON_STR);
+  setString (PROP_FRAMEWORK, accl_neon_mock_subplugin::neon_mock_name);
+  setString (PROP_ACCELERATOR, "true:auto");
+
+  EXPECT_EQ (v0_hw, ACCL_GPU);
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], v0_hw);
 }
 
 /**
