@@ -1126,6 +1126,382 @@ TEST (testFilterProperties, combinationInvalidIndex_n)
 }
 
 /**
+ * @brief V1 C++ sub-plugin recording the accelerator it is opened with.
+ */
+class accl_mock_subplugin : public nnstreamer::tensor_filter_subplugin
+{
+  public:
+  static const char *mock_name;
+  static accl_mock_subplugin *registered;
+  static const accl_hw hw_list[];
+  static gchar *seen_accl_str;
+  static gint seen_num_hw;
+  static accl_hw seen_hw;
+  static int event_ret;
+
+  /** @brief mandatory method */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new accl_mock_subplugin ());
+  }
+
+  /** @brief record the accelerator given on open */
+  void configure_instance (const GstTensorFilterProperties *prop) override
+  {
+    g_free (seen_accl_str);
+    seen_accl_str = g_strdup (prop->accl_str);
+    seen_num_hw = prop->num_hw;
+    seen_hw = (prop->num_hw > 0) ? prop->hw_list[0] : ACCL_NONE;
+  }
+
+  /** @brief mandatory method */
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output) override
+  {
+    UNUSED (input);
+    UNUSED (output);
+  }
+
+  /** @brief mandatory method */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    info.name = mock_name;
+    info.allow_in_place = FALSE;
+    info.allocate_in_invoke = FALSE;
+    info.run_without_model = TRUE;
+    info.verify_model_path = FALSE;
+    info.hw_list = hw_list;
+    info.num_hw = 3;
+    info.accl_auto = ACCL_CPU;
+    info.accl_default = ACCL_CPU;
+  }
+
+  /** @brief mandatory method */
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info) override
+  {
+    UNUSED (ops);
+    UNUSED (in_info);
+    UNUSED (out_info);
+    return -ENOENT;
+  }
+
+  /** @brief report what the test asks for */
+  int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data) override
+  {
+    UNUSED (ops);
+    UNUSED (data);
+    return event_ret;
+  }
+
+  /** @brief register this mock subplugin */
+  static void init ()
+  {
+    registered = register_subplugin<accl_mock_subplugin> ();
+  }
+
+  /** @brief unregister this mock subplugin */
+  static void fini ()
+  {
+    unregister_subplugin<accl_mock_subplugin> (registered);
+    registered = nullptr;
+  }
+};
+
+const char *accl_mock_subplugin::mock_name = "accl_mock_subplugin";
+accl_mock_subplugin *accl_mock_subplugin::registered = nullptr;
+const accl_hw accl_mock_subplugin::hw_list[] = { ACCL_CPU, ACCL_GPU, ACCL_NPU_EDGE_TPU };
+gchar *accl_mock_subplugin::seen_accl_str = nullptr;
+gint accl_mock_subplugin::seen_num_hw = 0;
+accl_hw accl_mock_subplugin::seen_hw = ACCL_NONE;
+int accl_mock_subplugin::event_ret = 0;
+
+/**
+ * @brief V1 C++ sub-plugin supporting the CPU only.
+ */
+class accl_cpu_mock_subplugin : public accl_mock_subplugin
+{
+  public:
+  static const char *cpu_mock_name;
+  static accl_cpu_mock_subplugin *cpu_registered;
+  static const accl_hw cpu_hw_list[];
+
+  /** @brief mandatory method */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new accl_cpu_mock_subplugin ());
+  }
+
+  /** @brief list the CPU only */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    accl_mock_subplugin::getFrameworkInfo (info);
+    info.name = cpu_mock_name;
+    info.hw_list = cpu_hw_list;
+    info.num_hw = 1;
+  }
+
+  /** @brief register this mock subplugin */
+  static void init ()
+  {
+    cpu_registered = register_subplugin<accl_cpu_mock_subplugin> ();
+  }
+
+  /** @brief unregister this mock subplugin */
+  static void fini ()
+  {
+    unregister_subplugin<accl_cpu_mock_subplugin> (cpu_registered);
+    cpu_registered = nullptr;
+  }
+};
+
+const char *accl_cpu_mock_subplugin::cpu_mock_name = "accl_cpu_mock_subplugin";
+accl_cpu_mock_subplugin *accl_cpu_mock_subplugin::cpu_registered = nullptr;
+const accl_hw accl_cpu_mock_subplugin::cpu_hw_list[] = { ACCL_CPU };
+
+/**
+ * @brief Test fixture setting the accelerator property of a filter the way a pipeline description does.
+ */
+class testFilterAccelerator : public ::testing::Test
+{
+  protected:
+  GstTensorFilterPrivate priv;
+
+  /** @brief register the V1 mocks */
+  void SetUp () override
+  {
+    accl_mock_subplugin::seen_accl_str = nullptr;
+    accl_mock_subplugin::seen_num_hw = 0;
+    accl_mock_subplugin::seen_hw = ACCL_NONE;
+    accl_mock_subplugin::event_ret = 0;
+    accl_mock_subplugin::init ();
+    accl_cpu_mock_subplugin::init ();
+
+    gst_tensor_filter_common_init_property (&priv);
+  }
+
+  /** @brief close the filter and unregister the mocks */
+  void TearDown () override
+  {
+    gst_tensor_filter_common_close_fw (&priv);
+    gst_tensor_filter_common_free_property (&priv);
+    accl_cpu_mock_subplugin::fini ();
+    accl_mock_subplugin::fini ();
+
+    g_free (accl_mock_subplugin::seen_accl_str);
+    accl_mock_subplugin::seen_accl_str = nullptr;
+  }
+
+  /**
+   * @brief Set a string property of the filter.
+   * @param prop_id the property to set
+   * @param str the value of the property
+   */
+  void setString (guint prop_id, const gchar *str)
+  {
+    GValue value = G_VALUE_INIT;
+
+    g_value_init (&value, G_TYPE_STRING);
+    g_value_set_string (&value, str);
+    EXPECT_TRUE (gst_tensor_filter_common_set_property (&priv, prop_id, &value, NULL));
+    g_value_unset (&value);
+  }
+
+  /**
+   * @brief Read the accelerator property of the filter back.
+   * @return the value of the property. Free it with g_free().
+   */
+  gchar *getAccelerator ()
+  {
+    GValue value = G_VALUE_INIT;
+    gchar *str;
+
+    g_value_init (&value, G_TYPE_STRING);
+    EXPECT_TRUE (gst_tensor_filter_common_get_property (&priv, PROP_ACCELERATOR, &value, NULL));
+    str = g_value_dup_string (&value);
+    g_value_unset (&value);
+
+    return str;
+  }
+};
+
+/**
+ * @brief A V1 sub-plugin opened after "framework=... accelerator=..." gets the
+ *        string the pipeline set, as a V0 sub-plugin does, and the parsed list.
+ */
+TEST_F (testFilterAccelerator, afterFramework)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu,gpu");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:npu.edgetpu,gpu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 2);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_NPU_EDGE_TPU);
+  ASSERT_EQ (priv.prop.num_hw, 2);
+  EXPECT_EQ (priv.prop.hw_list[1], ACCL_GPU);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "npu.edgetpugpu");
+}
+
+/**
+ * @brief A V1 sub-plugin gets the same accelerator when the pipeline sets it before the framework.
+ */
+TEST_F (testFilterAccelerator, beforeFramework)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu,gpu");
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:npu.edgetpu,gpu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 2);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_NPU_EDGE_TPU);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "npu.edgetpugpu");
+}
+
+/**
+ * @brief The string set after a V0 framework is kept and read back as it was set.
+ */
+TEST_F (testFilterAccelerator, afterFrameworkV0)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, "custom");
+  ASSERT_TRUE (priv.fw != NULL && GST_TF_FW_V0 (priv.fw));
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu,gpu");
+
+  EXPECT_STREQ (priv.prop.accl_str, "true:npu.edgetpu,gpu");
+  EXPECT_EQ (priv.prop.num_hw, 0);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:npu.edgetpu,gpu");
+}
+
+/**
+ * @brief Replacing a V0 framework with a V1 one keeps the accelerator set after the V0 one.
+ */
+TEST_F (testFilterAccelerator, frameworkV0ToV1)
+{
+  setString (PROP_FRAMEWORK, "custom");
+  setString (PROP_ACCELERATOR, "true:gpu");
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:gpu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 1);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_GPU);
+}
+
+/**
+ * @brief Replacing a V1 framework with a V0 one keeps the accelerator set after the V1 one.
+ */
+TEST_F (testFilterAccelerator, frameworkV1ToV0)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:gpu");
+  setString (PROP_FRAMEWORK, "custom");
+  ASSERT_TRUE (priv.fw != NULL && GST_TF_FW_V0 (priv.fw));
+
+  EXPECT_STREQ (priv.prop.accl_str, "true:gpu");
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:gpu");
+}
+
+/**
+ * @brief "false" set after a V1 framework disables the acceleration and is kept as it was set.
+ */
+TEST_F (testFilterAccelerator, disabledAfterFramework)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "false");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "false");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 1);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_NONE);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "none");
+}
+
+/**
+ * @brief An accelerator the V1 framework does not support falls back on its auto accelerator.
+ */
+TEST_F (testFilterAccelerator, unsupportedAfterFramework_n)
+{
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:npu");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:npu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 1);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_CPU);
+}
+
+/**
+ * @brief An opened V1 framework refusing a new accelerator keeps the one it was opened with.
+ */
+TEST_F (testFilterAccelerator, changeRefusedWhileOpened_n)
+{
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:gpu");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  accl_mock_subplugin::event_ret = -ENOENT;
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu");
+
+  EXPECT_STREQ (priv.prop.accl_str, "true:gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+}
+
+/**
+ * @brief An opened V1 framework taking a new accelerator keeps the string it was parsed from.
+ */
+TEST_F (testFilterAccelerator, changeWhileOpened)
+{
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:gpu");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu");
+
+  EXPECT_STREQ (priv.prop.accl_str, "true:npu.edgetpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_NPU_EDGE_TPU);
+}
+
+/**
+ * @brief Replacing a V1 framework with another V1 one parses the accelerator again for the new one.
+ */
+TEST_F (testFilterAccelerator, frameworkV1ToV1)
+{
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+
+  setString (PROP_FRAMEWORK, accl_cpu_mock_subplugin::cpu_mock_name);
+  EXPECT_STREQ (priv.prop.accl_str, "true:gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU);
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:gpu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 1);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_GPU);
+}
+
+/**
  * @brief Main gtest
  */
 int
