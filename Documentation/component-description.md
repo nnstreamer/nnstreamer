@@ -54,7 +54,7 @@ In this page, we focus on the status of each elements. For requirements and desi
       - For tensorflow-lite version 2.x, use ```tensorflow2-lite``` as the subplugin name, which allows to use both tensorflow-lite 1.x and 2.x simultaneously in a pipeline.
   - LiteRT (new) (2.2.0 tested)
       - Targets the LiteRT 2.x CompiledModel API (the successor of tensorflow-lite); use ```litert``` as the subplugin name. It may coexist with ```tensorflow2-lite``` (classic Interpreter API) in a pipeline.
-  - Caffe2 (stable)
+  - Caffe2 (deprecated, to be removed. Use PyTorch or ONNX Runtime)
   - PyTorch (stable)
   - TVM (stable)
   - NNTrainer (stable. **maintained by its own community**)

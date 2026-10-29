@@ -25,6 +25,10 @@ You can insert model files and their frameworks in a nnstreamer pipeline with th
 
 ### Armnn
 ### Caffe2
+- subplugin name: 'caffe2'
+
+This subplugin is deprecated and will be removed in a future release (#4425). Caffe2 is merged into PyTorch upstream, and current PyTorch releases no longer ship it; use the ```pytorch``` or ```onnxruntime``` subplugin instead. Opening a model with it logs a deprecation warning. If you still depend on it, please comment on #4425.
+
 ### Pytorch
 ### Tensorflow
 ### Tensorflow-lite

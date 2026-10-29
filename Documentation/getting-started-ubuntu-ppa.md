@@ -37,7 +37,7 @@ the PPA carries no build of those frameworks for them.
 
 ### Additional plugins available
 
-* nnstreamer-caffe2 : Allows to use caffe2 models in a pipeline. (From pytorch 1.3.1 by default. Needs the PPA's `pytorch` package, which is not built for 24.04 or later.)
+* nnstreamer-caffe2 : Allows to use caffe2 models in a pipeline. (From pytorch 1.3.1 by default. Needs the PPA's `pytorch` package, which is not built for 24.04 or later. Deprecated: the caffe2 subplugin will be removed in a future release; use nnstreamer-pytorch or nnstreamer-onnxruntime instead.)
 * nnstreamer-cpp : Allows to use C++ classes as filters of a pipeline.
 * nnstreamer-cpp-dev : Required to build C++ class-filters.
 * nnstreamer-dev : Required to build C function-filters and to build your own nnstreamer plugins.
