@@ -14406,18 +14406,21 @@ TEST (testTensorCrop, cropRegionPartiallyOutOfFrame)
   const guint expected0[] = { 4U, 5U, 6U };
   const guint expected1[] = { 22U, 23U, 32U, 33U };
   const guint regions[] = {
+    /* usable */
     3U,
     0U,
     3U,
-    1U, /* usable */
+    1U,
+    /* starts past the right edge of the 10-wide frame */
     10U,
     0U,
     2U,
-    1U, /* starts past the right edge of the 10-wide frame */
+    1U,
+    /* usable */
     1U,
     2U,
     2U,
-    2U, /* usable */
+    2U,
   };
   GstBuffer *out_buf;
   guint i, j;
