@@ -96,6 +96,10 @@ endif
 
 tflite_ver_dep = disabler()
 if tflite_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for TensorFlow Lite 1.')
+  endif
+
   tflite_ver = tflite_support_deps[0].version()
   tflite_ver_major = tflite_ver.split('.')[0]
   tflite_ver_minor = tflite_ver.split('.')[1]
@@ -168,6 +172,10 @@ endif
 
 tflite2_ver_dep = disabler()
 if tflite2_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for TensorFlow Lite 2.')
+  endif
+
   tflite2_ver = tflite2_support_deps[0].version()
   tflite2_ver_major = tflite2_ver.split('.')[0]
   tflite2_ver_minor = tflite2_ver.split('.')[1]

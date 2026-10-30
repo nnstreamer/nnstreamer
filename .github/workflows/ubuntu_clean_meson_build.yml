@@ -395,6 +395,9 @@ jobs:
         sudo apt-get install -y tensorflow2-lite-dev
         meson setup --reconfigure build/
         meson compile -C build/
+        # The tflite example below needs the sub-plugin; fail here if the
+        # auto-detected build stopped producing it.
+        test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_tensorflow2-lite.so
         echo "::endgroup::"
         export GST_PLUGIN_PATH=$(pwd)/build/gst/nnstreamer
         currentpath=$(pwd)

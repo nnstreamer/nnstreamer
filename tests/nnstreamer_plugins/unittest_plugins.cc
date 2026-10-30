@@ -11235,6 +11235,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite01)
 
 /**
  * @brief Test to re-open tf-lite model file directly with nnfw struct.
+ * @note Every open of a v1 sub-plugin gives a separate instance.
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite02)
 {
@@ -11242,6 +11243,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite02)
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   GstTensorFilterProperties *prop = NULL;
   gpointer private_data = NULL;
+  gpointer private_data2 = NULL;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model;
@@ -11274,9 +11276,11 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite02)
   EXPECT_TRUE (fw->open (prop, &private_data) == 0);
 
   /* re-open tf-lite model */
-  EXPECT_TRUE (fw->open (prop, &private_data) > 0);
+  EXPECT_TRUE (fw->open (prop, &private_data2) == 0);
+  EXPECT_TRUE (private_data2 != NULL && private_data2 != private_data);
 
   /* close tf-lite model */
+  fw->close (prop, &private_data2);
   fw->close (prop, &private_data);
 
   g_free (prop);
@@ -11675,6 +11679,22 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSetProperty)
 }
 
 /**
+ * @brief Reload the model files in prop the way tensor_filter does.
+ */
+static int
+_reload_model (const GstTensorFilterFramework *fw,
+    GstTensorFilterProperties *prop, gpointer private_data)
+{
+  GstTensorFilterFrameworkEventData data;
+
+  memset (&data, 0, sizeof (data));
+  data.model_files = prop->model_files;
+  data.num_models = prop->num_models;
+
+  return fw->eventHandler (fw, prop, private_data, RELOAD_MODEL, &data);
+}
+
+/**
  * @brief Test to reload tf-lite; model does not exist (negative)
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelNotFound_n)
@@ -11688,7 +11708,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelNotFound_n)
   gchar *test_model;
 
   /* Check if mandatory methods are contained */
-  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->eventHandler);
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -11721,7 +11741,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelNotFound_n)
   ((gchar **) model_files)[0] = test_model; /* remove const for the test */
 
   /* reload tf-lite model */
-  EXPECT_TRUE (fw->reloadModel (prop, &private_data) == 0);
+  EXPECT_TRUE (_reload_model (fw, prop, private_data) == 0);
 
   g_free (test_model);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
@@ -11729,7 +11749,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelNotFound_n)
   ((gchar **) model_files)[0] = test_model; /* remove const for the test */
 
   /* reload tf-lite model which does not exist */
-  EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
+  EXPECT_FALSE (_reload_model (fw, prop, private_data) == 0);
 
   /* close tf-lite model */
   fw->close (prop, &private_data);
@@ -11752,7 +11772,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelWrongDims_n)
   gchar *test_model;
 
   /* Check if mandatory methods are contained */
-  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->eventHandler);
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -11785,7 +11805,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelWrongDims_n)
   ((gchar **) model_files)[0] = test_model; /* remove const for the test */
 
   /* reload tf-lite model with unmatched dims */
-  EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
+  EXPECT_FALSE (_reload_model (fw, prop, private_data) == 0);
 
   /* close tf-lite model */
   fw->close (prop, &private_data);
@@ -11809,7 +11829,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSameModelNotFound_n)
   gchar *test_model_renamed;
 
   /* Check if mandatory methods are contained */
-  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->eventHandler);
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -11839,13 +11859,13 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSameModelNotFound_n)
   EXPECT_TRUE (fw->open (prop, &private_data) == 0);
 
   /* reload tf-lite model again */
-  EXPECT_TRUE (fw->reloadModel (prop, &private_data) == 0);
+  EXPECT_TRUE (_reload_model (fw, prop, private_data) == 0);
 
   /* rename the model */
   ASSERT_TRUE (g_rename (test_model, test_model_renamed) == 0);
 
   /* reload tf-lite model which does not exist */
-  EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
+  EXPECT_FALSE (_reload_model (fw, prop, private_data) == 0);
 
   /* test model rollback */
   ASSERT_TRUE (g_rename (test_model_renamed, test_model) == 0);
@@ -11874,7 +11894,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSameModelWrongDims_n)
   gchar *test_model_renamed;
 
   /* Check if mandatory methods are contained */
-  ASSERT_TRUE (fw && fw->open && fw->close && fw->reloadModel);
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->eventHandler);
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -11906,14 +11926,14 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSameModelWrongDims_n)
   EXPECT_TRUE (fw->open (prop, &private_data) == 0);
 
   /* reload tf-lite model again */
-  EXPECT_TRUE (fw->reloadModel (prop, &private_data) == 0);
+  EXPECT_TRUE (_reload_model (fw, prop, private_data) == 0);
 
   /* rename the model */
   ASSERT_TRUE (g_rename (test_model, test_model_backup) == 0);
   ASSERT_TRUE (g_rename (test_model_renamed, test_model) == 0);
 
   /* reload tf-lite model with unmatched dims */
-  EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
+  EXPECT_FALSE (_reload_model (fw, prop, private_data) == 0);
 
   /* test model rollback */
   ASSERT_TRUE (g_rename (test_model, test_model_renamed) == 0);
@@ -14367,11 +14387,8 @@ TEST (testTensorCrop, cropRegionPartiallyOutOfFrame)
   crop_test_data_s crop_test;
   const guint expected0[] = { 4U, 5U, 6U };
   const guint expected1[] = { 22U, 23U, 32U, 33U };
-  const guint regions[] = {
-    3U, 0U, 3U, 1U, /* usable */
-    10U, 0U, 2U, 1U, /* starts past the right edge of the 10-wide frame */
-    1U, 2U, 2U, 2U, /* usable */
-  };
+  /* the second region starts past the right edge of the 10-wide frame */
+  const guint regions[] = { 3U, 0U, 3U, 1U, 10U, 0U, 2U, 1U, 1U, 2U, 2U, 2U };
   GstBuffer *out_buf;
   guint i, j;
 
