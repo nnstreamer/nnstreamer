@@ -12,7 +12,7 @@ on:
 
 jobs:
   simple_script_checkers:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: Static checks
     steps:
       - name: Preparing step 1... Checking out
