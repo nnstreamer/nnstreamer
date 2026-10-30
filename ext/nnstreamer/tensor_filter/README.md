@@ -76,7 +76,24 @@ A model with any other type at its boundary (```BFloat16```, ```UInt16``` and wi
 ### ExecuTorch Llama
 - subplugin name: 'executorch-llama'
 
-This subplugin generates text with a language model exported to ExecuTorch, through the ExecuTorch LLM runner (```TextLLMRunner```). Give exactly the model and its tokenizer (tiktoken, sentencepiece, Hugging Face ```tokenizer.json``` or llama2.c) as ```model=model.pte,tokenizer.model``` and set ```invoke-dynamic=true```. Each input buffer is a prompt, generated from the beginning; the output is a flexible uint8 tensor holding the prompt followed by the generated text, which ends with the text of the end-of-sequence token (e.g., ```<|end_of_text|>```) when that token stopped the generation. Tokens are sampled at temperature 0.8 until an end-of-sequence token, or until the prompt and the text reach 128 tokens; for a model whose ```get_max_seq_len``` is below its ```get_max_context_len```, the runner applies the 128 to the generated text alone. A prompt that leaves no room to generate is an error. The runner also prints the text it generates and a statistics report for each buffer on the standard output.
+This subplugin generates text with a language model exported to ExecuTorch, through the ExecuTorch LLM runner (```TextLLMRunner```). Give exactly the model and its tokenizer (tiktoken, sentencepiece, Hugging Face ```tokenizer.json``` or llama2.c) as ```model=model.pte,tokenizer.model``` and set ```invoke-dynamic=true```. Each input buffer is a prompt, generated from the beginning; the output is a flexible uint8 tensor holding the prompt followed by the generated text. The text of the end-of-sequence tokens (e.g., ```<|end_of_text|>```, or those the model's ```get_eos_ids``` lists) is left out of the generated text unless ```keep_eos``` is set. By default, tokens are sampled at temperature 0.8 until an end-of-sequence token, or until the prompt and the text reach 128 tokens; for a model whose ```get_max_seq_len``` is below its ```get_max_context_len```, the runner applies the 128 to the generated text alone. A prompt that leaves no room to generate is an error, and so is a buffer with no text left to output (possible only with ```echo:false```). The runner also prints the text it generates and a statistics report for each buffer on the standard output.
+
+The generation is configured with ```custom=key:value,key:value,...```, using the names of the runner's ```GenerationConfig```. Keys are case-insensitive. An unknown key or an invalid value fails to open the filter.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| ```max_new_tokens``` | -1 | The most tokens to generate; -1 for no limit of its own. |
+| ```seq_len``` | 128 | The most tokens of the prompt and the generated text together; -1 for the model's ```get_max_context_len```. |
+| ```temperature``` | 0.8 | Sampling temperature, from 0 to 1; 0 always picks the most likely token. |
+| ```echo``` | true | Output the prompt in front of the generated text. |
+| ```ignore_eos``` | false | Go on generating past an end-of-sequence token, up to the limits above. |
+| ```keep_eos``` | false | Keep the text of the end-of-sequence tokens in the output. |
+| ```num_bos``` | 0 | Beginning-of-sequence tokens to put in front of the prompt, up to 127. |
+| ```num_eos``` | 0 | End-of-sequence tokens to put after the prompt, up to 127. |
+
+Both limits apply when both are given, and the model's context always does.
+
+With ```invoke-async=true```, the text is streamed instead: the prompt (when echoed) and the text of each generated token go out as output buffers of their own, as they are generated; the prompt goes out together with the first generated text, i.e., only once the prompt has been processed. A token's text is what the tokenizer decodes for it, so a character of several UTF-8 bytes may be split across buffers. The prompts are queued and generated in order by a thread of the filter; the queue has no bound, so prompts that come faster than they are generated pile up in memory. The invoke for each input buffer outputs an empty buffer of its own (#5161). The size of each piece reaches ```tensor_filter``` only through its shared output information, which its streaming thread reads without a lock, so this mode has a data race until the core changes (#5172). A prompt that the runner refuses, e.g. one that leaves no room to generate, is logged and outputs nothing; a failure later on keeps what has been output. Closing the filter stops the generation in progress after its current token and drops the prompts still queued.
 
 It needs ExecuTorch built with the LLM runner, which ```tools/executorch-install.sh``` does, and the ```executorch-llama-support``` meson option.
 

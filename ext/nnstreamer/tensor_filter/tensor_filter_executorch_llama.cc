@@ -17,15 +17,23 @@
  *          application/octet-stream ! filesink location=result.txt
  */
 
+#include <algorithm>
+#include <atomic>
+#include <condition_variable>
 #include <glib.h>
+#include <mutex>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
+#include <queue>
+#include <thread>
+#include <unordered_set>
 #include <vector>
 
 #include <executorch/extension/llm/runner/llm_runner_helper.h>
 #include <executorch/extension/llm/runner/text_llm_runner.h>
+#include <executorch/extension/module/module.h>
 
 namespace llm = ::executorch::extension::llm;
 using ::executorch::runtime::Error;
@@ -55,15 +63,29 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
 
   /* executorch */
   std::unique_ptr<llm::TextLLMRunner> runner; /**< Runner for Llama model */
+  std::unordered_set<std::string> eos_texts; /**< Text of the tokens that end generation */
+  llm::GenerationConfig config; /**< Generation options of the custom property */
+  bool keep_eos = false; /**< Keep the text of the end-of-sequence tokens */
+
+  /* invoke-async */
+  std::thread worker; /**< Generates the queued prompts */
+  std::mutex queue_lock; /**< Guards prompts */
+  std::condition_variable queue_cond; /**< Signals a queued prompt or stopping */
+  std::queue<std::pair<GstTensorFilterProperties *, std::string>> prompts; /**< Prompts waiting for the worker */
+  std::atomic<bool> stopping{ false }; /**< The instance is being closed */
+
+  void parseCustomProperties (const char *custom);
+  std::string generate (GstTensorFilterProperties *prop, const std::string &prompt);
+  void dispatchPiece (GstTensorFilterProperties *prop, const std::string &piece);
+  void workerLoop ();
 
   public:
   static void init_filter_executorch_llama ();
   static void fini_filter_executorch_llama ();
 
   /** @brief Construct an unconfigured subplugin instance */
-  executorch_llama_subplugin (){};
-  /** @brief Destruct the instance, releasing the Llama runner */
-  ~executorch_llama_subplugin (){};
+  executorch_llama_subplugin () = default;
+  ~executorch_llama_subplugin ();
 
   tensor_filter_subplugin &getEmptyInstance () override;
   void configure_instance (const GstTensorFilterProperties *prop) override;
@@ -79,12 +101,121 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
 const char *executorch_llama_subplugin::fw_name = "executorch-llama";
 
 /**
+ * @brief Destruct the instance, releasing the Llama runner. The generation in
+ *        progress is stopped and the prompts still queued are dropped.
+ */
+executorch_llama_subplugin::~executorch_llama_subplugin ()
+{
+  {
+    std::lock_guard<std::mutex> lock (queue_lock);
+    stopping = true;
+  }
+  queue_cond.notify_one ();
+  if (worker.joinable ())
+    worker.join ();
+}
+
+/**
  * @brief Method to get empty object.
  */
 tensor_filter_subplugin &
 executorch_llama_subplugin::getEmptyInstance ()
 {
   return *(new executorch_llama_subplugin ());
+}
+
+/**
+ * @brief Parse an integer option value within [min, max].
+ */
+static int32_t
+parse_int_option (const gchar *key, const gchar *value, gint64 min, gint64 max)
+{
+  gint64 parsed;
+
+  if (!g_ascii_string_to_signed (value, 10, min, max, &parsed, NULL))
+    throw std::invalid_argument (
+        std::string ("Invalid value of ") + key + ": '" + value + "'");
+
+  return (int32_t) parsed;
+}
+
+/**
+ * @brief Parse a boolean option value, "true" or "false".
+ */
+static bool
+parse_bool_option (const gchar *key, const gchar *value)
+{
+  if (g_ascii_strcasecmp (value, "true") == 0)
+    return true;
+  if (g_ascii_strcasecmp (value, "false") == 0)
+    return false;
+
+  throw std::invalid_argument (std::string ("Invalid value of ") + key + ": '"
+                               + value + "', true or false is expected");
+}
+
+/**
+ * @brief Parse the custom property, "key:value" options separated by commas.
+ */
+void
+executorch_llama_subplugin::parseCustomProperties (const char *custom)
+{
+  g_auto (GStrv) options = NULL;
+  guint i;
+
+  if (!custom)
+    return;
+
+  options = g_strsplit (custom, ",", -1);
+  for (i = 0; options[i]; i++) {
+    g_auto (GStrv) option = NULL;
+    g_autofree gchar *key = NULL;
+    gchar *value;
+
+    if (*g_strstrip (options[i]) == '\0')
+      continue;
+
+    option = g_strsplit (options[i], ":", 2);
+    if (!option[1])
+      throw std::invalid_argument (
+          std::string ("Custom option '") + options[i] + "' is not key:value");
+
+    key = g_ascii_strdown (g_strstrip (option[0]), -1);
+    value = g_strstrip (option[1]);
+
+    if (g_str_equal (key, "max_new_tokens") || g_str_equal (key, "seq_len")) {
+      /* -1 leaves it to the model's context length; 0 generates nothing. */
+      int32_t limit = parse_int_option (key, value, -1, G_MAXINT32);
+      if (limit == 0)
+        throw std::invalid_argument (std::string (key) + " is -1 or positive");
+      if (g_str_equal (key, "max_new_tokens"))
+        config.max_new_tokens = limit;
+      else
+        config.seq_len = limit;
+    } else if (g_str_equal (key, "temperature")) {
+      gchar *end;
+      gdouble temperature = g_ascii_strtod (value, &end);
+
+      /* The token generator refuses any other value when it generates. */
+      if (end == value || *end != '\0' || !(temperature >= 0.0 && temperature <= 1.0))
+        throw std::invalid_argument (
+            std::string ("Invalid value of temperature: '") + value + "'");
+      config.temperature = (float) temperature;
+    } else if (g_str_equal (key, "echo")) {
+      config.echo = parse_bool_option (key, value);
+    } else if (g_str_equal (key, "ignore_eos")) {
+      config.ignore_eos = parse_bool_option (key, value);
+    } else if (g_str_equal (key, "keep_eos")) {
+      keep_eos = parse_bool_option (key, value);
+    } else if (g_str_equal (key, "num_bos")) {
+      /* The tokenizer takes the counts as int8_t. */
+      config.num_bos = parse_int_option (key, value, 0, G_MAXINT8);
+    } else if (g_str_equal (key, "num_eos")) {
+      config.num_eos = parse_int_option (key, value, 0, G_MAXINT8);
+    } else {
+      throw std::invalid_argument (std::string ("Unknown custom option '") + key + "'");
+    }
+  }
 }
 
 /**
@@ -96,6 +227,10 @@ executorch_llama_subplugin::configure_instance (const GstTensorFilterProperties 
   try {
     if (prop->num_models != 2)
       throw std::invalid_argument ("Exactly a model (.pte) and a tokenizer are required");
+
+    config.seq_len = 128;
+    config.temperature = 0.8f;
+    parseCustomProperties (prop->custom_properties);
 
     /* Load model file (.pte) */
     if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
@@ -117,6 +252,15 @@ executorch_llama_subplugin::configure_instance (const GstTensorFilterProperties 
       const std::string err_msg
           = "Failed to load tokenizer " + (std::string) prop->model_files[1];
       throw std::invalid_argument (err_msg);
+    }
+
+    /* The runner passes the end-of-sequence token on as text; find that text to leave it out. */
+    ::executorch::extension::Module module (
+        prop->model_files[0], ::executorch::extension::Module::LoadMode::Mmap);
+    for (uint64_t eos : llm::get_eos_ids (tokenizer.get (), &module)) {
+      auto text = tokenizer->decode (eos, eos);
+      if (text.ok () && !text.get ().empty ())
+        eos_texts.insert (text.get ());
     }
 
     /* set llama runner */
@@ -146,39 +290,12 @@ executorch_llama_subplugin::invoke (const GstTensorMemory *input, GstTensorMemor
 }
 
 /**
- * @brief Method to execute the model.
+ * @brief Describe the output as one flexible uint8 tensor of the given size.
  */
-void
-executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
-    const GstTensorMemory *input, GstTensorMemory *output)
+static void
+set_output_info (GstTensorFilterProperties *prop, guint size)
 {
   GstTensorInfo *_info;
-
-  if (!input)
-    throw std::runtime_error ("Invalid input buffer, it is NULL.");
-  if (!output)
-    throw std::runtime_error ("Invalid output buffer, it is NULL.");
-
-  std::string prompt ((char *) input[0].data, input[0].size);
-  std::string result = "";
-  llm::GenerationConfig config;
-
-  config.seq_len = 128;
-  config.temperature = 0.8f;
-
-  /* Each buffer is a new prompt; do not continue from the previous one. */
-  runner->reset ();
-  if (runner->generate (prompt, config,
-          [&result] (const std::string &generated) { result.append (generated); })
-      != Error::Ok)
-    throw std::runtime_error ("Generating text failed");
-
-  /* replace null character with blankspace */
-  std::replace (result.begin (), result.end (), '\0', ' ');
-
-  output[0].size = result.size ();
-  output[0].data = g_malloc0 (output[0].size);
-  memcpy (output[0].data, result.c_str (), result.size ());
 
   gst_tensors_info_free (&prop->output_meta);
 
@@ -187,7 +304,150 @@ executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
 
   _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
   _info->type = _NNS_UINT8;
-  _info->dimension[0] = result.size ();
+  _info->dimension[0] = size;
+}
+
+/**
+ * @brief Generate text for the prompt. With invoke-async each piece is
+ *        dispatched as an output of its own and nothing is returned.
+ */
+std::string
+executorch_llama_subplugin::generate (GstTensorFilterProperties *prop, const std::string &prompt)
+{
+  std::string result = "";
+  bool echoing = config.echo;
+
+  /* Each buffer is a new prompt; do not continue from the previous one. */
+  runner->reset ();
+  if (runner->generate (prompt, config,
+          [this, prop, &result, &echoing] (const std::string &generated) {
+            bool is_prompt = echoing;
+
+            /* Before the end-of-sequence check, as a left-out piece is a token too. */
+            if (prop->invoke_async && stopping) {
+              runner->stop ();
+              return;
+            }
+            /* The echoed prompt comes first and is kept as it is. */
+            if (!echoing && !keep_eos && eos_texts.count (generated))
+              return;
+            echoing = false;
+            if (!prop->invoke_async) {
+              result.append (generated);
+            } else if (is_prompt) {
+              /* Held back until a token comes, as the runner may still refuse the prompt. */
+              result = generated;
+            } else {
+              dispatchPiece (prop, result);
+              result.clear ();
+              dispatchPiece (prop, generated);
+            }
+          })
+      != Error::Ok)
+    throw std::runtime_error ("Generating text failed");
+
+  if (prop->invoke_async) {
+    if (!stopping)
+      dispatchPiece (prop, result);
+    result.clear ();
+  }
+
+  return result;
+}
+
+/**
+ * @brief Dispatch a generated piece as an output buffer of its own, unless it is empty.
+ */
+void
+executorch_llama_subplugin::dispatchPiece (
+    GstTensorFilterProperties *prop, const std::string &piece)
+{
+  GstTensorMemory output;
+
+  if (piece.empty ())
+    return;
+
+  output.size = piece.size ();
+  output.data = g_malloc (output.size);
+  /* replace null character with blankspace */
+  std::replace_copy (piece.begin (), piece.end (), (char *) output.data, '\0', ' ');
+
+  /* The core takes the size only from here, and its streaming thread reads it unlocked (#5172). */
+  gst_tensors_info_get_nth_info (&prop->output_meta, 0)->dimension[0] = output.size;
+  nnstreamer_filter_dispatch_output_async (prop, &output);
+}
+
+/**
+ * @brief Generate the queued prompts in order until the instance is closed.
+ */
+void
+executorch_llama_subplugin::workerLoop ()
+{
+  std::unique_lock<std::mutex> lock (queue_lock);
+
+  while (true) {
+    queue_cond.wait (lock, [this] { return stopping || !prompts.empty (); });
+    if (stopping)
+      return;
+
+    std::pair<GstTensorFilterProperties *, std::string> next
+        = std::move (prompts.front ());
+    prompts.pop ();
+    lock.unlock ();
+
+    try {
+      generate (next.first, next.second);
+    } catch (const std::exception &e) {
+      ml_loge ("executorch-llama: %s", e.what ());
+    } catch (...) {
+      ml_loge ("executorch-llama: Generating text failed");
+    }
+
+    lock.lock ();
+  }
+}
+
+/**
+ * @brief Method to execute the model.
+ */
+void
+executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  if (!input)
+    throw std::runtime_error ("Invalid input buffer, it is NULL.");
+  if (!output)
+    throw std::runtime_error ("Invalid output buffer, it is NULL.");
+  if (!input[0].data || input[0].size == 0)
+    throw std::invalid_argument ("The prompt is empty.");
+
+  std::string prompt ((char *) input[0].data, input[0].size);
+
+  if (prop->invoke_async) {
+    std::lock_guard<std::mutex> lock (queue_lock);
+
+    /* The generated text goes out as dispatched; this invoke itself outputs nothing. */
+    if (!worker.joinable ()) {
+      set_output_info (prop, 1);
+      worker = std::thread (&executorch_llama_subplugin::workerLoop, this);
+    }
+    prompts.emplace (prop, std::move (prompt));
+    queue_cond.notify_one ();
+    return;
+  }
+
+  std::string result = generate (prop, prompt);
+  if (result.empty ())
+    throw std::runtime_error ("Generated no text to output");
+
+  /* replace null character with blankspace */
+  std::replace (result.begin (), result.end (), '\0', ' ');
+
+  output[0].size = result.size ();
+  output[0].data = g_malloc0 (output[0].size);
+  memcpy (output[0].data, result.c_str (), result.size ());
+
+  set_output_info (prop, result.size ());
 }
 
 /**
