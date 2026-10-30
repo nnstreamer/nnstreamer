@@ -55,7 +55,10 @@ enum
   PROP_MQTT_NTP_SRVS,
 
   PROP_MQTT_TLS,
-  PROP_LAST = PROP_MQTT_TLS + GST_MQTT_TLS_NUM_PROPERTIES
+  PROP_MQTT_TLS_CA_FILE,
+  PROP_MQTT_TLS_CERT_FILE,
+  PROP_MQTT_TLS_KEY_FILE,
+  PROP_MQTT_TLS_KEY_PASSWORD
 };
 
 enum
@@ -282,7 +285,30 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
           "If it is not set, no password is sent", NULL,
           G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
 
-  gst_mqtt_tls_install_properties (gobject_class, PROP_MQTT_TLS);
+  g_object_class_install_property (gobject_class, PROP_MQTT_TLS,
+      g_param_spec_boolean ("tls", "TLS",
+          "Use TLS and verify the broker certificate and hostname", FALSE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MQTT_TLS_CA_FILE,
+      g_param_spec_string ("tls-ca-file", "tls-ca-file",
+          "PEM CA trust store; NULL uses the TLS library default trust store",
+          NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MQTT_TLS_CERT_FILE,
+      g_param_spec_string ("tls-cert-file", "tls-cert-file",
+          "PEM client certificate chain, optionally including its private key",
+          NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MQTT_TLS_KEY_FILE,
+      g_param_spec_string ("tls-key-file", "tls-key-file",
+          "PEM client private key; requires tls-cert-file", NULL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MQTT_TLS_KEY_PASSWORD,
+      g_param_spec_string ("tls-key-password", "tls-key-password",
+          "Password for the client private key; cannot be read back", NULL,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MQTT_HOST_ADDRESS,
       g_param_spec_string ("host", "Host", "Host (broker) to connect to",
@@ -383,13 +409,6 @@ gst_mqtt_sink_set_property (GObject * object, guint prop_id,
 {
   GstMqttSink *self = GST_MQTT_SINK (object);
 
-  if (prop_id >= PROP_MQTT_TLS && prop_id < PROP_LAST) {
-    GST_OBJECT_LOCK (self);
-    gst_mqtt_tls_set_property (&self->mqtt_tls, prop_id - PROP_MQTT_TLS, value);
-    GST_OBJECT_UNLOCK (self);
-    return;
-  }
-
   switch (prop_id) {
     case PROP_DEBUG:
       gst_mqtt_sink_set_debug (self, g_value_get_boolean (value));
@@ -436,6 +455,35 @@ gst_mqtt_sink_set_property (GObject * object, guint prop_id,
     case PROP_MQTT_NTP_SRVS:
       gst_mqtt_sink_set_mqtt_ntp_srvs (self, g_value_get_string (value));
       break;
+    case PROP_MQTT_TLS:
+      GST_OBJECT_LOCK (self);
+      self->mqtt_tls.enabled = g_value_get_boolean (value);
+      GST_OBJECT_UNLOCK (self);
+      break;
+    case PROP_MQTT_TLS_CA_FILE:
+      GST_OBJECT_LOCK (self);
+      g_free (self->mqtt_tls.ca_file);
+      self->mqtt_tls.ca_file = g_value_dup_string (value);
+      GST_OBJECT_UNLOCK (self);
+      break;
+    case PROP_MQTT_TLS_CERT_FILE:
+      GST_OBJECT_LOCK (self);
+      g_free (self->mqtt_tls.cert_file);
+      self->mqtt_tls.cert_file = g_value_dup_string (value);
+      GST_OBJECT_UNLOCK (self);
+      break;
+    case PROP_MQTT_TLS_KEY_FILE:
+      GST_OBJECT_LOCK (self);
+      g_free (self->mqtt_tls.key_file);
+      self->mqtt_tls.key_file = g_value_dup_string (value);
+      GST_OBJECT_UNLOCK (self);
+      break;
+    case PROP_MQTT_TLS_KEY_PASSWORD:
+      GST_OBJECT_LOCK (self);
+      g_free (self->mqtt_tls.key_password);
+      self->mqtt_tls.key_password = g_value_dup_string (value);
+      GST_OBJECT_UNLOCK (self);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -450,13 +498,6 @@ gst_mqtt_sink_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
   GstMqttSink *self = GST_MQTT_SINK (object);
-
-  if (prop_id >= PROP_MQTT_TLS && prop_id < PROP_LAST) {
-    GST_OBJECT_LOCK (self);
-    gst_mqtt_tls_get_property (&self->mqtt_tls, prop_id - PROP_MQTT_TLS, value);
-    GST_OBJECT_UNLOCK (self);
-    return;
-  }
 
   switch (prop_id) {
     case PROP_DEBUG:
@@ -511,6 +552,26 @@ gst_mqtt_sink_get_property (GObject * object, guint prop_id,
     case PROP_MQTT_NTP_SRVS:
       GST_OBJECT_LOCK (self);
       g_value_set_string (value, gst_mqtt_sink_get_mqtt_ntp_srvs (self));
+      GST_OBJECT_UNLOCK (self);
+      break;
+    case PROP_MQTT_TLS:
+      GST_OBJECT_LOCK (self);
+      g_value_set_boolean (value, self->mqtt_tls.enabled);
+      GST_OBJECT_UNLOCK (self);
+      break;
+    case PROP_MQTT_TLS_CA_FILE:
+      GST_OBJECT_LOCK (self);
+      g_value_set_string (value, self->mqtt_tls.ca_file);
+      GST_OBJECT_UNLOCK (self);
+      break;
+    case PROP_MQTT_TLS_CERT_FILE:
+      GST_OBJECT_LOCK (self);
+      g_value_set_string (value, self->mqtt_tls.cert_file);
+      GST_OBJECT_UNLOCK (self);
+      break;
+    case PROP_MQTT_TLS_KEY_FILE:
+      GST_OBJECT_LOCK (self);
+      g_value_set_string (value, self->mqtt_tls.key_file);
       GST_OBJECT_UNLOCK (self);
       break;
     default:
