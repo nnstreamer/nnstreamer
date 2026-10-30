@@ -34,15 +34,12 @@
 #include "nnstreamer_plugin_api_filter.h"
 #include "nnstreamer_conf.h"
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 
 void init_filter_custom (void) __attribute__((constructor));
 void fini_filter_custom (void) __attribute__((destructor));
 
-static const gchar *custom_accl_support[] = {
-  ACCL_AUTO_STR,
-  ACCL_DEFAULT_STR,
-  NULL
-};
+static gchar filter_subplugin_custom[] = "custom";
 
 /**
  * @brief internal_data
@@ -190,17 +187,19 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
  * @return 0 if OK. non-zero if error.
  */
 static int
-custom_invoke (const GstTensorFilterProperties * prop, void **private_data,
+custom_invoke (const GstTensorFilterFramework * self,
+    GstTensorFilterProperties * prop, void *private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
-  internal_data *ptr;
+  internal_data *ptr = private_data;
 
-  /* Actually, tensor_filter must have called getInput/OutputDim first. */
-  g_return_val_if_fail (*private_data != NULL, -EINVAL);
+  UNUSED (self);
+
+  /* Actually, tensor_filter must have called getModelInfo first. */
+  g_return_val_if_fail (ptr != NULL, -EINVAL);
   g_return_val_if_fail (input != NULL, -EINVAL);
   g_return_val_if_fail (output != NULL, -EINVAL);
 
-  ptr = *private_data;
   if (ptr->methods->invoke) {
     return ptr->methods->invoke (ptr->customFW_private_data, prop,
         input, output);
@@ -213,62 +212,73 @@ custom_invoke (const GstTensorFilterProperties * prop, void **private_data,
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
+ * @brief The mandatory callback for GstTensorFilterFramework
+ * @note allocate_in_invoke depends on the loaded library: it is TRUE only
+ *       when private_data holds a library with allocate_invoke.
  */
 static int
-custom_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    GstTensorsInfo * info)
+custom_getFrameworkInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo * fw_info)
 {
-  internal_data *ptr;
+  internal_data *ptr = private_data;
 
-  ptr = *private_data;
-  g_return_val_if_fail (ptr != NULL, -EINVAL);
-  g_return_val_if_fail (info != NULL, -EINVAL);
+  UNUSED (self);
+  UNUSED (prop);
 
-  if (ptr->methods->getInputDim == NULL)
-    return -ENOENT;
+  fw_info->name = filter_subplugin_custom;
+  fw_info->allow_in_place = FALSE;      /* custom cannot support in-place (output == input). */
+  fw_info->allocate_in_invoke = (ptr && ptr->methods->allocate_invoke);
+  fw_info->run_without_model = FALSE;   /* custom needs a so file */
+  fw_info->verify_model_path = FALSE;   /* custom_loadlib () checks the so file */
+  fw_info->hw_list = NULL;      /* auto and default only, which need no entry */
+  fw_info->num_hw = 0;
+  fw_info->accl_auto = ACCL_NONE;
+  fw_info->accl_default = ACCL_NONE;
+  fw_info->statistics = NULL;
 
-  return ptr->methods->getInputDim (ptr->customFW_private_data, prop, info);
+  return 0;
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
+ * @brief The mandatory callback for GstTensorFilterFramework
  */
 static int
-custom_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+custom_getModelInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
-  internal_data *ptr;
+  internal_data *ptr = private_data;
+  int ret;
 
-  ptr = *private_data;
-  g_return_val_if_fail (ptr != NULL, -EINVAL);
-  g_return_val_if_fail (info != NULL, -EINVAL);
+  UNUSED (self);
 
-  if (ptr->methods->getOutputDim == NULL)
-    return -ENOENT;
-
-  return ptr->methods->getOutputDim (ptr->customFW_private_data, prop, info);
-}
-
-/**
- * @brief The set-input-dim callback for GstTensorFilterFramework
- */
-static int
-custom_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
-{
-  internal_data *ptr;
-
-  ptr = *private_data;
   g_return_val_if_fail (ptr != NULL, -EINVAL);
   g_return_val_if_fail (in_info != NULL, -EINVAL);
   g_return_val_if_fail (out_info != NULL, -EINVAL);
 
-  if (ptr->methods->setInputDim == NULL)
-    return -ENOENT;
+  switch (ops) {
+    case GET_IN_OUT_INFO:
+      if (ptr->methods->getInputDim == NULL ||
+          ptr->methods->getOutputDim == NULL)
+        return -ENOENT;
 
-  return ptr->methods->setInputDim (ptr->customFW_private_data,
-      prop, in_info, out_info);
+      ret = ptr->methods->getInputDim (ptr->customFW_private_data, prop,
+          in_info);
+      if (ret != 0)
+        return ret;
+
+      return ptr->methods->getOutputDim (ptr->customFW_private_data, prop,
+          out_info);
+    case SET_INPUT_INFO:
+      if (ptr->methods->setInputDim == NULL)
+        return -ENOENT;
+
+      return ptr->methods->setInputDim (ptr->customFW_private_data, prop,
+          in_info, out_info);
+    default:
+      return -ENOENT;
+  }
 }
 
 /**
@@ -281,66 +291,41 @@ custom_close (const GstTensorFilterProperties * prop, void **private_data)
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- */
-static void
-custom_destroyNotify (void **private_data, void *data)
-{
-  internal_data *ptr = *private_data;
-
-  if (ptr && ptr->methods->allocate_invoke && ptr->methods->destroy_notify &&
-      data) {
-    ptr->methods->destroy_notify (data);
-  } else {
-    g_free (data);
-  }
-}
-
-/**
- * @brief The optional callback for GstTensorFilterFramework
+ * @brief The mandatory callback for GstTensorFilterFramework
+ * @return 0 if the library has released the data of DESTROY_NOTIFY.
+ *         -ENOENT for the other events, and for DESTROY_NOTIFY when the
+ *         library has no destroy_notify: tensor_filter then frees the data.
  */
 static int
-custom_allocateInInvoke (void **private_data)
+custom_eventHandler (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData * data)
 {
-  internal_data *ptr = *private_data;
+  internal_data *ptr = private_data;
 
-  if (ptr && ptr->methods->allocate_invoke) {
-    return 0;
-  }
+  UNUSED (self);
+  UNUSED (prop);
 
-  return -EINVAL;
+  if (ops != DESTROY_NOTIFY || ptr == NULL ||
+      !ptr->methods->allocate_invoke || !ptr->methods->destroy_notify)
+    return -ENOENT;
+
+  g_return_val_if_fail (data != NULL, -EINVAL);
+
+  if (data->data)
+    ptr->methods->destroy_notify (data->data);
+
+  return 0;
 }
-
-/**
- * @brief Check support of the backend
- */
-static int
-custom_checkAvailability (accl_hw hw)
-{
-  if (g_strv_contains (custom_accl_support, get_accl_hw_str (hw)))
-    return 0;
-
-  return -ENOENT;
-}
-
-static gchar filter_subplugin_custom[] = "custom";
 
 static GstTensorFilterFramework NNS_support_custom = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-  .name = filter_subplugin_custom,
-  .allow_in_place = FALSE,      /* custom cannot support in-place (output == input). */
-  .allocate_in_invoke = TRUE,   /* GstTensorFilter allocates output buffers */
-  .run_without_model = FALSE,   /* custom needs a so file */
-  .invoke_NN = custom_invoke,
-  .handleEvent = NULL,          /* do not set event function for custom filter */
-  .getInputDimension = custom_getInputDim,
-  .getOutputDimension = custom_getOutputDim,
-  .setInputDimension = custom_setInputDim,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V1,
   .open = custom_open,
   .close = custom_close,
-  .destroyNotify = custom_destroyNotify,        /* if custom filter model supports allocate_in_invoke, this will be set from custom filter. */
-  .allocateInInvoke = custom_allocateInInvoke,
-  .checkAvailability = custom_checkAvailability,
+  .invoke = custom_invoke,
+  .getFrameworkInfo = custom_getFrameworkInfo,
+  .getModelInfo = custom_getModelInfo,
+  .eventHandler = custom_eventHandler,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
@@ -354,5 +339,5 @@ init_filter_custom (void)
 void
 fini_filter_custom (void)
 {
-  nnstreamer_filter_exit (NNS_support_custom.name);
+  nnstreamer_filter_exit (filter_subplugin_custom);
 }
