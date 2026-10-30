@@ -630,6 +630,11 @@ if gtest_dep.found()
   # Vivante sub-plugin, built against a mock of its proprietary SDK
   subdir('nnstreamer_filter_vivante')
 
+  # PyTorch sub-plugin, built against a mock of LibTorch where LibTorch is absent
+  if not pytorch_support_is_available
+    subdir('nnstreamer_filter_pytorch')
+  endif
+
   # Tizen NNFW runtime
   if nnfw_runtime_support_is_available
     subdir('tizen_nnfw_runtime')
@@ -826,7 +831,9 @@ if get_option('install-test')
     install_subdir('nnstreamer_filter_tensorflow', install_dir: unittest_install_dir)
   endif
   if pytorch_support_is_available
-    install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_install_dir)
+    install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_install_dir,
+      exclude_directories: ['mock'],
+      exclude_files: ['meson.build', 'unittest_filter_pytorch_mock.cc'])
   endif
   if caffe2_support_is_available
     install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_install_dir)

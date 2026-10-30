@@ -1,0 +1,120 @@
+name: Build and test the PyTorch tensor_filter against LibTorch
+
+# Every pull request builds and tests the pytorch subplugin against the
+# LibTorch mock in tests/nnstreamer_filter_pytorch/mock, which costs no
+# download. Whether the subplugin still builds and runs against a real
+# LibTorch is checked here instead, once a week, on demand, and on the pull
+# requests that change the subplugin, its tests or this workflow: LibTorch is
+# a ~180 MB download, and nothing is cached because the Actions cache of this
+# repository is already full.
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/pytorch.yml'
+      - 'ext/nnstreamer/tensor_filter/meson.build'
+      - 'ext/nnstreamer/tensor_filter/tensor_filter_pytorch.cc'
+      - 'tests/nnstreamer_filter_pytorch/**'
+      - '!tests/nnstreamer_filter_pytorch/mock/**'
+      - '!tests/nnstreamer_filter_pytorch/meson.build'
+      - '!tests/nnstreamer_filter_pytorch/unittest_filter_pytorch_mock.cc'
+      - 'tests/test_models/models/*.pt'
+  schedule:
+    # 04:30 AM (KST) Monday
+    - cron: "30 19 * * 0"
+  workflow_dispatch:
+    inputs:
+      libtorch_version:
+        description: 'LibTorch release to try instead of the pinned one, e.g. 2.12.0 (give libtorch_sha256 too)'
+        required: false
+        default: ''
+      libtorch_sha256:
+        description: 'sha256 of libtorch-shared-with-deps-<version>+cpu.zip (give libtorch_version too)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# A scheduled or pull request run always builds against the release pinned
+# here, so it catches changes of this repository, not new LibTorch releases:
+# moving to a newer release is a manual change of these two lines. The inputs
+# of a manual run can try a newer release first.
+env:
+  LIBTORCH_VERSION: ${{ inputs.libtorch_version || '2.11.0' }}
+  LIBTORCH_SHA256: ${{ inputs.libtorch_sha256 || 'ee3f453f6c3e3d934339875d76a2b04d6a1731554c016fc82be1f4b8d1d4ae62' }}
+
+jobs:
+  build:
+    name: Build against LibTorch and run its tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: install requirements
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest
+        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3 python3-numpy meson ninja-build
+        sudo apt-get install -y gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev
+        sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat
+
+    - name: install LibTorch
+      run: |
+        # LibTorch ships no pkg-config file; meson looks the subplugin's
+        # dependency up as torch.pc, so write one for the unpacked release.
+        curl --retry 3 --retry-delay 5 -fsSL -o libtorch.zip \
+          "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${LIBTORCH_VERSION}%2Bcpu.zip"
+        echo "${LIBTORCH_SHA256}  libtorch.zip" | sha256sum -c
+        unzip -q libtorch.zip -d "${RUNNER_TEMP}"
+        rm libtorch.zip
+        mkdir -p "${RUNNER_TEMP}/pkgconfig"
+        cat << EOF > "${RUNNER_TEMP}/pkgconfig/torch.pc"
+        prefix=${RUNNER_TEMP}/libtorch
+        libdir=\${prefix}/lib
+        includedir=\${prefix}/include
+
+        Name: torch
+        Description: LibTorch, the C++ distribution of PyTorch
+        Version: ${LIBTORCH_VERSION}
+        Libs: -L\${libdir} -Wl,-rpath,\${libdir} -ltorch -ltorch_cpu -lc10
+        Cflags: -isystem \${includedir} -isystem \${includedir}/torch/csrc/api/include
+        EOF
+        echo "PKG_CONFIG_PATH=${RUNNER_TEMP}/pkgconfig" >> "${GITHUB_ENV}"
+
+    - name: build nnstreamer with the PyTorch subplugin
+      run: |
+        meson setup build/ -Dpytorch-support=enabled
+        meson compile -C build/
+        # The SSAT script below reports success with zero cases when the
+        # subplugin is missing, so make sure that it was built.
+        test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_pytorch.so
+
+    - name: unit test the PyTorch subplugin
+      run: |
+        meson test -C build/ unittest_plugins --print-errorlogs \
+          --test-args='--gtest_filter=*.frameworkAutoExtPt01:*.frameworkAutoWoOptExtPt01'
+        # gtest passes a filter that matches nothing, so check that both ran.
+        ran=$(sed -nE 's/^\[  PASSED  \] ([0-9]+) tests?\.$/\1/p' build/meson-logs/testlog.txt | tail -1)
+        if [ "${ran:-0}" -ne 2 ]; then
+          echo "::error::Expected 2 pytorch cases of unittest_plugins to pass, but ${ran:-0} did."
+          exit 1
+        fi
+
+    - name: SSAT run on filter-pytorch
+      run: |
+        export NNSTREAMER_BUILD_ROOT_PATH="$(pwd)/build"
+        export NNSTREAMER_FILTERS="$(pwd)/build/ext/nnstreamer/tensor_filter"
+        export NNSTREAMER_DECODERS="$(pwd)/build/ext/nnstreamer/tensor_decoder"
+        export NNSTREAMER_CONVERTERS="$(pwd)/build/ext/nnstreamer/tensor_converter"
+        export GST_PLUGIN_PATH="$(pwd)/build/gst"
+        export NNSTREAMER_CONF="$(pwd)/build/nnstreamer-test.ini"
+        cd tests/nnstreamer_filter_pytorch && ssat -n -p=1 --summary summary.txt
+        cat summary.txt
+        # A run of zero cases means that the script skipped everything.
+        grep -qE '^passed=[1-9][0-9]*, failed=0' summary.txt

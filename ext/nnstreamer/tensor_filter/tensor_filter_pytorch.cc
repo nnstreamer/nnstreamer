@@ -80,8 +80,6 @@ class TorchCore
 
   GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
-  unsigned int configured;
-  bool first_run; /**< must be reset after setting input info */
 
   std::shared_ptr<torch::jit::script::Module> model;
 
@@ -89,7 +87,6 @@ class TorchCore
   tensor_type getTensorTypeFromTorch (torch::Dtype torchType);
   bool getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType);
   int validateOutputTensor (at::Tensor output, unsigned int idx);
-  int fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim);
   int processIValue (const torch::jit::IValue &value, GstTensorMemory *output,
       unsigned int idx);
   int serializeOutput (const torch::jit::IValue &value, GstTensorMemory *output,
@@ -111,9 +108,7 @@ TorchCore::TorchCore (const char *_model_path)
 {
   g_assert (_model_path != NULL);
   model_path = g_strdup (_model_path);
-  configured = 0;
   use_gpu = false;
-  first_run = true;
   accelerator = ACCL_NONE;
 
   gst_tensors_info_init (&inputTensorMeta);
@@ -174,7 +169,6 @@ TorchCore::init (const GstTensorFilterProperties *prop)
     return -1;
   }
 
-  first_run = true;
   return 0;
 }
 
@@ -296,10 +290,11 @@ TorchCore::getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType
     case _NNS_FLOAT16:
 #ifdef FLOAT16_SUPPORT
       *torchType = torch::kF16;
+      break;
 #else
       ml_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      return false;
 #endif
-      break;
     case _NNS_FLOAT32:
       *torchType = torch::kF32;
       break;
@@ -326,8 +321,8 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   auto tensor_shape = output.sizes ();
   tensor_type otype;
   gsize num_gst_tensor, num_torch_tensor;
-  at::Tensor sliced_output = output.slice (0);
-  c10::IntArrayRef sliced_output_sizes = sliced_output.sizes ();
+  at::Tensor sliced_output;
+  c10::IntArrayRef sliced_output_sizes;
   GstTensorInfo *_info;
 
   /** if idx is in bounds */
@@ -339,17 +334,24 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
 
   _info = gst_tensors_info_get_nth_info (&outputTensorMeta, idx);
 
-  /** when output is a scalar */
-  if (tensor_shape[0] == 0) {
+  /** when output is a scalar or has no element */
+  if (output.ndimension () == 0 || tensor_shape[0] == 0) {
     otype = getTensorTypeFromTorch (output.scalar_type ());
     if (_info->type != otype) {
       ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
           idx, idx, otype);
       return -2;
     }
-    goto done;
+    if (output.ndimension () == 0 && gst_tensor_get_element_count (_info->dimension) != 1) {
+      ml_loge ("Invalid output meta: the output at index %u is a scalar. Update the tensor shape to 1.",
+          idx);
+      return -3;
+    }
+    return 0;
   }
 
+  sliced_output = output.slice (0);
+  sliced_output_sizes = sliced_output.sizes ();
   otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
   if (_info->type != otype) {
     ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
@@ -371,8 +373,6 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
     return -3;
   }
 
-done:
-  configured++;
   return 0;
 }
 
@@ -422,9 +422,7 @@ TorchCore::processIValue (
   /** make the memory contiguous for direct access */
   output_tensor = output_tensor.contiguous ();
 
-  /* validate output tensor once */
-  if (configured < outputTensorMeta.num_tensors
-      && validateOutputTensor (output_tensor, idx)) {
+  if (validateOutputTensor (output_tensor, idx)) {
     ml_loge ("Output Tensor Information at index %d is not valid", idx);
     return -1;
   }
@@ -534,27 +532,7 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
     input_feeds.emplace_back (tensor);
   }
 
-  /**
-   * As the input information has not been verified, the first run for the model
-   * is encapsulated in a try-catch block
-   */
-  if (first_run) {
-    try {
-      output_value = model->forward (input_feeds);
-      first_run = false;
-    } catch (const std::runtime_error &re) {
-      ml_loge ("Runtime error while running the model: %s", re.what ());
-      return -4;
-    } catch (const std::exception &ex) {
-      ml_loge ("Exception while running the model : %s", ex.what ());
-      return -4;
-    } catch (...) {
-      ml_loge ("Unknown exception while running the model");
-      return -4;
-    }
-  } else {
-    output_value = model->forward (input_feeds);
-  }
+  output_value = model->forward (input_feeds);
 
   unsigned int idx = 0;
   int retval = serializeOutput (output_value, output, &idx, outputTensorMeta.num_tensors);
@@ -568,28 +546,6 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
   gint64 stop_time = g_get_real_time ();
   g_message ("Invoke() is finished: %" G_GINT64_FORMAT, (stop_time - start_time));
 #endif
-
-  return 0;
-}
-
-/**
- * @brief	fill tensor dimension
- * @param tensor_meta	pytorch tensor variable
- * @param[out] dim the array of the tensor dimension
- * @return 0 if OK. non-zero if error.
- */
-int
-TorchCore::fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim)
-{
-  int num_dim = tensor_meta.ndimension ();
-  g_assert (num_dim <= NNS_TENSOR_RANK_LIMIT);
-  /** the order of dimension is reversed at CAPS negotiation */
-  std::reverse_copy (tensor_meta.sizes ().begin (), tensor_meta.sizes ().end (), dim);
-
-  /** fill the remnants with 0 */
-  for (int idx = num_dim; idx < NNS_TENSOR_RANK_LIMIT; ++idx) {
-    dim[idx] = 0;
-  }
 
   return 0;
 }
@@ -685,7 +641,16 @@ torch_invoke (const GstTensorFilterProperties *prop, void **private_data,
   TorchCore *core = static_cast<TorchCore *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
 
-  return core->invoke (prop, input, output);
+  /** an exception must not escape into the C code of tensor_filter */
+  try {
+    return core->invoke (prop, input, output);
+  } catch (const std::exception &ex) {
+    ml_loge ("Exception while invoking the model: %s", ex.what ());
+  } catch (...) {
+    ml_loge ("Unknown exception while invoking the model");
+  }
+
+  return -4;
 }
 
 /**

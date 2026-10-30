@@ -26,6 +26,14 @@ You can insert model files and their frameworks in a nnstreamer pipeline with th
 ### Armnn
 ### Caffe2
 ### Pytorch
+- subplugin name: 'pytorch'
+
+This subplugin runs TorchScript models (```.pt```) through LibTorch, the C++ distribution of PyTorch.
+
+A model output that is a 0-dim tensor (a scalar) must be declared as an output of the same type and exactly one element, e.g., ```output=1```.
+
+LibTorch ships no pkg-config file. Unpack a LibTorch release, write a ```torch.pc``` for it, point ```PKG_CONFIG_PATH``` at it and use the ```pytorch-support``` meson option. ```.github/workflows/pytorch.yml``` is a working example; it builds the subplugin against a real LibTorch every week and on the pull requests that change the subplugin or its tests. Every pull request builds and tests the subplugin against the LibTorch mock in ```tests/nnstreamer_filter_pytorch/mock```.
+
 ### Tensorflow
 ### Tensorflow-lite
 - subplugin name: 'tensorflow1-lite'
