@@ -48,6 +48,11 @@ static gchar *custom_dir = NULL;
 static gulong jitter = DEFAULT_JITTER;
 static gulong fps = DEFAULT_FPS;
 
+extern "C" {
+void init_filter_custom_easy (void);
+void fini_filter_custom_easy (void);
+}
+
 /**
  * @brief Current status.
  */
@@ -7439,6 +7444,22 @@ TEST (tensorFilterCustomEasy, unregister1_n)
   /** check non-registered custom_easy filter */
   ret = NNS_custom_easy_unregister ("not_registered");
   ASSERT_NE (ret, 0);
+}
+
+/**
+ * @brief Test that the custom-easy sub-plugin unregisters itself under its name.
+ */
+TEST (tensorFilterCustomEasy, subpluginUnregister)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("custom-easy");
+
+  ASSERT_TRUE (fw != NULL);
+
+  fini_filter_custom_easy ();
+  EXPECT_TRUE (nnstreamer_filter_find ("custom-easy") == NULL);
+
+  init_filter_custom_easy ();
+  EXPECT_TRUE (nnstreamer_filter_find ("custom-easy") == fw);
 }
 
 static int data_received = 0;
