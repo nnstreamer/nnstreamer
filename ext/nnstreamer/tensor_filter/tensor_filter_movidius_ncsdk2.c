@@ -32,17 +32,16 @@
 #include <mvnc2/mvnc.h>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
-#define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
-#undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_util.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
-static const gchar *mvncsdk2_accl_support[] = {
-  ACCL_NPU_STR,
-  ACCL_NPU_MOVIDIUS_STR,
-  NULL
+static gchar filter_subplugin_movidius_ncsdk2[] = "movidius-ncsdk2";
+
+static const accl_hw mvncsdk2_accl_support[] = {
+  ACCL_NPU,
+  ACCL_NPU_MOVIDIUS,
 };
 
 void init_filter_mvncsdk2 (void) __attribute__((constructor));
@@ -299,6 +298,7 @@ err_destroy_device_h:
 
 /**
  * @brief The mandatory callback for GstTensorFilterFramework
+ * @param self : this sub-plugin
  * @param prop : property of tensor_filter instance
  * @param private_data : movidius-ncsdk2 plugin's private data
  * @param[in] input : The array of input tensors
@@ -306,12 +306,14 @@ err_destroy_device_h:
  * @return 0 if OK. non-zero if error.
  */
 static int
-_mvncsdk2_invoke (const GstTensorFilterProperties * prop, void **private_data,
+_mvncsdk2_invoke (const GstTensorFilterFramework * self,
+    GstTensorFilterProperties * prop, void *private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   ncStatus_t ret_code;
-  mvncsdk2_data *pdata = *private_data;
+  mvncsdk2_data *pdata = private_data;
   guint32 buf_size;
+  UNUSED (self);
 
   g_return_val_if_fail (prop->input_configured, -1);
   g_return_val_if_fail (pdata != NULL, -1);
@@ -361,7 +363,7 @@ err_destroy:
    * Leave the device, graph and FIFO handles to close (), which the framework
    * calls when it unloads this sub-plugin. Releasing them here would leave
    * fw_opened set with a NULL private data, and the next invoke () or
-   * getInputDimension () would dereference it.
+   * getModelInfo () would dereference it.
    *
    * The FIFOs, however, are left as the failure found them, and an NCSDK2
    * status code does not say how far into the call it got: a failed
@@ -395,21 +397,16 @@ err_destroy:
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop : property of tensor_filter instance
- * @param private_data : movidius-ncsdk2 plugin's private data
+ * @brief Get the dimensions and types of input tensors
+ * @param pdata : movidius-ncsdk2 plugin's private data
  * @param[out] info : The dimensions and types of input tensors
  */
-static int
-_mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+static void
+_mvncsdk2_getInputDim (mvncsdk2_data * pdata, GstTensorsInfo * info)
 {
-  mvncsdk2_data *pdata = *private_data;
   struct ncTensorDescriptor_t *nc_input_desc;
   GstTensorInfo *nns_input_tensor_info;
-  UNUSED (prop);
 
-  g_return_val_if_fail (pdata != NULL, -1);
   nc_input_desc = &(pdata->tensor_desc_input);
 
   /** MVNCSDK only supports one tensor at a time */
@@ -428,26 +425,19 @@ _mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
   nns_input_tensor_info->dimension[1] = nc_input_desc->w;
   nns_input_tensor_info->dimension[2] = nc_input_desc->h;
   nns_input_tensor_info->dimension[3] = nc_input_desc->n;
-
-  return 0;
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop : property of tensor_filter instance
- * @param private_data : tensorflow lite plugin's private data
+ * @brief Get the dimensions and types of output tensors
+ * @param pdata : movidius-ncsdk2 plugin's private data
  * @param[out] info : The dimensions and types of output tensors
  */
-static int
-_mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+static void
+_mvncsdk2_getOutputDim (mvncsdk2_data * pdata, GstTensorsInfo * info)
 {
-  mvncsdk2_data *pdata = *private_data;
   struct ncTensorDescriptor_t *nc_output_desc;
   GstTensorInfo *nns_output_info;
-  UNUSED (prop);
 
-  g_return_val_if_fail (pdata != NULL, -1);
   nc_output_desc = &(pdata->tensor_desc_output);
 
   /** MVNCSDK only supports one tensor at a time */
@@ -466,49 +456,103 @@ _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
   nns_output_info->dimension[1] = nc_output_desc->w;
   nns_output_info->dimension[2] = nc_output_desc->h;
   nns_output_info->dimension[3] = nc_output_desc->n;
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework
+ * @param self : this sub-plugin
+ * @param prop : property of tensor_filter instance
+ * @param private_data : movidius-ncsdk2 plugin's private data, NULL if not opened
+ * @param[out] fw_info : The static information of this sub-plugin
+ * @return 0 if OK. non-zero if error.
+ */
+static int
+_mvncsdk2_getFrameworkInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo * fw_info)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+
+  fw_info->name = filter_subplugin_movidius_ncsdk2;
+  fw_info->allow_in_place = FALSE;
+  fw_info->allocate_in_invoke = FALSE;
+  fw_info->run_without_model = FALSE;
+  fw_info->verify_model_path = FALSE;
+  fw_info->hw_list = mvncsdk2_accl_support;
+  fw_info->num_hw = G_N_ELEMENTS (mvncsdk2_accl_support);
+  fw_info->accl_auto = ACCL_NPU_MOVIDIUS;
+  fw_info->accl_default = ACCL_NPU_MOVIDIUS;
+  fw_info->statistics = NULL;
 
   return 0;
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param[in] hw backend accelerator hardware
- * @return 0 if supported. -errno if not supported.
+ * @brief The mandatory callback for GstTensorFilterFramework
+ * @param self : this sub-plugin
+ * @param prop : property of tensor_filter instance
+ * @param private_data : movidius-ncsdk2 plugin's private data
+ * @param ops : The operation to perform. Only GET_IN_OUT_INFO is supported.
+ * @param[out] in_info : The dimensions and types of input tensors
+ * @param[out] out_info : The dimensions and types of output tensors
+ * @return 0 if OK. -ENOENT if @a ops is not GET_IN_OUT_INFO. -EINVAL if it is
+ *         and the model is not opened.
  */
 static int
-_mvncsdk2_checkAvailability (accl_hw hw)
+_mvncsdk2_getModelInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
-  if (g_strv_contains (mvncsdk2_accl_support, get_accl_hw_str (hw)))
-    return 0;
+  mvncsdk2_data *pdata = private_data;
+  UNUSED (self);
+  UNUSED (prop);
+
+  if (ops != GET_IN_OUT_INFO)
+    return -ENOENT;
+
+  if (pdata == NULL)
+    return -EINVAL;
+
+  _mvncsdk2_getInputDim (pdata, in_info);
+  _mvncsdk2_getOutputDim (pdata, out_info);
+
+  return 0;
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework
+ * @param self : this sub-plugin
+ * @param prop : property of tensor_filter instance
+ * @param private_data : movidius-ncsdk2 plugin's private data
+ * @param ops : The event to handle
+ * @param data : The event data
+ * @return -ENOENT, as no event is supported.
+ */
+static int
+_mvncsdk2_eventHandler (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData * data)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  UNUSED (ops);
+  UNUSED (data);
 
   return -ENOENT;
 }
 
-static gchar filter_subplugin_movidius_ncsdk2[] = "movidius-ncsdk2";
-
 static GstTensorFilterFramework NNS_support_movidius_ncsdk2 = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V1,
   .open = _mvncsdk2_open,
   .close = _mvncsdk2_close,
-  {
-    .v0 = {
-      .name = filter_subplugin_movidius_ncsdk2,
-      .allow_in_place = FALSE,
-      .allocate_in_invoke = FALSE,
-      .run_without_model = FALSE,
-      .verify_model_path = FALSE,
-      .statistics = NULL,
-      .invoke_NN = _mvncsdk2_invoke,
-      .getInputDimension = _mvncsdk2_getInputDim,
-      .getOutputDimension = _mvncsdk2_getOutputDim,
-      .setInputDimension = NULL,
-      .destroyNotify = NULL,
-      .reloadModel = NULL,
-      .handleEvent = NULL,
-      .checkAvailability = _mvncsdk2_checkAvailability,
-      .allocateInInvoke = NULL,
-    }
-  }
+  .invoke = _mvncsdk2_invoke,
+  .getFrameworkInfo = _mvncsdk2_getFrameworkInfo,
+  .getModelInfo = _mvncsdk2_getModelInfo,
+  .eventHandler = _mvncsdk2_eventHandler,
+  .subplugin_data = NULL,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
@@ -522,5 +566,5 @@ init_filter_mvncsdk2 (void)
 void
 fini_filter_mvncsdk2 (void)
 {
-  nnstreamer_filter_exit (NNS_support_movidius_ncsdk2.v0.name);
+  nnstreamer_filter_exit (filter_subplugin_movidius_ncsdk2);
 }
