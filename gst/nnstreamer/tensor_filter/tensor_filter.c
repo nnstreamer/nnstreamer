@@ -594,6 +594,7 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
   GstTensorFilter *self = GST_TENSOR_FILTER_CAST (trans);
   GstTensorFilterPrivate *priv = &self->priv;
   GstTensorFilterProperties *prop = &priv->prop;
+  int run_without_model;
 
   if (G_UNLIKELY (!priv->configured)) {
     GST_ELEMENT_ERROR_BTRACE (self, STREAM, TYPE_NOT_FOUND,
@@ -619,7 +620,10 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
         prop->fwname);
     return GST_FLOW_ERROR;
   }
-  if (G_UNLIKELY (!priv->fw->run_without_model) &&
+  /* run_without_model is a V0 member; V1 reports it in the framework info. */
+  run_without_model = GST_TF_FW_V0 (priv->fw) ? priv->fw->run_without_model :
+      priv->info.run_without_model;
+  if (G_UNLIKELY (!run_without_model) &&
       G_UNLIKELY (!(prop->model_files &&
               prop->num_models > 0 && prop->model_files[0]))) {
     GST_ELEMENT_ERROR_BTRACE (self, STREAM, FAILED,
@@ -636,7 +640,7 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
   }
 
   silent_debug (self, "Invoking %s with %s model\n", prop->fwname,
-      GST_STR_NULL (prop->model_files[0]));
+      TF_MODELNAME (prop));
 
   /* skip input data when throttling delay is set */
   if (gst_tensor_filter_check_throttling_delay (trans, inbuf))

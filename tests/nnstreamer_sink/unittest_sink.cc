@@ -4902,6 +4902,126 @@ TEST (tensorStreamTest, subpluginV1OpenUnverifiedModel)
 }
 
 /**
+ * @brief Run a pipeline through the test sub-plugin, without a model.
+ * @param[in] silent The silent property of tensor_filter.
+ * @return The type of the message the pipeline ends with: EOS, ERROR (only the
+ *         model check of tensor_filter), or UNKNOWN for anything else.
+ */
+static GstMessageType
+test_custom_run_no_model (gboolean silent)
+{
+  GstMessageType type = GST_MESSAGE_UNKNOWN;
+  GstElement *pipeline;
+  GstMessage *msg;
+  GstBus *bus;
+  gchar *str;
+
+  str = g_strdup_printf ("videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                         "tensor_converter ! tensor_filter framework=%s silent=%s ! fakesink",
+      test_fw_custom_name, silent ? "true" : "false");
+  pipeline = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (pipeline == NULL)
+    return type;
+
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  if (msg && GST_MESSAGE_TYPE (msg) == GST_MESSAGE_EOS) {
+    type = GST_MESSAGE_EOS;
+  } else if (msg) {
+    GError *err = NULL;
+
+    gst_message_parse_error (msg, &err, NULL);
+    if (err && g_error_matches (err, GST_STREAM_ERROR, GST_STREAM_ERROR_FAILED)
+        && strstr (err->message, "this framework requires a model file"))
+      type = GST_MESSAGE_ERROR;
+    g_clear_error (&err);
+  }
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (pipeline);
+  return type;
+}
+
+/**
+ * @brief Test that a V1 sub-plugin without an open callback runs without a model when it declares run_without_model.
+ */
+TEST (tensorStreamTest, subpluginV1NoOpenRunWithoutModel)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (1, 0);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->open = NULL;
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  EXPECT_EQ (test_custom_run_no_model (TRUE), GST_MESSAGE_EOS);
+
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that a filter without a model logs its invoke with the debug log on.
+ */
+TEST (tensorStreamTest, subpluginV1NoOpenRunWithoutModelVerbose)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (1, 0);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->open = NULL;
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  /* silent=false and the debug level make tensor_filter print the model name. */
+  gst_debug_set_threshold_for_name ("tensor_filter", GST_LEVEL_DEBUG);
+  EXPECT_EQ (test_custom_run_no_model (FALSE), GST_MESSAGE_EOS);
+  gst_debug_unset_threshold_for_name ("tensor_filter");
+
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that a V1 sub-plugin without an open callback, which skips the
+ * model check at open, is refused at invoke when it requires a model.
+ */
+TEST (tensorStreamTest, subpluginV1NoOpenRunWithoutModel_n)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (0, 0);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->open = NULL;
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  EXPECT_EQ (test_custom_run_no_model (TRUE), GST_MESSAGE_ERROR);
+
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that a V0 sub-plugin without an open callback is refused at invoke when it requires a model.
+ * @note Remove it with the V0 interface (#4425).
+ */
+TEST (tensorStreamTest, subpluginV0NoOpenRunWithoutModel_n)
+{
+  GstTensorFilterFramework *fw = test_custom_v0_probe_with_model ();
+
+  ASSERT_TRUE (fw != NULL);
+  fw->open = NULL;
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  EXPECT_EQ (test_custom_run_no_model (TRUE), GST_MESSAGE_ERROR);
+
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
  * @brief Test that every model entry is verified, not only the first one.
  */
 TEST (tensorStreamTest, subpluginV1OpenSecondModelMissing_n)
