@@ -3082,6 +3082,46 @@ TEST (testMqttSinkWithHelper, tlsProperties)
   gst_object_unref (element);
 }
 
+/** @brief Each TLS property has its own ID and its own storage. */
+TEST (testMqttSinkWithHelper, tlsPropertyMapping)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GObjectClass *klass = G_OBJECT_GET_CLASS (element);
+  const char *names[]
+      = { "tls", "tls-ca-file", "tls-cert-file", "tls-key-file", "tls-key-password" };
+  guint ids[G_N_ELEMENTS (names)];
+  for (gsize i = 0; i < G_N_ELEMENTS (names); i++) {
+    GParamSpec *pspec = g_object_class_find_property (klass, names[i]);
+    ASSERT_NE (pspec, nullptr) << names[i];
+    ids[i] = pspec->param_id;
+    for (gsize j = 0; j < i; j++)
+      EXPECT_NE (ids[i], ids[j]) << names[i] << " and " << names[j];
+  }
+  EXPECT_FALSE (g_object_class_find_property (klass, "tls-key-password")->flags & G_PARAM_READABLE);
+  /* Replacing a value must free the old one; the Valgrind job checks it. */
+  g_object_set (element, "tls-ca-file", "old-ca.pem", "tls-cert-file", "old-cert.pem",
+      "tls-key-file", "old-key.pem", "tls-key-password", "old-secret", NULL);
+  g_object_set (element, "tls", TRUE, "tls-ca-file", "ca.pem", "tls-cert-file",
+      "cert.pem", "tls-key-file", "key.pem", "tls-key-password", "secret", NULL);
+  gboolean enabled = FALSE;
+  gchar *ca = nullptr, *cert = nullptr, *key = nullptr;
+  g_object_get (element, "tls", &enabled, "tls-ca-file", &ca, "tls-cert-file",
+      &cert, "tls-key-file", &key, NULL);
+  EXPECT_TRUE (enabled);
+  EXPECT_STREQ (ca, "ca.pem");
+  EXPECT_STREQ (cert, "cert.pem");
+  EXPECT_STREQ (key, "key.pem");
+  EXPECT_STREQ (GST_MQTT_SINK (element)->mqtt_tls.key_password, "secret");
+  g_free (ca);
+  g_free (cert);
+  g_free (key);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+}
+
 /** @brief Unsupported TLS or invalid files fail before connecting. */
 TEST (testMqttSinkWithHelper, tlsInvalidSettings_n)
 {
@@ -3105,26 +3145,30 @@ TEST (testMqttSinkWithHelper, tlsOptionsPassedToConnect)
   gst_object_ref_sink (element);
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstElement *pipeline = element;
-  gchar *file = nullptr;
-  int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
-  ASSERT_GE (fd, 0);
-  close (fd);
-  g_object_set (element, "tls", TRUE, "tls-ca-file", file, "tls-cert-file",
-      file, "tls-key-file", file, "tls-key-password", "test-key-password", NULL);
+  gchar *files[3] = { nullptr, nullptr, nullptr };
+  for (gchar *&file : files) {
+    int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
+    ASSERT_GE (fd, 0);
+    close (fd);
+  }
+  g_object_set (element, "tls", TRUE, "tls-ca-file", files[0], "tls-cert-file",
+      files[1], "tls-key-file", files[2], "tls-key-password", "test-key-password", NULL);
   EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
   EXPECT_TRUE (last_connect_tls);
   EXPECT_EQ (last_connect_verify, 1);
   EXPECT_EQ (last_connect_auth, 1);
-  EXPECT_STREQ (last_connect_ca.c_str (), file);
-  EXPECT_STREQ (last_connect_cert.c_str (), file);
-  EXPECT_STREQ (last_connect_key.c_str (), file);
+  EXPECT_STREQ (last_connect_ca.c_str (), files[0]);
+  EXPECT_STREQ (last_connect_cert.c_str (), files[1]);
+  EXPECT_STREQ (last_connect_key.c_str (), files[2]);
   EXPECT_STREQ (last_connect_key_password.c_str (), "test-key-password");
   EXPECT_EQ (GstMqttTestHelper::getInstance ().getLastServerUri ().find ("ssl://"), 0U);
   /* Changing a property must not invalidate Paho's reconnect options. */
   g_object_set (element, "tls-ca-file", NULL, "tls-key-password", NULL, NULL);
   GstMqttSink *self = GST_MQTT_SINK (element);
   ASSERT_NE (self->mqtt_conn_opts.ssl, nullptr);
-  EXPECT_STREQ (self->mqtt_conn_opts.ssl->trustStore, file);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->trustStore, files[0]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->keyStore, files[1]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->privateKey, files[2]);
   EXPECT_STREQ (self->mqtt_conn_opts.ssl->privateKeyPassword, "test-key-password");
   EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_FAILURE);
   g_object_set (element, "tls", FALSE, NULL);
@@ -3133,8 +3177,10 @@ TEST (testMqttSinkWithHelper, tlsOptionsPassedToConnect)
   EXPECT_EQ (self->mqtt_conn_opts.ssl, nullptr);
   gst_element_set_state (element, GST_STATE_NULL);
   gst_object_unref (element);
-  g_unlink (file);
-  g_free (file);
+  for (gchar *file : files) {
+    g_unlink (file);
+    g_free (file);
+  }
 }
 
 /** @brief Refuse a client private key without a client certificate. */
@@ -3149,6 +3195,32 @@ TEST (testMqttSinkWithHelper, tlsKeyWithoutCertificate_n)
   EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
   gst_element_set_state (element, GST_STATE_NULL);
   gst_object_unref (element);
+}
+
+/** @brief Refuse a CA, certificate or key path that is not a regular file. */
+TEST (testMqttSinkWithHelper, tlsCredentialNotRegularFile_n)
+{
+  gchar *file = nullptr;
+  int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
+  ASSERT_GE (fd, 0);
+  close (fd);
+  const gchar *dir = g_get_tmp_dir ();
+  const gchar *cases[][3]
+      = { { dir, NULL, NULL }, { NULL, dir, NULL }, { NULL, file, dir } };
+  for (const auto &paths : cases) {
+    GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+    ASSERT_NE (element, nullptr);
+    gst_object_ref_sink (element);
+    GstMqttTestHelper::getInstance ().initFailFlags ();
+    GstElement *pipeline = element;
+    g_object_set (element, "tls", TRUE, "tls-ca-file", paths[0],
+        "tls-cert-file", paths[1], "tls-key-file", paths[2], NULL);
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+    gst_element_set_state (element, GST_STATE_NULL);
+    gst_object_unref (element);
+  }
+  g_unlink (file);
+  g_free (file);
 }
 #endif
 
