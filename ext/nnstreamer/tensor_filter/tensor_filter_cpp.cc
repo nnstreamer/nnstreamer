@@ -38,6 +38,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
 #include "tensor_filter_cpp.hh"
@@ -50,25 +51,121 @@ G_LOCK_DEFINE_STATIC (lock_handles);
 static gchar filter_subplugin_cpp[] = "cpp";
 bool tensor_filter_cpp::close_all_called = false;
 
-static GstTensorFilterFramework NNS_support_cpp = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+/**
+ * @brief The v1 invoke callback, dispatching to tensor_filter_cpp::invoke
+ */
+static int
+cpp_v1_invoke (const GstTensorFilterFramework *self, GstTensorFilterProperties *prop,
+    void *private_data, const GstTensorMemory *input, GstTensorMemory *output)
+{
+  UNUSED (self);
+  return tensor_filter_cpp::invoke (prop, &private_data, input, output);
+}
+
+/**
+ * @brief The v1 getFrameworkInfo callback. An opened filter tells its own allocation contract.
+ */
+static int
+cpp_v1_getFrameworkInfo (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data,
+    GstTensorFilterFrameworkInfo *fw_info)
+{
+  UNUSED (self);
+  UNUSED (prop);
+
+  fw_info->name = filter_subplugin_cpp;
+  fw_info->allow_in_place = FALSE; /** @todo: support this to optimize performance later. */
+  fw_info->allocate_in_invoke = FALSE;
+  if (private_data)
+    fw_info->allocate_in_invoke
+        = (tensor_filter_cpp::allocateInInvoke (&private_data) == 0);
+  fw_info->run_without_model = FALSE;
+  fw_info->verify_model_path = FALSE;
+  fw_info->hw_list = nullptr;
+  fw_info->num_hw = 0;
+  fw_info->accl_auto = ACCL_NONE;
+  fw_info->accl_default = ACCL_NONE;
+  fw_info->statistics = nullptr;
+
+  return 0;
+}
+
+/**
+ * @brief The v1 getModelInfo callback, dispatching to the dimension callbacks of tensor_filter_cpp
+ * @note v0 asked for the input and output dimensions one by one, and
+ *       tensor_filter derived the missing one itself. GET_IN_OUT_INFO asks
+ *       for both, so a filter with only one of the two fixed fills the other
+ *       here, the way tensor_filter did in v0: a fixed input gets its output
+ *       from setInputDim (none with invoke-dynamic, where tensor_filter takes
+ *       the output from invoke), and a fixed output is used when setInputDim
+ *       fails.
+ */
+static int
+cpp_v1_getModelInfo (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info)
+{
+  GstTensorsInfo fixed_in, fixed_out;
+  int ret;
+  UNUSED (self);
+
+  if (!private_data || !in_info || !out_info)
+    return -EINVAL;
+
+  if (ops == GET_IN_OUT_INFO) {
+    ret = tensor_filter_cpp::getInputDim (prop, &private_data, in_info);
+    if (ret == 0 && tensor_filter_cpp::getOutputDim (prop, &private_data, out_info) != 0) {
+      gst_tensors_info_free (out_info);
+      if (!prop || !prop->invoke_dynamic)
+        ret = tensor_filter_cpp::setInputDim (prop, &private_data, in_info, out_info);
+    }
+    return ret;
+  } else if (ops == SET_INPUT_INFO) {
+    ret = tensor_filter_cpp::setInputDim (prop, &private_data, in_info, out_info);
+    if (ret != 0) {
+      gst_tensors_info_init (&fixed_in);
+      gst_tensors_info_init (&fixed_out);
+      if (tensor_filter_cpp::getInputDim (prop, &private_data, &fixed_in) != 0
+          && tensor_filter_cpp::getOutputDim (prop, &private_data, &fixed_out) == 0) {
+        gst_tensors_info_free (out_info);
+        gst_tensors_info_copy (out_info, &fixed_out);
+        ret = 0;
+      }
+      gst_tensors_info_free (&fixed_in);
+      gst_tensors_info_free (&fixed_out);
+    }
+    return ret;
+  }
+
+  return -ENOENT;
+}
+
+/**
+ * @brief The v1 eventHandler callback. No event is handled.
+ */
+static int
+cpp_v1_eventHandler (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData *data)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  UNUSED (ops);
+  UNUSED (data);
+
+  return -ENOENT;
+}
+
+static GstTensorFilterFramework NNS_support_cpp = { .version = GST_TENSOR_FILTER_FRAMEWORK_V1,
   .open = tensor_filter_cpp::open,
   .close = tensor_filter_cpp::close,
-  { .v0 = {
-        .name = filter_subplugin_cpp,
-        .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-        .allocate_in_invoke = TRUE,
-        .run_without_model = FALSE,
-        .verify_model_path = FALSE,
-        .statistics = nullptr,
-        .invoke_NN = tensor_filter_cpp::invoke,
-        .getInputDimension = tensor_filter_cpp::getInputDim,
-        .getOutputDimension = tensor_filter_cpp::getOutputDim,
-        .setInputDimension = tensor_filter_cpp::setInputDim,
-        .destroyNotify = nullptr,
-        .reloadModel = nullptr,
-        .handleEvent = nullptr,
-        .checkAvailability = nullptr,
-        .allocateInInvoke = tensor_filter_cpp::allocateInInvoke,
+  { .v1 = {
+        .invoke = cpp_v1_invoke,
+        .getFrameworkInfo = cpp_v1_getFrameworkInfo,
+        .getModelInfo = cpp_v1_getModelInfo,
+        .eventHandler = cpp_v1_eventHandler,
+        .subplugin_data = nullptr,
     } } };
 
 G_BEGIN_DECLS
@@ -86,7 +183,7 @@ init_filter_cpp (void)
 void
 fini_filter_cpp (void)
 {
-  nnstreamer_filter_exit (NNS_support_cpp.v0.name);
+  nnstreamer_filter_exit (filter_subplugin_cpp);
   tensor_filter_cpp::close_all_handles ();
 }
 G_END_DECLS
