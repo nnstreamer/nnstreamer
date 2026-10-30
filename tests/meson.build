@@ -42,6 +42,9 @@ unittest_util_dep = declare_dependency(link_with: unittest_util_shared,
 # ssat repo_dynamic
 subdir('nnstreamer_repo_dynamicity')
 
+# HailoRT sub-plugin on a mock of HailoRT
+subdir('nnstreamer_filter_hailort')
+
 # filter_reload (Currently, the reload test for tensor filter requires tflite)
 if tflite2_support_is_available
   subdir('nnstreamer_filter_reload')
@@ -516,6 +519,17 @@ if gtest_dep.found()
   )
 
   test('unittest_filter_snpe_mock_v1', unittest_filter_snpe_mock_v1, env: testenv)
+
+  # HailoRT sub-plugin unit tests on the mock of tests/nnstreamer_filter_hailort.
+  # Declared here so that the binary lands in build/tests, where the GBS and
+  # valgrind jobs run every unit test.
+  unittest_filter_hailort = executable('unittest_filter_hailort',
+    [join_paths('nnstreamer_filter_hailort', 'unittest_filter_hailort.cc'), hailort_subplugin_src],
+    dependencies: [nnstreamer_unittest_deps, nnstreamer_single_dep, hailort_mock_dep],
+    install: false
+  )
+
+  test('unittest_filter_hailort', unittest_filter_hailort, env: testenv)
 
   # tensorflow2-lite unittest
   if tflite2_support_is_available

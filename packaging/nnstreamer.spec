@@ -819,6 +819,7 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define enable_openvino -Denable-openvino=false
 %define enable_nnfw_runtime -Dnnfw-runtime-support=disabled
 %define enable_ncnn -Dncnn-support=disabled
+%define enable_hailort -Dhailort-support=disabled
 %define element_restriction -Denable-element-restriction=false
 %define enable_test -Denable-test=true
 %define install_test -Dinstall-test=false
@@ -1063,7 +1064,7 @@ meson setup %{builddir} \
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
 	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} %{enable_executorch} %{enable_executorch_llama} \
 	%{enable_ncnn} %{enable_test} %{enable_test_coverage} %{install_test} \
-	%{fp16_support} %{nnsedge} %{enable_ml_agent} %{enable_tizen_hal}
+	%{fp16_support} %{nnsedge} %{enable_ml_agent} %{enable_tizen_hal} %{enable_hailort}
 
 ninja -C %{builddir} %{?_smp_mflags}
 

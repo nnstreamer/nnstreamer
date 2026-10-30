@@ -102,6 +102,14 @@ Note: due to API disruptions, there are two versions.
 
 Note: due to API disruptions, there are two versions.
 
+### HailoRT (Hailo NPU)
+- subplugin name: 'hailort'
+- model: one compiled ```.hef``` file with one network group. HailoRT 4.18 or later.
+- custom properties: ```input_format``` and ```output_format``` (```auto```, ```uint8```, ```uint16```, ```float32```; ```float32``` makes HailoRT (de)quantize on the host), ```group_id``` (filters with the same id share the device through the HailoRT scheduler).
+- Each virtual stream is a tensor, in the order HailoRT reports them: an NHWC frame is ```C:W:H:1```, any other layout (NCHW, NMS results, ...) a flat tensor of the frame size.
+- After a failed transfer, invoke is refused until the model is opened again.
+- Not built with ```tizen-hal-support```. There, Hailo NPUs need a Hailo backend of the ```tizen-hal``` subplugin, which does not exist yet (#4680).
+
 ### TRIx-engine (Samsung TV/CE)
 
 ## Adaptors for other pipeline frameworks
