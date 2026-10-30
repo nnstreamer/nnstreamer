@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 #include <errno.h>
 #include <glib/gstdio.h>
+#include <gmodule.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #include <stdlib.h>
@@ -22,6 +23,7 @@
 #include "tensor_common.h"
 
 #include "../gst/nnstreamer/tensor_filter/tensor_filter_common.h"
+#include "../gst/nnstreamer/tensor_filter/tensor_filter_single.h"
 
 /**
  * @brief Macro for debug mode.
@@ -4439,37 +4441,6 @@ test_custom_v0_open (const GstTensorFilterProperties *prop, void **private_data)
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework.
- */
-static int
-test_custom_v0_checkAvailability (accl_hw hw)
-{
-  if (hw & ACCL_CPU)
-    return 0;
-
-  return -EINVAL;
-}
-
-/**
- * @brief The optional callback for GstTensorFilterFramework.
- */
-static int
-test_custom_v0_handleEvent (event_ops ops, GstTensorFilterFrameworkEventData *data)
-{
-  if (ops == CHECK_HW_AVAILABILITY) {
-    /* for test, available on cpu and option string. */
-    if (data && (data->hw & ACCL_CPU)) {
-      if (data->custom && g_str_equal ("avail-hw", data->custom))
-        return 0;
-    }
-
-    return -EINVAL;
-  }
-
-  return -ENOENT;
-}
-
-/**
  * @brief The mandatory callback for GstTensorFilterFramework (v1).
  */
 static int
@@ -4612,6 +4583,8 @@ TEST (tensorStreamTest, subpluginInvalidVer_n)
 
 /**
  * @brief Test for passthrough custom filter without model.
+ * @note This keeps a V0 sub-plugin running on purpose, as long as tensor_filter
+ *       loads V0 sub-plugins (#4425). Remove it with the V0 interface.
  */
 TEST (tensorStreamTest, subpluginV0Run)
 {
@@ -4972,31 +4945,96 @@ TEST (tensorStreamTest, subpluginV1OpenNoFrameworkInfo_n)
 }
 
 /**
- * @brief Test for hw availability with invalid custom string.
+ * @brief The accelerators the test V1 sub-plugin of subpluginV1CheckFW supports.
  */
-TEST (tensorStreamTest, subpluginV0CheckFW_n)
+static const accl_hw test_custom_v1_hw_list[] = { ACCL_CPU };
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework (v1), supporting cpu only.
+ */
+static int
+test_custom_v1_getFWInfo_cpu (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data,
+    GstTensorFilterFrameworkInfo *fw_info)
+{
+  test_custom_v1_getFWInfo (self, prop, private_data, fw_info);
+  fw_info->hw_list = test_custom_v1_hw_list;
+  fw_info->num_hw = 1;
+  return 0;
+}
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework (v1), checking the hw with the custom option.
+ */
+static int
+test_custom_v1_eventHandler_hw (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData *data)
+{
+  if (ops == CHECK_HW_AVAILABILITY) {
+    /* for test, available on cpu and option string. */
+    if (data && (data->hw & ACCL_CPU)) {
+      if (data->custom && g_str_equal ("avail-hw", data->custom))
+        return 0;
+    }
+
+    return -EINVAL;
+  }
+
+  return -ENOENT;
+}
+
+/**
+ * @brief Allocate the test V1 sub-plugin that supports cpu with the custom option "avail-hw".
+ * @return The framework to register, to be freed after nnstreamer_filter_exit().
+ */
+static GstTensorFilterFramework *
+test_custom_v1_new_hw (void)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
-  ASSERT_TRUE (fw != NULL);
-  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
-  fw->name = (char *) test_fw_custom_name;
-  fw->run_without_model = TRUE;
-  fw->invoke_NN = test_custom_v0_invoke;
-  fw->setInputDimension = test_custom_v0_setdim;
-  fw->handleEvent = test_custom_v0_handleEvent;
-  fw->checkAvailability = test_custom_v0_checkAvailability;
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+  fw->invoke = test_custom_v1_invoke;
+  fw->getFrameworkInfo = test_custom_v1_getFWInfo_cpu;
+  fw->getModelInfo = test_custom_v1_getModelInfo;
+  fw->eventHandler = test_custom_v1_eventHandler_hw;
+  return fw;
+}
+
+/**
+ * @brief Test for hw availability with a valid custom string (v1).
+ */
+TEST (tensorStreamTest, subpluginV1CheckFW)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_new_hw ();
 
   /* register custom filter */
-  EXPECT_TRUE (nnstreamer_filter_probe (fw));
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  /* check fw availability (cpu only, valid custom string) */
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (
+      test_fw_custom_name, ACCL_CPU, "avail-hw"));
+
+  /* unregister custom filter */
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test for hw availability with invalid custom string (v1).
+ */
+TEST (tensorStreamTest, subpluginV1CheckFW_n)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_new_hw ();
+
+  /* register custom filter */
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
 
   /* check fw availability (cpu only, invalid custom string) */
   EXPECT_FALSE (gst_tensor_filter_check_hw_availability (
       test_fw_custom_name, ACCL_CPU, "invalid-hw"));
   EXPECT_FALSE (gst_tensor_filter_check_hw_availability (
       test_fw_custom_name, ACCL_GPU, "avail-hw"));
-  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (
-      test_fw_custom_name, ACCL_CPU, "avail-hw"));
 
   /* unregister custom filter */
   nnstreamer_filter_exit (test_fw_custom_name);
@@ -5043,25 +5081,42 @@ TEST (tensorStreamTest, subpluginFilterCheckFW_n)
 }
 
 /**
- * @brief Test for preserved sub-plugin name.
+ * @brief The name the test V1 sub-plugin of subpluginV1PreservedName_n reports.
  */
-TEST (tensorStreamTest, subpluginV0PreservedName_n)
+static const char *test_custom_v1_fw_name;
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework (v1), reporting test_custom_v1_fw_name.
+ */
+static int
+test_custom_v1_getFWInfo_name (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data,
+    GstTensorFilterFrameworkInfo *fw_info)
+{
+  test_custom_v1_getFWInfo (self, prop, private_data, fw_info);
+  fw_info->name = test_custom_v1_fw_name;
+  return 0;
+}
+
+/**
+ * @brief Test for preserved sub-plugin name (v1).
+ */
+TEST (tensorStreamTest, subpluginV1PreservedName_n)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
   ASSERT_TRUE (fw != NULL);
-  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
-  fw->run_without_model = TRUE;
-  fw->invoke_NN = test_custom_v0_invoke;
-  fw->setInputDimension = test_custom_v0_setdim;
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+  fw->invoke = test_custom_v1_invoke;
+  fw->getFrameworkInfo = test_custom_v1_getFWInfo_name;
+  fw->getModelInfo = test_custom_v1_getModelInfo;
+  fw->eventHandler = test_custom_v1_eventHandler;
 
-  fw->name = g_strdup ("any"); /* preserved name 'any' */
+  test_custom_v1_fw_name = "any"; /* preserved name 'any' */
   EXPECT_FALSE (nnstreamer_filter_probe (fw));
-  g_free (fw->name);
 
-  fw->name = g_strdup ("auto"); /* preserved name 'auto' */
+  test_custom_v1_fw_name = "auto"; /* preserved name 'auto' */
   EXPECT_FALSE (nnstreamer_filter_probe (fw));
-  g_free (fw->name);
 
   g_free (fw);
 }
@@ -5649,6 +5704,465 @@ TEST (tensorStreamTest, subpluginV1NullCb_n)
   EXPECT_FALSE (nnstreamer_filter_probe (fw));
 
   g_free (fw);
+}
+
+extern "C" {
+void init_filter_custom (void);
+void fini_filter_custom (void);
+}
+
+/**
+ * @brief Get the path of a custom filter library the tests build.
+ * @param[in] name The library name without the extension.
+ * @return The path, to be freed with g_free().
+ */
+static gchar *
+test_custom_filter_path (const gchar *name)
+{
+  return g_strdup_printf ("%s/%s%s", custom_dir ? custom_dir : "./tests/nnstreamer_example",
+      name, NNSTREAMER_SO_FILE_EXTENSION);
+}
+
+/**
+ * @brief Open a custom filter library with the custom sub-plugin.
+ * @param[in] fw The custom sub-plugin.
+ * @param[out] prop The properties to fill, to be passed to the other callbacks.
+ * @param[out] models The array to keep the model path in, to be freed with g_free(). It has to live as long as prop.
+ * @param[in] name The library name without the extension.
+ * @param[out] data The private data the sub-plugin opens.
+ * @return The return value of the open callback.
+ */
+static int
+test_custom_filter_open (const GstTensorFilterFramework *fw,
+    GstTensorFilterProperties *prop, gchar **models, const gchar *name, void **data)
+{
+  memset (prop, 0, sizeof (GstTensorFilterProperties));
+  models[0] = test_custom_filter_path (name);
+  prop->fwname = "custom";
+  prop->model_files = (const char **) models;
+  prop->num_models = 1;
+
+  *data = NULL;
+  return fw->open (prop, data);
+}
+
+/**
+ * @brief Get the destroy_notify counter of nnscustom_destroy_notify.
+ * @param[out] module The module that keeps the library loaded, to be closed with g_module_close().
+ * @return The counter, or NULL if the library cannot be loaded.
+ */
+static gint *
+test_custom_destroy_notify_count (GModule **module)
+{
+  gchar *path = test_custom_filter_path ("libnnscustom_destroy_notify");
+  gpointer count = NULL;
+
+  *module = g_module_open (path, G_MODULE_BIND_LOCAL);
+  g_free (path);
+
+  if (*module && !g_module_symbol (*module, "nnscustom_destroy_notify_count", &count)) {
+    g_module_close (*module);
+    *module = NULL;
+  }
+
+  return (gint *) count;
+}
+
+/**
+ * @brief Test that the custom sub-plugin is V1 and reports its framework info.
+ */
+TEST (tensorStreamTest, customFilterV1FrameworkInfo)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("custom");
+  GstTensorFilterFrameworkInfo info;
+  GstTensorFilterProperties prop;
+  gchar *models[1] = { NULL };
+  void *data = NULL;
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_EQ (fw->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+
+  /* before open */
+  memset (&prop, 0, sizeof (prop));
+  memset (&info, 0, sizeof (info));
+  EXPECT_EQ (fw->getFrameworkInfo (fw, &prop, NULL, &info), 0);
+  EXPECT_STREQ (info.name, "custom");
+  EXPECT_FALSE (info.allow_in_place);
+  EXPECT_FALSE (info.allocate_in_invoke);
+  EXPECT_FALSE (info.run_without_model);
+  EXPECT_FALSE (info.verify_model_path);
+  EXPECT_EQ (info.num_hw, 0);
+
+  /* a library that fills the output tensor_filter allocates */
+  ASSERT_EQ (test_custom_filter_open (fw, &prop, models,
+                 "libnnstreamer_customfilter_passthrough", &data),
+      0);
+  memset (&info, 0, sizeof (info));
+  EXPECT_EQ (fw->getFrameworkInfo (fw, &prop, data, &info), 0);
+  EXPECT_STREQ (info.name, "custom");
+  EXPECT_FALSE (info.allocate_in_invoke);
+  fw->close (&prop, &data);
+  EXPECT_TRUE (data == NULL);
+  g_free (models[0]);
+
+  /* a library that allocates the output itself */
+  ASSERT_EQ (
+      test_custom_filter_open (fw, &prop, models, "libnnscustom_destroy_notify", &data), 0);
+  memset (&info, 0, sizeof (info));
+  EXPECT_EQ (fw->getFrameworkInfo (fw, &prop, data, &info), 0);
+  EXPECT_TRUE (info.allocate_in_invoke);
+  fw->close (&prop, &data);
+  EXPECT_TRUE (data == NULL);
+  g_free (models[0]);
+
+  /* a library that allocates the output itself, without destroy_notify */
+  ASSERT_EQ (test_custom_filter_open (fw, &prop, models,
+                 "libnnstreamer_customfilter_scaler_allocator", &data),
+      0);
+  memset (&info, 0, sizeof (info));
+  EXPECT_EQ (fw->getFrameworkInfo (fw, &prop, data, &info), 0);
+  EXPECT_TRUE (info.allocate_in_invoke);
+  fw->close (&prop, &data);
+  g_free (models[0]);
+}
+
+/**
+ * @brief Test that the custom sub-plugin passes the model info calls to the library.
+ */
+TEST (tensorStreamTest, customFilterV1ModelInfo)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("custom");
+  GstTensorFilterProperties prop;
+  GstTensorsInfo in_info, out_info;
+  gchar *models[1] = { NULL };
+  void *data = NULL;
+
+  ASSERT_TRUE (fw != NULL);
+
+  /* getInputDim and getOutputDim */
+  ASSERT_EQ (test_custom_filter_open (fw, &prop, models,
+                 "libnnstreamer_customfilter_passthrough", &data),
+      0);
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+  EXPECT_EQ (in_info.num_tensors, 1U);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&in_info, &out_info));
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  fw->close (&prop, &data);
+  g_free (models[0]);
+
+  /* setInputDim */
+  ASSERT_EQ (
+      test_custom_filter_open (fw, &prop, models, "libnnscustom_destroy_notify", &data), 0);
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  in_info.num_tensors = 1;
+  in_info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:4:4:1", in_info.info[0].dimension);
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, data, SET_INPUT_INFO, &in_info, &out_info), 0);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&in_info, &out_info));
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  fw->close (&prop, &data);
+  g_free (models[0]);
+}
+
+/**
+ * @brief Test that the custom sub-plugin refuses the model info calls with invalid arguments.
+ */
+TEST (tensorStreamTest, customFilterV1ModelInfo_n)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("custom");
+  GstTensorFilterProperties prop;
+  GstTensorsInfo in_info, out_info;
+  gchar *models[1] = { NULL };
+  void *data = NULL;
+
+  ASSERT_TRUE (fw != NULL);
+  memset (&prop, 0, sizeof (prop));
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+
+  /* not opened */
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, NULL, GET_IN_OUT_INFO, &in_info, &out_info), -EINVAL);
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, NULL, SET_INPUT_INFO, &in_info, &out_info), -EINVAL);
+
+  ASSERT_EQ (test_custom_filter_open (fw, &prop, models,
+                 "libnnstreamer_customfilter_passthrough", &data),
+      0);
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, data, GET_IN_OUT_INFO, NULL, &out_info), -EINVAL);
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, data, GET_IN_OUT_INFO, &in_info, NULL), -EINVAL);
+
+  /* a library without setInputDim */
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, data, SET_INPUT_INFO, &in_info, &out_info), -ENOENT);
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, data, (model_info_ops) -1, &in_info, &out_info),
+      -ENOENT);
+  fw->close (&prop, &data);
+  g_free (models[0]);
+
+  /* a library without getInputDim and getOutputDim */
+  ASSERT_EQ (
+      test_custom_filter_open (fw, &prop, models, "libnnscustom_destroy_notify", &data), 0);
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info), -ENOENT);
+  fw->close (&prop, &data);
+  g_free (models[0]);
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief Test that the custom sub-plugin hands DESTROY_NOTIFY to the destroy_notify of the library.
+ */
+TEST (tensorStreamTest, customFilterV1DestroyNotify)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("custom");
+  GstTensorFilterFrameworkEventData event_data;
+  GstTensorFilterProperties prop;
+  gchar *models[1] = { NULL };
+  GModule *module = NULL;
+  void *data = NULL;
+  gint *count, before;
+
+  ASSERT_TRUE (fw != NULL);
+  count = test_custom_destroy_notify_count (&module);
+  ASSERT_TRUE (count != NULL);
+
+  ASSERT_EQ (
+      test_custom_filter_open (fw, &prop, models, "libnnscustom_destroy_notify", &data), 0);
+  before = g_atomic_int_get (count);
+
+  event_data.data = g_malloc (16);
+  EXPECT_EQ (fw->eventHandler (fw, &prop, data, DESTROY_NOTIFY, &event_data), 0);
+  EXPECT_EQ (g_atomic_int_get (count), before + 1);
+
+  /* nothing to release */
+  event_data.data = NULL;
+  EXPECT_EQ (fw->eventHandler (fw, &prop, data, DESTROY_NOTIFY, &event_data), 0);
+  EXPECT_EQ (g_atomic_int_get (count), before + 1);
+
+  fw->close (&prop, &data);
+  g_free (models[0]);
+  g_module_close (module);
+}
+
+/**
+ * @brief Test that the custom sub-plugin leaves DESTROY_NOTIFY to tensor_filter and supports no other event.
+ */
+TEST (tensorStreamTest, customFilterV1Event_n)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("custom");
+  GstTensorFilterFrameworkEventData event_data;
+  GstTensorFilterProperties prop;
+  gchar *models[1] = { NULL };
+  void *data = NULL;
+  const event_ops ops[] = { RELOAD_MODEL, CUSTOM_PROP, SET_INPUT_PROP,
+    SET_OUTPUT_PROP, SET_ACCELERATOR, CHECK_HW_AVAILABILITY, SUSPEND, RESUME };
+  guint i;
+
+  ASSERT_TRUE (fw != NULL);
+  memset (&prop, 0, sizeof (prop));
+  memset (&event_data, 0, sizeof (event_data));
+
+  /* not opened: tensor_filter frees the data, and is-updatable stays off */
+  EXPECT_EQ (fw->eventHandler (fw, &prop, NULL, DESTROY_NOTIFY, &event_data), -ENOENT);
+  EXPECT_EQ (fw->eventHandler (fw, &prop, NULL, RELOAD_MODEL, NULL), -ENOENT);
+
+  /* a library without destroy_notify */
+  ASSERT_EQ (test_custom_filter_open (fw, &prop, models,
+                 "libnnstreamer_customfilter_passthrough", &data),
+      0);
+  EXPECT_EQ (fw->eventHandler (fw, &prop, data, DESTROY_NOTIFY, &event_data), -ENOENT);
+  fw->close (&prop, &data);
+  g_free (models[0]);
+
+  /* a library that allocates the output itself, without destroy_notify */
+  ASSERT_EQ (test_custom_filter_open (fw, &prop, models,
+                 "libnnstreamer_customfilter_scaler_allocator", &data),
+      0);
+  EXPECT_EQ (fw->eventHandler (fw, &prop, data, DESTROY_NOTIFY, &event_data), -ENOENT);
+  fw->close (&prop, &data);
+  g_free (models[0]);
+
+  /* a library with destroy_notify supports DESTROY_NOTIFY only */
+  ASSERT_EQ (
+      test_custom_filter_open (fw, &prop, models, "libnnscustom_destroy_notify", &data), 0);
+  EXPECT_EQ (fw->eventHandler (fw, &prop, data, DESTROY_NOTIFY, NULL), -EINVAL);
+  for (i = 0; i < G_N_ELEMENTS (ops); i++) {
+    memset (&event_data, 0, sizeof (event_data));
+    EXPECT_EQ (fw->eventHandler (fw, &prop, data, ops[i], &event_data), -ENOENT);
+  }
+  EXPECT_EQ (fw->eventHandler (fw, &prop, data, RELOAD_MODEL, NULL), -ENOENT);
+  fw->close (&prop, &data);
+  g_free (models[0]);
+}
+
+/**
+ * @brief Test that tensor_filter releases each output a custom library allocates with its destroy_notify.
+ */
+TEST (tensorStreamTest, customFilterV1DestroyNotifyPipeline)
+{
+  const guint num_buffers = 5;
+  gchar *model = test_custom_filter_path ("libnnscustom_destroy_notify");
+  gchar *str_pipeline;
+  GstElement *pipeline;
+  GstMessage *msg;
+  GstBus *bus;
+  GModule *module = NULL;
+  gint *count, before;
+
+  count = test_custom_destroy_notify_count (&module);
+  ASSERT_TRUE (count != NULL);
+  before = g_atomic_int_get (count);
+
+  str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=%u ! video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+      "tensor_converter ! tensor_filter framework=custom model=%s ! fakesink enable-last-sample=false",
+      num_buffers, model);
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  g_free (model);
+  ASSERT_TRUE (pipeline != NULL);
+
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  ASSERT_TRUE (msg != NULL);
+  EXPECT_EQ (GST_MESSAGE_TYPE (msg), GST_MESSAGE_EOS);
+  gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (g_atomic_int_get (count), before + (gint) num_buffers);
+  g_module_close (module);
+}
+
+/**
+ * @brief Test that the custom sub-plugin keeps what V0 reported for the accelerator.
+ */
+TEST (tensorStreamTest, customFilterV1Accelerator)
+{
+  gchar *model = test_custom_filter_path ("libnnstreamer_customfilter_passthrough");
+  GstElement *filter;
+  gchar *accl = NULL;
+
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("custom", ACCL_AUTO, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("custom", ACCL_DEFAULT, NULL));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", "custom", "model", model, "accelerator",
+      "true:cpu", NULL);
+  g_object_get (filter, "accelerator", &accl, NULL);
+  EXPECT_STREQ (accl, "true:cpu");
+
+  g_free (accl);
+  gst_object_unref (filter);
+  g_free (model);
+}
+
+/**
+ * @brief Test that the custom sub-plugin refuses a specific accelerator and model updates, as V0 did.
+ */
+TEST (tensorStreamTest, customFilterV1Properties_n)
+{
+  gchar *model = test_custom_filter_path ("libnnstreamer_customfilter_passthrough");
+  GstElement *filter;
+  gboolean updatable = TRUE;
+
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("custom", ACCL_CPU, NULL));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("custom", ACCL_GPU, NULL));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", "custom", "model", model, "is-updatable", TRUE, NULL);
+  g_object_get (filter, "is-updatable", &updatable, NULL);
+  EXPECT_FALSE (updatable);
+
+  gst_object_unref (filter);
+  g_free (model);
+}
+
+/**
+ * @brief Test that single-shot releases the output a custom library allocates with its destroy_notify.
+ */
+TEST (tensorStreamTest, customFilterV1SingleShot)
+{
+  gchar *model = test_custom_filter_path ("libnnscustom_destroy_notify");
+  const guint8 in_data[4] = { 1, 2, 3, 4 };
+  GTensorFilterSingleClass *klass;
+  GTensorFilterSingle *single;
+  GstTensorsInfo in_info, out_info;
+  GstTensorMemory input, output;
+  GModule *module = NULL;
+  gint *count, before;
+
+  count = test_custom_destroy_notify_count (&module);
+  ASSERT_TRUE (count != NULL);
+  before = g_atomic_int_get (count);
+
+  klass = (GTensorFilterSingleClass *) g_type_class_ref (G_TYPE_TENSOR_FILTER_SINGLE);
+  single = (GTensorFilterSingle *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
+  g_object_set (G_OBJECT (single), "framework", "custom", "model", model, NULL);
+  g_free (model);
+
+  ASSERT_TRUE (klass->start (single));
+  EXPECT_TRUE (klass->allocate_in_invoke (single));
+
+  gst_tensors_info_init (&in_info);
+  in_info.num_tensors = 1;
+  in_info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4:1:1:1", in_info.info[0].dimension);
+  EXPECT_EQ (klass->set_input_info (single, &in_info, &out_info), 0);
+
+  input.data = (void *) in_data;
+  input.size = sizeof (in_data);
+
+  /* single-shot copies the output into the given memory and releases what the library allocated */
+  output.size = sizeof (in_data);
+  output.data = g_malloc0 (output.size);
+  EXPECT_TRUE (klass->invoke (single, &input, &output, FALSE));
+  EXPECT_EQ (memcmp (output.data, in_data, sizeof (in_data)), 0);
+  EXPECT_EQ (g_atomic_int_get (count), before + 1);
+  g_free (output.data);
+
+  /* the caller gets what the library allocated and releases it with destroy_notify */
+  output.size = sizeof (in_data);
+  output.data = NULL;
+  EXPECT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  ASSERT_TRUE (output.data != NULL);
+  EXPECT_EQ (memcmp (output.data, in_data, sizeof (in_data)), 0);
+  EXPECT_EQ (g_atomic_int_get (count), before + 1);
+  klass->destroy_notify (single, &output);
+  EXPECT_EQ (g_atomic_int_get (count), before + 2);
+
+  klass->stop (single);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  g_object_unref (single);
+  g_type_class_unref (klass);
+  g_module_close (module);
+}
+
+/**
+ * @brief Test that the custom sub-plugin unregisters itself under its name.
+ */
+TEST (tensorStreamTest, customFilterV1Unregister)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("custom");
+
+  ASSERT_TRUE (fw != NULL);
+
+  fini_filter_custom ();
+  EXPECT_TRUE (nnstreamer_filter_find ("custom") == NULL);
+
+  init_filter_custom ();
+  EXPECT_TRUE (nnstreamer_filter_find ("custom") == fw);
 }
 
 /**

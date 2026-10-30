@@ -1359,6 +1359,83 @@ _start_accl_critical_count (guint *count)
 #endif
 
 /**
+ * @brief The name of the V0 sub-plugin of testFilterAccelerator.
+ */
+static char accl_v0_mock_name[] = "accl_v0_mock_subplugin";
+
+/**
+ * @brief The invoke callback of the V0 sub-plugin of testFilterAccelerator.
+ */
+static int
+accl_v0_mock_invoke (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  UNUSED (prop);
+  UNUSED (private_data);
+  UNUSED (input);
+  UNUSED (output);
+  return 0;
+}
+
+/**
+ * @brief The set-input-dim callback of the V0 sub-plugin of testFilterAccelerator.
+ */
+static int
+accl_v0_mock_setdim (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
+{
+  UNUSED (prop);
+  UNUSED (private_data);
+  gst_tensors_info_copy (out_info, in_info);
+  return 0;
+}
+
+/**
+ * @brief The checkAvailability callback of the V0 sub-plugin of testFilterAccelerator, supporting cpu only.
+ */
+static int
+accl_v0_mock_checkAvailability (accl_hw hw)
+{
+  return (hw == ACCL_CPU) ? 0 : -ENOENT;
+}
+
+/**
+ * @brief The handleEvent callback of the V0 sub-plugin of testFilterAccelerator.
+ * @details CHECK_HW_AVAILABILITY accepts the custom option "avail-hw" only.
+ */
+static int
+accl_v0_mock_handleEvent (event_ops ops, GstTensorFilterFrameworkEventData *data)
+{
+  if (ops != CHECK_HW_AVAILABILITY)
+    return -ENOENT;
+
+  if (data && data->custom && g_str_equal (data->custom, "avail-hw"))
+    return 0;
+
+  return -EINVAL;
+}
+
+/**
+ * @brief Get the V0 sub-plugin of testFilterAccelerator.
+ * @note It stays V0 until tensor_filter stops loading V0 sub-plugins (#4425).
+ */
+static GstTensorFilterFramework *
+accl_v0_mock (void)
+{
+  static GstTensorFilterFramework fw;
+
+  memset (&fw, 0, sizeof (fw));
+  fw.version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  fw.name = accl_v0_mock_name;
+  fw.run_without_model = TRUE;
+  fw.invoke_NN = accl_v0_mock_invoke;
+  fw.setInputDimension = accl_v0_mock_setdim;
+  fw.checkAvailability = accl_v0_mock_checkAvailability;
+  fw.handleEvent = accl_v0_mock_handleEvent;
+  return &fw;
+}
+
+/**
  * @brief Test fixture setting the accelerator property of a filter the way a pipeline description does.
  */
 class testFilterAccelerator : public ::testing::Test
@@ -1366,7 +1443,7 @@ class testFilterAccelerator : public ::testing::Test
   protected:
   GstTensorFilterPrivate priv;
 
-  /** @brief register the V1 mocks */
+  /** @brief register the V1 mocks and the V0 one */
   void SetUp () override
   {
     accl_mock_subplugin::seen_accl_str = nullptr;
@@ -1382,6 +1459,7 @@ class testFilterAccelerator : public ::testing::Test
     fake_neon_calls = 0;
 
     gst_tensor_filter_common_init_property (&priv);
+    ASSERT_TRUE (nnstreamer_filter_probe (accl_v0_mock ()));
   }
 
   /** @brief close the filter and unregister the mocks */
@@ -1389,6 +1467,7 @@ class testFilterAccelerator : public ::testing::Test
   {
     gst_tensor_filter_common_close_fw (&priv);
     gst_tensor_filter_common_free_property (&priv);
+    nnstreamer_filter_exit (accl_v0_mock_name);
     accl_neon_mock_subplugin::fini ();
     accl_cpu_mock_subplugin::fini ();
     accl_mock_subplugin::fini ();
@@ -1493,7 +1572,7 @@ TEST_F (testFilterAccelerator, afterFrameworkV0)
 {
   g_autofree gchar *read = NULL;
 
-  setString (PROP_FRAMEWORK, "custom");
+  setString (PROP_FRAMEWORK, accl_v0_mock_name);
   ASSERT_TRUE (priv.fw != NULL && GST_TF_FW_V0 (priv.fw));
   setString (PROP_ACCELERATOR, "true:npu.edgetpu,gpu");
 
@@ -1505,11 +1584,34 @@ TEST_F (testFilterAccelerator, afterFrameworkV0)
 }
 
 /**
+ * @brief A V0 sub-plugin answers the hw availability with checkAvailability and the custom option with handleEvent.
+ */
+TEST_F (testFilterAccelerator, checkHwAvailabilityV0)
+{
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (accl_v0_mock_name, ACCL_AUTO, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (accl_v0_mock_name, ACCL_CPU, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (accl_v0_mock_name, ACCL_CPU, "avail-hw"));
+}
+
+/**
+ * @brief A V0 sub-plugin refuses the hw its checkAvailability rejects, and the custom option its handleEvent rejects.
+ */
+TEST_F (testFilterAccelerator, checkHwAvailabilityV0_n)
+{
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (accl_v0_mock_name, ACCL_GPU, NULL));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (
+      accl_v0_mock_name, ACCL_CPU, "invalid-hw"));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (
+      accl_v0_mock_name, ACCL_GPU, "avail-hw"));
+}
+
+/**
  * @brief Replacing a V0 framework with a V1 one keeps the accelerator set after the V0 one.
  */
 TEST_F (testFilterAccelerator, frameworkV0ToV1)
 {
-  setString (PROP_FRAMEWORK, "custom");
+  setString (PROP_FRAMEWORK, accl_v0_mock_name);
+  ASSERT_TRUE (priv.fw != NULL && GST_TF_FW_V0 (priv.fw));
   setString (PROP_ACCELERATOR, "true:gpu");
   setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
   ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
@@ -1528,7 +1630,7 @@ TEST_F (testFilterAccelerator, frameworkV1ToV0)
 
   setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
   setString (PROP_ACCELERATOR, "true:gpu");
-  setString (PROP_FRAMEWORK, "custom");
+  setString (PROP_FRAMEWORK, accl_v0_mock_name);
   ASSERT_TRUE (priv.fw != NULL && GST_TF_FW_V0 (priv.fw));
 
   EXPECT_STREQ (priv.prop.accl_str, "true:gpu");
