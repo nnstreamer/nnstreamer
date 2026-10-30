@@ -2854,12 +2854,16 @@ TEST (commonAggregationUtil, evictBound)
   GHashTable *table;
   guint log_count = 0;
   guint handler;
+  GLogLevelFlags fatal_mask;
 
   handler = g_log_set_handler (NULL,
-      (GLogLevelFlags) (G_LOG_LEVEL_WARNING | G_LOG_LEVEL_INFO),
+      (GLogLevelFlags) (G_LOG_LEVEL_WARNING | G_LOG_LEVEL_INFO | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _aggregation_count_log, &log_count);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log (NULL, G_LOG_LEVEL_WARNING, "probe of the log handler");
-  EXPECT_EQ (log_count, 1U);
+  g_log (NULL, G_LOG_LEVEL_INFO, "probe of the log handler");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (log_count, 2U);
   log_count = 0;
 
   table = gst_tensor_aggregation_init ();

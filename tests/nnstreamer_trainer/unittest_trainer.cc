@@ -2369,6 +2369,7 @@ trainer_map_test_push (guint num_mems, gsize mem_size, gboolean refuse_first,
   GstHarness *h = make_fake_trainer_harness ();
   GstBuffer *buf;
   guint handler;
+  GLogLevelFlags fatal_mask;
 
   memset (result, 0, sizeof (*result));
   result->first = trainer_map_test_allocator_new (refuse_first);
@@ -2384,8 +2385,14 @@ trainer_map_test_push (guint num_mems, gsize mem_size, gboolean refuse_first,
   if (num_mems > 1)
     trainer_map_test_append_memory (buf, result->second, mem_size, 8);
 
-  handler = g_log_set_handler ("GStreamer", G_LOG_LEVEL_CRITICAL,
+  handler = g_log_set_handler ("GStreamer",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       trainer_count_critical_log, &result->num_critical);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "[probe] tensor_trainer test handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (result->num_critical, 1U);
+  result->num_critical = 0;
   result->ret = gst_harness_push (h, buf);
   g_log_remove_handler ("GStreamer", handler);
 
@@ -2618,6 +2625,20 @@ trainer_count_push (guint num_inputs, guint num_labels, guint caps_tensors,
   h = gst_harness_new_with_element (trainer, "sink", "src");
   gst_object_unref (trainer);
   ASSERT_NE (h, nullptr);
+
+#ifndef GST_DISABLE_GST_DEBUG
+  {
+    GstDebugCategory *cat;
+
+    /* the counted warnings say nothing unless the log function sees the category */
+    GST_DEBUG_CATEGORY_GET (cat, "tensor_trainer");
+    EXPECT_NE (cat, nullptr);
+    if (cat)
+      GST_CAT_WARNING (cat, "[probe] more than num-inputs: log function self-check");
+    EXPECT_EQ (g_atomic_int_get (&fake_stat.extra_warnings), 1);
+    g_atomic_int_set (&fake_stat.extra_warnings, 0);
+  }
+#endif
 
   trainer_count_set_caps (h, caps_tensors);
   for (i = 0; i < num_buffers; i++)

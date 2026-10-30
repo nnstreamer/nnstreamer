@@ -1340,10 +1340,16 @@ _client_with_server_caps (const gchar *caps_info, guint timeout_ms,
 {
   const gsize sizes[] = { 4 };
   guint handler, critical = 0;
+  GLogLevelFlags fatal_mask;
 
   handler = g_log_set_handler ("GStreamer",
-      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _count_gst_critical, &critical);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "[probe] tensor_query test handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ ((guint) g_atomic_int_get ((gint *) &critical), 1U);
+  g_atomic_int_set ((gint *) &critical, 0);
 
   _run_client (QUERY_TEST_CAPS, caps_info, timeout_ms, _static_input (),
       _make_edge_data (sizes, 1), received, requested);
@@ -1768,6 +1774,25 @@ _drop_counter_stop (DropCounter *counter)
 }
 
 /**
+ * @brief Prove that the log function counts the category being counted, then reset the count.
+ * Call it once the element registering the category exists: a count of zero says nothing otherwise.
+ */
+static void
+_drop_counter_probe (DropCounter *counter)
+{
+#ifndef GST_DISABLE_GST_DEBUG
+  GstDebugCategory *cat;
+
+  GST_DEBUG_CATEGORY_GET (cat, counter->category);
+  EXPECT_NE (cat, nullptr);
+  if (cat)
+    GST_CAT_DEBUG (cat, "Dropped 1 [probe] log function self-check");
+  EXPECT_EQ (g_atomic_int_get (&counter->dropped), 1);
+  g_atomic_int_set (&counter->dropped, 0);
+#endif
+}
+
+/**
  * @brief Wait until the counter reaches @a num, then a little longer to catch extra drops.
  * @return The number of dropped data.
  */
@@ -1829,6 +1854,7 @@ _flood_serversrc (guint max_buffers, IdLog *log, guint expected)
     _drop_counter_stop (&counter);
     return 0;
   }
+  _drop_counter_probe (&counter);
 
   element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   g_signal_connect (element, "handoff", (GCallback) _log_id, log);
@@ -1988,6 +2014,8 @@ _answer_client_twice (guint max_buffers, IdLog *log, guint *dropped)
   EXPECT_NE (gstpipe, nullptr);
   if (!gstpipe)
     goto done;
+
+  _drop_counter_probe (&counter);
 
   element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   g_signal_connect (element, "handoff", (GCallback) _log_id, log);

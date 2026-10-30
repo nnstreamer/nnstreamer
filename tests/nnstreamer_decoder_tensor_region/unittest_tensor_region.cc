@@ -224,9 +224,12 @@ watch_glib_critical (glib_critical_watch *watch)
   guint handler = g_log_set_handler ("GLib",
       (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       count_glib_critical, watch);
+  GLogLevelFlags fatal_mask;
 
   watch->count = 0;
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log ("GLib", G_LOG_LEVEL_CRITICAL, "tensor_region test: counter self-check");
+  g_log_set_always_fatal (fatal_mask);
   EXPECT_EQ (watch->count, 1U);
 
   watch->count = 0;
