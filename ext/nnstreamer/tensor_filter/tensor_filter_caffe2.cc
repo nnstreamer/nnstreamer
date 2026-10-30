@@ -520,6 +520,9 @@ caffe2_loadModelFile (const GstTensorFilterProperties *prop, void **private_data
 static int
 caffe2_open (const GstTensorFilterProperties *prop, void **private_data)
 {
+  ml_logw ("tensor_filter subplugin caffe2 is deprecated and will be removed "
+           "in a future release (nnstreamer issue #4425). Caffe2 is merged into "
+           "PyTorch; use the pytorch or onnxruntime subplugin instead.");
   int status = caffe2_loadModelFile (prop, private_data);
 
   return status;

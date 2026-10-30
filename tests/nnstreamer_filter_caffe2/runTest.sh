@@ -75,6 +75,17 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA} bl
 python3 checkLabel.py tensorfilter.out.log 5
 testResult $? 1 "Golden test comparison" 0 1
 
+# The subplugin is deprecated (#4425): every open warns, whether or not the model loads
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA} blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter framework=caffe2 model="${PATH_TO_INIT_MODEL},${PATH_TO_PRED_MODEL}" inputname=data input=32:32:3:1 inputtype=float32 output=10:1 outputtype=float32 outputname=softmax ! fakesink 2>info
+cat info | grep "tensor_filter subplugin caffe2 is deprecated"
+testResult $? 2 "Deprecation warning at open" 0 1
+
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA} blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=32:32:3:1 input-type=float32 ! tensor_filter framework=caffe2 model="${PATH_TO_PRED_MODEL}" inputname=data input=32:32:3:1 inputtype=float32 output=10:1 outputtype=float32 outputname=softmax ! fakesink 2>info
+ret=$?
+cat info | grep "tensor_filter subplugin caffe2 is deprecated" && [[ $ret -ne 0 ]]
+testResult $? 3_n "Deprecation warning at a failed open" 0 1
+
+rm info
 rm *.log
 
 report

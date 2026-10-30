@@ -40,7 +40,7 @@ This document reflects the status of 2022-07-14 (2.1.1 devel)
         - tensorflow2 (we do not use Bazel in Tizen)
         - verisilicon/vivante (tested & productized. ready, a few vivante libraries are not ported to Tizen public distro for license issues)
         - pytorch (ready)
-        - caffe2 (ready)
+        - caffe2 (deprecated, to be removed)
         - snap (not supported in Tizen)
 
 
