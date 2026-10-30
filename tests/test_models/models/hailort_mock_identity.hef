@@ -1,0 +1,6 @@
+hailort-mock-hef
+# Text stand-in of a .hef for the mock HailoRT of tests/nnstreamer_filter_hailort.
+# Output k of the mock is input 0 plus k.
+network_group identity
+input in0 uint8 nhwc 4 4 3
+output out0 uint8 nhwc 4 4 3

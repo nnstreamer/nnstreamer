@@ -18,7 +18,9 @@ meson_file="tests/meson.build"
 # Suites deliberately absent from the package. Keep the reason next to the name.
 #   codegen: runs tools/development/nnstreamerCodeGenCustomFilter.py and compiles
 #            against gst/nnstreamer through ../../ paths that only a source tree has.
-not_installed=("codegen")
+#   nnstreamer_filter_hailort: runs the sub-plugin built against the mock HailoRT
+#            of the build directory, which is not installed.
+not_installed=("codegen" "nnstreamer_filter_hailort")
 
 if [ ! -f "${meson_file}" ]; then
   echo "::error::${meson_file} not found. Run this from the repository root."

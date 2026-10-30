@@ -206,6 +206,29 @@ jobs:
         meson test -C build/ -v
       env:
         CC: gcc
+    # No runner has HailoRT, so everything else compiles the hailort sub-plugin
+    # against the reduced mock header of tests/nnstreamer_filter_hailort only.
+    # Compile it against the public header of the oldest supported HailoRT
+    # (also what Tizen ships) and of the newest one, so that an API change
+    # cannot hide behind the mock. Refresh the pinned hashes on a version bump.
+    - name: Compile the hailort sub-plugin against the real HailoRT headers
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      run: |
+        while read -r ver header sha; do
+          inc=${RUNNER_TEMP}/hailort-${ver}/hailo
+          mkdir -p "${inc}"
+          wget -q -O "${inc}/${header}" "https://raw.githubusercontent.com/hailo-ai/hailort/${ver}/hailort/libhailort/include/hailo/${header}"
+          echo "${sha}  ${inc}/${header}" | sha256sum -c -
+        done <<'PINS'
+        v4.18.0 hailort.h 6c232855e93ffad06dea301d07557993772b9e0a7c68c54ee9d8bdda28616600
+        v4.18.0 platform.h efc43480476909f014a2419830559c3d3280f84ae85ba8a2efc6348ca72de3bd
+        v5.4.0 hailort.h 93daa8ee0c50ae4be5c9b9bdd196890d9228ff518ffb958cc1ef50d3cdd436f1
+        v5.4.0 platform.h bfe50d3e81286a638b6971e7aa61ddbeb44ea93b055034935090ca8590c3128c
+        PINS
+        for ver in v4.18.0 v5.4.0; do
+          echo "HailoRT ${ver}"
+          g++ -fsyntax-only -std=c++17 -Wall -Wextra -Werror -Wno-unused-parameter             $(pkg-config --cflags glib-2.0 gstreamer-1.0) -I"${RUNNER_TEMP}/hailort-${ver}"             -Igst/nnstreamer/include -Igst/nnstreamer -Ibuild/gst/nnstreamer/include -Ibuild             ext/nnstreamer/tensor_filter/tensor_filter_hailort.cc
+        done
     # The tensorflow2-lite-custom sub-plugin is gone, but out-of-tree build
     # scripts still pass its option, and meson aborts on an option it does not
     # know. So the option stays behind, selecting nothing, and a request for
