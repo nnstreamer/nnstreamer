@@ -31,9 +31,7 @@
 #include <nnstreamer_log.h>
 #include <errno.h>
 #include <nnstreamer_plugin_api_util.h>
-#define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
-#undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_util.h>
 #include <nnfw.h>
 
@@ -61,21 +59,29 @@ typedef struct
 #define NNFW_SRCN_BACKEND  "srcn"
 #define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
 
-static const gchar *nnfw_accl_support[] = {
-  ACCL_CPU_NEON_STR,
-  ACCL_CPU_STR,
-  ACCL_GPU_STR,
-  ACCL_NPU_SRCN_STR,
-  ACCL_NPU_STR,
-  NULL
+/**
+ * NEON is listed on ARM only, where V0 named it cpu.neon; elsewhere
+ * ACCL_CPU_NEON reads as cpu.simd, which V0 did not support. tensor_filter
+ * leaves it out where the CPU lacks it.
+ */
+static const accl_hw nnfw_hw_list[] = {
+#if defined(__aarch64__) || defined(__arm__)
+  ACCL_CPU_NEON,
+#endif
+  ACCL_CPU,
+  ACCL_GPU,
+  ACCL_NPU_SRCN,
+  ACCL_NPU,
 };
 
 #if defined(__aarch64__) || defined(__arm__)
-static const gchar *nnfw_accl_auto = ACCL_CPU_NEON_STR;
+static const accl_hw nnfw_accl_auto = ACCL_CPU_NEON;
 #else
-static const gchar *nnfw_accl_auto = ACCL_CPU_STR;
+static const accl_hw nnfw_accl_auto = ACCL_CPU;
 #endif
-static const gchar *nnfw_accl_default = ACCL_CPU_STR;
+static const accl_hw nnfw_accl_default = ACCL_CPU;
+
+static gchar filter_subplugin_nnfw[] = "nnfw";
 
 void init_filter_nnfw (void) __attribute__((constructor));
 void fini_filter_nnfw (void) __attribute__((destructor));
@@ -107,17 +113,14 @@ static int nnfw_invoke_internal (const nnfw_pdata * pdata,
     const GstTensorMemory * input, GstTensorMemory * output);
 
 /**
- * @brief parse user given input to extract accelerator to be used by nnfw
- * @param[in] pdata nnfw private data
- * @param[in] accelerators user given input
+ * @brief Get the nnfw backends for the accelerator the user prefers most
+ * @param[in] prop tensor_filter properties, whose hw_list tensor_filter has filled
  * @return accelerator configuration to be set for nnfw
  */
 static const char *
-nnfw_get_accelerator (nnfw_pdata * pdata, const char *accelerators)
+nnfw_get_accelerator (const GstTensorFilterProperties * prop)
 {
-  accl_hw accel = parse_accl_hw (accelerators, nnfw_accl_support,
-      nnfw_accl_auto, nnfw_accl_default);
-  UNUSED (pdata);
+  accl_hw accel = (prop->num_hw > 0) ? prop->hw_list[0] : nnfw_accl_default;
 
   switch (accel) {
     case ACCL_NPU:
@@ -181,7 +184,7 @@ nnfw_parse_custom_option (const GstTensorFilterProperties * prop,
 
   /* set accelerator if custom option does not include accelerator */
   if (pdata->accelerator == NULL) {
-    const char *accel = nnfw_get_accelerator (pdata, prop->accl_str);
+    const char *accel = nnfw_get_accelerator (prop);
     pdata->accelerator = g_strdup (accel);
   }
 }
@@ -543,44 +546,6 @@ nnfw_tensors_info_get (const nnfw_pdata * pdata, const gboolean is_input,
 }
 
 /**
- * @brief The standard tensor_filter callback
- */
-static int
-nnfw_getInputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
-{
-  nnfw_pdata *pdata;
-  UNUSED (prop);
-
-  g_return_val_if_fail (private_data != NULL, -EINVAL);
-  pdata = (nnfw_pdata *) * private_data;
-
-  g_return_val_if_fail (pdata != NULL, -EINVAL);
-  g_return_val_if_fail (info != NULL, -EINVAL);
-
-  return nnfw_convert_to_gst_info (&pdata->in_info, info);
-}
-
-/**
- * @brief The standard tensor_filter callback
- */
-static int
-nnfw_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
-{
-  nnfw_pdata *pdata;
-  UNUSED (prop);
-
-  g_return_val_if_fail (private_data != NULL, -EINVAL);
-  pdata = (nnfw_pdata *) * private_data;
-
-  g_return_val_if_fail (pdata != NULL, -EINVAL);
-  g_return_val_if_fail (info != NULL, -EINVAL);
-
-  return nnfw_convert_to_gst_info (&pdata->out_info, info);
-}
-
-/**
  * @brief Internal function to invoke with dummy data.
  * When changing the input shape, NNFW will update the output shape after the invoke process is done.
  */
@@ -654,25 +619,20 @@ done:
 }
 
 /**
- * @brief The standard tensor_filter callback
+ * @brief Set the input tensor info and get the output tensor info it leads to
+ * @param[in] pdata private data for nnfw opened instance
+ * @param[in] in_info input tensor info to be set
+ * @param[out] out_info output tensor info after setting the input
+ * @return 0 on success, negative errno on failure
  */
 static int
-nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+nnfw_setInputDim (nnfw_pdata * pdata, const GstTensorsInfo * in_info,
+    GstTensorsInfo * out_info)
 {
-  nnfw_pdata *pdata;
   int err = 0;
   guint idx;
   nnfw_tinfo_s *nnfw_in_info, *nnfw_out_info;
   GstTensorsInfo gst_in_info;
-  UNUSED (prop);
-
-  g_return_val_if_fail (private_data != NULL, -EINVAL);
-  g_return_val_if_fail (in_info != NULL, -EINVAL);
-  g_return_val_if_fail (out_info != NULL, -EINVAL);
-
-  pdata = (nnfw_pdata *) * private_data;
-  g_return_val_if_fail (pdata != NULL, -EINVAL);
 
   if (in_info->num_tensors != pdata->in_info.num_tensors)
     return -EPERM;
@@ -704,6 +664,7 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   /* Invoke with dummy. NNFW updates output info after the invoke is done. */
   if (!nnfw_invoke_dummy (pdata, nnfw_in_info, &pdata->out_info)) {
     nns_loge ("Failed to invoke the model with changed input info.");
+    err = -EINVAL;
     goto error;
   }
 
@@ -815,60 +776,107 @@ nnfw_invoke_internal (const nnfw_pdata * pdata,
 }
 
 /**
- * @brief The standard tensor_filter callback
+ * @brief The standard tensor_filter callback for invoke
  */
 static int
-nnfw_invoke (const GstTensorFilterProperties * prop, void **private_data,
+nnfw_invoke (const GstTensorFilterFramework * self,
+    GstTensorFilterProperties * prop, void *private_data,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
-  nnfw_pdata *pdata;
+  nnfw_pdata *pdata = (nnfw_pdata *) private_data;
+  UNUSED (self);
   UNUSED (prop);
 
-  g_return_val_if_fail (G_UNLIKELY (private_data != NULL), -EINVAL);
-  pdata = (nnfw_pdata *) (*private_data);
+  g_return_val_if_fail (pdata != NULL, -EINVAL);
 
   return nnfw_invoke_internal (pdata, &pdata->in_info, &pdata->out_info, input,
       output);
 }
 
 /**
- * @brief Check support of the backend
- * @param hw: backend to check support of
+ * @brief The standard tensor_filter callback for the framework info
  */
 static int
-nnfw_checkAvailability (accl_hw hw)
+nnfw_getFrameworkInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo * fw_info)
 {
-  if (g_strv_contains (nnfw_accl_support, get_accl_hw_str (hw)))
-    return 0;
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+
+  g_return_val_if_fail (fw_info != NULL, -EINVAL);
+
+  fw_info->name = filter_subplugin_nnfw;
+  fw_info->allow_in_place = FALSE;
+  fw_info->allocate_in_invoke = FALSE;
+  fw_info->run_without_model = FALSE;
+  fw_info->verify_model_path = FALSE;
+  fw_info->hw_list = nnfw_hw_list;
+  fw_info->num_hw = G_N_ELEMENTS (nnfw_hw_list);
+  fw_info->accl_auto = nnfw_accl_auto;
+  fw_info->accl_default = nnfw_accl_default;
+  fw_info->statistics = &nnfw_internal_stats;
+
+  return 0;
+}
+
+/**
+ * @brief The standard tensor_filter callback for the model tensor info
+ */
+static int
+nnfw_getModelInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+{
+  nnfw_pdata *pdata = (nnfw_pdata *) private_data;
+  int err;
+  UNUSED (self);
+  UNUSED (prop);
+
+  g_return_val_if_fail (pdata != NULL, -EINVAL);
+  g_return_val_if_fail (in_info != NULL, -EINVAL);
+  g_return_val_if_fail (out_info != NULL, -EINVAL);
+
+  switch (ops) {
+    case GET_IN_OUT_INFO:
+      err = nnfw_convert_to_gst_info (&pdata->in_info, in_info);
+      if (err == 0)
+        err = nnfw_convert_to_gst_info (&pdata->out_info, out_info);
+      return err;
+    case SET_INPUT_INFO:
+      return nnfw_setInputDim (pdata, in_info, out_info);
+    default:
+      return -ENOENT;
+  }
+}
+
+/**
+ * @brief The standard tensor_filter callback for events. nnfw handles none.
+ */
+static int
+nnfw_eventHandler (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData * data)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  UNUSED (ops);
+  UNUSED (data);
 
   return -ENOENT;
 }
 
-static gchar filter_subplugin_nnfw[] = "nnfw";
-
 static GstTensorFilterFramework NNS_support_nnfw = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V1,
   .open = nnfw_open,
   .close = nnfw_close,
-  {
-    .v0 = {
-      .name = filter_subplugin_nnfw,
-      .allow_in_place = FALSE,
-      .allocate_in_invoke = FALSE,
-      .run_without_model = FALSE,
-      .verify_model_path = FALSE,
-      .statistics = &nnfw_internal_stats,
-      .invoke_NN = nnfw_invoke,
-      .getInputDimension = nnfw_getInputDim,
-      .getOutputDimension = nnfw_getOutputDim,
-      .setInputDimension = nnfw_setInputDim,
-      .destroyNotify = NULL,
-      .reloadModel = NULL,
-      .handleEvent = NULL,
-      .checkAvailability = nnfw_checkAvailability,
-      .allocateInInvoke = NULL,
-    }
-  }
+  .invoke = nnfw_invoke,
+  .getFrameworkInfo = nnfw_getFrameworkInfo,
+  .getModelInfo = nnfw_getModelInfo,
+  .eventHandler = nnfw_eventHandler,
+  .subplugin_data = NULL,
 };
 
 /**@brief Initialize this object for tensor_filter subplugin runtime register */
@@ -885,5 +893,5 @@ init_filter_nnfw (void)
 void
 fini_filter_nnfw (void)
 {
-  nnstreamer_filter_exit (NNS_support_nnfw.v0.name);
+  nnstreamer_filter_exit (filter_subplugin_nnfw);
 }
