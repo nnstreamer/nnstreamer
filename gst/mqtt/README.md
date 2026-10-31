@@ -97,6 +97,12 @@ local users. Unreadable or invalid PEM contents, an untrusted certificate,
 or a hostname mismatch fail the connection; verification cannot be disabled.
 A non-TLS build reports a settings error when `tls=true` is requested.
 
+To retry `mqttsrc` after rejected credentials, a lost connection, or a receive
+timeout, move it to `READY` or `NULL` before starting it again. The new stream
+clears the previous stream's error and uses its configured `sub-timeout`.
+Correct the credentials or broker settings before retrying; new connection
+errors are still reported.
+
 ## MQTT Implementation
 
 Use the mqtt implementation already available in Tizen.org (/platform/upstream/paho-mqtt-c).

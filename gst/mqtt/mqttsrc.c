@@ -567,11 +567,6 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_NULL_TO_READY");
-      if (self->err) {
-        g_printerr ("%s: %s\n", g_quark_to_string (self->err->domain),
-            self->err->message);
-        return GST_STATE_CHANGE_FAILURE;
-      }
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_READY_TO_PAUSED");
@@ -705,6 +700,11 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
   if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
 
+  /* Errors from a stopped client must not fail the new stream. */
+  g_mutex_lock (&self->mqtt_src_mutex);
+  g_clear_error (&self->err);
+  g_mutex_unlock (&self->mqtt_src_mutex);
+
   /** A restarted element takes its caps from the messages of this client only */
   gst_caps_replace (&self->recv_caps, NULL);
   g_clear_pointer (&self->recv_caps_str, g_free);
@@ -721,6 +721,10 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
       DEFAULT_MQTT_CONN_TIMEOUT_SEC * G_TIME_SPAN_SECOND;
   g_mutex_lock (&self->mqtt_src_mutex);
   while (!self->is_connected) {
+    if (self->err) {
+      g_mutex_unlock (&self->mqtt_src_mutex);
+      goto error;
+    }
     if (!g_cond_wait_until (&self->mqtt_src_gcond, &self->mqtt_src_mutex,
             end_time)) {
       g_mutex_unlock (&self->mqtt_src_mutex);
