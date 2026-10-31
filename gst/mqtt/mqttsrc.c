@@ -1748,6 +1748,7 @@ static gboolean
 gst_mqtt_src_disconnect (GstMqttSrc * self, gint wait_time)
 {
   MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
+  MQTTAsync client = NULL;
   gint64 end_time = g_get_monotonic_time () + (wait_time * G_TIME_SPAN_SECOND);
   int ret = MQTTASYNC_SUCCESS;
 
@@ -1761,7 +1762,12 @@ gst_mqtt_src_disconnect (GstMqttSrc * self, gint wait_time)
     goto done;
   }
 
-  ret = MQTTAsync_disconnect (self->mqtt_client_handle, &opts);
+  /** The lifecycle caller owns the handle until destruction below. Paho may
+   * acquire its library mutex while a receive callback waits for ours. */
+  client = self->mqtt_client_handle;
+  g_mutex_unlock (&self->mqtt_src_mutex);
+  ret = MQTTAsync_disconnect (client, &opts);
+  g_mutex_lock (&self->mqtt_src_mutex);
   if (ret == MQTTASYNC_SUCCESS) {
     /* Wait for disconnect callback to complete */
     while (!self->is_disconnect_finished) {
@@ -1775,13 +1781,19 @@ gst_mqtt_src_disconnect (GstMqttSrc * self, gint wait_time)
   }
 
 done:
-  if (self->mqtt_client_handle) {
+  client = self->mqtt_client_handle;
+  self->mqtt_client_handle = NULL;
+  self->is_subscribed = FALSE;
+  g_mutex_unlock (&self->mqtt_src_mutex);
+
+  /* Paho destruction waits for receive callbacks, which take this mutex. */
+  if (client) {
     GST_INFO_OBJECT (self, "Destroying MQTT client handle.");
-    MQTTAsync_destroy (&self->mqtt_client_handle);
-    self->mqtt_client_handle = NULL;
+    MQTTAsync_destroy (&client);
   }
 
-  /* Clean up flags */
+  /* Reset flags after any pending disconnect callback has completed. */
+  g_mutex_lock (&self->mqtt_src_mutex);
   self->is_connected = FALSE;
   self->is_subscribed = FALSE;
   self->is_disconnect_finished = FALSE;
