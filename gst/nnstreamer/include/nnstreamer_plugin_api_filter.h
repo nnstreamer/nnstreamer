@@ -703,11 +703,33 @@ nnstreamer_filter_shared_model_replace_checked (void *instance, const char *key,
  * Before calling this function, you must enable asynchronous invocation by setting the property 'invoke-async' as true.
  * Failure to do so will result in undefined behavior, as no callback and handle will be registered.
  *
+ * @note For variable-size worker results, prefer the explicit-info dispatch
+ * function below instead of modifying shared prop->output_meta.
  * @param[in] prop GstTensorFilterProperties object.
  * @param[in] output The GstTensorMemory array holding the asynchronously generated output, one entry for each tensor prop->output_meta describes. Note that this function takes the ownership of each tensor data. When no callback is registered, e.g., once tensor-filter has stopped, the data is released with g_free().
  */
 extern void
 nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties * prop, GstTensorMemory * output);
+
+/**
+ * @brief Dispatch asynchronous output with metadata for this result.
+ *
+ * Prefer this function when a worker produces variable-size output: it does
+ * not read or modify prop->output_meta. Keep info and its tensor descriptions
+ * valid until this function returns. Dispatches from one instance must be
+ * serialized, and its worker must stop before the instance is destroyed.
+ *
+ * @param[in] prop Live filter properties with invoke-async enabled.
+ * @param[in] output One memory entry per tensor described by info. Ownership
+ * of each data pointer passes to the callback, or to g_free() if no callback
+ * is registered. The array itself stays with the caller.
+ * @param[in] info Borrowed output metadata; ownership stays with the caller.
+ * num_tensors must be between 1 and NNS_TENSOR_SIZE_LIMIT. Invalid arguments
+ * are rejected before ownership transfers.
+ */
+extern void
+nnstreamer_filter_dispatch_output_async_with_info (GstTensorFilterProperties * prop,
+    GstTensorMemory * output, GstTensorsInfo * info);
 
 #ifdef __cplusplus
 }

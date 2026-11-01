@@ -3540,21 +3540,36 @@ gst_tensor_filter_disable_invoke_async (GstTensorFilterProperties * prop)
  * @param[in] output The GstTensorMemory array holding the asynchronously generated output, one entry for each tensor prop->output_meta describes. Note that this function takes the ownership of each tensor data. When no callback is registered, e.g., once tensor-filter has stopped, the data is released with g_free().
  */
 void
-nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties * prop,
-    GstTensorMemory * output)
+nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties *prop,
+    GstTensorMemory *output)
+{
+  g_return_if_fail (prop != NULL);
+  nnstreamer_filter_dispatch_output_async_with_info (prop, output,
+      &prop->output_meta);
+}
+
+/**
+ * @brief Dispatch output using metadata owned by the producing worker.
+ */
+void
+nnstreamer_filter_dispatch_output_async_with_info (GstTensorFilterProperties
+    *prop, GstTensorMemory *output, GstTensorsInfo *info)
 {
   guint i;
 
   g_return_if_fail (prop != NULL);
   g_return_if_fail (output != NULL);
+  g_return_if_fail (info != NULL);
+  g_return_if_fail (info->num_tensors > 0 &&
+      info->num_tensors <= NNS_TENSOR_SIZE_LIMIT);
 
   if (!prop->async_callback) {
     ml_loge ("Callback function is NULL. Unable to dispatch output.");
-    for (i = 0; i < prop->output_meta.num_tensors; i++)
+    for (i = 0; i < info->num_tensors; i++)
       g_clear_pointer (&output[i].data, g_free);
     return;
   }
 
   /* The internal function of tensor-filter or tensor-filter-single should release the tensor data included in output. */
-  prop->async_callback (output, &prop->output_meta, prop->async_user_data);
+  prop->async_callback (output, info, prop->async_user_data);
 }
