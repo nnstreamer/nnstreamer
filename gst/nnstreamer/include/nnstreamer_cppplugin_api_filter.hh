@@ -63,7 +63,7 @@ namespace nnstreamer
  *         For getInput/Output and setInput, return -EINVAL if you don't
  *        support it.
  *
- *         We support tensor_filter_subplugin V1 only. (NNStreamer 1.5.1 or higher)
+ *         We support tensor_filter_subplugin V1 only. (NNStreamer 1.5.1 or  higher)
  **/
 class tensor_filter_subplugin
 {

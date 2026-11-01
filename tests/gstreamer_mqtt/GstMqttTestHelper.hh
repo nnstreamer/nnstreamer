@@ -38,7 +38,7 @@ class GstMqttTestHelper
   /**
    * @brief An empty destructor for this class
    */
-  ~GstMqttTestHelper (){};
+  ~GstMqttTestHelper () {};
 
   /**
    * @brief Initialize this class instead of explicit constructors
@@ -345,7 +345,7 @@ class GstMqttTestHelper
       : context (nullptr), cl (nullptr), ma (nullptr), dc (nullptr),
         fail_send (false), fail_disconnect (false), fail_subscribe (false),
         fail_unsubscribe (false), is_connected (false), has_username (false),
-        has_password (false), send_count (0), last_payloadlen (0){};
+        has_password (false), send_count (0), last_payloadlen (0) {};
 
   /** @brief Disable the copy constructor to keep this class a singleton */
   GstMqttTestHelper (const GstMqttTestHelper &) = delete;

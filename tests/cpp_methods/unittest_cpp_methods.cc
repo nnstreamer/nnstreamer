@@ -143,7 +143,8 @@ _invoke_thread (gpointer data)
 {
   invoke_thread_args *args = (invoke_thread_args *) data;
 
-  args->ret = args->fw->invoke_NN (args->prop, &args->private_data, &args->in, &args->out);
+  args->ret
+      = args->fw->invoke_NN (args->prop, &args->private_data, &args->in, &args->out);
   return NULL;
 }
 

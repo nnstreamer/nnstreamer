@@ -26,7 +26,7 @@
  * @todo Write This
  *
  * @note This is experimental. The API and Class definition is NOT stable.
- *       If you want to write an OpenCV custom filter for nnstreamer, this is a good choice.
+ *       If you want to write an OpenCV custom filter for nnstreamer, this is a  good choice.
  *
  * @details
  *    This is a subplugin for C++ custom filters.

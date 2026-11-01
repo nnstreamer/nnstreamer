@@ -124,34 +124,34 @@ main (int argc, char *argv[])
       "input0");
   // Input: (N, H, W, C), dtype=uint8, Output: (N, H, W, C), dtype=uint8
   pipe.AddOperator (OpSpec ("MakeContiguous")
-                        .AddArg ("device", "mixed")
-                        .AddInput ("input0", "cpu")
-                        .AddOutput ("input0_gpu", "gpu"));
+          .AddArg ("device", "mixed")
+          .AddInput ("input0", "cpu")
+          .AddOutput ("input0_gpu", "gpu"));
   // Input: (N, H, W, C), dtype=uint8, Output: (N, W_out, H_out, C), dtype=uint8
   pipe.AddOperator (OpSpec ("Resize")
-                        .AddArg ("antialias", false)
-                        .AddArg ("device", "gpu")
-                        .AddArg ("dtype", DALIDataType::DALI_UINT8)
-                        .AddArg ("interp_type", DALIInterpType::DALI_INTERP_LINEAR)
-                        .AddArg ("resize_x", static_cast<float> (W_out))
-                        .AddArg ("resize_y", static_cast<float> (H_out))
-                        .AddInput ("input0_gpu", "gpu")
-                        .AddOutput ("resized", "gpu"));
+          .AddArg ("antialias", false)
+          .AddArg ("device", "gpu")
+          .AddArg ("dtype", DALIDataType::DALI_UINT8)
+          .AddArg ("interp_type", DALIInterpType::DALI_INTERP_LINEAR)
+          .AddArg ("resize_x", static_cast<float> (W_out))
+          .AddArg ("resize_y", static_cast<float> (H_out))
+          .AddInput ("input0_gpu", "gpu")
+          .AddOutput ("resized", "gpu"));
   // Input: (N, W_out, H_out, C), dtype=uint8, Output: (N, W_out, H_out, C), dtype=float32
   pipe.AddOperator (OpSpec ("ArithmeticGenericOp")
-                        .AddArg ("device", "gpu")
-                        .AddArg ("expression_desc", "fdiv(&0 $0:int32)")
-                        .AddArg ("integer_constants", std::vector<int>{ 255 })
-                        .AddInput ("resized", "gpu")
-                        .AddOutput ("normalized", "gpu"));
+          .AddArg ("device", "gpu")
+          .AddArg ("expression_desc", "fdiv(&0 $0:int32)")
+          .AddArg ("integer_constants", std::vector<int>{ 255 })
+          .AddInput ("resized", "gpu")
+          .AddOutput ("normalized", "gpu"));
   // Input: (N, W_out, H_out, C), dtype=float32, Output: (N, C, W_out, H_out), dtype=float32
   std::vector<int> perm{ 0, 3, 1, 2 };
   pipe.AddOperator (OpSpec ("Transpose")
-                        .AddArg ("device", "gpu")
-                        .AddArg ("output_layout", "FCHW")
-                        .AddArg ("perm", perm)
-                        .AddInput ("normalized", "gpu")
-                        .AddOutput ("output0", "gpu"));
+          .AddArg ("device", "gpu")
+          .AddArg ("output_layout", "FCHW")
+          .AddArg ("perm", perm)
+          .AddInput ("normalized", "gpu")
+          .AddOutput ("output0", "gpu"));
 
   // Build the pipeline
   std::vector<std::pair<std::string, std::string>> outputs = { { "output0", "gpu" } };

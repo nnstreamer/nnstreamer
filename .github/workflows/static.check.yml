@@ -12,7 +12,7 @@ on:
 
 jobs:
   simple_script_checkers:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     name: Static checks
     steps:
       - name: Preparing step 1... Checking out
@@ -21,7 +21,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: -${{ github.event.pull_request.commits }}
       - name: Preparing step 2... Installing packages
-        run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags indent pylint rpmlint aha cppcheck aspell doxygen sloccount shellcheck flawfinder
+        run: sudo apt-get update && sudo apt-get install clang-format-21 git grep gawk exuberant-ctags indent pylint rpmlint aha cppcheck aspell doxygen graphviz sloccount shellcheck flawfinder
+      - name: Record checker versions
+        run: |
+          clang-format-21 --version
+          cppcheck --version
+          pylint --version
+          doxygen --version
+          dpkg-query -W indent
       - name: Preparing step 3... Identify changed files
         run: |
           tmpfile_pre=$(mktemp)
@@ -53,7 +60,7 @@ jobs:
           for file in `cat $changed_file_list`; do
             echo "Checking $file"
             if [[ "$file" =~ .*\.hh$ ]] || [[ "$file" =~ .*\.hpp ]] || [[ "$file" =~ .*\.cc$ ]] || [[ "$file" =~ .*\.cpp ]]; then
-              clang-format -i ${file}
+              clang-format-21 -i ${file}
             fi
           done
           git diff -- *.cc *.hh *.hpp *.cpp > .ci.clang-format.patch
@@ -107,6 +114,15 @@ jobs:
         # Originally from "pr-prebuild-cppcheck"
         # Need "cppcheck"
         run: |
+          checker=.github/workflows/static.check.scripts/test_cppcheck.py
+          if [ -f "$checker" ]; then
+            python3 -B "$checker"
+          elif git show --pretty="format:" --name-only --no-renames --diff-filter=D ${{ github.event.pull_request.head.sha }} -${{ github.event.pull_request.commits }} | grep -qxF "$checker"; then
+            echo "::error::This PR removes $checker; restore it or update this step."
+            exit 1
+          else
+            echo "Skipped: $checker is not in this branch and this PR does not remove it."
+          fi
           bash .github/workflows/static.check.scripts/cppcheck.sh $changed_file_list 0
       - name: /Checker/ Commit without proper message
         # Originally from "pr-prebuild-nobody"
