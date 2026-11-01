@@ -1380,6 +1380,10 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     track_latency (self);
   }
 
+  /* Async results are pushed by the callback, not by this input invocation. */
+  if (invoke_res == 0 && priv->prop.invoke_async)
+    invoke_res = 1;
+
   retval =
       _gst_tensor_filter_transform_check_invoke_result (trans, in_trans_data,
       out_trans_data, invoke_res);
@@ -1407,7 +1411,9 @@ mem_map_error:
 
 done:
   /** Set suspend timeout */
-  if (retval == GST_FLOW_OK && priv->prop.suspend != 0) {
+  if ((retval == GST_FLOW_OK ||
+          (retval == GST_BASE_TRANSFORM_FLOW_DROPPED &&
+              priv->prop.invoke_async)) && priv->prop.suspend != 0) {
     GST_OBJECT_LOCK (self);
     if (!nnstreamer_watchdog_feed (priv->watchdog_h,
         gst_tensor_filter_watchdog_trigger, priv->prop.suspend, priv)) {

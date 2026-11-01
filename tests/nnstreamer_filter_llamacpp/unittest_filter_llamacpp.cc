@@ -149,8 +149,8 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
    *        record the sample count, the largest payload seen and the text
    *        of all samples in arrival order.
    *
-   * The payload size matters because a zero-token generation is expected to
-   * arrive as a one-byte, terminator-only buffer rather than not at all.
+   * A synchronous zero-token generation carries only a string terminator;
+   * an asynchronous zero-token generation produces no sample.
    */
   static GstFlowReturn new_sample_cb (GstElement *sink, gpointer user_data)
   {
@@ -341,10 +341,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputMultipleOutputsAsync_p)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (11));
+  EXPECT_TRUE (wait_for_samples (10));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 10);
+  EXPECT_GE (*new_sample_count, 10);
 }
 
 /**
@@ -390,8 +390,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, syncGenerationMatchesAsyncTokens_p)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  /* Ten tokens plus the empty buffer tensor_filter pushes per async invoke. */
-  async_done = wait_for_samples (11);
+  /* Only the ten token callbacks produce samples. */
+  async_done = wait_for_samples (10);
   EXPECT_FALSE (pipeline_error);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   clear_pipeline ();
@@ -463,10 +463,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsMultipleOutputsAsync_p)
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_TRUE (data_push ("What is AI?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (16));
+  EXPECT_TRUE (wait_for_samples (14));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 15);
+  EXPECT_GE (*new_sample_count, 14);
 }
 
 /**
@@ -513,30 +513,38 @@ TEST_F (NNStreamerFilterLlamaCppTest, zeroTokenGenerationSync_p)
 }
 
 /**
- * @brief Test case for a zero-token generation in asynchronous mode.
- *
- * Asynchronous mode dispatches one sample per generated token, so generating
- * nothing must dispatch nothing. Two inputs still yield exactly two samples:
- * tensor_filter pushes one buffer per invoke_dynamic() call whatever the
- * sub-plugin dispatches on top, which is the same structural invariant that
- * makes singleInputMultipleOutputsAsync_p expect eleven samples for ten
- * predicted tokens. The count is therefore an invariant, not a timing
- * measurement, and pinning it keeps a future change to the dispatch path from
- * silently emitting a sample per empty generation.
+ * @brief A zero-token async generation emits no placeholder for either input.
  */
 TEST_F (NNStreamerFilterLlamaCppTest, zeroTokenGenerationAsync_p)
 {
   skip_llamacpp_tc ("zeroTokenGenerationAsync_p");
 
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:0"));
+  /* No token buffer is available to complete sink preroll. */
+  GstElement *sink = gst_bin_get_by_name (GST_BIN (pipeline), "appsink");
+  ASSERT_NE (sink, nullptr);
+  g_object_set (sink, "async", FALSE, nullptr);
+  gst_object_unref (sink);
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_TRUE (data_push ("What is AI?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (2));
+  GstElement *source = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc");
+  ASSERT_NE (source, nullptr);
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (source)), GST_FLOW_OK);
+  gst_object_unref (source);
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessage *message = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  EXPECT_NE (message, nullptr);
+  if (message) {
+    EXPECT_EQ (GST_MESSAGE_TYPE (message), GST_MESSAGE_EOS);
+    gst_message_unref (message);
+  }
+  gst_object_unref (bus);
   EXPECT_FALSE (pipeline_error);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_EQ (*new_sample_count, 2);
+  EXPECT_EQ (*new_sample_count, 0);
 }
 
 /**
@@ -611,10 +619,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputCombinedSampling_p)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:30,top_k:50,top_p:0.9,temperature:0.7"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (11));
+  EXPECT_TRUE (wait_for_samples (10));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 10);
+  EXPECT_GE (*new_sample_count, 10);
 }
 
 /**
@@ -628,10 +636,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputAllSamplingOptions_p)
       "num_predict:30,top_k:40,top_p:0.9,typical_p:0.9,temperature:0.7"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (11));
+  EXPECT_TRUE (wait_for_samples (10));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 10);
+  EXPECT_GE (*new_sample_count, 10);
 }
 
 /**
@@ -644,10 +652,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputTypicalPTempSampling_p)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:30,typical_p:0.9,temperature:0.7"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (11));
+  EXPECT_TRUE (wait_for_samples (10));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 10);
+  EXPECT_GE (*new_sample_count, 10);
 }
 
 /**
@@ -660,10 +668,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopKValue_n)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10,top_k:0"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (11));
+  EXPECT_TRUE (wait_for_samples (10));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 10);
+  EXPECT_GE (*new_sample_count, 10);
 }
 
 /**
@@ -676,10 +684,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopPValue_n)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10,top_p:1.0"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (11));
+  EXPECT_TRUE (wait_for_samples (10));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 10);
+  EXPECT_GE (*new_sample_count, 10);
 }
 
 /**
@@ -692,10 +700,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTypicalPValue_n)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10,typical_p:1.0"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (11));
+  EXPECT_TRUE (wait_for_samples (10));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 10);
+  EXPECT_GE (*new_sample_count, 10);
 }
 
 /**
@@ -708,10 +716,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTemperatureValue_n)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10,temperature:-1.0"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (11));
+  EXPECT_TRUE (wait_for_samples (10));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 10);
+  EXPECT_GE (*new_sample_count, 10);
 }
 
 /**
@@ -764,10 +772,10 @@ TEST_F (NNStreamerFilterLlamaCppTest, cacheTrimmingTrigger_p)
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_TRUE (data_push ("What is AI?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_TRUE (wait_for_samples (11));
+  EXPECT_TRUE (wait_for_samples (9));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_GT (*new_sample_count, 10);
+  EXPECT_GE (*new_sample_count, 9);
 }
 
 /**
