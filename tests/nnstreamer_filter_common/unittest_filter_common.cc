@@ -12,6 +12,8 @@
 #include <errno.h>
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <gst/app/gstappsink.h>
+#include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #include <string.h>
 #include <unistd.h>
@@ -21,6 +23,7 @@
 #include <nnstreamer_util.h>
 
 #include "../gst/nnstreamer/tensor_filter/tensor_filter_common.h"
+#include "../gst/nnstreamer/tensor_filter/tensor_filter_single.h"
 
 #define TEST_SHARED_KEY "unittest_filter_common_key"
 
@@ -1810,6 +1813,329 @@ TEST_F (testFilterAccelerator, neonUnavailableSameAsV0_n)
   EXPECT_EQ (v0_hw, ACCL_GPU);
   ASSERT_EQ (priv.prop.num_hw, 1);
   EXPECT_EQ (priv.prop.hw_list[0], v0_hw);
+}
+
+/**
+ * @brief C++ sub-plugin whose asynchronous output is released by the test.
+ */
+class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
+{
+  public:
+  static async_output_subplugin *registered; /**< registered factory */
+  static GMutex lock; /**< protects the invocation handoff */
+  static GCond cond; /**< signals an input or model close */
+  static bool closed; /**< records suspend closing the active instance */
+  bool configured = false; /**< distinguishes an instance from the factory */
+  static GstTensorFilterProperties *pending; /**< live properties until teardown */
+
+  /** @brief record when a configured instance is suspended or stopped */
+  ~async_output_subplugin () override
+  {
+    if (configured) {
+      g_mutex_lock (&lock);
+      closed = true;
+      g_cond_broadcast (&cond);
+      g_mutex_unlock (&lock);
+    }
+  }
+
+  /** @brief create an independent instance */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new async_output_subplugin ());
+  }
+
+  /** @brief accept the fixture's temporary model file */
+  void configure_instance (const GstTensorFilterProperties *prop) override
+  {
+    UNUSED (prop);
+    configured = true;
+  }
+
+  /** @brief reject the static-output entry point */
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output) override
+  {
+    UNUSED (input);
+    UNUSED (output);
+    throw std::invalid_argument ("Use dynamic invocation");
+  }
+
+  /** @brief queue async inputs, or return an allocated synchronous result */
+  void invoke_dynamic (GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output) override
+  {
+    gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
+    g_mutex_lock (&lock);
+    pending = prop;
+    g_cond_broadcast (&cond);
+    g_mutex_unlock (&lock);
+
+    if (g_strcmp0 (prop->custom_properties, "fail") == 0)
+      throw std::invalid_argument ("Requested invocation failure");
+
+    if (!prop->invoke_async) {
+      output[0].data = g_memdup2 (input[0].data, input[0].size);
+      output[0].size = input[0].size;
+    }
+  }
+
+  /** @brief describe an allocating, model-backed V1 framework */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    info.name = "async_output_mock";
+    info.allow_in_place = FALSE;
+    info.allocate_in_invoke = TRUE;
+    info.run_without_model = FALSE;
+    info.verify_model_path = TRUE;
+    info.hw_list = nullptr;
+    info.num_hw = 0;
+  }
+
+  /** @brief report one uint8 tensor in each direction */
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info) override
+  {
+    if (ops != GET_IN_OUT_INFO)
+      return -ENOENT;
+
+    gst_tensors_info_init (&in_info);
+    in_info.num_tensors = 1;
+    in_info.info[0].type = _NNS_UINT8;
+    for (guint i = 0; i < 4; i++)
+      in_info.info[0].dimension[i] = 1;
+    gst_tensors_info_copy (&out_info, &in_info);
+    return 0;
+  }
+
+  /** @brief provide the framework's optional event hook */
+  int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data) override
+  {
+    UNUSED (ops);
+    UNUSED (data);
+    return -ENOENT;
+  }
+
+  /** @brief register the mock factory */
+  static void init ()
+  {
+    registered = register_subplugin<async_output_subplugin> ();
+  }
+
+  /** @brief unregister the mock factory */
+  static void fini ()
+  {
+    if (registered)
+      unregister_subplugin<async_output_subplugin> (registered);
+    registered = nullptr;
+  }
+
+  /** @brief wait for the streaming thread to queue its input */
+  static bool waitForInput ()
+  {
+    gint64 deadline = g_get_monotonic_time () + 5 * G_TIME_SPAN_SECOND;
+    bool ready;
+
+    g_mutex_lock (&lock);
+    while (!pending && g_cond_wait_until (&cond, &lock, deadline))
+      ;
+    ready = pending != nullptr;
+    g_mutex_unlock (&lock);
+    return ready;
+  }
+
+  /** @brief wait for the suspend watchdog to close the model */
+  static bool waitForClose ()
+  {
+    gint64 deadline = g_get_monotonic_time () + 2 * G_TIME_SPAN_SECOND;
+    bool result;
+
+    g_mutex_lock (&lock);
+    while (!closed && g_cond_wait_until (&cond, &lock, deadline))
+      ;
+    result = closed;
+    g_mutex_unlock (&lock);
+    return result;
+  }
+
+  /** @brief dispatch one result independently of the input's streaming thread */
+  static void dispatch (guint8 value)
+  {
+    GstTensorMemory output = { g_memdup2 (&value, sizeof (value)), sizeof (value) };
+    GstTensorFilterProperties *prop;
+
+    g_mutex_lock (&lock);
+    prop = pending;
+    g_mutex_unlock (&lock);
+    nnstreamer_filter_dispatch_output_async (prop, &output);
+  }
+};
+
+async_output_subplugin *async_output_subplugin::registered = nullptr;
+GMutex async_output_subplugin::lock;
+GCond async_output_subplugin::cond;
+bool async_output_subplugin::closed = false;
+GstTensorFilterProperties *async_output_subplugin::pending = nullptr;
+
+/** @brief Exercise queued inputs and callback outputs without an ML runtime. */
+class testFilterAsyncOutput : public ::testing::Test
+{
+  protected:
+  GstElement *pipeline; /**< pipeline owned by the fixture */
+  GstElement *sink; /**< retained appsink reference */
+  gchar *model; /**< dummy file used to open the mock */
+
+  /** @brief register the mock and create its model placeholder */
+  void SetUp () override
+  {
+    pipeline = sink = nullptr;
+    model = nullptr;
+    async_output_subplugin::pending = nullptr;
+    async_output_subplugin::closed = false;
+    async_output_subplugin::init ();
+    ASSERT_NE (async_output_subplugin::registered, nullptr);
+    int fd = g_file_open_tmp ("nnstreamer-async-XXXXXX", &model, nullptr);
+    ASSERT_GE (fd, 0);
+    close (fd);
+  }
+
+  /** @brief stop streaming before unregistering the mock */
+  void TearDown () override
+  {
+    if (pipeline) {
+      gst_element_set_state (pipeline, GST_STATE_NULL);
+      gst_object_unref (pipeline);
+    }
+    if (sink)
+      gst_object_unref (sink);
+    async_output_subplugin::fini ();
+    async_output_subplugin::pending = nullptr;
+    if (model)
+      g_unlink (model);
+    g_free (model);
+  }
+
+  /** @brief submit one byte to a dynamic C++ filter */
+  void start (bool asynchronous, bool fail = false, guint suspend = 0)
+  {
+    g_autofree gchar *description = g_strdup_printf (
+        "appsrc name=source caps=\"other/tensors,num_tensors=1,types=uint8,"
+        "dimensions=1:1:1:1,format=static,framerate=0/1\" ! "
+        "tensor_filter framework=async_output_mock model=%s invoke-dynamic=true "
+        "invoke-async=%s custom=%s suspend=%u ! other/tensors,format=flexible ! "
+        "appsink name=sink sync=false async=false",
+        model, asynchronous ? "true" : "false", fail ? "fail" : "ok", suspend);
+    GError *error = nullptr;
+    pipeline = gst_parse_launch (description, &error);
+    ASSERT_EQ (error, nullptr);
+    ASSERT_NE (pipeline, nullptr);
+    sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+    GstElement *source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+    ASSERT_NE (sink, nullptr);
+    ASSERT_NE (source, nullptr);
+    ASSERT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+    guint8 value = 0x2a;
+    GstBuffer *input = gst_buffer_new_allocate (nullptr, sizeof (value), nullptr);
+    gst_buffer_fill (input, 0, &value, sizeof (value));
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+    gst_object_unref (source);
+    ASSERT_TRUE (async_output_subplugin::waitForInput ());
+  }
+
+  /** @brief check the scalar payload after its flexible tensor header */
+  void expectValue (GstSample *sample, guint8 value)
+  {
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *buffer = gst_sample_get_buffer (sample);
+    ASSERT_EQ (gst_buffer_n_memory (buffer), 1U);
+    GstMapInfo map;
+    ASSERT_TRUE (gst_buffer_map (buffer, &map, GST_MAP_READ));
+    EXPECT_GT (map.size, 1U);
+    if (map.size > 0) {
+      EXPECT_EQ (map.data[map.size - 1], value);
+    }
+    gst_buffer_unmap (buffer, &map);
+  }
+};
+
+/** @brief Queued inputs produce nothing until a callback supplies real data. */
+TEST_F (testFilterAsyncOutput, noPlaceholderBuffer)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 100 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+
+  async_output_subplugin::dispatch (0x5a);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
+  if (sample)
+    gst_sample_unref (sample);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 100 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief A synchronous invoke still forwards its allocated result. */
+TEST_F (testFilterAsyncOutput, synchronousOutput)
+{
+  ASSERT_NO_FATAL_FAILURE (start (false));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x2a));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Async mode does not turn a failed invocation into a dropped buffer. */
+TEST_F (testFilterAsyncOutput, invokeError_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, true));
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessage *error = gst_bus_timed_pop_filtered (bus, GST_SECOND, GST_MESSAGE_ERROR);
+  EXPECT_NE (error, nullptr);
+  if (error)
+    gst_message_unref (error);
+  gst_object_unref (bus);
+}
+
+/** @brief Count a single-shot callback while checking its scalar result. */
+static int
+_record_single_async_output (GstTensorMemory *data, GstTensorsInfo *info, void *user_data)
+{
+  guint *count = (guint *) user_data;
+  EXPECT_EQ (info->num_tensors, 1U);
+  EXPECT_EQ (data[0].size, 1U);
+  EXPECT_EQ (*(guint8 *) data[0].data, 0x5a);
+  (*count)++;
+  return 0;
+}
+
+/** @brief The single-shot API still accepts a successfully queued async input. */
+TEST_F (testFilterAsyncOutput, singleShotAsyncSuccess)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-dynamic", TRUE,
+      "invoke-async", TRUE, nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint8 value = 0x2a;
+  guint count = 0;
+  GstTensorMemory input = { &value, sizeof (value) };
+  GstTensorMemory output = {};
+
+  ASSERT_TRUE (klass->set_invoke_async_callback (single, _record_single_async_output, &count));
+  EXPECT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  EXPECT_EQ (output.data, nullptr);
+  EXPECT_EQ (count, 0U);
+  async_output_subplugin::dispatch (0x5a);
+  EXPECT_EQ (count, 1U);
+}
+
+/** @brief Accepting an async input still arms the idle suspend watchdog. */
+TEST_F (testFilterAsyncOutput, asyncSuspend)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 50));
+  EXPECT_TRUE (async_output_subplugin::waitForClose ());
 }
 
 /**
