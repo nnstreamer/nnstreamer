@@ -926,7 +926,8 @@ _gst_tensor_filter_transform_get_invoke_tensors (GstBaseTransform * trans,
  * @brief Internal function to get output tensors.
  */
 static FilterTransformData *
-_gst_tensor_filter_transform_get_output_data (GstBaseTransform * trans)
+_gst_tensor_filter_transform_get_output_data (GstBaseTransform *trans,
+    GstTensorsInfo *info)
 {
   GstTensorFilter *self = GST_TENSOR_FILTER_CAST (trans);
   GstTensorFilterPrivate *priv = &self->priv;
@@ -941,7 +942,7 @@ _gst_tensor_filter_transform_get_output_data (GstBaseTransform * trans)
     return NULL;
   }
 
-  trans_data->num_tensors = prop->output_meta.num_tensors;
+  trans_data->num_tensors = info ? info->num_tensors : 0;
   trans_data->allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
   trans_data->is_flexible =
       gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SRC_PAD (trans));
@@ -1042,7 +1043,7 @@ _gst_tensor_filter_transform_check_invoke_result (GstBaseTransform * trans,
   }
 
   if (!out_trans_data->allocate_in_invoke) {
-    for (i = 0; i < prop->output_meta.num_tensors; i++) {
+    for (i = 0; i < out_trans_data->num_tensors; i++) {
       gst_memory_unmap (out_trans_data->mem[i], &out_trans_data->info[i]);
       if (invoke_res != 0)
         gst_memory_unref (out_trans_data->mem[i]);
@@ -1081,9 +1082,9 @@ _gst_tensor_filter_transform_check_invoke_result (GstBaseTransform * trans,
  * @return FALSE if the dynamic invoke has left an output tensor info invalid. The output data not appended to the buffer is released.
  */
 static gboolean
-_gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
-    FilterTransformData * in_trans_data, FilterTransformData * out_trans_data,
-    GstBuffer * outbuf)
+_gst_tensor_filter_transform_update_outbuf (GstBaseTransform *trans,
+    FilterTransformData *in_trans_data, FilterTransformData *out_trans_data,
+    GstBuffer *outbuf, GstTensorsInfo *info)
 {
   GstTensorFilter *self = GST_TENSOR_FILTER_CAST (trans);
   GstTensorFilterPrivate *priv = &self->priv;
@@ -1130,7 +1131,7 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     }
   }
 
-  for (i = 0; i < prop->output_meta.num_tensors; i++) {
+  for (i = 0; i < info->num_tensors; i++) {
     if (priv->combi.out_combi_o_defined) {
       gboolean out_combi = FALSE;
 
@@ -1153,7 +1154,7 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
       }
     }
 
-    _info = gst_tensors_info_get_nth_info (&prop->output_meta, i);
+    _info = gst_tensors_info_get_nth_info (info, i);
 
     if (prop->invoke_dynamic) {
       GstTensorMetaInfo meta;
@@ -1168,7 +1169,7 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
           if (g_list_find (priv->combi.out_combi_o, GUINT_TO_POINTER (j)))
             gst_memory_unref (out_trans_data->mem[j]);
         }
-        for (; i < prop->output_meta.num_tensors; i++)
+        for (; i < info->num_tensors; i++)
           gst_tensor_filter_destroy_notify_util (priv,
               out_trans_data->tensors[i].data);
         return FALSE;
@@ -1205,15 +1206,15 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     /* append in the order of the combi list, as the caps describe it */
     for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
       i = GPOINTER_TO_UINT (list->data);
-      if (i >= prop->output_meta.num_tensors)
+      if (i >= info->num_tensors)
         continue;
 
       gst_tensor_buffer_append_memory (outbuf,
           gst_memory_ref (out_trans_data->mem[i]),
-          gst_tensors_info_get_nth_info (&prop->output_meta, i));
+          gst_tensors_info_get_nth_info (info, i));
     }
 
-    for (i = 0; i < prop->output_meta.num_tensors; i++) {
+    for (i = 0; i < info->num_tensors; i++) {
       if (g_list_find (priv->combi.out_combi_o, GUINT_TO_POINTER (i)))
         gst_memory_unref (out_trans_data->mem[i]);
     }
@@ -1275,15 +1276,21 @@ gst_tensor_filter_async_output_callback (GstTensorMemory * data,
     goto error;
   }
 
-  out_trans_data = _gst_tensor_filter_transform_get_output_data (trans);
+  out_trans_data = _gst_tensor_filter_transform_get_output_data (trans, info);
   if (!out_trans_data) {
     ml_loge ("Failed to get output transform data.");
     goto error;
   }
 
-  for (i = 0; i < prop->output_meta.num_tensors; i++) {
+  for (i = 0; i < info->num_tensors; i++) {
     if (!data[i].data) {
       ml_loge ("Invalid tensor memory at index %d", i);
+      goto error;
+    }
+    if (out_trans_data->is_flexible && !prop->invoke_dynamic &&
+        !gst_tensor_info_convert_to_meta (gst_tensors_info_get_nth_info (info,
+                i), &out_trans_data->meta[i])) {
+      ml_loge ("Invalid async output metadata at index %u", i);
       goto error;
     }
     out_trans_data->tensors[i].data = data[i].data;
@@ -1291,7 +1298,7 @@ gst_tensor_filter_async_output_callback (GstTensorMemory * data,
   }
 
   if (!_gst_tensor_filter_transform_update_outbuf (trans, NULL, out_trans_data,
-          outbuf)) {
+          outbuf, info)) {
     g_clear_pointer (&outbuf, gst_buffer_unref);
     g_clear_pointer (&out_trans_data, g_free);
     return -1;
@@ -1305,7 +1312,7 @@ gst_tensor_filter_async_output_callback (GstTensorMemory * data,
   return 0;
 
 error:
-  for (i = 0; i < prop->output_meta.num_tensors; i++) {
+  for (i = 0; i < info->num_tensors; i++) {
     gst_tensor_filter_destroy_notify_util (priv, data[i].data);
     data[i].data = NULL;
   }
@@ -1356,16 +1363,19 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     goto mem_map_error;
   }
 
-  out_trans_data = _gst_tensor_filter_transform_get_output_data (trans);
+  out_trans_data = _gst_tensor_filter_transform_get_output_data (trans,
+      priv->prop.invoke_async ? NULL : &priv->prop.output_meta);
   if (!out_trans_data) {
     goto mem_map_error;
   }
 
-  retval =
-      _gst_tensor_filter_transform_prepare_output_tensors (trans,
-      out_trans_data);
-  if (retval != GST_FLOW_OK) {
-    goto mem_map_error;
+  if (!priv->prop.invoke_async) {
+    retval =
+        _gst_tensor_filter_transform_prepare_output_tensors (trans,
+        out_trans_data);
+    if (retval != GST_FLOW_OK) {
+      goto mem_map_error;
+    }
   }
 
   need_profiling = (priv->latency_mode > 0 || priv->throughput_mode > 0 ||
@@ -1392,7 +1402,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   if (!_gst_tensor_filter_transform_update_outbuf (trans, in_trans_data,
-          out_trans_data, outbuf))
+          out_trans_data, outbuf, &priv->prop.output_meta))
     retval = GST_FLOW_ERROR;
 
   goto done;

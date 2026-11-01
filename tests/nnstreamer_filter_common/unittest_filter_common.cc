@@ -9,16 +9,22 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <errno.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/app/gstappsink.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <mutex>
 #include <string.h>
+#include <thread>
 #include <unistd.h>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
 
@@ -2010,8 +2016,8 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
 {
   public:
   static async_output_subplugin *registered; /**< registered factory */
-  static GMutex lock; /**< protects the invocation handoff */
-  static GCond cond; /**< signals an input or model close */
+  static std::mutex lock; /**< protects the invocation handoff */
+  static std::condition_variable cond; /**< signals an input or model close */
   static bool closed; /**< records suspend closing the active instance */
   static guint invocations; /**< number of inputs accepted by the mock */
   bool configured = false; /**< distinguishes an instance from the factory */
@@ -2021,10 +2027,9 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   ~async_output_subplugin () override
   {
     if (configured) {
-      g_mutex_lock (&lock);
+      std::lock_guard<std::mutex> guard (lock);
       closed = true;
-      g_cond_broadcast (&cond);
-      g_mutex_unlock (&lock);
+      cond.notify_all ();
     }
   }
 
@@ -2053,12 +2058,14 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   void invoke_dynamic (GstTensorFilterProperties *prop,
       const GstTensorMemory *input, GstTensorMemory *output) override
   {
-    gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
-    g_mutex_lock (&lock);
-    pending = prop;
-    invocations++;
-    g_cond_broadcast (&cond);
-    g_mutex_unlock (&lock);
+    if (!prop->invoke_async)
+      gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
+    {
+      std::lock_guard<std::mutex> guard (lock);
+      pending = prop;
+      invocations++;
+      cond.notify_all ();
+    }
 
     if (g_strcmp0 (prop->custom_properties, "fail") == 0)
       throw std::invalid_argument ("Requested invocation failure");
@@ -2121,29 +2128,16 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   /** @brief wait for the streaming thread to queue its input */
   static bool waitForInput (guint count = 1)
   {
-    gint64 deadline = g_get_monotonic_time () + 5 * G_TIME_SPAN_SECOND;
-    bool ready;
-
-    g_mutex_lock (&lock);
-    while (invocations < count && g_cond_wait_until (&cond, &lock, deadline))
-      ;
-    ready = invocations >= count;
-    g_mutex_unlock (&lock);
-    return ready;
+    std::unique_lock<std::mutex> guard (lock);
+    return cond.wait_for (guard, std::chrono::seconds (5),
+        [count] { return invocations >= count; });
   }
 
   /** @brief wait for the suspend watchdog to close the model */
   static bool waitForClose ()
   {
-    gint64 deadline = g_get_monotonic_time () + 2 * G_TIME_SPAN_SECOND;
-    bool result;
-
-    g_mutex_lock (&lock);
-    while (!closed && g_cond_wait_until (&cond, &lock, deadline))
-      ;
-    result = closed;
-    g_mutex_unlock (&lock);
-    return result;
+    std::unique_lock<std::mutex> guard (lock);
+    return cond.wait_for (guard, std::chrono::seconds (2), [] { return closed; });
   }
 
   /** @brief dispatch one result independently of the input's streaming thread */
@@ -2152,16 +2146,18 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
     GstTensorMemory output = { _g_memdup (&value, sizeof (value)), sizeof (value) };
     GstTensorFilterProperties *prop;
 
-    g_mutex_lock (&lock);
-    prop = pending;
-    g_mutex_unlock (&lock);
+    {
+      std::lock_guard<std::mutex> guard (lock);
+      prop = pending;
+    }
+    gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
     nnstreamer_filter_dispatch_output_async (prop, &output);
   }
 };
 
 async_output_subplugin *async_output_subplugin::registered = nullptr;
-GMutex async_output_subplugin::lock;
-GCond async_output_subplugin::cond;
+std::mutex async_output_subplugin::lock;
+std::condition_variable async_output_subplugin::cond;
 bool async_output_subplugin::closed = false;
 guint async_output_subplugin::invocations = 0;
 GstTensorFilterProperties *async_output_subplugin::pending = nullptr;
@@ -2404,6 +2400,199 @@ TEST_F (testFilterAsyncOutput, asyncSuspend)
 {
   ASSERT_NO_FATAL_FAILURE (start (true, false, 50));
   EXPECT_TRUE (async_output_subplugin::waitForClose ());
+}
+
+/** @brief Build metadata for independently owned variable-size results. */
+static void
+_async_result_info (GstTensorsInfo *info, guint count, guint size)
+{
+  gst_tensors_info_init (info);
+  info->num_tensors = count;
+  info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  for (guint i = 0; i < count; i++) {
+    GstTensorInfo *tensor = gst_tensors_info_get_nth_info (info, i);
+    tensor->type = _NNS_UINT8;
+    tensor->dimension[0] = size;
+    for (guint j = 1; j < 4; j++)
+      tensor->dimension[j] = 1;
+  }
+}
+
+/** @brief Per-result count and dimensions must override negotiated metadata. */
+TEST_F (testFilterAsyncOutput, independentOutputMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  for (guint count = 2; count <= 3; count++) {
+    GstTensorsInfo info;
+    GstTensorMemory output[3] = {};
+    _async_result_info (&info, count, count + 5);
+    for (guint i = 0; i < count; i++) {
+      output[i].size = count + 5;
+      output[i].data = g_malloc0 (output[i].size);
+    }
+    nnstreamer_filter_dispatch_output_async_with_info (
+        async_output_subplugin::pending, output, &info);
+    // The callback consumes the description synchronously, not its ownership.
+    gst_tensors_info_free (&info);
+    GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *buffer = gst_sample_get_buffer (sample);
+    EXPECT_EQ (gst_tensor_buffer_get_count (buffer), count);
+    for (guint i = 0; i < gst_tensor_buffer_get_count (buffer); i++) {
+      GstMemory *memory = gst_tensor_buffer_get_nth_memory (buffer, i);
+      GstMapInfo map;
+      if (gst_memory_map (memory, &map, GST_MAP_READ)) {
+        GstTensorMetaInfo meta;
+        gst_tensor_meta_info_init (&meta);
+        EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+        EXPECT_EQ (meta.dimension[0], count + 5);
+        EXPECT_EQ (meta.type, _NNS_UINT8);
+        EXPECT_EQ (map.size, gst_tensor_meta_info_get_header_size (&meta) + count + 5);
+        gst_memory_unmap (memory, &map);
+      } else {
+        ADD_FAILURE () << "Cannot map the async result";
+      }
+      gst_memory_unref (memory);
+    }
+    gst_sample_unref (sample);
+    EXPECT_EQ (async_output_subplugin::pending->output_meta.num_tensors, 0U);
+  }
+}
+
+/** @brief A legacy worker may resize metadata while more inputs are queued. */
+TEST_F (testFilterAsyncOutput, concurrentLegacyMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstElement *source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  ASSERT_NE (source, nullptr);
+  std::atomic<bool> go{ false };
+  GstTensorFilterProperties *prop;
+  {
+    std::lock_guard<std::mutex> guard (async_output_subplugin::lock);
+    prop = async_output_subplugin::pending;
+  }
+  std::thread worker ([prop, &go] {
+    while (!go.load ())
+      std::this_thread::yield ();
+    gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
+    for (guint i = 0; i < 128; i++) {
+      guint size = 1 + i % 8;
+      prop->output_meta.info[0].dimension[0] = size;
+      GstTensorMemory output = { g_malloc0 (size), size };
+      nnstreamer_filter_dispatch_output_async (prop, &output);
+    }
+  });
+  go.store (true);
+  for (guint i = 0; i < 256; i++) {
+    GstBuffer *input = gst_buffer_new_allocate (nullptr, 1, nullptr);
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+  }
+  worker.join ();
+  gst_object_unref (source);
+  EXPECT_TRUE (async_output_subplugin::waitForInput (257));
+  for (guint i = 0; i < 128; i++) {
+    GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *buffer = gst_sample_get_buffer (sample);
+    GstMapInfo map;
+    ASSERT_TRUE (gst_buffer_map (buffer, &map, GST_MAP_READ));
+    GstTensorMetaInfo meta;
+    gst_tensor_meta_info_init (&meta);
+    EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+    EXPECT_EQ (meta.dimension[0], 1 + i % 8);
+    EXPECT_EQ (map.size, gst_tensor_meta_info_get_header_size (&meta) + 1 + i % 8);
+    gst_buffer_unmap (buffer, &map);
+    gst_sample_unref (sample);
+  }
+}
+
+/** @brief Count the tensors delivered by a single-shot per-result callback. */
+static int
+_count_single_result (GstTensorMemory *data, GstTensorsInfo *info, void *user_data)
+{
+  UNUSED (data);
+  *(guint *) user_data += info->num_tensors;
+  return 0;
+}
+
+/** @brief Single-shot cleanup follows the callback count, not the model count. */
+TEST_F (testFilterAsyncOutput, singleShotIndependentMetadata)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-dynamic", TRUE,
+      "invoke-async", TRUE, nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint8 value = 0x2a;
+  guint count = 0;
+  GstTensorMemory input = { &value, sizeof (value) };
+  GstTensorMemory unused = {};
+  ASSERT_TRUE (klass->set_invoke_async_callback (single, _count_single_result, &count));
+  ASSERT_TRUE (klass->invoke (single, &input, &unused, FALSE));
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 4);
+  GstTensorMemory output[2] = { { g_malloc0 (4), 4 }, { g_malloc0 (4), 4 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  EXPECT_EQ (count, 2U);
+  EXPECT_EQ (output[0].data, nullptr);
+  EXPECT_EQ (output[1].data, nullptr);
+  EXPECT_EQ (unused.data, nullptr);
+  gst_tensors_info_free (&info);
+}
+
+/** @brief Bad tensor descriptions produce no sample and do not poison recovery. */
+TEST_F (testFilterAsyncOutput, invalidResultMetadata_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  info.info[0].type = _NNS_END;
+  GstTensorMemory output[2] = { { g_malloc0 (1), 1 }, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+  async_output_subplugin::dispatch (0x5a);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Missing result memory frees every other entry using the supplied count. */
+TEST_F (testFilterAsyncOutput, missingResultData_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  GstTensorMemory output[2] = { {}, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  EXPECT_EQ (output[0].data, nullptr);
+  EXPECT_EQ (output[1].data, nullptr);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief With no consumer, the supplied count controls ownership release. */
+TEST_F (testFilterAsyncOutput, noCallbackResult_n)
+{
+  GstTensorFilterProperties prop = {};
+  prop.output_meta.num_tensors = 1;
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  GstTensorMemory output[2] = { { g_malloc0 (1), 1 }, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (&prop, output, &info);
+  EXPECT_EQ (output[0].data, nullptr);
+  EXPECT_EQ (output[1].data, nullptr);
+  gst_tensors_info_free (&info);
 }
 
 /**

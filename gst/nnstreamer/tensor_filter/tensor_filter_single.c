@@ -257,6 +257,7 @@ g_tensor_filter_single_async_cb (GstTensorMemory *data, GstTensorsInfo *info,
 {
   GTensorFilterSingle *self;
   GTensorFilterSinglePrivate *spriv;
+  guint i;
   int ret = 0;
 
   g_return_val_if_fail (data != NULL, -EINVAL);
@@ -270,7 +271,10 @@ g_tensor_filter_single_async_cb (GstTensorMemory *data, GstTensorsInfo *info,
     ret = spriv->async_cb (data, info, spriv->async_pdata);
   }
 
-  g_tensor_filter_single_destroy_notify (self, data);
+  for (i = 0; i < info->num_tensors; i++) {
+    gst_tensor_filter_destroy_notify_util (&spriv->filter_priv, data[i].data);
+    data[i].data = NULL;
+  }
   return ret;
 }
 
@@ -404,7 +408,10 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   /* set output tensors for given params */
   _out = output;
 
-  if (spriv->allocate_in_invoke) {
+  if (priv->prop.invoke_async) {
+    /* Only the callback owns results; no shared output metadata is needed. */
+    _out = out_tensors;
+  } else if (spriv->allocate_in_invoke) {
     if (!allocate) {
       /**
        * @todo how can we remove memcpy if output data is already allocated
@@ -444,6 +451,9 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
           model_file ? model_file : "No model file", invoke_time / 1000.0f);
     }
 
+    if (priv->prop.invoke_async)
+      return TRUE;
+
     if (_out != output) {
       for (i = 0; i < priv->prop.output_meta.num_tensors; i++)
         memcpy (output[i].data, _out[i].data, output[i].size);
@@ -456,7 +466,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
 
 error:
   /* if failed to invoke the model, release allocated memory. */
-  if (!spriv->allocate_in_invoke && allocate) {
+  if (!priv->prop.invoke_async && !spriv->allocate_in_invoke && allocate) {
     for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
       g_free (output[i].data);
       output[i].data = NULL;
