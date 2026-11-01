@@ -2064,7 +2064,7 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
       throw std::invalid_argument ("Requested invocation failure");
 
     if (!prop->invoke_async) {
-      output[0].data = g_memdup2 (input[0].data, input[0].size);
+      output[0].data = _g_memdup (input[0].data, input[0].size);
       output[0].size = input[0].size;
     }
   }
@@ -2149,7 +2149,7 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   /** @brief dispatch one result independently of the input's streaming thread */
   static void dispatch (guint8 value)
   {
-    GstTensorMemory output = { g_memdup2 (&value, sizeof (value)), sizeof (value) };
+    GstTensorMemory output = { _g_memdup (&value, sizeof (value)), sizeof (value) };
     GstTensorFilterProperties *prop;
 
     g_mutex_lock (&lock);
