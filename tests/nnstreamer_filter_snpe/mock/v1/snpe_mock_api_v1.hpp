@@ -88,7 +88,7 @@ template <typename T> class Optional
     return m_value;
   }
   /** @brief Convert to the held value. */
-  operator const T & () const
+  operator const T &() const
   {
     return m_value;
   }

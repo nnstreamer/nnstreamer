@@ -46,7 +46,7 @@ class INtpUtil
   /**
    * @brief Destroy the INtpUtil object
    */
-  virtual ~INtpUtil (){};
+  virtual ~INtpUtil () {};
   virtual struct hostent *gethostbyname (const char *name) = 0;
   virtual int connect (int sockfd, const struct sockaddr *addr, socklen_t addrlen) = 0;
   virtual ssize_t write (int fd, const void *buf, size_t count) = 0;
@@ -741,7 +741,7 @@ TEST_F (ntpUtilMockTest, getEpochCachedQueryNotBlockedByLookup)
   EXPECT_CALL (*mockInstance, gethostbyname (_))
       .Times (2)
       .WillOnce (Return ((struct hostent *) &host))
-      .WillOnce (Invoke ([&](const char *name) -> struct hostent * {
+      .WillOnce (Invoke ([&] (const char *name) -> struct hostent * {
         (void) name;
         cached_query = std::async (std::launch::async, [&] () {
           return ntputil_get_epoch (1, (char **) hnames_cached, ports);
@@ -778,7 +778,7 @@ TEST_F (ntpUtilMockTest, getEpochConcurrentLookupResolvedOnce)
 
   mockInstance = new NtpUtilMock ();
 
-  EXPECT_CALL (*mockInstance, gethostbyname (_)).Times (1).WillOnce (Invoke ([&](const char *name) -> struct hostent * {
+  EXPECT_CALL (*mockInstance, gethostbyname (_)).Times (1).WillOnce (Invoke ([&] (const char *name) -> struct hostent * {
     (void) name;
     second_query = std::async (std::launch::async,
         [&] () { return ntputil_get_epoch (1, (char **) hnames, ports); });
@@ -817,7 +817,7 @@ TEST_F (ntpUtilMockTest, getEpochWaiterFollowsHoldOffFromLookup_n)
       .Times (4)
       .WillOnce (Return ((struct hostent *) &host))
       .WillOnce (Return ((struct hostent *) &host))
-      .WillOnce (Invoke ([&](const char *name) -> struct hostent * {
+      .WillOnce (Invoke ([&] (const char *name) -> struct hostent * {
         (void) name;
         second_query = std::async (std::launch::async,
             [&] () { return ntputil_get_epoch (1, (char **) hnames, ports); });

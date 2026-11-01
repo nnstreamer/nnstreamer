@@ -833,8 +833,8 @@ _wait_data_or_error (GstElement *pipeline, guint *count, guint timeout_ms)
   GstMessage *msg = nullptr;
   guint waited;
 
-  for (waited = 0; waited < timeout_ms && !msg && g_atomic_int_get ((gint *) count) == 0;
-       waited += 10)
+  for (waited = 0;
+      waited < timeout_ms && !msg && g_atomic_int_get ((gint *) count) == 0; waited += 10)
     msg = gst_bus_timed_pop_filtered (bus, 10 * GST_MSECOND, GST_MESSAGE_ERROR);
 
   if (msg)

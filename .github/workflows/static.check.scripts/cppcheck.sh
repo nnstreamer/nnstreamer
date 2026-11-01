@@ -90,6 +90,7 @@ else
 fi
 
 errfile=$(mktemp)
+trap 'rm -f "$errfile"' EXIT
 error="no"
 errors=""
 
@@ -110,10 +111,12 @@ for file in `cat $files`; do
       *.c|*.cpp)
         echo "( $file ) file is source code with the text format."
         # Check C/C++ file, enable all checks.
-        $static_analysis_sw $static_analysis_rules $file 2> $errfile
-        bug_line=`$errfile | wc -l `
-        if  [[ $bug_line -gt 0 ]]; then
+        tool_status=0
+        $static_analysis_sw $static_analysis_rules "$file" 2> "$errfile" || tool_status=$?
+        bug_line=$(wc -l < "$errfile")
+        if [[ $tool_status -ne 0 || $bug_line -gt 0 ]]; then
           echo "$file cppcheck result shows some errors. There are $bug_line bug(s):"
+          echo "cppcheck exit status: $tool_status"
           echo ":group:cppcheck result of $file"
           cat $errfile
           echo ":endgroup:"

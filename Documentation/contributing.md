@@ -76,3 +76,29 @@ Including a "Signed-off-by:" tag in your commit means that you are making the De
 
 ## How to contribute to GStreamer community
 * https://gstreamer.freedesktop.org/documentation/contribute/index.html
+
+
+## Static checker environment
+
+The static-check, CPP-Linter and spelling workflows use `ubuntu-26.04` rather
+than a moving `ubuntu-latest` label. Both C++ format checks explicitly select
+clang-format 21: the static workflow installs and invokes `clang-format-21`,
+and CPP-Linter selects clang-tools version 21. Use the repository's
+`.clang-format` when formatting `.cc`, `.hh`, `.hpp` and `.cpp` files locally.
+Other distro checker packages follow Ubuntu 26.04 updates; the workflow logs
+the installed formatter, Cppcheck, Pylint, Doxygen and indent versions so that
+diagnostics can be reproduced. These are major-version selections, not frozen
+patch-level package or runner-image snapshots.
+
+For example, before submitting a C++ change:
+
+```sh
+clang-format-21 -i path/to/changed.cc
+python3 .github/workflows/static.check.scripts/test_cppcheck.py
+```
+
+The Cppcheck wrapper fails on diagnostics and on a nonzero checker exit status.
+Its self-test uses real clean C, invalid C and invalid C++ fixtures, plus a
+checker-process failure. Run it with `cppcheck` and `file` installed; a missing
+checker is an environment failure, not a successful source-code check. The
+existing C/`.cpp` selection and check levels remain unchanged.
