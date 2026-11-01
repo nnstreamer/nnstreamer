@@ -1825,6 +1825,7 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   static GMutex lock; /**< protects the invocation handoff */
   static GCond cond; /**< signals an input or model close */
   static bool closed; /**< records suspend closing the active instance */
+  static guint invocations; /**< number of inputs accepted by the mock */
   bool configured = false; /**< distinguishes an instance from the factory */
   static GstTensorFilterProperties *pending; /**< live properties until teardown */
 
@@ -1867,6 +1868,7 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
     gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
     g_mutex_lock (&lock);
     pending = prop;
+    invocations++;
     g_cond_broadcast (&cond);
     g_mutex_unlock (&lock);
 
@@ -1929,15 +1931,15 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   }
 
   /** @brief wait for the streaming thread to queue its input */
-  static bool waitForInput ()
+  static bool waitForInput (guint count = 1)
   {
     gint64 deadline = g_get_monotonic_time () + 5 * G_TIME_SPAN_SECOND;
     bool ready;
 
     g_mutex_lock (&lock);
-    while (!pending && g_cond_wait_until (&cond, &lock, deadline))
+    while (invocations < count && g_cond_wait_until (&cond, &lock, deadline))
       ;
-    ready = pending != nullptr;
+    ready = invocations >= count;
     g_mutex_unlock (&lock);
     return ready;
   }
@@ -1973,6 +1975,7 @@ async_output_subplugin *async_output_subplugin::registered = nullptr;
 GMutex async_output_subplugin::lock;
 GCond async_output_subplugin::cond;
 bool async_output_subplugin::closed = false;
+guint async_output_subplugin::invocations = 0;
 GstTensorFilterProperties *async_output_subplugin::pending = nullptr;
 
 /** @brief Exercise queued inputs and callback outputs without an ML runtime. */
@@ -1990,6 +1993,7 @@ class testFilterAsyncOutput : public ::testing::Test
     model = nullptr;
     async_output_subplugin::pending = nullptr;
     async_output_subplugin::closed = false;
+    async_output_subplugin::invocations = 0;
     async_output_subplugin::init ();
     ASSERT_NE (async_output_subplugin::registered, nullptr);
     int fd = g_file_open_tmp ("nnstreamer-async-XXXXXX", &model, nullptr);
@@ -2074,6 +2078,82 @@ TEST_F (testFilterAsyncOutput, noPlaceholderBuffer)
   EXPECT_EQ (sample, nullptr);
   if (sample)
     gst_sample_unref (sample);
+}
+
+/** @brief One queued input may generate several ordered callback outputs. */
+TEST_F (testFilterAsyncOutput, multipleCallbacksFromOneInput)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+
+  for (guint8 value = 1; value <= 8; value++) {
+    async_output_subplugin::dispatch (value);
+    sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+    EXPECT_NO_FATAL_FAILURE (expectValue (sample, value));
+    if (sample)
+      gst_sample_unref (sample);
+  }
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Dropping several inputs must not add a sample for any of them. */
+TEST_F (testFilterAsyncOutput, inputBurstWithoutPlaceholders)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstElement *source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  ASSERT_NE (source, nullptr);
+  for (guint8 value = 1; value < 16; value++) {
+    GstBuffer *input = gst_buffer_new_allocate (nullptr, sizeof (value), nullptr);
+    gst_buffer_fill (input, 0, &value, sizeof (value));
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+  }
+  gst_object_unref (source);
+  ASSERT_TRUE (async_output_subplugin::waitForInput (16));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+
+  async_output_subplugin::dispatch (0x7f);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x7f));
+  if (sample)
+    gst_sample_unref (sample);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief An accepted input with no generated output can finish with EOS. */
+TEST_F (testFilterAsyncOutput, eosWithoutGeneratedOutput)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstElement *source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  ASSERT_NE (source, nullptr);
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (source)), GST_FLOW_OK);
+  gst_object_unref (source);
+
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessage *message = gst_bus_timed_pop_filtered (
+      bus, GST_SECOND, (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  EXPECT_NE (message, nullptr);
+  if (message) {
+    EXPECT_EQ (GST_MESSAGE_TYPE (message), GST_MESSAGE_EOS);
+    gst_message_unref (message);
+  }
+  EXPECT_TRUE (gst_app_sink_is_eos (GST_APP_SINK (sink)));
+  gst_object_unref (bus);
 }
 
 /** @brief A synchronous invoke still forwards its allocated result. */
