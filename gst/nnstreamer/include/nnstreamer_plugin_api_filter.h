@@ -159,7 +159,22 @@ typedef struct _GstTensorFilterProperties
 
   uint32_t suspend; /**< Timeout (ms) for suspend. (Unload the framework) */
 
-  int invoke_async; /**< The sub-plugin must support asynchronous output to use this option. If set to TRUE, the sub-plugin can generate multiple outputs asynchronously per single input. Otherwise, only synchronous single-output is expected and async callback is ignored. */
+  /**
+   * @brief Enable asynchronous output from a supporting sub-plugin.
+   *
+   * If TRUE, a successful invoke only acknowledges the input. The sub-plugin
+   * must deliver every output through async_callback and must not allocate or
+   * return synchronous output, including when allocate_in_invoke is enabled.
+   * Synchronous output is ignored and its ownership is not transferred to
+   * tensor-filter. Multiple callback outputs per input are supported.
+   *
+   * In a GStreamer pipeline, preroll waits for the first callback output or EOS.
+   * Waiting for the state transition with gst_element_get_state() can therefore
+   * block if the sub-plugin produces neither output nor EOS.
+   * If FALSE, only a synchronous single output is expected and async callbacks
+   * are ignored.
+   */
+  int invoke_async;
   GstTensorDataCallback async_callback; /**< The callback function pointer to be called every time the sub-plugin generates a new output tensor asynchronously. Note that this is internal data for tensor-filter and DO NOT change this value. */
   void *async_user_data; /**< The private data to be passed to tensor data callback of asynchronous invoke. Note that this is internal data for tensor-filter and DO NOT change this value. */
 } GstTensorFilterProperties;
