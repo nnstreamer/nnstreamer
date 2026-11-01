@@ -16,7 +16,7 @@ jobs:
         uses: ./.github/actions/check-rebuild
         with:
           mode: rebuild
-      - uses: nnstreamer/run-on-arch-action@master
+      - uses: uraimo/run-on-arch-action@1e2c619f81e6d8609845ea1d2f443a778df1ac68 # v3
         name: Run commands
         if: env.rebuild == '1'
         id: Build
