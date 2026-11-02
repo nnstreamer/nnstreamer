@@ -77,6 +77,7 @@ if [[ $(version $cppcheck_ver) -ge $(version "2.0.5") ]]; then
 fi
 
 static_analysis_sw="cppcheck"
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 if [[ $2 -eq 0 ]]; then
   echo "cppcheck: Default mode."
@@ -112,7 +113,8 @@ for file in `cat $files`; do
         echo "( $file ) file is source code with the text format."
         # Check C/C++ file, enable all checks.
         tool_status=0
-        $static_analysis_sw $static_analysis_rules "$file" 2> "$errfile" || tool_status=$?
+        $static_analysis_sw $static_analysis_rules \
+          --library="$script_dir/nnstreamer.cfg" "$file" 2> "$errfile" || tool_status=$?
         bug_line=$(wc -l < "$errfile")
         if [[ $tool_status -ne 0 || $bug_line -gt 0 ]]; then
           echo "$file cppcheck result shows some errors. There are $bug_line bug(s):"
