@@ -1833,6 +1833,7 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   static bool closed; /**< records suspend closing the active instance */
   static guint invocations; /**< number of inputs accepted by the mock */
   bool configured = false; /**< distinguishes an instance from the factory */
+  GstTensorFilterProperties *properties = nullptr; /**< configured instance properties */
   static GstTensorFilterProperties *pending; /**< live properties until teardown */
 
   /** @brief record when a configured instance is suspended or stopped */
@@ -1854,16 +1855,14 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   /** @brief accept the fixture's temporary model file */
   void configure_instance (const GstTensorFilterProperties *prop) override
   {
-    UNUSED (prop);
+    properties = const_cast<GstTensorFilterProperties *> (prop);
     configured = true;
   }
 
-  /** @brief reject the static-output entry point */
+  /** @brief queue an input through the non-dynamic entry point */
   void invoke (const GstTensorMemory *input, GstTensorMemory *output) override
   {
-    UNUSED (input);
-    UNUSED (output);
-    throw std::invalid_argument ("Use dynamic invocation");
+    invoke_dynamic (properties, input, output);
   }
 
   /** @brief queue async inputs, or return an allocated synchronous result */
@@ -2013,16 +2012,17 @@ class testFilterAsyncOutput : public ::testing::Test
     g_free (model);
   }
 
-  /** @brief submit one byte to a dynamic C++ filter */
-  void start (bool asynchronous, bool fail = false, guint suspend = 0)
+  /** @brief submit one byte to a dynamic or non-dynamic C++ filter */
+  void start (bool asynchronous, bool fail = false, guint suspend = 0, bool dynamic = true)
   {
     g_autofree gchar *description = g_strdup_printf (
         "appsrc name=source caps=\"other/tensors,num_tensors=1,types=uint8,"
         "dimensions=1:1:1:1,format=static,framerate=0/1\" ! "
-        "tensor_filter framework=async_output_mock model=%s invoke-dynamic=true "
+        "tensor_filter framework=async_output_mock model=%s invoke-dynamic=%s "
         "invoke-async=%s custom=%s suspend=%u ! other/tensors,format=flexible ! "
         "appsink name=sink sync=false async=false",
-        model, asynchronous ? "true" : "false", fail ? "fail" : "ok", suspend);
+        model, dynamic ? "true" : "false", asynchronous ? "true" : "false",
+        fail ? "fail" : "ok", suspend);
     GError *error = nullptr;
     pipeline = gst_parse_launch (description, &error);
     ASSERT_EQ (error, nullptr);
@@ -2430,4 +2430,68 @@ main (int argc, char **argv)
   }
 
   return result;
+}
+
+/** @brief Flexible non-dynamic output uses its own tensor description. */
+TEST_F (testFilterAsyncOutput, nonDynamicFlexibleOutput)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 0, false));
+  ASSERT_FALSE (async_output_subplugin::pending->invoke_dynamic);
+  GstTensorsInfo info;
+  _async_result_info (&info, 1, 1);
+  guint8 value = 0x68;
+  GstTensorMemory output = { _g_memdup (&value, 1), 1 };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, &output, &info);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, value));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Reject invalid first metadata, free every result and recover. */
+TEST_F (testFilterAsyncOutput, nonDynamicFlexibleInvalidMetadata_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 0, false));
+  ASSERT_FALSE (async_output_subplugin::pending->invoke_dynamic);
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  info.info[0].type = _NNS_END;
+  GstTensorMemory output[2] = { { g_malloc0 (1), 1 }, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+  async_output_subplugin::dispatch (0x5a);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Reject later invalid metadata after an earlier tensor was prepared. */
+TEST_F (testFilterAsyncOutput, nonDynamicFlexibleInvalidLaterMetadata_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 0, false));
+  ASSERT_FALSE (async_output_subplugin::pending->invoke_dynamic);
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  info.info[1].type = _NNS_END;
+  GstTensorMemory output[2] = { { g_malloc0 (1), 1 }, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+  async_output_subplugin::dispatch (0x5a);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
+  if (sample)
+    gst_sample_unref (sample);
 }
