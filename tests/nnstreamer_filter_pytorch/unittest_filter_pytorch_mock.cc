@@ -13,7 +13,7 @@
  * the logic of the sub-plugin: model loading, the accelerator choice, the
  * type and shape conversion of the inputs and the serialization and the
  * validation of the outputs. Whether the sub-plugin still builds and runs
- * against a real LibTorch is checked by the weekly workflow pytorch.yml.
+ * against a real LibTorch is checked by the workflow out_of_distro_filters.yml.
  */
 
 #include <gtest/gtest.h>

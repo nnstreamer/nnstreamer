@@ -36,7 +36,7 @@ This subplugin runs TorchScript models (```.pt```) through LibTorch, the C++ dis
 
 A model output that is a 0-dim tensor (a scalar) must be declared as an output of the same type and exactly one element, e.g., ```output=1```.
 
-LibTorch ships no pkg-config file. Unpack a LibTorch release, write a ```torch.pc``` for it, point ```PKG_CONFIG_PATH``` at it and use the ```pytorch-support``` meson option. ```.github/workflows/pytorch.yml``` is a working example; it builds the subplugin against a real LibTorch every week and on the pull requests that change the subplugin or its tests. Every pull request builds and tests the subplugin against the LibTorch mock in ```tests/nnstreamer_filter_pytorch/mock```.
+LibTorch ships no pkg-config file. Unpack a LibTorch release, write a ```torch.pc``` for it, point ```PKG_CONFIG_PATH``` at it and use the ```pytorch-support``` meson option. ```.github/workflows/out_of_distro_filters.yml``` is a working example; it builds the subplugin against a real LibTorch every weekday and on the pull requests that change the subplugin, its tests or the tensor_filter core. Every pull request builds and tests the subplugin against the LibTorch mock in ```tests/nnstreamer_filter_pytorch/mock```.
 
 ### Tensorflow
 ### Tensorflow-lite
@@ -64,7 +64,7 @@ To build, provide the LiteRT SDK via pkg-config (```litert.pc```) or the ```LITE
 
 This subplugin runs PyTorch models exported to the ExecuTorch ```.pte``` format, through the ExecuTorch ```Module``` API.
 
-ExecuTorch has no distro package and publishes no prebuilt binaries for desktop Linux or macOS; its pip wheel carries headers but no runtime library. Build and install the runtime with ```tools/executorch-install.sh [install-prefix] [git-tag]``` first, then point ```PKG_CONFIG_PATH``` at ```<install-prefix>/lib/pkgconfig``` and use the ```executorch-support``` meson option. ```.github/workflows/executorch.yml``` is a working example.
+ExecuTorch has no distro package and publishes no prebuilt binaries for desktop Linux or macOS; its pip wheel carries headers but no runtime library. Build and install the runtime with ```tools/executorch-install.sh [install-prefix] [git-tag]``` first, then point ```PKG_CONFIG_PATH``` at ```<install-prefix>/lib/pkgconfig``` and use the ```executorch-support``` meson option. ```.github/workflows/out_of_distro_filters.yml``` is a working example.
 
 That script exists because the pkg-config file ExecuTorch generates links the runtime alone, without the operator kernels; a subplugin built against the stock file links cleanly and then fails on the first invoke with an unregistered operator.
 

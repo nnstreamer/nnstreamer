@@ -1,7 +1,7 @@
 # LibTorch is too large to install in every CI job, so the sub-plugin is built
 # again here against a reduced stand-in of its API. The build of the sub-plugin
-# itself stays behind 'pytorch-support'; .github/workflows/pytorch.yml checks it
-# against a real LibTorch every week.
+# itself stays behind 'pytorch-support'; .github/workflows/out_of_distro_filters.yml
+# checks it against a real LibTorch.
 pytorch_subplugin_src = join_paths(meson.project_source_root(), 'ext',
   'nnstreamer', 'tensor_filter', 'tensor_filter_pytorch.cc')
 
