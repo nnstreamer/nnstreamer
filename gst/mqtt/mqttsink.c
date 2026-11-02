@@ -1075,7 +1075,7 @@ static GstFlowReturn
 gst_mqtt_sink_render_list (GstBaseSink * basesink, GstBufferList * list)
 {
   guint num_buffers = gst_buffer_list_length (list);
-  GstFlowReturn ret;
+  GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *buffer;
   guint i;
 

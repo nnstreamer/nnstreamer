@@ -10,9 +10,37 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <gst/base/gstbasesink.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
 #include <unittest_util.h>
+
+/** @brief An empty buffer list is a successful no-op without a connection. */
+TEST (testMqttSink, emptyBufferList)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", nullptr);
+  ASSERT_NE (sink, nullptr);
+  GstBaseSinkClass *klass = GST_BASE_SINK_GET_CLASS (sink);
+  ASSERT_NE (klass->render_list, nullptr);
+  GstBufferList *list = gst_buffer_list_new ();
+  EXPECT_EQ (klass->render_list (GST_BASE_SINK (sink), list), GST_FLOW_OK);
+  gst_buffer_list_unref (list);
+  gst_object_unref (sink);
+}
+
+/** @brief A nonempty list still reports the unconnected renderer's failure. */
+TEST (testMqttSink, disconnectedBufferList_n)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", nullptr);
+  ASSERT_NE (sink, nullptr);
+  GstBaseSinkClass *klass = GST_BASE_SINK_GET_CLASS (sink);
+  ASSERT_NE (klass->render_list, nullptr);
+  GstBufferList *list = gst_buffer_list_new ();
+  gst_buffer_list_add (list, gst_buffer_new_allocate (nullptr, 1, nullptr));
+  EXPECT_NE (klass->render_list (GST_BASE_SINK (sink), list), GST_FLOW_OK);
+  gst_buffer_list_unref (list);
+  gst_object_unref (sink);
+}
 
 /**
  * @brief Test for mqttsink with wrong URL
