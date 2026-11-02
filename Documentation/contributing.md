@@ -102,3 +102,18 @@ Its self-test uses real clean C, invalid C and invalid C++ fixtures, plus a
 checker-process failure. Run it with `cppcheck` and `file` installed; a missing
 checker is an environment failure, not a successful source-code check. The
 existing C/`.cpp` selection and check levels remain unchanged.
+
+The wrapper loads the adjacent `nnstreamer.cfg` using the script's own
+directory, including when invoked from
+another working directory. These models describe GLib branch hints and type
+macros, numeric format fragments and GStreamer caps strings. Version predicates
+select the supported API branches used by Ubuntu 26.04. This is standalone-file
+analysis, not preprocessing with a build's complete headers and compiler flags.
+
+Diagnostics from unknown configuration, invalid memory access and checker
+process failures still fail the gate. The repaired diagnostic handling activates
+a previously ineffective failure path; it does not silently suppress existing
+diagnostics. Its regression tests include guarded resource access and errors
+inside modeled macros so that configuration changes cannot turn real bugs into
+passes. Cppcheck's source selection remains C and `.cpp`; formatting checks
+cover the existing C++ extension set separately.
