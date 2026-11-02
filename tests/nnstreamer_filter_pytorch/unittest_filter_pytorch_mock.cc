@@ -25,7 +25,13 @@
 #include <nnstreamer_plugin_api_util.h>
 #include <tensor_typedef.h>
 
+#include "../../gst/nnstreamer/tensor_filter/tensor_filter_common.h"
 #include "torch_mock.h"
+
+extern "C" {
+void init_filter_torch (void);
+void fini_filter_torch (void);
+}
 
 /**
  * @brief Whether the configuration asks for the GPU (--gpu-by-conf)
@@ -185,7 +191,7 @@ class NNStreamerFilterPytorchMockTest : public ::testing::Test
       memset (out[i].data, 0xEE, out_size[i]);
     }
 
-    return sp->invoke_NN (&prop, &private_data, in, out);
+    return sp->invoke (sp, &prop, private_data, in, out);
   }
 
   /**
@@ -215,14 +221,60 @@ class NNStreamerFilterPytorchMockTest : public ::testing::Test
 };
 
 /**
- * @brief The sub-plugin registers itself as a v0 framework.
+ * @brief The sub-plugin registers itself as a v1 framework.
  */
 TEST_F (NNStreamerFilterPytorchMockTest, registered)
 {
-  EXPECT_EQ (sp->version, GST_TENSOR_FILTER_FRAMEWORK_V0);
-  EXPECT_STREQ (sp->name, "pytorch");
-  EXPECT_TRUE (sp->verify_model_path);
-  EXPECT_FALSE (sp->run_without_model);
+  EXPECT_EQ (sp->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+  EXPECT_NE (sp->invoke, nullptr);
+  EXPECT_NE (sp->getFrameworkInfo, nullptr);
+  EXPECT_NE (sp->getModelInfo, nullptr);
+  EXPECT_NE (sp->eventHandler, nullptr);
+}
+
+/**
+ * @brief The framework info is the same before and after opening a model.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, frameworkInfo)
+{
+  SetModel (MakeModel ("identity"));
+
+  for (int i = 0; i < 2; i++) {
+    GstTensorFilterFrameworkInfo info;
+
+    SCOPED_TRACE (i);
+    memset (&info, 0, sizeof (info));
+    ASSERT_EQ (sp->getFrameworkInfo (sp, &prop, private_data, &info), 0);
+    EXPECT_STREQ (info.name, "pytorch");
+    EXPECT_FALSE (info.allow_in_place);
+    EXPECT_FALSE (info.allocate_in_invoke);
+    EXPECT_FALSE (info.run_without_model);
+    EXPECT_TRUE (info.verify_model_path);
+    EXPECT_EQ (info.statistics, nullptr);
+    ASSERT_EQ (info.num_hw, 2);
+    EXPECT_EQ (info.hw_list[0], ACCL_CPU);
+    EXPECT_EQ (info.hw_list[1], ACCL_GPU);
+    EXPECT_EQ (info.accl_auto, ACCL_CPU);
+    EXPECT_EQ (info.accl_default, ACCL_CPU);
+
+    if (i == 0) {
+      ASSERT_EQ (Open (), 0);
+    }
+  }
+}
+
+/**
+ * @brief The sub-plugin can leave and rejoin the framework registry.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, unregister)
+{
+  fini_filter_torch ();
+  EXPECT_EQ (nnstreamer_filter_find ("pytorch"), nullptr);
+
+  init_filter_torch ();
+  sp = nnstreamer_filter_find ("pytorch");
+  ASSERT_NE (sp, nullptr);
+  EXPECT_EQ (sp->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
 }
 
 /**
@@ -254,32 +306,22 @@ TEST_F (NNStreamerFilterPytorchMockTest, closeNotOpened)
 }
 
 /**
- * @brief Opening the same model again is skipped.
+ * @brief Every open gets an instance of its own.
  */
-TEST_F (NNStreamerFilterPytorchMockTest, openSameModel)
+TEST_F (NNStreamerFilterPytorchMockTest, openTwoInstances)
 {
-  SetModel (MakeModel ("identity"));
+  void *other = nullptr;
 
-  ASSERT_EQ (Open (), 0);
-  void *first = private_data;
-
-  EXPECT_EQ (Open (), 1);
-  EXPECT_EQ (private_data, first);
-  EXPECT_EQ (torch_mock::loadCount (), 1);
-}
-
-/**
- * @brief Opening another model replaces the loaded one.
- */
-TEST_F (NNStreamerFilterPytorchMockTest, openAnotherModel)
-{
   SetModel (MakeModel ("identity"));
   ASSERT_EQ (Open (), 0);
 
-  SetModel (MakeModel ("tuple"));
-  EXPECT_EQ (Open (), 0);
-  EXPECT_NE (private_data, nullptr);
+  ASSERT_EQ (sp->open (&prop, &other), 0);
+  EXPECT_NE (other, nullptr);
+  EXPECT_NE (other, private_data);
   EXPECT_EQ (torch_mock::loadCount (), 2);
+
+  sp->close (&prop, &other);
+  EXPECT_EQ (other, nullptr);
 }
 
 /**
@@ -290,8 +332,35 @@ TEST_F (NNStreamerFilterPytorchMockTest, openTwoModels_n)
   SetModel (MakeModel ("identity"));
   prop.num_models = 2;
 
-  EXPECT_EQ (Open (), -1);
+  EXPECT_EQ (Open (), -EINVAL);
   EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (torch_mock::loadCount (), 0);
+}
+
+/**
+ * @brief An open without a model list is refused before loading anything.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, openNullModelFiles_n)
+{
+  SetModel (MakeModel ("identity"));
+  prop.model_files = nullptr;
+
+  EXPECT_EQ (Open (), -EINVAL);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (torch_mock::loadCount (), 0);
+}
+
+/**
+ * @brief An open with a NULL model path is refused before loading anything.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, openNullModelPath_n)
+{
+  SetModel (MakeModel ("identity"));
+  model_files[0] = nullptr;
+
+  EXPECT_EQ (Open (), -EINVAL);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (torch_mock::loadCount (), 0);
 }
 
 /**
@@ -302,7 +371,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, openMissingModel_n)
   gchar *path = g_build_filename (tmpdir, "missing.pt", NULL);
 
   SetModel (path);
-  EXPECT_EQ (Open (), -2);
+  EXPECT_EQ (Open (), -EINVAL);
   EXPECT_EQ (private_data, nullptr);
   EXPECT_EQ (torch_mock::loadCount (), 0);
   g_free (path);
@@ -315,7 +384,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, openNotAModel_n)
 {
   SetModel (MakeModel ("garbage"));
 
-  EXPECT_EQ (Open (), -2);
+  EXPECT_EQ (Open (), -EINVAL);
   EXPECT_EQ (private_data, nullptr);
 }
 
@@ -326,7 +395,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, openInvalidArgument_n)
 {
   SetModel (MakeModel ("load_invalid_argument"));
 
-  EXPECT_EQ (Open (), -2);
+  EXPECT_EQ (Open (), -EINVAL);
   EXPECT_EQ (private_data, nullptr);
 }
 
@@ -337,7 +406,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, openUnknownException_n)
 {
   SetModel (MakeModel ("load_unknown"));
 
-  EXPECT_EQ (Open (), -2);
+  EXPECT_EQ (Open (), -EINVAL);
   EXPECT_EQ (private_data, nullptr);
 }
 
@@ -373,7 +442,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, openGpuWithoutCuda_n)
 {
   SetModel (MakeModel ("identity"), "true:gpu");
 
-  EXPECT_EQ (Open (), -2);
+  EXPECT_EQ (Open (), -EINVAL);
   EXPECT_EQ (private_data, nullptr);
 }
 
@@ -417,24 +486,63 @@ TEST_F (NNStreamerFilterPytorchMockTest, openDeviceByConfiguration)
 /**
  * @brief The dimensions given to the filter are reported back.
  */
-TEST_F (NNStreamerFilterPytorchMockTest, getDimension)
+TEST_F (NNStreamerFilterPytorchMockTest, getModelInfo)
 {
-  GstTensorsInfo info;
+  GstTensorsInfo in_info, out_info;
 
   SetModel (MakeModel ("identity"));
   AddInput (_NNS_UINT8, "4:3:2:1");
   AddOutput (_NNS_FLOAT32, "10:1");
   ASSERT_EQ (Open (), 0);
 
-  gst_tensors_info_init (&info);
-  EXPECT_EQ (sp->getInputDimension (&prop, &private_data, &info), 0);
-  EXPECT_TRUE (gst_tensors_info_is_equal (&info, &prop.input_meta));
-  gst_tensors_info_free (&info);
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  EXPECT_EQ (sp->getModelInfo (sp, &prop, private_data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&in_info, &prop.input_meta));
+  EXPECT_TRUE (gst_tensors_info_is_equal (&out_info, &prop.output_meta));
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
 
-  gst_tensors_info_init (&info);
-  EXPECT_EQ (sp->getOutputDimension (&prop, &private_data, &info), 0);
-  EXPECT_TRUE (gst_tensors_info_is_equal (&info, &prop.output_meta));
-  gst_tensors_info_free (&info);
+/**
+ * @brief The input dimension cannot be set from outside.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, setInputInfo_n)
+{
+  GstTensorsInfo in_info, out_info;
+
+  SetModel (MakeModel ("identity"));
+  AddInput (_NNS_UINT8, "4:3:2:1");
+  AddOutput (_NNS_UINT8, "4:3:2:1");
+  ASSERT_EQ (Open (), 0);
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  EXPECT_EQ (sp->getModelInfo (sp, &prop, private_data, SET_INPUT_INFO, &in_info, &out_info),
+      -ENOENT);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief The events that the sub-plugin does not handle are left to tensor_filter.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, eventsNotHandled_n)
+{
+  const event_ops events[]
+      = { DESTROY_NOTIFY, RELOAD_MODEL, SUSPEND, RESUME, SET_ACCELERATOR };
+  GstTensorFilterFrameworkEventData data;
+
+  SetModel (MakeModel ("identity"));
+  ASSERT_EQ (Open (), 0);
+
+  memset (&data, 0, sizeof (data));
+  for (event_ops event : events) {
+    SCOPED_TRACE (event);
+    EXPECT_EQ (sp->eventHandler (sp, &prop, private_data, event, &data), -ENOENT);
+    EXPECT_EQ (sp->eventHandler (sp, &prop, private_data, event, NULL), -ENOENT);
+  }
+  EXPECT_EQ (torch_mock::loadCount (), 1);
 }
 
 /**
@@ -442,17 +550,57 @@ TEST_F (NNStreamerFilterPytorchMockTest, getDimension)
  */
 TEST_F (NNStreamerFilterPytorchMockTest, notOpened_n)
 {
-  GstTensorsInfo info;
+  GstTensorsInfo in_info, out_info;
   GstTensorMemory mem;
 
   SetModel (MakeModel ("identity"));
-  gst_tensors_info_init (&info);
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
   memset (&mem, 0, sizeof (mem));
 
-  EXPECT_EQ (sp->getInputDimension (&prop, &private_data, &info), -EINVAL);
-  EXPECT_EQ (sp->getOutputDimension (&prop, &private_data, &info), -EINVAL);
-  EXPECT_EQ (sp->invoke_NN (&prop, &private_data, &mem, &mem), -EINVAL);
-  gst_tensors_info_free (&info);
+  EXPECT_EQ (sp->getModelInfo (sp, &prop, nullptr, GET_IN_OUT_INFO, &in_info, &out_info),
+      -EINVAL);
+  EXPECT_EQ (sp->invoke (sp, &prop, nullptr, &mem, &mem), -EINVAL);
+  EXPECT_EQ (sp->eventHandler (sp, &prop, nullptr, RELOAD_MODEL, NULL), -EINVAL);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief A dynamic invoke is refused without running the model.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeDynamic_n)
+{
+  GstTensorMemory in[1], out[1];
+  const gsize size[1] = { 6 };
+
+  SetModel (MakeModel ("identity"));
+  AddInput (_NNS_UINT8, "3:2");
+  AddOutput (_NNS_UINT8, "3:2");
+  ASSERT_EQ (Open (), 0);
+
+  prop.invoke_dynamic = TRUE;
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
+  EXPECT_EQ (torch_mock::forwardCount (), 0);
+
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+}
+
+/**
+ * @brief An invoke without tensors is refused.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeNullTensors_n)
+{
+  GstTensorMemory mem;
+
+  SetModel (MakeModel ("identity"));
+  ASSERT_EQ (Open (), 0);
+  memset (&mem, 0, sizeof (mem));
+
+  EXPECT_EQ (sp->invoke (sp, &prop, private_data, nullptr, &mem), -EINVAL);
+  EXPECT_EQ (sp->invoke (sp, &prop, private_data, &mem, nullptr), -EINVAL);
+  EXPECT_EQ (torch_mock::forwardCount (), 0);
 }
 
 /**
@@ -460,9 +608,9 @@ TEST_F (NNStreamerFilterPytorchMockTest, notOpened_n)
  */
 TEST_F (NNStreamerFilterPytorchMockTest, checkAvailability)
 {
-  EXPECT_EQ (sp->checkAvailability (ACCL_CPU), 0);
-  EXPECT_EQ (sp->checkAvailability (ACCL_GPU), 0);
-  EXPECT_EQ (sp->checkAvailability (ACCL_NPU), -ENOENT);
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("pytorch", ACCL_CPU, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("pytorch", ACCL_GPU, NULL));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("pytorch", ACCL_NPU, NULL));
 }
 
 /**
@@ -556,7 +704,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeUnsupportedInputType_n)
   AddOutput (_NNS_UINT8, "3:2");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -1);
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
   EXPECT_EQ (torch_mock::forwardCount (), 0);
   EXPECT_TRUE (AllBytes (&out[0], 0xEE));
 
@@ -578,7 +726,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeFloat16Unsupported_n)
   AddOutput (_NNS_FLOAT16, "3:2");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -1);
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
   EXPECT_EQ (torch_mock::forwardCount (), 0);
   EXPECT_TRUE (AllBytes (&out[0], 0xEE));
 
@@ -758,7 +906,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeScalarOutputType_n)
   AddOutput (_NNS_FLOAT32, "1");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, in_size, 1, out_size, 1), -2);
+  EXPECT_EQ (Invoke (in, out, in_size, 1, out_size, 1), -EINVAL);
   EXPECT_TRUE (AllBytes (&out[0], 0xEE));
 
   FreeTensors (in, 1);
@@ -778,7 +926,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeScalarOutputSize_n)
   AddOutput (_NNS_UINT8, "3:2");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -2);
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
   EXPECT_TRUE (AllBytes (&out[0], 0xEE));
 
   FreeTensors (in, 1);
@@ -799,7 +947,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeEmptyOutputType_n)
   AddOutput (_NNS_FLOAT32, "3:2");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, in_size, 1, out_size, 1), -2);
+  EXPECT_EQ (Invoke (in, out, in_size, 1, out_size, 1), -EINVAL);
   EXPECT_TRUE (AllBytes (&out[0], 0xEE));
 
   FreeTensors (in, 1);
@@ -819,7 +967,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeOutputType_n)
   AddOutput (_NNS_UINT8, "3:2");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -2);
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
   EXPECT_TRUE (AllBytes (&out[0], 0xEE));
 
   FreeTensors (in, 1);
@@ -839,7 +987,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeOutputSize_n)
   AddOutput (_NNS_UINT8, "3:2");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -2);
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
   EXPECT_TRUE (AllBytes (&out[0], 0xEE));
 
   FreeTensors (in, 1);
@@ -867,7 +1015,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeOutputSizeLaterRun_n)
   FreeTensors (in, 1);
   FreeTensors (out, 1);
 
-  EXPECT_EQ (Invoke (in, out, in_size, 1, out_size, 1), -2);
+  EXPECT_EQ (Invoke (in, out, in_size, 1, out_size, 1), -EINVAL);
   EXPECT_TRUE (AllBytes (&out[0], 0xEE));
   FreeTensors (in, 1);
   FreeTensors (out, 1);
@@ -892,7 +1040,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeTupleOutputSizeRetry_n)
   ASSERT_EQ (Open (), 0);
 
   for (int i = 0; i < 2; i++) {
-    EXPECT_EQ (Invoke (in, out, size, 2, size, 2), -2);
+    EXPECT_EQ (Invoke (in, out, size, 2, size, 2), -EINVAL);
     EXPECT_TRUE (AllBytes (&out[1], 0xEE));
     FreeTensors (in, 2);
     FreeTensors (out, 2);
@@ -916,7 +1064,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeTupleOutputType_n)
   AddOutput (_NNS_FLOAT32, "4:2");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, in_size, 2, out_size, 2), -2);
+  EXPECT_EQ (Invoke (in, out, in_size, 2, out_size, 2), -EINVAL);
 
   FreeTensors (in, 2);
   FreeTensors (out, 2);
@@ -938,7 +1086,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeListOutputType_n)
   AddOutput (_NNS_FLOAT32, "4:2");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, in_size, 2, out_size, 2), -2);
+  EXPECT_EQ (Invoke (in, out, in_size, 2, out_size, 2), -EINVAL);
 
   FreeTensors (in, 2);
   FreeTensors (out, 2);
@@ -957,7 +1105,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeUnsupportedOutput_n)
   AddOutput (_NNS_UINT8, "3:2");
   ASSERT_EQ (Open (), 0);
 
-  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -3);
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
 
   FreeTensors (in, 1);
   FreeTensors (out, 1);
@@ -988,11 +1136,11 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeFirstRunThrows_n)
     AddOutput (_NNS_UINT8, "3:2");
     ASSERT_EQ (Open (), 0);
 
-    EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -4);
+    EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
     FreeTensors (in, 1);
     FreeTensors (out, 1);
 
-    EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -4);
+    EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
     FreeTensors (in, 1);
     FreeTensors (out, 1);
     EXPECT_EQ (torch_mock::forwardCount (), 2);
@@ -1018,7 +1166,7 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeLaterRunThrows_n)
   FreeTensors (out, 1);
 
   for (int i = 0; i < 2; i++) {
-    EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -4);
+    EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
     EXPECT_TRUE (AllBytes (&out[0], 0xEE));
     FreeTensors (in, 1);
     FreeTensors (out, 1);
@@ -1045,9 +1193,31 @@ TEST_F (NNStreamerFilterPytorchMockTest, invokeCudaError_n)
   FreeTensors (out, 1);
 
   torch_mock::setCudaFails (true);
-  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -4);
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), -EINVAL);
   EXPECT_TRUE (AllBytes (&out[0], 0xEE));
   EXPECT_EQ (torch_mock::forwardCount (), 1);
+  FreeTensors (in, 1);
+  FreeTensors (out, 1);
+}
+
+/**
+ * @brief The input rank comes from the properties at open, not from the invoke.
+ */
+TEST_F (NNStreamerFilterPytorchMockTest, invokeRankFromOpen)
+{
+  GstTensorMemory in[1], out[1];
+  const gsize size[1] = { 24 };
+
+  SetModel (MakeModel ("identity"));
+  AddInput (_NNS_UINT8, "4:3:2:1");
+  AddOutput (_NNS_UINT8, "4:3:2:1");
+  ASSERT_EQ (Open (), 0);
+
+  prop.input_ranks[0] = 1;
+  EXPECT_EQ (Invoke (in, out, size, 1, size, 1), 0);
+  ASSERT_EQ (torch_mock::lastInputs ().size (), 1U);
+  EXPECT_EQ (torch_mock::lastInputs ()[0].ndimension (), 4);
+
   FreeTensors (in, 1);
   FreeTensors (out, 1);
 }

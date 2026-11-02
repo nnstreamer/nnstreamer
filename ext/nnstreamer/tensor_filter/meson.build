@@ -272,6 +272,10 @@ if tflite2_support_is_available
 endif
 
 if pytorch_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for PyTorch.')
+  endif
+
   if cxx.get_id() != 'gcc'
     error('Pytorch headers (Array.h and reverse_iterator.h) require GCC for license issues. Use GCC or disable pytorch with -Dpytorch-support=disabled.')
   endif

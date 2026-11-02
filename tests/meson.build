@@ -649,7 +649,7 @@ if gtest_dep.found()
   subdir('nnstreamer_filter_vivante')
 
   # PyTorch sub-plugin, built against a mock of LibTorch where LibTorch is absent
-  if not pytorch_support_is_available
+  if not pytorch_support_is_available and get_option('enable-filter-cpp-class')
     subdir('nnstreamer_filter_pytorch')
   endif
 
