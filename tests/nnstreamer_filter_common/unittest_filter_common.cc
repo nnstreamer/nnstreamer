@@ -22,6 +22,7 @@
 #include <string.h>
 #include <thread>
 #include <unistd.h>
+#include <vector>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_plugin_api.h>
@@ -1832,6 +1833,7 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   static std::condition_variable cond; /**< signals an input or model close */
   static bool closed; /**< records suspend closing the active instance */
   static guint invocations; /**< number of inputs accepted by the mock */
+  static std::atomic<guint> released; /**< output allocations released by the framework */
   bool configured = false; /**< distinguishes an instance from the factory */
   GstTensorFilterProperties *properties = nullptr; /**< configured instance properties */
   static GstTensorFilterProperties *pending; /**< live properties until teardown */
@@ -1917,8 +1919,13 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   /** @brief provide the framework's optional event hook */
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data) override
   {
-    UNUSED (ops);
-    UNUSED (data);
+    if (ops == DESTROY_NOTIFY) {
+      if (data.data) {
+        released.fetch_add (1);
+        g_free (data.data);
+      }
+      return 0;
+    }
     return -ENOENT;
   }
 
@@ -1971,6 +1978,7 @@ std::mutex async_output_subplugin::lock;
 std::condition_variable async_output_subplugin::cond;
 bool async_output_subplugin::closed = false;
 guint async_output_subplugin::invocations = 0;
+std::atomic<guint> async_output_subplugin::released{ 0 };
 GstTensorFilterProperties *async_output_subplugin::pending = nullptr;
 
 /** @brief Exercise queued inputs and callback outputs without an ML runtime. */
@@ -1989,6 +1997,7 @@ class testFilterAsyncOutput : public ::testing::Test
     async_output_subplugin::pending = nullptr;
     async_output_subplugin::closed = false;
     async_output_subplugin::invocations = 0;
+    async_output_subplugin::released.store (0);
     async_output_subplugin::init ();
     ASSERT_NE (async_output_subplugin::registered, nullptr);
     int fd = g_file_open_tmp ("nnstreamer-async-XXXXXX", &model, nullptr);
@@ -2018,7 +2027,7 @@ class testFilterAsyncOutput : public ::testing::Test
     g_autofree gchar *description = g_strdup_printf (
         "appsrc name=source caps=\"other/tensors,num_tensors=1,types=uint8,"
         "dimensions=1:1:1:1,format=static,framerate=0/1\" ! "
-        "tensor_filter framework=async_output_mock model=%s invoke-dynamic=%s "
+        "tensor_filter name=filter framework=async_output_mock model=%s invoke-dynamic=%s "
         "invoke-async=%s custom=%s suspend=%u ! other/tensors,format=flexible ! "
         "appsink name=sink sync=false async=false",
         model, dynamic ? "true" : "false", asynchronous ? "true" : "false",
@@ -2038,6 +2047,77 @@ class testFilterAsyncOutput : public ::testing::Test
     EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
     gst_object_unref (source);
     ASSERT_TRUE (async_output_subplugin::waitForInput ());
+  }
+
+  /** @brief Select after flexible caps negotiation, before the worker returns. */
+  void selectOutputs (const gchar *combination)
+  {
+    GstElement *filter = gst_bin_get_by_name (GST_BIN (pipeline), "filter");
+    ASSERT_NE (filter, nullptr);
+    g_object_set (filter, "output-combination", combination, nullptr);
+    gst_object_unref (filter);
+    ASSERT_NE (async_output_subplugin::pending, nullptr);
+    EXPECT_EQ (async_output_subplugin::pending->output_meta.num_tensors, 0U);
+  }
+
+  /** @brief Send distinct result payloads and inspect their selected headers. */
+  void dispatchSelected (guint count, const std::vector<guint> &selected, int invalid = -1)
+  {
+    GstTensorsInfo info;
+    gst_tensors_info_init (&info);
+    info.num_tensors = count;
+    info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    std::vector<GstTensorMemory> output (count);
+    for (guint i = 0; i < count; i++) {
+      GstTensorInfo *tensor = gst_tensors_info_get_nth_info (&info, i);
+      tensor->type = (int) i == invalid ? _NNS_END : _NNS_UINT8;
+      tensor->dimension[0] = i + 1;
+      for (guint j = 1; j < NNS_TENSOR_RANK_LIMIT; j++)
+        tensor->dimension[j] = 1;
+      output[i].size = i + 1;
+      output[i].data = g_malloc (output[i].size);
+      memset (output[i].data, 0x30 + i, output[i].size);
+    }
+    nnstreamer_filter_dispatch_output_async_with_info (
+        async_output_subplugin::pending, output.data (), &info);
+    gst_tensors_info_free (&info);
+    GstSample *sample = gst_app_sink_try_pull_sample (
+        GST_APP_SINK (sink), selected.empty () ? 50 * GST_MSECOND : GST_SECOND);
+    if (selected.empty ()) {
+      EXPECT_EQ (sample, nullptr);
+      if (sample)
+        gst_sample_unref (sample);
+      return;
+    }
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *buffer = gst_sample_get_buffer (sample);
+    const guint tensors = gst_tensor_buffer_get_count (buffer);
+    EXPECT_EQ (tensors, selected.size ());
+    const guint inspected = tensors < selected.size () ? tensors : selected.size ();
+    for (guint i = 0; i < inspected; i++) {
+      GstMemory *memory = gst_tensor_buffer_get_nth_memory (buffer, i);
+      GstMapInfo map;
+      if (gst_memory_map (memory, &map, GST_MAP_READ)) {
+        GstTensorMetaInfo meta;
+        gst_tensor_meta_info_init (&meta);
+        EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+        const gsize header = gst_tensor_meta_info_get_header_size (&meta);
+        EXPECT_EQ (meta.type, _NNS_UINT8);
+        EXPECT_EQ (meta.dimension[0], selected[i] + 1);
+        EXPECT_EQ (map.size, header + selected[i] + 1);
+        if (map.size >= header) {
+          for (gsize j = header; j < map.size; j++) {
+            EXPECT_EQ (map.data[j], 0x30 + selected[i]);
+          }
+        }
+        gst_memory_unmap (memory, &map);
+      } else {
+        ADD_FAILURE () << "Cannot map a selected result";
+      }
+      gst_memory_unref (memory);
+    }
+    gst_sample_unref (sample);
+    EXPECT_EQ (async_output_subplugin::pending->output_meta.num_tensors, 0U);
   }
 
   /** @brief check the scalar payload after its flexible tensor header */
@@ -2269,6 +2349,57 @@ TEST_F (testFilterAsyncOutput, independentOutputMetadata)
     gst_sample_unref (sample);
     EXPECT_EQ (async_output_subplugin::pending->output_meta.num_tensors, 0U);
   }
+}
+
+/** @brief Selection keeps result-specific order, headers, and ownership. */
+TEST_F (testFilterAsyncOutput, selectedResultMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs ("o2,o0,o2"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, { 2, 0, 2 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 3U);
+}
+
+/** @brief Output packing also uses independent descriptions beyond memory 16. */
+TEST_F (testFilterAsyncOutput, selectedPackedResultMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs (
+      "o17,o0,o17,o1,o2,o3,o4,o5,o6,o7,o8,o9,o10,o11,o12,o13,o14,o15"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (
+      18, { 17, 0, 17, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 18U);
+}
+
+/** @brief Indices absent from a shorter result are skipped without stale data. */
+TEST_F (testFilterAsyncOutput, selectedShorterResultMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs ("o2,o0,o2"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (1, { 0 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 1U);
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, { 2, 0, 2 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 4U);
+}
+
+/** @brief An invalid selected tensor releases earlier and skipped allocations. */
+TEST_F (testFilterAsyncOutput, selectedInvalidResultCleanup_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs ("o0,o2"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, {}, 2));
+  EXPECT_EQ (async_output_subplugin::released.load (), 3U);
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, { 0, 2 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 6U);
+}
+
+/** @brief Unselected metadata need not describe a delivered tensor. */
+TEST_F (testFilterAsyncOutput, unselectedInvalidResultCleanup)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs ("o0"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, { 0 }, 1));
+  EXPECT_EQ (async_output_subplugin::released.load (), 3U);
 }
 
 /** @brief A legacy worker may resize metadata while more inputs are queued. */

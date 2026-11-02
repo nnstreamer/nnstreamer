@@ -5,8 +5,54 @@ on:
     branches: [ main ]
 
 jobs:
+  async-race:
+    name: Asynchronous output race gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install model-free test dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential meson ninja-build pkg-config \
+          libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev \
+          libgstreamer-plugins-base1.0-dev libunwind-dev libgtest-dev \
+          liborc-0.4-dev libpng-dev flex bison gstreamer1.0-plugins-base valgrind
+    - name: Build instrumented core and asynchronous fixture
+      env:
+        CC: gcc
+        CXX: g++
+      run: |
+        meson setup build-tsan --wrap-mode=nodownload --buildtype=debug \
+          -Db_sanitize=thread -Dpython3-support=disabled \
+          -Dnnstreamer-edge-support=disabled
+        meson compile -C build-tsan -j2
+    - name: Check selected-output ownership with Memcheck
+      env:
+        CC: gcc
+        CXX: g++
+      run: |
+        meson setup build-ownership --wrap-mode=nodownload --buildtype=debug \
+          -Dpython3-support=disabled -Dnnstreamer-edge-support=disabled
+        meson compile -C build-ownership -j2
+        meson test -C build-ownership --no-rebuild -v unittest_filter_common \
+          --test-args='--gtest_filter=testFilterAsyncOutput.*' \
+          --wrapper='valgrind --error-exitcode=99 --leak-check=full --show-leak-kinds=definite,indirect --errors-for-leak-kinds=definite,indirect'
+    - name: Check the race detector and its unsafe negative control
+      run: python3 tests/nnstreamer_filter_common/check_async_tsan.py build-tsan
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: Async_TSan_Testlog
+        path: |
+          build-tsan/meson-logs/
+          build-ownership/meson-logs/
+
   build:
     name: Build on Ubuntu with LLVM/Clang
+    needs: async-race
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
