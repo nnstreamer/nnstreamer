@@ -49,15 +49,13 @@ class NNStreamerRPC {
      * The drain has no overall deadline: it goes on as long as the peer keeps
      * taking buffers, and gives up after a second without progress. The peer
      * then gets time to finish the call: a server cancels the calls still
-     * blocked on their peer, and a blocking client writer is cancelled, once
-     * that time is over. It is the stop timeout of the configuration when a
+     * blocked on their peer, and a client writer is cancelled, once that
+     * time is over. It is the stop timeout of the configuration when a
      * sender has handed over its whole queue, since the peer may still be
      * reading what it was sent, and a second otherwise. A peer that leaves
      * buffers in the queue therefore holds stop () for about two seconds, and
      * one that took the queue but does not finish the call for the stop
-     * timeout. A non-blocking client leaves its call as soon as stop () begins,
-     * so nothing drains its queue and the buffers in it are dropped after that
-     * second.
+     * timeout.
      */
     void stop ();
     /** @brief push a buffer holding tensors into the send queue */
@@ -127,7 +125,7 @@ class NNStreamerRPC {
     gboolean _check_tensor_count (gint64 declared, gint64 carried);
     /** @brief check the data size of a received tensor; FALSE to drop the message */
     gboolean _check_tensor_size (guint index, gsize size);
-    /** @brief register the context of a blocking client call so that stop () can cancel it; NULL once the call is over */
+    /** @brief register the context of a client call so that stop () can cancel it; NULL once the call is over */
     void _set_client_context (ClientContext * context);
 
   private:
@@ -138,7 +136,7 @@ class NNStreamerRPC {
     bool client_stopping_;
     gint64 stop_timeout_usec_;
 
-    /** @brief cancel the call of a blocking client that does not end in time; a writer gets @a grace_usec */
+    /** @brief cancel the call of a client that does not end in time; a writer gets @a grace_usec */
     void _cancel_client (gint64 grace_usec);
 
     /** @brief start gRPC server */
