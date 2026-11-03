@@ -300,6 +300,7 @@ class TFLiteCore
   tflite_delegate_e delegate;
 
   TFLiteInterpreter *interpreter;
+  GMutex interpreter_lock; /**< held while interpreter is used or replaced, taken before its lock */
 
   gchar *shared_tensor_filter_key;
   gboolean checkSharedInterpreter (const GstTensorFilterProperties *prop);
@@ -978,6 +979,7 @@ TFLiteCore::TFLiteCore (const GstTensorFilterProperties *prop)
   accelerator = ACCL_NONE;
   delegate = TFLITE_DELEGATE_NONE;
   shared_tensor_filter_key = NULL;
+  g_mutex_init (&interpreter_lock);
 
   if (prop->shared_tensor_filter_key) {
     shared_tensor_filter_key = g_strdup (prop->shared_tensor_filter_key);
@@ -1016,6 +1018,7 @@ TFLiteCore::~TFLiteCore ()
   } else {
     delete interpreter;
   }
+  g_mutex_clear (&interpreter_lock);
 }
 
 /**
@@ -1148,9 +1151,11 @@ TFLiteCore::loadModel ()
 {
   int err;
 
+  g_mutex_lock (&interpreter_lock);
   interpreter->lock ();
   err = interpreter->loadModel (num_threads, delegate);
   interpreter->unlock ();
+  g_mutex_unlock (&interpreter_lock);
 
   return err;
 }
@@ -1164,9 +1169,11 @@ TFLiteCore::setInputTensorProp ()
 {
   int err;
 
+  g_mutex_lock (&interpreter_lock);
   interpreter->lock ();
   err = interpreter->setInputTensorProp ();
   interpreter->unlock ();
+  g_mutex_unlock (&interpreter_lock);
 
   return err;
 }
@@ -1180,9 +1187,11 @@ TFLiteCore::setOutputTensorProp ()
 {
   int err;
 
+  g_mutex_lock (&interpreter_lock);
   interpreter->lock ();
   err = interpreter->setOutputTensorProp ();
   interpreter->unlock ();
+  g_mutex_unlock (&interpreter_lock);
 
   return err;
 }
@@ -1196,9 +1205,11 @@ TFLiteCore::setOutputTensorProp ()
 int
 TFLiteCore::getInputTensorDim (GstTensorsInfo *info)
 {
+  g_mutex_lock (&interpreter_lock);
   interpreter->lock ();
   gst_tensors_info_copy (info, interpreter->getInputTensorsInfo ());
   interpreter->unlock ();
+  g_mutex_unlock (&interpreter_lock);
 
   return 0;
 }
@@ -1212,9 +1223,11 @@ TFLiteCore::getInputTensorDim (GstTensorsInfo *info)
 int
 TFLiteCore::getOutputTensorDim (GstTensorsInfo *info)
 {
+  g_mutex_lock (&interpreter_lock);
   interpreter->lock ();
   gst_tensors_info_copy (info, interpreter->getOutputTensorsInfo ());
   interpreter->unlock ();
+  g_mutex_unlock (&interpreter_lock);
 
   return 0;
 }
@@ -1230,9 +1243,11 @@ TFLiteCore::setInputTensorDim (const GstTensorsInfo *info)
 {
   int err;
 
+  g_mutex_lock (&interpreter_lock);
   interpreter->lock ();
   err = interpreter->setInputTensorsInfo (info);
   interpreter->unlock ();
+  g_mutex_unlock (&interpreter_lock);
 
   return err;
 }
@@ -1246,9 +1261,11 @@ TFLiteCore::setInputTensorDim (const GstTensorsInfo *info)
 int
 TFLiteCore::reloadInterpreter (TFLiteInterpreter *new_interpreter)
 {
-  TFLiteInterpreter *old_interpreter = interpreter;
+  TFLiteInterpreter *old_interpreter;
   int ret = 0;
 
+  g_mutex_lock (&interpreter_lock);
+  old_interpreter = interpreter;
   old_interpreter->lock ();
   new_interpreter->lock ();
 
@@ -1261,6 +1278,7 @@ TFLiteCore::reloadInterpreter (TFLiteInterpreter *new_interpreter)
 
   new_interpreter->unlock ();
   old_interpreter->unlock ();
+  g_mutex_unlock (&interpreter_lock);
 
   return ret;
 }
@@ -1305,8 +1323,10 @@ TFLiteCore::reloadModel (const char *_model_path)
   int ret = -EINVAL;
 
   interpreter_sub->setModelPath (_model_path);
+  g_mutex_lock (&interpreter_lock);
   interpreter->getExtDelegate (&_ext_delegate_path, &_ext_delegate_kv);
   interpreter_sub->setExtDelegate (_ext_delegate_path, _ext_delegate_kv);
+  g_mutex_unlock (&interpreter_lock);
 
   /**
    * load a model into sub interpreter. This loading overhead is independent
@@ -1377,9 +1397,11 @@ TFLiteCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   int err;
 
+  g_mutex_lock (&interpreter_lock);
   interpreter->lock ();
   err = interpreter->invoke (input, output);
   interpreter->unlock ();
+  g_mutex_unlock (&interpreter_lock);
 
   return err;
 }
@@ -1392,9 +1414,11 @@ TFLiteCore::cacheInOutTensorPtr ()
 {
   int err;
 
+  g_mutex_lock (&interpreter_lock);
   interpreter->lock ();
   err = interpreter->cacheInOutTensorPtr ();
   interpreter->unlock ();
+  g_mutex_unlock (&interpreter_lock);
 
   return err;
 }
