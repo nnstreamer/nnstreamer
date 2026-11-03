@@ -15,7 +15,12 @@
 #include <gst/gst.h>
 #include <unittest_util.h>
 
-/** @brief An empty buffer list is a successful no-op without a connection. */
+/**
+ * @brief An empty buffer list is a successful no-op without a connection.
+ * @note An uninitialized return value may still read as GST_FLOW_OK in a plain
+ *       run. The branch is in this frame, not in gtest, so that the Valgrind
+ *       job's memcheck gate attributes such a read to this file and fails.
+ */
 TEST (testMqttSink, emptyBufferList)
 {
   GstElement *sink = gst_element_factory_make ("mqttsink", nullptr);
@@ -23,7 +28,9 @@ TEST (testMqttSink, emptyBufferList)
   GstBaseSinkClass *klass = GST_BASE_SINK_GET_CLASS (sink);
   ASSERT_NE (klass->render_list, nullptr);
   GstBufferList *list = gst_buffer_list_new ();
-  EXPECT_EQ (klass->render_list (GST_BASE_SINK (sink), list), GST_FLOW_OK);
+  GstFlowReturn ret = klass->render_list (GST_BASE_SINK (sink), list);
+  if (ret != GST_FLOW_OK)
+    ADD_FAILURE () << "render_list returned " << gst_flow_get_name (ret);
   gst_buffer_list_unref (list);
   gst_object_unref (sink);
 }
