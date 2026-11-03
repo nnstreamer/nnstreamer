@@ -9,11 +9,13 @@
  *
  */
 #include <gtest/gtest.h>
+#include <atomic>
 #include <dlfcn.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <thread>
 #ifdef __GLIBC__
 #include <malloc.h>
 #if __GLIBC_PREREQ(2, 33)
@@ -1351,6 +1353,257 @@ TEST_F (nnstreamerFilterTensorFlow2LiteV1, reloadModelInvalid_n)
   prop.num_models = 0;
   EXPECT_NE (_ReloadModel (sp, &prop, data), 0);
   prop.num_models = 1;
+}
+
+/**
+ * @brief The state of the thread invoking add.tflite while the model is reloaded.
+ */
+typedef struct {
+  const GstTensorFilterFramework *sp;
+  GstTensorFilterProperties *prop;
+  void *data;
+  const GstTensorMemory *input;
+  GstTensorMemory *output;
+  std::atomic<bool> stop;
+  std::atomic<guint> invoked;
+  std::atomic<guint> failed; /**< invokes that failed or did not return 12 */
+} reload_invoker_s;
+
+/**
+ * @brief Invoke add.tflite with 10 until stopped.
+ */
+static void
+_InvokeUntilStopped (reload_invoker_s *s)
+{
+  while (!s->stop) {
+    if (s->sp->invoke (s->sp, s->prop, s->data, s->input, s->output) != 0
+        || *((float *) s->output[0].data) != 12.0f)
+      s->failed++;
+    s->invoked++;
+  }
+}
+
+/**
+ * @brief Reload the model of reload_prop the given times while another thread invokes add.tflite.
+ * @return the number of reloads that succeeded.
+ */
+static guint
+_ReloadWhileInvoking (const GstTensorFilterFramework *sp,
+    GstTensorFilterProperties *prop, void *data,
+    GstTensorFilterProperties *reload_prop, guint rounds, reload_invoker_s *s)
+{
+  GstTensorMemory input = {}, output = {};
+  float value = 10.0f, result = 0.0f;
+  guint i, reloaded = 0;
+
+  input.data = &value;
+  input.size = sizeof (value);
+  output.data = &result;
+  output.size = sizeof (result);
+
+  s->sp = sp;
+  s->prop = prop;
+  s->data = data;
+  s->input = &input;
+  s->output = &output;
+  s->stop = false;
+  s->invoked = 0;
+  s->failed = 0;
+
+  std::thread invoker (_InvokeUntilStopped, s);
+  while (s->invoked == 0)
+    g_usleep (100);
+
+  for (i = 0; i < rounds; i++) {
+    if (_ReloadModel (sp, reload_prop, data) == 0)
+      reloaded++;
+  }
+
+  s->stop = true;
+  invoker.join ();
+
+  return reloaded;
+}
+
+/**
+ * @brief A model reloaded while another thread keeps invoking is swapped between two invokes.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, reloadWhileInvoking)
+{
+  GstTensorFilterProperties reload_prop;
+  reload_invoker_s s;
+  gchar *add_model;
+
+  ASSERT_TRUE (_GetModelFilePath (&add_model, 4));
+  model_files[0] = add_model;
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  reload_prop = prop;
+  EXPECT_EQ (_ReloadWhileInvoking (sp, &prop, data, &reload_prop, 200U, &s), 200U);
+  EXPECT_GT (s.invoked.load (), 0U);
+  EXPECT_EQ (s.failed.load (), 0U);
+
+  sp->close (&prop, &data);
+  g_free (add_model);
+}
+
+/**
+ * @brief A model refused while another thread keeps invoking leaves the old one running.
+ * @note A refused reload does not swap the interpreter, so this guards the refusal path, not the race.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, reloadUnmatchedWhileInvoking_n)
+{
+  GstTensorFilterProperties reload_prop;
+  const gchar *reload_files[] = { NULL, NULL };
+  reload_invoker_s s;
+  gchar *add_model, *other_model;
+
+  ASSERT_TRUE (_GetModelFilePath (&add_model, 4));
+  ASSERT_TRUE (_GetModelFilePath (&other_model, 2));
+  model_files[0] = add_model;
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* the tensors info of this model differs, so every reload is refused */
+  reload_prop = prop;
+  reload_files[0] = other_model;
+  reload_prop.model_files = reload_files;
+  EXPECT_EQ (_ReloadWhileInvoking (sp, &prop, data, &reload_prop, 20U, &s), 0U);
+  EXPECT_GT (s.invoked.load (), 0U);
+  EXPECT_EQ (s.failed.load (), 0U);
+
+  sp->close (&prop, &data);
+  g_free (add_model);
+  g_free (other_model);
+}
+
+/**
+ * @brief appsrc need-data handler pushing the add.tflite input 10.
+ */
+static void
+_PushAddInput (GstAppSrc *src, guint length, gpointer user_data)
+{
+  float value = 10.0f;
+  GstBuffer *buffer = gst_buffer_new_allocate (NULL, sizeof (value), NULL);
+  UNUSED (length);
+  UNUSED (user_data);
+
+  gst_buffer_fill (buffer, 0, &value, sizeof (value));
+  gst_app_src_push_buffer (src, buffer);
+}
+
+/**
+ * @brief tensor_sink new-data handler counting the add.tflite outputs other than 12.
+ */
+static void
+_CheckAddOutput (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  float value = 0.0f;
+  UNUSED (element);
+
+  if (gst_buffer_extract (buffer, 0, &value, sizeof (value)) != sizeof (value) || value != 12.0f)
+    g_atomic_int_inc ((gint *) user_data);
+}
+
+#define SHARED_RELOAD_BRANCH                                                                                   \
+  "appsrc name=src%d ! tensor_filter name=filter%d framework=tensorflow2-lite model=\"%s\" is-updatable=true " \
+  "shared-tensor-filter-key=tflite_reload_f3 ! tensor_sink name=sink%d "
+
+/**
+ * @brief Two filters sharing a key keep streaming while the shared model is reloaded.
+ * @details The model is flipped between two copies of add.tflite through one of the
+ *          filters while both streaming threads invoke the shared interpreter.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, sharedKeyReloadWhileStreaming)
+{
+  GstElement *gstpipe, *element;
+  GstCaps *caps;
+  GstBus *bus;
+  GstMessage *msg;
+  gchar *model_file, *model_copy, *contents, *pipeline, *branch1, *branch2, *readback;
+  gsize length;
+  guint count[2] = { 0U, 0U };
+  guint i, last, reloaded = 0U;
+  gint wrong = 0, fd;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+  ASSERT_TRUE (g_file_get_contents (model_file, &contents, &length, NULL));
+  model_copy = NULL;
+  fd = g_file_open_tmp ("nnsf3XXXXXX.tflite", &model_copy, NULL);
+  ASSERT_GE (fd, 0);
+  g_close (fd, NULL);
+  ASSERT_TRUE (g_file_set_contents (model_copy, contents, length, NULL));
+  g_free (contents);
+
+  branch1 = g_strdup_printf (SHARED_RELOAD_BRANCH, 1, 1, model_file, 1);
+  branch2 = g_strdup_printf (SHARED_RELOAD_BRANCH, 2, 2, model_file, 2);
+  pipeline = g_strconcat (branch1, branch2, NULL);
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  caps = gst_caps_from_string (
+      "other/tensors,num_tensors=1,dimensions=(string)1,types=float32,format=static,framerate=0/1");
+  for (i = 0; i < 2; i++) {
+    gchar *name = g_strdup_printf ("src%u", i + 1);
+
+    element = gst_bin_get_by_name (GST_BIN (gstpipe), name);
+    ASSERT_TRUE (element != nullptr);
+    g_object_set (element, "caps", caps, NULL);
+    g_signal_connect (element, "need-data", (GCallback) _PushAddInput, NULL);
+    gst_object_unref (element);
+    g_free (name);
+
+    name = g_strdup_printf ("sink%u", i + 1);
+    element = gst_bin_get_by_name (GST_BIN (gstpipe), name);
+    ASSERT_TRUE (element != nullptr);
+    g_signal_connect (element, "new-data", (GCallback) _CheckAddOutput, &wrong);
+    g_signal_connect (element, "new-data", (GCallback) count_output, &count[i]);
+    gst_object_unref (element);
+    g_free (name);
+  }
+  gst_caps_unref (caps);
+
+  ASSERT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&count[0], 1U, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&count[1], 1U, TEST_TIMEOUT_LIMIT_MS));
+
+  element = gst_bin_get_by_name (GST_BIN (gstpipe), "filter1");
+  ASSERT_TRUE (element != nullptr);
+  for (i = 0; i < 200; i++) {
+    const gchar *path = (i % 2) ? model_file : model_copy;
+
+    g_object_set (element, "model", path, NULL);
+    readback = NULL;
+    g_object_get (element, "model", &readback, NULL);
+    if (g_strcmp0 (readback, path) == 0)
+      reloaded++;
+    g_free (readback);
+  }
+  gst_object_unref (element);
+  EXPECT_EQ (reloaded, 200U);
+
+  /* both streams go on with the reloaded model */
+  for (i = 0; i < 2; i++) {
+    last = (guint) g_atomic_int_get ((gint *) &count[i]);
+    EXPECT_TRUE (wait_pipeline_process_buffers (&count[i], last + 1U, TEST_TIMEOUT_LIMIT_MS));
+  }
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (g_atomic_int_get (&wrong), 0);
+
+  bus = gst_element_get_bus (gstpipe);
+  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  EXPECT_TRUE (msg == NULL);
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  gst_object_unref (gstpipe);
+  g_remove (model_copy);
+  g_free (model_copy);
+  g_free (pipeline);
+  g_free (branch1);
+  g_free (branch2);
+  g_free (model_file);
 }
 
 /**
