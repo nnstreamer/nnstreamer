@@ -13,6 +13,13 @@ import tempfile
 import unittest
 
 
+SOURCE_ENCODINGS = (
+    ("ascii", "/* comment */\n"),
+    ("utf8", "/* 한글 주석 */\n"),
+    ("utf8-bom", "\ufeff/* comment */\n"),
+)
+
+
 class CppcheckGate(unittest.TestCase):
     """@brief Invoke the production shell wrapper on isolated source files."""
 
@@ -109,11 +116,7 @@ class CppcheckGate(unittest.TestCase):
     def test_source_encoding_and_suffix_n(self):
         """@brief C/C++ errors must not depend on encoding or suffix spelling."""
         for suffix in ("c", "cpp"):
-            for encoding, comment in (
-                ("ascii", "/* comment */\n"),
-                ("utf8", "/* 한글 주석 */\n"),
-                ("utf8-bom", "\ufeff/* comment */\n"),
-            ):
+            for encoding, comment in SOURCE_ENCODINGS:
                 with self.subTest(suffix=suffix, encoding=encoding):
                     result = self.check(
                         comment + "int value() { int *p = 0; return *p; }\n",
@@ -125,11 +128,7 @@ class CppcheckGate(unittest.TestCase):
     def test_clean_source_encoding_and_suffix_p(self):
         """@brief All text variants and both supported suffixes accept clean code."""
         for suffix in ("c", "cpp"):
-            for encoding, comment in (
-                ("ascii", "/* comment */\n"),
-                ("utf8", "/* 한글 주석 */\n"),
-                ("utf8-bom", "\ufeff/* comment */\n"),
-            ):
+            for encoding, comment in SOURCE_ENCODINGS:
                 with self.subTest(suffix=suffix, encoding=encoding):
                     result = self.check(comment + "int value() { return 0; }\n", suffix)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
