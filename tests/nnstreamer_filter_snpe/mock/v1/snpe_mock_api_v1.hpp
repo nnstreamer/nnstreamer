@@ -352,11 +352,17 @@ class IDlContainer
   {
     return m_output_elements;
   }
+  /** @brief Get the rank every tensor shape reports. */
+  size_t rank () const
+  {
+    return m_rank;
+  }
 
   private:
   bool m_resizable;
   bool m_oversized_input;
   size_t m_output_elements;
+  size_t m_rank;
 };
 
 } /* namespace DlContainer */
@@ -371,7 +377,7 @@ class SNPE
 {
   public:
   /** @brief Construct a network over the given model properties. */
-  SNPE (bool resizable, bool oversized_input, size_t output_elements);
+  SNPE (bool resizable, bool oversized_input, size_t output_elements, size_t rank);
   /** @brief Release the network. */
   virtual ~SNPE ();
 
@@ -394,6 +400,7 @@ class SNPE
   bool m_resizable;
   bool m_oversized_input;
   size_t m_output_elements;
+  size_t m_rank;
   mutable std::map<std::string, std::unique_ptr<DlSystem::IBufferAttributes>> m_attributes;
   std::map<std::string, std::unique_ptr<DlSystem::ITensor>> m_outputs;
 };

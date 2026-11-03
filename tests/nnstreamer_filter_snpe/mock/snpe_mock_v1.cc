@@ -490,6 +490,7 @@ IDlContainer::open (const std::string &filename) noexcept
   container->m_resizable = model.resizable;
   container->m_oversized_input = model.oversized_input;
   container->m_output_elements = model.output_elements;
+  container->m_rank = model.rank;
   snpe_mock_obj_created (SNPE_MOCK_OBJ_CONTAINER);
 
   return container;
@@ -506,17 +507,17 @@ namespace
 /**
  * @brief Get the shape of every tensor of the emulated model.
  *
- * A resizable model gets a rank of two with the resizable dim last, because
- * the sub-plugin only inspects the dims above index zero while it lays out a
- * user buffer.
+ * A resizable model has the resizable dim last, and a rank of two unless the
+ * model file names another, because the sub-plugin only inspects the dims
+ * above index zero while it lays out a user buffer.
  */
 std::vector<size_t>
-model_dims (bool resizable)
+model_dims (bool resizable, size_t rank)
 {
-  std::vector<size_t> dims (1, 1U);
+  std::vector<size_t> dims (rank, 1U);
 
-  if (resizable)
-    dims.push_back (0U);
+  if (resizable && !dims.empty ())
+    dims.back () = 0U;
 
   return dims;
 }
@@ -526,9 +527,9 @@ model_dims (bool resizable)
 /**
  * @brief Construct a network over the given model properties.
  */
-SNPE::SNPE (bool resizable, bool oversized_input, size_t output_elements)
+SNPE::SNPE (bool resizable, bool oversized_input, size_t output_elements, size_t rank)
     : m_resizable (resizable), m_oversized_input (oversized_input),
-      m_output_elements (output_elements)
+      m_output_elements (output_elements), m_rank (rank)
 {
   snpe_mock_obj_created (SNPE_MOCK_OBJ_SNPE);
 }
@@ -575,8 +576,8 @@ SNPE::getInputDimensions (const char *name) const
     return DlSystem::Optional<DlSystem::TensorShape> ();
 
   /* An oversized input reports a shape its buffer attributes do not. */
-  std::vector<size_t> dims = model_dims (m_resizable);
-  if (m_oversized_input)
+  std::vector<size_t> dims = model_dims (m_resizable, m_rank);
+  if (m_oversized_input && !dims.empty ())
     dims[dims.size () - 1] = SNPE_MOCK_OVERSIZED_INPUT_ELEMENTS;
 
   return DlSystem::Optional<DlSystem::TensorShape> (DlSystem::TensorShape (dims));
@@ -597,7 +598,7 @@ SNPE::getInputOutputBufferAttributes (const char *name) const
 
   auto it = m_attributes.find (name);
   if (it == m_attributes.end ()) {
-    DlSystem::TensorShape shape (model_dims (m_resizable));
+    DlSystem::TensorShape shape (model_dims (m_resizable, m_rank));
     it = m_attributes
              .insert (std::make_pair (std::string (name),
                  std::unique_ptr<DlSystem::IBufferAttributes> (
@@ -724,8 +725,9 @@ SNPEBuilder::build () noexcept
   if (!m_container || snpe_mock_get_failure () == SNPE_MOCK_FAIL_BUILD)
     return nullptr;
 
-  return std::unique_ptr<SNPE> (new SNPE (m_container->isResizable (),
-      m_container->hasOversizedInput (), m_container->outputElements ()));
+  return std::unique_ptr<SNPE> (
+      new SNPE (m_container->isResizable (), m_container->hasOversizedInput (),
+          m_container->outputElements (), m_container->rank ()));
 }
 
 /**

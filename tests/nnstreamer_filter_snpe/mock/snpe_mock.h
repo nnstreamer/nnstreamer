@@ -80,6 +80,7 @@ typedef struct {
   gboolean unsupported_encoding; /**< the default encoding has no NNS type */
   gboolean oversized_input; /**< the input tensor is larger than its buffer */
   guint output_elements; /**< elements the emulated runtime writes */
+  guint rank; /**< rank every tensor shape reports */
 } snpe_mock_model;
 
 /** @brief Drop every injected fault and clear the counters. */

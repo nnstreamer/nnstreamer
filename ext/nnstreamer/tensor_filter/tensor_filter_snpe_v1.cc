@@ -660,6 +660,11 @@ snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map,
   for (const char *name : strList) {
     auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
     const zdl::DlSystem::TensorShape &bufferShape = (*bufferAttributesOpt)->getDims ();
+    if (bufferShape.rank () == 0 || bufferShape.rank () > NNS_TENSOR_RANK_LIMIT) {
+      throw std::invalid_argument ("Unsupported rank "
+                                   + std::to_string (bufferShape.rank ())
+                                   + " of tensor " + std::string (name));
+    }
     std::vector<size_t> strides (bufferShape.rank ());
     strides[strides.size () - 1] = sizeof (float);
     for (size_t i = strides.size () - 1; i > 0; --i) {
@@ -714,6 +719,11 @@ snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta,
     _info->name = g_strdup (name);
     auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
     const zdl::DlSystem::TensorShape &bufferShape = (*bufferAttributesOpt)->getDims ();
+    if (bufferShape.rank () == 0 || bufferShape.rank () > NNS_TENSOR_RANK_LIMIT) {
+      throw std::invalid_argument ("Unsupported rank "
+                                   + std::to_string (bufferShape.rank ())
+                                   + " of tensor " + std::string (name));
+    }
     for (size_t j = 0; j < bufferShape.rank (); ++j) {
       if (bufferShape[bufferShape.rank () - j - 1] == 0) {
         if (max_resizable_dim == 0) {
