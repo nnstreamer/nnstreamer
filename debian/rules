@@ -65,14 +65,14 @@ override_dh_auto_configure:
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	meson setup ${BUILDDIR} \
 	--buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
-	-Denable-edgetpu=true -Denable-openvino=$(ENABLE_OPENVINO) -Dgrpc-support=disabled -Dmqtt-support=enabled \
+	-Denable-edgetpu=true -Denable-openvino=$(ENABLE_OPENVINO) -Dgrpc-support=disabled -Dhailort-support=disabled -Dmqtt-support=enabled \
 	-Ddatarepo-support=enabled -Dtflite2-support=enabled -Donnxruntime-support=enabled \
 	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer $(FLOAT16)
 else
 	# Debian has less packages ready.
 	meson setup ${BUILDDIR} \
 	--buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
-	-Denable-edgetpu=false -Denable-openvino=false -Dgrpc-support=disabled -Dmqtt-support=enabled \
+	-Denable-edgetpu=false -Denable-openvino=false -Dgrpc-support=disabled -Dhailort-support=disabled -Dmqtt-support=enabled \
 	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer
 endif
 
