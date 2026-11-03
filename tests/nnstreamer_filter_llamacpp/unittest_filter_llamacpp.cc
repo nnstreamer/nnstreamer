@@ -609,6 +609,46 @@ TEST_F (NNStreamerFilterLlamaCppTest, earlyTerminationBeforeTokenGenerationAsync
 }
 
 /**
+ * @brief Test that closing an asynchronous filter while it generates or right
+ *        after it has finished always returns.
+ *
+ * The output thread has to see the stop request whichever point of its wait
+ * loop it is at. Each round closes as soon as the first token arrives, with no
+ * grace period: with num_predict:64 while the thread generates, with
+ * num_predict:1 while it decodes its only token and goes back to waiting.
+ * A lost wakeup blocks the close in the join of the output thread, which no
+ * state-change timeout bounds; the test then hangs until the meson timeout.
+ * The window is narrow, so a regression is caught only probabilistically.
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, closeWhileGeneratingAsync_p)
+{
+  const gchar *customs[] = { "num_predict:64", "num_predict:1" };
+  gint count_at_null;
+  gint64 deadline;
+  guint round;
+
+  skip_llamacpp_tc ("closeWhileGeneratingAsync_p");
+
+  for (round = 0; round < 20U; round++) {
+    ASSERT_TRUE (create_pipeline (model, TRUE, customs[round % 2]));
+    EXPECT_TRUE (data_push ("Hello my name is"));
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+        0);
+    deadline = g_get_monotonic_time () + UNITTEST_STATECHANGE_TIMEOUT * G_TIME_SPAN_MILLISECOND;
+    while (g_atomic_int_get (new_sample_count) < 1 && g_get_monotonic_time () < deadline)
+      g_thread_yield ();
+    EXPECT_GE (g_atomic_int_get (new_sample_count), 1);
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+    count_at_null = g_atomic_int_get (new_sample_count);
+    g_usleep (100000);
+    EXPECT_EQ (g_atomic_int_get (new_sample_count), count_at_null);
+    EXPECT_FALSE (pipeline_error);
+    clear_pipeline ();
+    g_atomic_int_set (new_sample_count, 0);
+  }
+}
+
+/**
  * @brief Test case for tensor_filter llama-cpp plugin with earlyTerminationBeforeTokenGenerationSync_n
  */
 TEST_F (NNStreamerFilterLlamaCppTest, earlyTerminationBeforeTokenGenerationSync_n)
