@@ -330,3 +330,46 @@ TEST (nnstreamerFilterSnpeMockV2, mockUnownedEncodingRelease12_n)
   EXPECT_EQ (snpe_mock_over_release_count (), 2U);
   EXPECT_EQ (snpe_mock_live_count (SNPE_MOCK_OBJ_ENCODING), 0U);
 }
+
+/**
+ * @brief Negative case: a failing run is reported and its output is not used.
+ *
+ * Regression test of item G1 of issue #5189: the result of
+ * Snpe_SNPE_ExecuteUserBuffers() was ignored, so invoke succeeded and the
+ * output of the previous frame flowed downstream.
+ */
+TEST (nnstreamerFilterSnpeMockV2, invokeExecuteFailure13_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorFilterProperties prop;
+  gchar *model_file = _MockModelPath (TRUE);
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  ASSERT_TRUE (sp != nullptr);
+  _MockSetProp (&prop, model_files, NULL);
+
+  snpe_mock_reset ();
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  output.size = input.size = sizeof (float);
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc0 (output.size);
+  ((float *) input.data)[0] = 5.0f;
+  ((float *) output.data)[0] = -1.0f;
+
+  snpe_mock_set_failure (SNPE_MOCK_FAIL_EXECUTE);
+  EXPECT_EQ (sp->invoke (NULL, NULL, data, &input, &output), -EINVAL);
+  EXPECT_EQ (((float *) output.data)[0], -1.0f);
+
+  snpe_mock_set_failure (SNPE_MOCK_FAIL_NONE);
+  EXPECT_EQ (sp->invoke (NULL, NULL, data, &input, &output), 0);
+  EXPECT_EQ (((float *) output.data)[0], 5.0f + SNPE_MOCK_ADDEND);
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_over_release_count (), 0U);
+  g_free (model_file);
+}

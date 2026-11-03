@@ -67,7 +67,8 @@ typedef enum {
   SNPE_MOCK_FAIL_NONE = 0,
   SNPE_MOCK_FAIL_STRING_LIST_APPEND, /**< every append reports an error */
   SNPE_MOCK_FAIL_BUILD, /**< building an SNPE instance reports an error */
-  SNPE_MOCK_FAIL_EXECUTE_NO_OUTPUT /**< a run produces no output tensor */
+  SNPE_MOCK_FAIL_EXECUTE_NO_OUTPUT, /**< a run produces no output tensor */
+  SNPE_MOCK_FAIL_EXECUTE /**< a run reports an error; what it leaves is not output */
 } snpe_mock_failure;
 
 /**

@@ -506,3 +506,68 @@ TEST (nnstreamerFilterSnpeMockV1, missingOutputTensor15_n)
   EXPECT_EQ (snpe_mock_total_live_count (), 0U);
   g_free (model_file);
 }
+
+/**
+ * @brief Run the sample model once with the mock failing every execution.
+ *
+ * The output memory starts with a value no successful run can write, and the
+ * run after the fault is cleared has to succeed again.
+ */
+static void
+_MockInvokeExecuteFailure (const gchar *custom)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorFilterProperties prop;
+  gchar *model_file = _MockModelPath ();
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  ASSERT_TRUE (sp != nullptr);
+  _MockSetProp (&prop, model_files, custom);
+
+  snpe_mock_reset ();
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  output.size = input.size = sizeof (float);
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc0 (output.size);
+  ((float *) input.data)[0] = 5.0f;
+  ((float *) output.data)[0] = -1.0f;
+
+  snpe_mock_set_failure (SNPE_MOCK_FAIL_EXECUTE);
+  EXPECT_EQ (sp->invoke (NULL, NULL, data, &input, &output), -EINVAL);
+  EXPECT_EQ (((float *) output.data)[0], -1.0f);
+
+  snpe_mock_set_failure (SNPE_MOCK_FAIL_NONE);
+  EXPECT_EQ (sp->invoke (NULL, NULL, data, &input, &output), 0);
+  EXPECT_EQ (((float *) output.data)[0], 5.0f + SNPE_MOCK_ADDEND);
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+  g_free (model_file);
+}
+
+/**
+ * @brief Negative case: a failing run in the ITensor mode is reported.
+ *
+ * Regression test of item G1 of issue #5189 on the 1.x API: the result of
+ * SNPE::execute() was ignored, so the tensor a failed run left behind was
+ * copied out as a valid output.
+ */
+TEST (nnstreamerFilterSnpeMockV1, invokeExecuteFailure16_n)
+{
+  _MockInvokeExecuteFailure (NULL);
+}
+
+/**
+ * @brief Negative case: a failing run in the user buffer mode is reported.
+ *
+ * Regression test of item G1 of issue #5189 on the 1.x API: invoke succeeded
+ * over an output buffer the failed run had not written.
+ */
+TEST (nnstreamerFilterSnpeMockV1, userBufferExecuteFailure17_n)
+{
+  _MockInvokeExecuteFailure ("UserBuffer:true");
+}
