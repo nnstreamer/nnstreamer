@@ -809,7 +809,8 @@ gst_mqtt_sink_stop (GstBaseSink * basesink)
   MQTTAsync_disconnectOptions disconn_opts =
       MQTTAsync_disconnectOptions_initializer;
 
-  disconn_opts.timeout = DEFAULT_MQTT_DISCONNECT_TIMEOUT;
+  disconn_opts.timeout =
+      DEFAULT_MQTT_DISCONNECT_TIMEOUT / G_TIME_SPAN_MILLISECOND;
   disconn_opts.onSuccess = cb_mqtt_on_disconnect;
   disconn_opts.onFailure = cb_mqtt_on_disconnect_failure;
   disconn_opts.context = self;
