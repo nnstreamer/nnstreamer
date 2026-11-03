@@ -94,6 +94,7 @@ errfile=$(mktemp)
 trap 'rm -f "$errfile"' EXIT
 error="no"
 errors=""
+unknown_macro="no"
 
 for file in `cat $files`; do
   # skip obsolete folder
@@ -122,6 +123,9 @@ for file in `cat $files`; do
           echo ":group:cppcheck result of $file"
           cat $errfile
           echo ":endgroup:"
+          if grep -q "\[unknownMacro\]" "$errfile"; then
+            unknown_macro="yes"
+          fi
           error="yes"
           errors+=" $file"
         else
@@ -134,5 +138,8 @@ done
 
 if [[ "$error" == "yes" ]]; then
   echo "cppcheck shows errors in: $errors"
+  if [[ "$unknown_macro" == "yes" ]]; then
+    echo "Define each unknownMacro in .github/workflows/static.check.scripts/nnstreamer.cfg; see Documentation/contributing.md."
+  fi
   exit 1
 fi

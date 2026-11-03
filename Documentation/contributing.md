@@ -100,3 +100,13 @@ GStreamer macros it would otherwise not know. Version checks such as
 `GST_CHECK_VERSION` are true in that model, so only the branches for current
 GLib and GStreamer are analyzed. Any diagnostic, or a failure of Cppcheck
 itself, fails the check.
+
+A file that uses a macro missing from that model can fail with `unknownMacro`
+even though it builds. Add the macro to
+`.github/workflows/static.check.scripts/nnstreamer.cfg`, expanded the way its
+header expands it so that Cppcheck still sees the code using it, and rerun both
+Cppcheck commands above. String values are written with `&quot;`:
+
+```xml
+<define name="G_GUINT32_FORMAT" value="&quot;u&quot;"/>
+```
