@@ -80,40 +80,23 @@ Including a "Signed-off-by:" tag in your commit means that you are making the De
 
 ## Static checker environment
 
-The static-check, CPP-Linter and spelling workflows use `ubuntu-26.04` rather
-than a moving `ubuntu-latest` label. Both C++ format checks explicitly select
-clang-format 21: the static workflow installs and invokes `clang-format-21`,
-and CPP-Linter selects clang-tools version 21. Use the repository's
-`.clang-format` when formatting `.cc`, `.hh`, `.hpp` and `.cpp` files locally.
-Other distro checker packages follow Ubuntu 26.04 updates; the workflow logs
-the installed formatter, Cppcheck, Pylint, Doxygen and indent versions so that
-diagnostics can be reproduced. These are major-version selections, not frozen
-patch-level package or runner-image snapshots.
-
-For example, before submitting a C++ change:
+The static-check, CPP-Linter and spelling workflows run on `ubuntu-26.04`, and
+both C++ format checks use clang-format 21 with the repository's
+`.clang-format`: the static workflow on `.cc`, `.hh`, `.hpp` and `.cpp` files,
+CPP-Linter on the changed lines of `.cc` files. The static workflow logs its
+checker versions. To reproduce a diagnostic locally, install `cppcheck` and
+`file`, then run:
 
 ```sh
 clang-format-21 -i path/to/changed.cc
+echo path/to/changed.c > /tmp/files.txt
+bash .github/workflows/static.check.scripts/cppcheck.sh /tmp/files.txt 0
 python3 .github/workflows/static.check.scripts/test_cppcheck.py
 ```
 
-The Cppcheck wrapper fails on diagnostics and on a nonzero checker exit status.
-Its self-test uses real clean C, invalid C and invalid C++ fixtures, plus a
-checker-process failure. Run it with `cppcheck` and `file` installed; a missing
-checker is an environment failure, not a successful source-code check. The
-existing C/`.cpp` selection and check levels remain unchanged.
-
-The wrapper loads the adjacent `nnstreamer.cfg` using the script's own
-directory, including when invoked from
-another working directory. These models describe GLib branch hints and type
-macros, numeric format fragments and GStreamer caps strings. Version predicates
-select the supported API branches used by Ubuntu 26.04. This is standalone-file
-analysis, not preprocessing with a build's complete headers and compiler flags.
-
-Diagnostics from unknown configuration, invalid memory access and checker
-process failures still fail the gate. The repaired diagnostic handling activates
-a previously ineffective failure path; it does not silently suppress existing
-diagnostics. Its regression tests include guarded resource access and errors
-inside modeled macros so that configuration changes cannot turn real bugs into
-passes. Cppcheck's source selection remains C and `.cpp`; formatting checks
-cover the existing C++ extension set separately.
+Cppcheck checks each changed `.c` and `.cpp` file on its own, without the
+build's headers; `nnstreamer.cfg` next to the wrapper defines the GLib and
+GStreamer macros it would otherwise not know. Version checks such as
+`GST_CHECK_VERSION` are true in that model, so only the branches for current
+GLib and GStreamer are analyzed. Any diagnostic, or a failure of Cppcheck
+itself, fails the check.
