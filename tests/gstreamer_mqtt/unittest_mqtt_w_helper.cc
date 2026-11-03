@@ -1541,6 +1541,51 @@ TEST (testMqttSinkWithHelper, defaultClientIdRandom)
 }
 
 /**
+ * @brief Test that client-id reads back its declared default before start, and that the default generates an id
+ */
+TEST (testMqttSinkWithHelper, clientIdPspecDefault)
+{
+  const gchar *elements[] = { "mqttsink", "mqttsrc" };
+  GstElement *sink;
+  GParamSpec *pspec;
+  const GValue *def;
+  gchar *prop = NULL;
+
+  for (const gchar *name : elements) {
+    GstElement *elem = gst_element_factory_make (name, NULL);
+
+    ASSERT_TRUE (elem != NULL) << name;
+    gst_object_ref_sink (elem);
+    pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (elem), "client-id");
+    ASSERT_TRUE (pspec != NULL) << name;
+    def = g_param_spec_get_default_value (pspec);
+    ASSERT_TRUE (G_VALUE_HOLDS_STRING (def)) << name;
+    g_object_get (elem, "client-id", &prop, NULL);
+    EXPECT_STREQ (prop, g_value_get_string (def)) << name;
+    g_free (prop);
+    gst_object_unref (elem);
+  }
+
+  /* Restoring the declared default after an explicit id makes start () generate one again */
+  sink = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_TRUE (sink != NULL);
+  gst_object_ref_sink (sink);
+  pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (sink), "client-id");
+  ASSERT_TRUE (pspec != NULL);
+  g_object_set (sink, "client-id", "an-explicit-client-id", NULL);
+  def = g_param_spec_get_default_value (pspec);
+  g_object_set_property (G_OBJECT (sink), "client-id", def);
+
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetCreateRecord ();
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  _expect_generated_client_id (GstMqttTestHelper::getInstance ().getLastClientId (), "nnssink");
+
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (sink);
+}
+
+/**
  * @brief Test that the generated client id does not come from a GLib generator
  */
 TEST (testMqttSinkWithHelper, generatedClientIdIgnoresGlobalSeed)
