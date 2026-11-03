@@ -551,7 +551,10 @@ TensorFilterLlamaCpp::outputThreadLoop ()
 void
 TensorFilterLlamaCpp::cleanupResources ()
 {
-  stop_thread = true;
+  {
+    std::lock_guard<std::mutex> lock (queue_mutex);
+    stop_thread = true;
+  }
   queue_cv.notify_one ();
   if (output_thread.joinable ()) {
     output_thread.join ();
