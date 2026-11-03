@@ -865,6 +865,52 @@ TEST (commonTensorsInfo, totalSizeTensorOverflow_n)
 }
 
 /**
+ * @brief Test for the total size of the maximum number of tensors.
+ */
+TEST (commonTensorsInfo, totalSizeMaxTensors)
+{
+  GstTensorsInfo info;
+  GstTensorInfo *_info;
+  guint i;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
+  for (i = 0; i < info.num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info (&info, i);
+    _info->type = _NNS_UINT8;
+    _info->dimension[0] = 1U;
+  }
+
+  EXPECT_EQ (gst_tensors_info_get_size (&info, -1), (gsize) NNS_TENSOR_SIZE_LIMIT);
+  EXPECT_EQ (gst_tensors_info_get_size (&info, NNS_TENSOR_SIZE_LIMIT - 1), 1U);
+  gst_tensors_info_free (&info);
+}
+
+/**
+ * @brief Test for the total size of more tensors than the limit.
+ * @details The tensor past the limit has no info, which used to be dereferenced.
+ */
+TEST (commonTensorsInfo, totalSizeOverLimit_n)
+{
+  GstTensorsInfo info;
+  GstTensorInfo *_info;
+  guint i;
+
+  gst_tensors_info_init (&info);
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    _info = gst_tensors_info_get_nth_info (&info, i);
+    _info->type = _NNS_UINT8;
+    _info->dimension[0] = 1U;
+  }
+
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+  EXPECT_EQ (gst_tensors_info_get_size (&info, -1), 0U);
+
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
+  gst_tensors_info_free (&info);
+}
+
+/**
  * @brief Test for same tensors info.
  */
 TEST (commonTensorInfo, equal01_p)
@@ -2450,10 +2496,102 @@ TEST (commonMetaInfo, dataSizeTypeOverflow_n)
   meta.type = _NNS_FLOAT64;
   EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
   EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+}
 
-  /* a sparse tensor carries a few elements of a dense tensor that cannot exist */
+/**
+ * @brief Test for tensor meta info (a sparse tensor whose dense byte size overflows).
+ * @details A sparse tensor is sized by its elements, not by its dense form.
+ */
+TEST (commonMetaInfo, dataSizeSparseOverflowingDense)
+{
+  GstTensorMetaInfo meta;
+
+  if (sizeof (gulong) < 8 || sizeof (gsize) < 8)
+    GTEST_SKIP () << "needs a 64-bit gulong and gsize";
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_FLOAT64;
+  meta.dimension[0] = 0x80000000U;
+  meta.dimension[1] = 0x80000000U;
+  meta.dimension[2] = 2U;
   meta.format = _NNS_TENSOR_FORMAT_SPARSE;
   meta.sparse_info.nnz = 1U;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), (gsize) 12);
+
+  meta.sparse_info.nnz = G_MAXUINT32;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ ((guint64) gst_tensor_meta_info_get_data_size (&meta),
+      G_GUINT64_CONSTANT (12) * G_MAXUINT32);
+}
+
+/**
+ * @brief Test for tensor meta info (a sparse tensor whose dense form exceeds 4 GiB).
+ * @details The dense size used to bound a sparse tensor, which refused it on 32-bit.
+ */
+TEST (commonMetaInfo, dataSizeSparseLargeDense)
+{
+  GstTensorMetaInfo meta;
+  uint32_t *header;
+  gsize hsize;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_FLOAT32;
+  meta.dimension[0] = 4096U;
+  meta.dimension[1] = 4096U;
+  meta.dimension[2] = 64U;
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.sparse_info.nnz = 100U;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), (gsize) 800);
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  header = (uint32_t *) g_malloc0 (hsize);
+  ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
+  EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, header));
+  EXPECT_EQ (meta.sparse_info.nnz, 100U);
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), (gsize) 800);
+  g_free (header);
+
+  /* the dense form of 2^32 bytes fits a 64-bit gsize only */
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  EXPECT_EQ (gst_tensor_meta_info_validate (&meta), sizeof (gsize) > 4);
+}
+
+/**
+ * @brief Test for tensor meta info (a sparse tensor without data or with an overflowing size).
+ */
+TEST (commonMetaInfo, dataSizeSparse_n)
+{
+  GstTensorMetaInfo meta;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_FLOAT64;
+  meta.dimension[0] = 10U;
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+
+  /* 12 bytes for each of 2^32 - 1 elements overflow a 32-bit gsize */
+  if (sizeof (gsize) == 4) {
+    meta.sparse_info.nnz = G_MAXUINT32;
+    EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+    EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+  }
+
+  /* a sparse tensor still needs a dimension and a type */
+  meta.sparse_info.nnz = 1U;
+  meta.dimension[0] = 0U;
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+
+  meta.dimension[0] = 10U;
+  meta.type = _NNS_END;
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+
+  /* the element count of the dense form must still be countable */
+  meta.type = _NNS_FLOAT64;
+  meta.dimension[0] = meta.dimension[1] = meta.dimension[2] = 65536U;
+  meta.dimension[3] = meta.dimension[4] = 65536U;
   EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
   EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
 }
