@@ -269,6 +269,12 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     /* parse tensor dimension */
     auto shapeHandle = Snpe_IBufferAttributes_GetDims (bufferAttributesOpt);
     auto rank = Snpe_TensorShape_Rank (shapeHandle);
+    if (rank == 0 || rank > NNS_TENSOR_RANK_LIMIT) {
+      Snpe_TensorShape_Delete (shapeHandle);
+      Snpe_IBufferAttributes_Delete (bufferAttributesOpt);
+      throw std::invalid_argument ("Unsupported rank " + std::to_string (rank)
+                                   + " of tensor " + std::string (tensorName));
+    }
     const size_t *sdims = Snpe_TensorShape_GetDimensions (shapeHandle);
     for (size_t j = 0; j < rank; j++) {
       info->dimension[rank - 1 - j] = sdims[j];

@@ -159,10 +159,10 @@ default_encoding (const snpe_mock_model &model)
 std::vector<size_t>
 model_dims (const snpe_mock_model &model)
 {
-  std::vector<size_t> dims (1, 1U);
+  std::vector<size_t> dims (model.rank, 1U);
 
-  if (model.resizable)
-    dims.push_back (0U);
+  if (model.resizable && !dims.empty ())
+    dims.back () = 0U;
 
   return dims;
 }

@@ -373,3 +373,103 @@ TEST (nnstreamerFilterSnpeMockV2, invokeExecuteFailure13_n)
   EXPECT_EQ (snpe_mock_over_release_count (), 0U);
   g_free (model_file);
 }
+
+/**
+ * @brief Open a model whose tensors report the given rank, then close it.
+ * @return the result of the open call
+ */
+static int
+_MockOpenCloseRank (guint rank, const gchar *custom)
+{
+  void *data = NULL;
+  GstTensorFilterProperties prop;
+  g_autofree gchar *name_template
+      = g_strdup_printf ("nns_snpe_mock_rank%u_XXXXXX.dlc", rank);
+  g_autofree gchar *model_file = _MockMakeModelFile (name_template);
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  int ret;
+
+  g_assert (sp != NULL && model_file != NULL);
+  _MockSetProp (&prop, model_files, custom);
+  ret = sp->open (&prop, &data);
+  sp->close (&prop, &data);
+  g_remove (model_file);
+
+  return ret;
+}
+
+/**
+ * @brief Negative case: a model reporting a rank of zero is refused.
+ *
+ * Regression test of item G2 of issue #5189: the stride of the last dim was
+ * written at index rank - 1, which wrapped for a rank of zero.
+ */
+TEST (nnstreamerFilterSnpeMockV2, unsupportedRankZero14_n)
+{
+  snpe_mock_reset ();
+
+  EXPECT_EQ (_MockOpenCloseRank (0U, NULL), -EINVAL);
+  EXPECT_EQ (snpe_mock_ledger_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_over_release_count (), 0U);
+}
+
+/**
+ * @brief Negative case: a model reporting a rank over the limit is refused.
+ *
+ * Regression test of item G2 of issue #5189: the dims were copied into the
+ * tensor information without a bound, past its NNS_TENSOR_RANK_LIMIT entries.
+ */
+TEST (nnstreamerFilterSnpeMockV2, unsupportedRankOverLimit15_n)
+{
+  snpe_mock_reset ();
+
+  EXPECT_EQ (_MockOpenCloseRank (NNS_TENSOR_RANK_LIMIT + 1, NULL), -EINVAL);
+  EXPECT_EQ (snpe_mock_ledger_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_over_release_count (), 0U);
+}
+
+/**
+ * @brief Positive case: a model of the highest supported rank opens and runs.
+ */
+TEST (nnstreamerFilterSnpeMockV2, maxRank16)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorFilterProperties prop;
+  GstTensorsInfo in_info, out_info;
+  g_autofree gchar *name_template
+      = g_strdup_printf ("nns_snpe_mock_rank%u_XXXXXX.dlc", NNS_TENSOR_RANK_LIMIT);
+  gchar *model_file = _MockMakeModelFile (name_template);
+  ASSERT_TRUE (model_file != NULL);
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  ASSERT_TRUE (sp != nullptr);
+  _MockSetProp (&prop, model_files, NULL);
+
+  snpe_mock_reset ();
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  ASSERT_EQ (sp->getModelInfo (NULL, NULL, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+  EXPECT_EQ (gst_tensor_info_get_rank (&in_info.info[0]), (guint) NNS_TENSOR_RANK_LIMIT);
+  EXPECT_EQ (gst_tensor_info_get_rank (&out_info.info[0]), (guint) NNS_TENSOR_RANK_LIMIT);
+
+  output.size = input.size = sizeof (float);
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc0 (output.size);
+  ((float *) input.data)[0] = 1.0f;
+
+  EXPECT_EQ (sp->invoke (NULL, NULL, data, &input, &output), 0);
+  EXPECT_EQ (((float *) output.data)[0], 1.0f + SNPE_MOCK_ADDEND);
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  sp->close (&prop, &data);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+  g_remove (model_file);
+  g_free (model_file);
+}

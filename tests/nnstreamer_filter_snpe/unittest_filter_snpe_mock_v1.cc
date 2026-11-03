@@ -571,3 +571,73 @@ TEST (nnstreamerFilterSnpeMockV1, userBufferExecuteFailure17_n)
 {
   _MockInvokeExecuteFailure ("UserBuffer:true");
 }
+
+/**
+ * @brief Open a model whose tensors report the given rank, then close it.
+ * @return the result of the open call
+ */
+static int
+_MockOpenCloseRank (guint rank, const gchar *custom)
+{
+  void *data = NULL;
+  GstTensorFilterProperties prop;
+  g_autofree gchar *name_template
+      = g_strdup_printf ("nns_snpe_mock_rank%u_XXXXXX.dlc", rank);
+  g_autofree gchar *model_file = _MockMakeModelFile (name_template);
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  int ret;
+
+  g_assert (sp != NULL && model_file != NULL);
+  _MockSetProp (&prop, model_files, custom);
+  ret = sp->open (&prop, &data);
+  sp->close (&prop, &data);
+  g_remove (model_file);
+
+  return ret;
+}
+
+/**
+ * @brief Negative case: a model reporting a rank of zero is refused.
+ *
+ * Regression test of item G2 of issue #5189: the user buffer mode wrote the
+ * stride of the last dim at index rank - 1, which wrapped for a rank of zero.
+ */
+TEST (nnstreamerFilterSnpeMockV1, unsupportedRankZero18_n)
+{
+  snpe_mock_reset ();
+
+  EXPECT_EQ (_MockOpenCloseRank (0U, NULL), -EINVAL);
+  EXPECT_EQ (_MockOpenCloseRank (0U, "UserBuffer:true"), -EINVAL);
+  EXPECT_EQ (snpe_mock_ledger_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+}
+
+/**
+ * @brief Negative case: a model reporting a rank over the limit is refused.
+ *
+ * Regression test of item G2 of issue #5189: setTensorProp() copied the dims
+ * into the tensor information without a bound, past its NNS_TENSOR_RANK_LIMIT
+ * entries.
+ */
+TEST (nnstreamerFilterSnpeMockV1, unsupportedRankOverLimit19_n)
+{
+  snpe_mock_reset ();
+
+  EXPECT_EQ (_MockOpenCloseRank (NNS_TENSOR_RANK_LIMIT + 1, NULL), -EINVAL);
+  EXPECT_EQ (_MockOpenCloseRank (NNS_TENSOR_RANK_LIMIT + 1, "UserBuffer:true"), -EINVAL);
+  EXPECT_EQ (snpe_mock_ledger_live_count (), 0U);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+}
+
+/**
+ * @brief Positive case: a model of the highest supported rank opens in both modes.
+ */
+TEST (nnstreamerFilterSnpeMockV1, maxRank20)
+{
+  snpe_mock_reset ();
+
+  EXPECT_EQ (_MockOpenCloseRank (NNS_TENSOR_RANK_LIMIT, NULL), 0);
+  EXPECT_EQ (_MockOpenCloseRank (NNS_TENSOR_RANK_LIMIT, "UserBuffer:true"), 0);
+  EXPECT_EQ (snpe_mock_total_live_count (), 0U);
+}
