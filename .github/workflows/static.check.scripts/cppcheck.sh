@@ -104,8 +104,8 @@ for file in `cat $files`; do
   if [[ $file =~ ^external/.* ]]; then
     continue
   fi
-  # Handle only text files in case that there are lots of files in one commit.
-  if [[ `file $file | grep "ASCII text" | wc -l` -gt 0 ]]; then
+  # Detect text independently of its encoding (ASCII, UTF-8, etc.).
+  if [[ $(file --brief --mime-type -- "$file") == text/* ]]; then
     # in case of source code files (*.c, *.cpp)
     case $file in
       # in case of C/C++ code

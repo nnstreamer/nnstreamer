@@ -26,7 +26,7 @@ class CppcheckGate(unittest.TestCase):
     def check(self, source, suffix="c", env=None):
         """@brief Run the same error-level wrapper used by the workflow."""
         path = self.root / ("input." + suffix)
-        path.write_text(source, encoding="ascii")
+        path.write_text(source, encoding="utf-8")
         changed = self.root / "changed"
         changed.write_text(str(path) + "\n", encoding="ascii")
         return subprocess.run(
@@ -105,6 +105,46 @@ class CppcheckGate(unittest.TestCase):
         result = self.check('const char *value = "a" UNMODELED_FORMAT "b";\n')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("[unknownMacro]", result.stdout)
+
+    def test_source_encoding_and_suffix_n(self):
+        """@brief C/C++ errors must not depend on encoding or suffix spelling."""
+        for suffix in ("c", "cpp"):
+            for encoding, comment in (
+                ("ascii", "/* comment */\n"),
+                ("utf8", "/* 한글 주석 */\n"),
+                ("utf8-bom", "\ufeff/* comment */\n"),
+            ):
+                with self.subTest(suffix=suffix, encoding=encoding):
+                    result = self.check(
+                        comment + "int value() { int *p = 0; return *p; }\n",
+                        suffix,
+                    )
+                    self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                    self.assertIn("[nullPointer]", result.stdout)
+
+    def test_clean_source_encoding_and_suffix_p(self):
+        """@brief All text variants and both supported suffixes accept clean code."""
+        for suffix in ("c", "cpp"):
+            for encoding, comment in (
+                ("ascii", "/* comment */\n"),
+                ("utf8", "/* 한글 주석 */\n"),
+                ("utf8-bom", "\ufeff/* comment */\n"),
+            ):
+                with self.subTest(suffix=suffix, encoding=encoding):
+                    result = self.check(comment + "int value() { return 0; }\n", suffix)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn("cppcheck result is ok", result.stdout)
+
+    def test_non_source_and_binary_are_skipped_p(self):
+        """@brief Text detection must not expand source suffixes or analyze binary data."""
+        for suffix, source in (
+            ("h", "int value() { int *p = 0; return *p; }\n"),
+            ("c", "\x00\x01\x02\x03\x00\x01"),
+        ):
+            with self.subTest(suffix=suffix):
+                result = self.check(source, suffix)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn("file is source code with the text format", result.stdout)
 
     def test_tool_failure_without_diagnostic_n(self):
         """@brief A crashed checker with empty stderr must never be a pass."""
