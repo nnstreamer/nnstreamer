@@ -277,6 +277,12 @@ if not get_option('snpe-support').disabled()
   endif
 endif
 
+# hailort (Hailo NPU runtime). It ships CMake files only, so probe the library and header.
+hailort_dep = dependency('', required: false)
+if not get_option('hailort-support').disabled()
+  hailort_dep = cxx.find_library('hailort', has_headers: ['hailo/hailort.h'], required: false)
+endif
+
 # litert (LiteRT 2.x CompiledModel C API)
 litert_dep = dependency('', required: false)
 if not get_option('litert-support').disabled()
@@ -712,6 +718,9 @@ features = {
     # Assume that qnn.pc file is given.
     'target': 'qnn',
     'project_args': { 'ENABLE_QNN' : 1 },
+  },
+  'hailort-support': {
+    'extra_deps': [ hailort_dep ],
   },
   'litert-support': {
     'extra_deps': [ litert_dep ],

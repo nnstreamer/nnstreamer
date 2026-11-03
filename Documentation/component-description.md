@@ -76,6 +76,9 @@ In this page, we focus on the status of each elements. For requirements and desi
   - ExecuTorch (experimental)
   - NCNN (experimental)
   - DALI/NVIDIA (experimental)
+  - HailoRT/Hailo (experimental)
+      - Runs a compiled ```.hef``` model with HailoRT 4.18 or later; use ```hailort``` as the subplugin name. ```custom``` takes ```input_format``` and ```output_format``` (```auto```, ```uint8```, ```uint16``` or ```float32```; ```float32``` makes HailoRT (de)quantize on the host) and ```group_id``` (filters with the same id share the device through the HailoRT scheduler). Not built when ```tizen-hal-support``` is enabled.
+      - Each virtual stream is a tensor, in the order HailoRT reports them. An NHWC frame is ```C:W:H:1```; any other layout (NCHW, NMS results, ...) is a flat tensor of the frame size. After a failed transfer the filter refuses further invokes until the model is opened again, because HailoRT may still hold a frame of the failed one.
   - [Guide on writing a filter subplugin](writing-subplugin-tensor-filter.md)
   - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnstreamer/nnstreamer-example/tree/main/templates)
 - [tensor\_transform](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_transform.md) (stable)

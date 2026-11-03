@@ -609,6 +609,32 @@ if qnn_support_is_available
   )
 endif
 
+if hailort_support_is_available and not tizen_hal_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for HailoRT.')
+  endif
+
+  filter_sub_hailort_sources = ['tensor_filter_hailort.cc']
+
+  nnstreamer_filter_hailort_deps = [glib_dep, nnstreamer_single_dep, hailort_support_deps]
+
+  shared_library('nnstreamer_filter_hailort',
+    filter_sub_hailort_sources,
+    dependencies: nnstreamer_filter_hailort_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_hailort',
+    filter_sub_hailort_sources,
+    dependencies: nnstreamer_filter_hailort_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+elif hailort_support_is_available
+  message('hailort: not built with tizen-hal-support, which needs a Hailo HAL backend instead (not available yet)')
+endif
+
 if tensorrt_support_is_available
   filter_sub_tensorrt_sources = ['tensor_filter_tensorrt.cc']
 
