@@ -1753,6 +1753,9 @@ _gtfc_setprop_CUSTOM (GstTensorFilterPrivate * priv,
         g_free_const (prop->custom_properties);
         prop->custom_properties = data.custom_properties;
       } else {
+        ml_loge ("Cannot change custom-prop to %s; the framework refused it "
+            "(%d).", data.custom_properties ? data.custom_properties : "(null)",
+            status);
         g_free_const (data.custom_properties);
       }
     }
