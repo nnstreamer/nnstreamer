@@ -232,6 +232,7 @@ MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *optio
     return MQTTASYNC_SUCCESS;
 
   ctx = options->context;
+  GstMqttTestHelper::getInstance ().recordDisconnect (options->timeout);
   GstMqttTestHelper::getInstance ().setIsConnected (false);
   if (GstMqttTestHelper::getInstance ().getFailDisconnect ()) {
     fdata.code = -1;
@@ -739,6 +740,29 @@ TEST (testMqttSinkWithHelper, stopReturnsWhenDisconnected)
   EXPECT_EQ (state_ret, GST_STATE_CHANGE_SUCCESS);
   EXPECT_LT (elapsed_ms, 2500) << "stop () waited " << elapsed_ms
                                << " ms for a disconnect it had already been told about";
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test stop () giving MQTTAsync_disconnect () its drain timeout in milliseconds
+ */
+TEST (testMqttSinkWithHelper, stopDisconnectTimeoutInMilliseconds)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  int timeout;
+
+  ASSERT_TRUE (h != NULL);
+  helper.initFailFlags ();
+  helper.resetSendRecord ();
+  helper.resetDisconnectRecord ();
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+
+  timeout = helper.getLastDisconnectTimeout ();
+  EXPECT_EQ (timeout, 3000) << "paho takes the disconnect timeout in milliseconds";
 
   gst_harness_teardown (h);
 }
