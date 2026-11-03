@@ -206,6 +206,7 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
    * The dimension index of frames in tensor.
    * If frames-in and frames-out are different, GstTensorAggregator has to change the dimension of tensor.
    * With this property, GstTensorAggregator changes the out-caps.
+   * An index not less than the rank of the input tensor (e.g., the default) means the outermost dimension of the input (rank - 1).
    */
   g_object_class_install_property (object_class, PROP_FRAMES_DIMENSION,
       g_param_spec_uint ("frames-dim", "Dimension index of frames",
@@ -602,7 +603,7 @@ gst_tensor_aggregator_concat (GstBuffer * outbuf, const GstTensorInfo * info,
 
   /**
    * Concatenate output buffer with given axis (frames-dim)
-   * If frames-dim is equal to (NNS_TENSOR_RANK_LIMIT - 1), nothing to do.
+   * If frames-dim is the outermost dimension of the input (rank - 1), nothing to do.
    * (In this case, this function will not be called. See gst_tensor_aggregator_check_concat_axis ())
    ********************************************************************
    * Ex1) concatenate 2 frames with dimension 3:4:2:1
@@ -880,7 +881,9 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   frames_in = self->frames_in;
   frames_out = self->frames_out;
   frames_flush = self->frames_flush;
-  frames_dim = self->frames_dim;
+  frames_dim = MIN (self->frames_dim,
+      gst_tensor_info_get_rank (gst_tensors_info_get_nth_info
+          (&self->in_config.info, 0)) - 1);
   concat = self->concat;
   frame_size = buf_size / frames_in;
 
@@ -1061,7 +1064,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
   GstTensorsConfig config;
   GstTensorInfo *_info;
   uint32_t per_frame;
-  guint count;
+  guint count, frames_dim;
 
   g_return_val_if_fail (caps != NULL, FALSE);
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
@@ -1091,8 +1094,8 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
    * if frames_out=10 and frames_dim=3, then out-dimension is 2:200:200:10.
    * if frames_out=10 and frames_dim=2, then out-dimension is 2:200:2000:1.
    */
-  if (self->frames_dim >= NNS_TENSOR_RANK_LIMIT ||
-      (_info->dimension[self->frames_dim] % self->frames_in) != 0) {
+  frames_dim = MIN (self->frames_dim, gst_tensor_info_get_rank (_info) - 1);
+  if ((_info->dimension[frames_dim] % self->frames_in) != 0) {
     GST_ERROR_OBJECT (self, "Cannot update dimension in output tensor");
     return FALSE;
   }
@@ -1100,8 +1103,8 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
   gst_tensors_config_free (&self->in_config);
   gst_tensors_config_copy (&self->in_config, &config);
 
-  per_frame = _info->dimension[self->frames_dim] / self->frames_in;
-  _info->dimension[self->frames_dim] = per_frame * self->frames_out;
+  per_frame = _info->dimension[frames_dim] / self->frames_in;
+  _info->dimension[frames_dim] = per_frame * self->frames_out;
 
   gst_tensors_config_free (&self->out_config);
   gst_tensors_config_copy (&self->out_config, &config);
