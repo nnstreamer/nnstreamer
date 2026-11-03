@@ -2207,6 +2207,71 @@ TEST (testMqttSink, userPubTopicKept)
 }
 
 /**
+ * @brief Start a harness on a new mqttsink with the given client-id and pub-topic (NULL: not set), and push a buffer
+ */
+static GstHarness *
+_harness_sink_with_ids (const gchar *client_id, const gchar *pub_topic)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", NULL);
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  GstHarness *h;
+
+  if (sink == NULL)
+    return NULL;
+  gst_object_ref_sink (sink);
+  g_object_set (sink, "client-id", client_id, NULL);
+  if (pub_topic)
+    g_object_set (sink, "pub-topic", pub_topic, NULL);
+
+  helper.initFailFlags ();
+  helper.resetCreateRecord ();
+  helper.resetSendRecord ();
+  h = gst_harness_new_with_element (sink, "sink", NULL);
+  gst_object_unref (sink);
+  if (h == NULL)
+    return NULL;
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  return h;
+}
+
+/**
+ * @brief Test a fixed client-id reaching MQTTAsync_create () and making the default pub-topic
+ */
+TEST (testMqttSinkWithHelper, fixedClientIdDefaultPubTopic)
+{
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  GstHarness *h = _harness_sink_with_ids ("fixed", NULL);
+  gchar *topic = NULL;
+
+  ASSERT_TRUE (h != NULL);
+  EXPECT_STREQ (helper.getLastClientId ().c_str (), "fixed");
+  EXPECT_EQ (helper.getSendCount (), 1);
+  EXPECT_STREQ (helper.getLastTopic ().c_str (), "fixed/topic");
+  g_object_get (h->element, "pub-topic", &topic, NULL);
+  EXPECT_STREQ (topic, "fixed/topic");
+  g_free (topic);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test an explicit pub-topic not being derived from a fixed client-id
+ */
+TEST (testMqttSinkWithHelper, fixedClientIdUserPubTopic)
+{
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  GstHarness *h = _harness_sink_with_ids ("fixed", "mytopic");
+
+  ASSERT_TRUE (h != NULL);
+  EXPECT_STREQ (helper.getLastClientId ().c_str (), "fixed");
+  EXPECT_EQ (helper.getSendCount (), 1);
+  EXPECT_STREQ (helper.getLastTopic ().c_str (), "mytopic");
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief A helper function for the generation of a dummy MQTT message
  */
 static void
