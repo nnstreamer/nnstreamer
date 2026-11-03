@@ -181,6 +181,19 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   }
 
   /**
+   * @brief Log handler counting the context trimming of the sub-plugin and
+   *        passing other messages to the default handler.
+   */
+  static void trim_log_cb (const gchar *log_domain, GLogLevelFlags log_level,
+      const gchar *message, gpointer user_data)
+  {
+    if (g_str_has_prefix (message, "Context is full"))
+      g_atomic_int_inc ((gint *) user_data);
+    else
+      g_log_default_handler (log_domain, log_level, message, NULL);
+  }
+
+  /**
    * @brief Create pipeline with given model invoke-async and custom properties.
    * @param model Model file path (or comma-separated base model and LoRA adapter paths)
    * @param invoke_async Whether to use async mode
@@ -840,6 +853,238 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
   EXPECT_EQ (*new_sample_count, 1);
 
   /* Clean up test file */
+  g_remove (context_file);
+}
+
+/**
+ * @brief Test that a loaded context continues the conversation it was saved from.
+ *
+ * Greedy decoding makes the reply to the second prompt depend only on the
+ * context, so a conversation split by save_ctx / load_ctx must produce the
+ * same text as the one run in a single context, and a different text from
+ * the second prompt in a fresh context.
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, contextLoadContinuesConversation_p)
+{
+  const gchar *context_file = "./context_continue.bin";
+  const gchar *first_prompt = "Hello my name is John. I like programming and AI.";
+  const gchar *second_prompt = "What did I just say about myself?";
+  g_autofree gchar *conversation_text = NULL;
+  g_autofree gchar *first_text = NULL;
+  g_autofree gchar *loaded_text = NULL;
+  g_autofree gchar *custom_save = NULL;
+  g_autofree gchar *custom_load = NULL;
+
+  skip_llamacpp_tc ("contextLoadContinuesConversation_p");
+  g_remove (context_file);
+
+  /* Both prompts in a single context. */
+  ASSERT_TRUE (create_pipeline (model, FALSE, "num_predict:15,context_length:512"));
+  EXPECT_TRUE (data_push (first_prompt));
+  EXPECT_TRUE (data_push (second_prompt));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (2));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (*new_sample_count, 2);
+  clear_pipeline ();
+  conversation_text = g_strdup (generated_text->str);
+  g_string_truncate (generated_text, 0);
+  g_atomic_int_set (new_sample_count, 0);
+
+  /* The first prompt, saving the context at close. */
+  custom_save = g_strdup_printf ("num_predict:15,context_length:512,save_ctx:%s", context_file);
+  ASSERT_TRUE (create_pipeline (model, FALSE, custom_save));
+  EXPECT_TRUE (data_push (first_prompt));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  clear_pipeline ();
+  ASSERT_TRUE (g_file_test (context_file, G_FILE_TEST_EXISTS));
+  first_text = g_strdup (generated_text->str);
+  g_string_truncate (generated_text, 0);
+  g_atomic_int_set (new_sample_count, 0);
+  ASSERT_GT (strlen (first_text), 0U);
+
+  /* The second prompt on the loaded context. */
+  custom_load = g_strdup_printf ("num_predict:15,context_length:512,load_ctx:%s", context_file);
+  ASSERT_TRUE (create_pipeline (model, FALSE, custom_load));
+  EXPECT_TRUE (data_push (second_prompt));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (*new_sample_count, 1);
+  clear_pipeline ();
+  loaded_text = g_strdup (generated_text->str);
+  g_string_truncate (generated_text, 0);
+  g_atomic_int_set (new_sample_count, 0);
+  g_remove (context_file);
+
+  EXPECT_TRUE (g_str_has_prefix (conversation_text, first_text));
+  EXPECT_STREQ (conversation_text + strlen (first_text), loaded_text);
+
+  /* The second prompt in a fresh context. */
+  ASSERT_TRUE (create_pipeline (model, FALSE, "num_predict:15,context_length:512"));
+  EXPECT_TRUE (data_push (second_prompt));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (*new_sample_count, 1);
+  EXPECT_STRNE (generated_text->str, loaded_text);
+}
+
+/**
+ * @brief Test that the tokens of a loaded context count for the context trimming.
+ *
+ * The first prompt and its reply take about 210 of the 256 context cells, and
+ * the second prompt is about 70 tokens (measured with TinyStories-656K-Q2_K
+ * on llama.cpp b6569): it fits only after the trimming that the restored
+ * tokens trigger. A conversation split by save_ctx / load_ctx
+ * must trim at the same point as the one run in a single context and produce
+ * the same text; counting the loaded context as empty overflows it instead.
+ * Both runs must log one trimming, so a model or llama.cpp change that lets
+ * the second prompt fit untrimmed fails the test instead of passing vacuously.
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, contextLoadTrimsRestoredTokens_p)
+{
+  const gchar *context_file = "./context_trim.bin";
+  const gchar *custom = "num_predict:10,context_length:256";
+  const gchar *story
+      = "Once upon a time, there was a little girl named Lily. She loved to play "
+        "outside in the sun with her dog Max. One day, Lily and Max went to the "
+        "park. They saw a big tree with red apples. Lily wanted to eat an apple, "
+        "but the tree was too tall. Max barked at the tree. Then a kind man came "
+        "and picked an apple for Lily.";
+  const gchar *sequel = "The next day, Lily went back to the park with her mom. "
+                        "They had a picnic under the big tree and";
+  g_autofree gchar *first_prompt = g_strjoin (" ", story, story, story, NULL);
+  g_autofree gchar *second_prompt = g_strjoin (" ", sequel, sequel, sequel, NULL);
+  g_autofree gchar *conversation_text = NULL;
+  g_autofree gchar *first_text = NULL;
+  g_autofree gchar *custom_save = NULL;
+  g_autofree gchar *custom_load = NULL;
+  gint trims = 0;
+  guint handler;
+
+  skip_llamacpp_tc ("contextLoadTrimsRestoredTokens_p");
+  g_remove (context_file);
+
+  ASSERT_TRUE (create_pipeline (model, FALSE, custom));
+  handler = g_log_set_handler (NULL, G_LOG_LEVEL_DEBUG, trim_log_cb, &trims);
+  EXPECT_TRUE (data_push (first_prompt));
+  EXPECT_TRUE (data_push (second_prompt));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (2));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (*new_sample_count, 2);
+  EXPECT_EQ (g_atomic_int_get (&trims), 1);
+  clear_pipeline ();
+  conversation_text = g_strdup (generated_text->str);
+  g_string_truncate (generated_text, 0);
+  g_atomic_int_set (new_sample_count, 0);
+
+  custom_save = g_strdup_printf ("%s,save_ctx:%s", custom, context_file);
+  ASSERT_TRUE (create_pipeline (model, FALSE, custom_save));
+  EXPECT_TRUE (data_push (first_prompt));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  clear_pipeline ();
+  ASSERT_TRUE (g_file_test (context_file, G_FILE_TEST_EXISTS));
+  first_text = g_strdup (generated_text->str);
+  g_string_truncate (generated_text, 0);
+  g_atomic_int_set (new_sample_count, 0);
+
+  custom_load = g_strdup_printf ("%s,load_ctx:%s", custom, context_file);
+  ASSERT_TRUE (create_pipeline (model, FALSE, custom_load));
+  g_atomic_int_set (&trims, 0);
+  handler = g_log_set_handler (NULL, G_LOG_LEVEL_DEBUG, trim_log_cb, &trims);
+  EXPECT_TRUE (data_push (second_prompt));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (*new_sample_count, 1);
+  EXPECT_EQ (g_atomic_int_get (&trims), 1);
+  g_remove (context_file);
+
+  EXPECT_TRUE (g_str_has_prefix (conversation_text, first_text));
+  EXPECT_STREQ (conversation_text + strlen (first_text), generated_text->str);
+}
+
+/**
+ * @brief Test that a truncated context file falls back to a fresh context.
+ *
+ * The file is cut to nothing, to 16 bytes (failing in the header) and to half
+ * its size (failing in the memory payload, after part of it has been
+ * restored). Each load must give the text of a fresh context.
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, contextLoadTruncatedFile_n)
+{
+  const gchar *context_file = "./context_truncated.bin";
+  const gchar *prompt = "What did I just say about myself?";
+  g_autofree gchar *fresh_text = NULL;
+  g_autofree gchar *contents = NULL;
+  g_autofree gchar *custom_save = NULL;
+  g_autofree gchar *custom_load = NULL;
+  gsize length = 0;
+  gsize cuts[3];
+  guint i;
+
+  skip_llamacpp_tc ("contextLoadTruncatedFile_n");
+  g_remove (context_file);
+
+  custom_save = g_strdup_printf ("num_predict:15,context_length:512,save_ctx:%s", context_file);
+  ASSERT_TRUE (create_pipeline (model, FALSE, custom_save));
+  EXPECT_TRUE (data_push ("Hello my name is John. I like programming and AI."));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  clear_pipeline ();
+  g_string_truncate (generated_text, 0);
+  g_atomic_int_set (new_sample_count, 0);
+
+  ASSERT_TRUE (g_file_get_contents (context_file, &contents, &length, NULL));
+  ASSERT_GT (length, 32U);
+  cuts[0] = 0;
+  cuts[1] = 16;
+  cuts[2] = length / 2;
+
+  ASSERT_TRUE (create_pipeline (model, FALSE, "num_predict:15,context_length:512"));
+  EXPECT_TRUE (data_push (prompt));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  clear_pipeline ();
+  fresh_text = g_strdup (generated_text->str);
+  g_string_truncate (generated_text, 0);
+  g_atomic_int_set (new_sample_count, 0);
+
+  custom_load = g_strdup_printf ("num_predict:15,context_length:512,load_ctx:%s", context_file);
+  for (i = 0; i < G_N_ELEMENTS (cuts); i++) {
+    ASSERT_TRUE (g_file_set_contents (context_file, contents, cuts[i], NULL));
+    ASSERT_TRUE (create_pipeline (model, FALSE, custom_load));
+    EXPECT_TRUE (data_push (prompt));
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+        0);
+    EXPECT_TRUE (wait_for_samples (1));
+    EXPECT_FALSE (pipeline_error);
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+    clear_pipeline ();
+
+    EXPECT_EQ (*new_sample_count, 1) << "cut at " << cuts[i] << " of " << length;
+    EXPECT_STREQ (generated_text->str, fresh_text)
+        << "cut at " << cuts[i] << " of " << length;
+    g_string_truncate (generated_text, 0);
+    g_atomic_int_set (new_sample_count, 0);
+  }
   g_remove (context_file);
 }
 

@@ -581,6 +581,9 @@ TensorFilterLlamaCpp::cleanupResources ()
 
 /**
  * @brief Load context from file
+ *
+ * On success, the token counter for the context trimming continues from the
+ * restored tokens. On failure, the context is left empty.
  */
 bool
 TensorFilterLlamaCpp::loadContextFromFile (const std::string &path)
@@ -600,6 +603,7 @@ TensorFilterLlamaCpp::loadContextFromFile (const std::string &path)
     ctx_size = file.tellg ();
     file.seekg (0, std::ios::beg);
 
+    ctx_data.resize (ctx_size);
     file.read (reinterpret_cast<char *> (ctx_data.data ()), ctx_size);
     file.close ();
   } catch (const std::exception &e) {
@@ -608,10 +612,18 @@ TensorFilterLlamaCpp::loadContextFromFile (const std::string &path)
     return false;
   }
 
-  if (llama_state_set_data (ctx, ctx_data.data (), ctx_size) != ctx_size) {
-    ml_loge ("Failed to set context data");
+  if (ctx_size == 0) {
+    ml_loge ("Context file %s is empty", path.c_str ());
     return false;
   }
+
+  if (llama_state_set_data (ctx, ctx_data.data (), ctx_size) != ctx_size) {
+    ml_loge ("Failed to set context data from %s", path.c_str ());
+    /* a state read that stopped midway may have restored part of the memory */
+    llama_memory_clear (llama_get_memory (ctx), true);
+    return false;
+  }
+  n_processed = llama_memory_seq_pos_max (llama_get_memory (ctx), 0) + 1;
 
   ml_logi ("Successfully loaded context from %s", path.c_str ());
   return true;
