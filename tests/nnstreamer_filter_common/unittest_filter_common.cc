@@ -1321,8 +1321,10 @@ cpu_neon_accel_available (void)
 }
 
 #if !defined(__TIZEN__) && !defined(__ANDROID__)
+static gchar *last_accl_critical = NULL;
+
 /**
- * @brief Count the critical messages of the default log domain.
+ * @brief Count the critical messages of the default log domain, and keep the last one.
  */
 static void
 _count_accl_critical (const gchar *log_domain, GLogLevelFlags log_level,
@@ -1330,7 +1332,8 @@ _count_accl_critical (const gchar *log_domain, GLogLevelFlags log_level,
 {
   UNUSED (log_domain);
   UNUSED (log_level);
-  UNUSED (message);
+  g_free (last_accl_critical);
+  last_accl_critical = g_strdup (message);
   (*(guint *) user_data)++;
 }
 
@@ -1475,6 +1478,10 @@ class testFilterAccelerator : public ::testing::Test
 
     g_free (accl_mock_subplugin::seen_accl_str);
     accl_mock_subplugin::seen_accl_str = nullptr;
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+    g_free (last_accl_critical);
+    last_accl_critical = NULL;
+#endif
   }
 
   /**
@@ -1727,6 +1734,85 @@ TEST_F (testFilterAccelerator, changeWhileOpened)
   EXPECT_EQ (priv.prop.hw_list[0], ACCL_NPU_EDGE_TPU);
   read = getAccelerator ();
   EXPECT_STREQ (read, "true:npu.edgetpu");
+}
+
+/**
+ * @brief Test fixture setting the custom property of a filter opened with the V1 mock.
+ */
+class testFilterCustomProp : public testFilterAccelerator
+{
+  protected:
+  /**
+   * @brief Read the custom property of the filter back.
+   * @return the value of the property. Free it with g_free().
+   */
+  gchar *getCustom ()
+  {
+    GValue value = G_VALUE_INIT;
+    gchar *str;
+
+    g_value_init (&value, G_TYPE_STRING);
+    EXPECT_TRUE (gst_tensor_filter_common_get_property (&priv, PROP_CUSTOM, &value, NULL));
+    str = g_value_dup_string (&value);
+    g_value_unset (&value);
+
+    return str;
+  }
+};
+
+/**
+ * @brief An opened V1 framework refusing new custom properties keeps the old
+ *        ones, and the refusal is logged with the value and the error, as a
+ *        refused accelerator is.
+ */
+TEST_F (testFilterCustomProp, changeRefusedWhileOpened_n)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_CUSTOM, "NumThreads:1");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  accl_mock_subplugin::event_ret = -ENOENT;
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  guint critical_count;
+  guint handler = _start_accl_critical_count (&critical_count);
+#endif
+  setString (PROP_CUSTOM, "NumThreads:2");
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (critical_count, 1U);
+  EXPECT_STREQ (last_accl_critical,
+      "Cannot change custom-prop to NumThreads:2; the framework refused it (-2).");
+#endif
+
+  read = getCustom ();
+  EXPECT_STREQ (read, "NumThreads:1");
+}
+
+/**
+ * @brief An opened V1 framework taking new custom properties keeps them, with nothing logged.
+ */
+TEST_F (testFilterCustomProp, changeWhileOpened)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_CUSTOM, "NumThreads:1");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  guint critical_count;
+  guint handler = _start_accl_critical_count (&critical_count);
+#endif
+  setString (PROP_CUSTOM, "NumThreads:2");
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (critical_count, 0U);
+#endif
+
+  read = getCustom ();
+  EXPECT_STREQ (read, "NumThreads:2");
 }
 
 /**
