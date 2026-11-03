@@ -269,8 +269,8 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
   g_object_class_install_property (gobject_class, PROP_MQTT_CLIENT_ID,
       g_param_spec_string ("client-id", "Client ID",
           "The client identifier passed to the server (broker). "
-          "If it is not set, a random one is generated at start", NULL,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "If it is not set, a random one is generated at start",
+          DEFAULT_MQTT_CLIENT_ID, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MQTT_USERNAME,
       g_param_spec_string ("username", "User name",
