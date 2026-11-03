@@ -25,7 +25,7 @@ PATH_TO_PLUGIN="../../build"
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
     if [[ -d ${ini_path} ]]; then
-        check=$(ls ${ini_path} | grep [tensorflow,tensorflow2]-lite.so)
+        check=$(ls ${ini_path} | grep -E 'tensorflow[12]-lite\.so')
         if [[ ! $check ]]; then
             echo "Cannot find tensorflow-lite shared lib"
             report
@@ -48,7 +48,7 @@ else
         fi
 
         if [[ -d ${value} ]]; then
-            check=$(ls ${value} | grep [tensorflow,tensorflow2]-lite.so)
+            check=$(ls ${value} | grep -E 'tensorflow[12]-lite\.so')
             if [[ ! $check ]]; then
                 echo "Cannot find tensorflow-lite shared lib"
                 report
