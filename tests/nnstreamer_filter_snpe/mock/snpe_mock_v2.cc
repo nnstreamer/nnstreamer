@@ -854,7 +854,7 @@ Snpe_SNPE_ExecuteUserBuffers (Snpe_SNPE_Handle_t handle,
 {
   MockSNPE *snpe = static_cast<MockSNPE *> (handle);
 
-  if (!snpe || !input || !output)
+  if (!snpe || !input || !output || snpe_mock_get_failure () == SNPE_MOCK_FAIL_EXECUTE)
     return SNPE_ERRORCODE_INTERNAL_ERROR;
 
   const MockUserBuffer *in = static_cast<const MockUserBuffer *> (

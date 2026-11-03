@@ -513,7 +513,8 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
       output_buffer_map.getUserBuffer (_info->name)->setBufferAddress (output[i].data);
     }
 
-    snpe->execute (input_buffer_map, output_buffer_map);
+    if (!snpe->execute (input_buffer_map, output_buffer_map))
+      throw std::runtime_error ("Failed to execute the SNPE model.");
   } else {
     const size_t in_element_size = gst_tensor_get_element_size (input_data_type);
 
@@ -552,7 +553,8 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     }
 
     output_tensor_map.clear ();
-    snpe->execute (input_tensor_map, output_tensor_map);
+    if (!snpe->execute (input_tensor_map, output_tensor_map))
+      throw std::runtime_error ("Failed to execute the SNPE model.");
 
     const size_t out_element_size = gst_tensor_get_element_size (output_data_type);
 

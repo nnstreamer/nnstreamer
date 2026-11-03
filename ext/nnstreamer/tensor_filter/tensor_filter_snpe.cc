@@ -543,7 +543,10 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     Snpe_IUserBuffer_SetBufferAddress (iub, output[i].data);
   }
 
-  Snpe_SNPE_ExecuteUserBuffers (snpe_h, inputMap_h, outputMap_h);
+  auto err = Snpe_SNPE_ExecuteUserBuffers (snpe_h, inputMap_h, outputMap_h);
+  if (err != SNPE_SUCCESS)
+    throw std::runtime_error ("Failed to execute the SNPE model, error code "
+                              + std::to_string (static_cast<int> (err)));
 }
 
 /**

@@ -629,7 +629,8 @@ SNPE::execute (const DlSystem::TensorMap &input, DlSystem::TensorMap &output)
     m_outputs[SNPE_MOCK_OUTPUT_NAME] = std::move (out);
   }
 
-  return true;
+  /* A failed run still hands back a tensor, which the caller must not use. */
+  return snpe_mock_get_failure () != SNPE_MOCK_FAIL_EXECUTE;
 }
 
 /**
@@ -641,7 +642,7 @@ SNPE::execute (const DlSystem::UserBufferMap &input, const DlSystem::UserBufferM
   const DlSystem::IUserBuffer *in = input.getUserBuffer (SNPE_MOCK_INPUT_NAME);
   DlSystem::IUserBuffer *out = output.getUserBuffer (SNPE_MOCK_OUTPUT_NAME);
 
-  if (!out || !out->getBufferAddress ())
+  if (!out || !out->getBufferAddress () || snpe_mock_get_failure () == SNPE_MOCK_FAIL_EXECUTE)
     return false;
 
   const size_t out_elems = out->getSize () / sizeof (float);
