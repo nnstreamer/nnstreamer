@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <gst/app/gstappsink.h>
 #include <gst/gst.h>
 #include <string.h>
 #include <unittest_python3_util.h>
@@ -861,6 +862,293 @@ TEST (nnstreamerDecoderPython3, decodeFloat16_n)
 
   dec->exit (&pdata);
   gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief A flexible stream of two tensors as tensor_decoder negotiates it: the count only.
+ */
+static void
+_init_flexible_config (GstTensorsConfig *config)
+{
+  gst_tensors_config_init (config);
+  config->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  config->info.num_tensors = 2;
+  config->rate_n = 0;
+  config->rate_d = 1;
+}
+
+/**
+ * @brief Write a meta header for the given type and dimension at mem, followed by payload.
+ * @return the size of the header and the payload.
+ */
+static gsize
+_write_flexible (guint8 *mem, tensor_type type, const gchar *dim,
+    const guint8 *payload, gsize payload_size)
+{
+  GstTensorMetaInfo meta;
+  gsize hsize;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = type;
+  gst_tensor_parse_dimension (dim, meta.dimension);
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  if (!gst_tensor_meta_info_update_header (&meta, mem))
+    return 0;
+  memcpy (mem + hsize, payload, payload_size);
+
+  return hsize + payload_size;
+}
+
+/**
+ * @brief Each tensor of a flexible stream reaches the script with the type and shape of its own header, without the header.
+ */
+TEST (nnstreamerDecoderPython3, decodeFlexible)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  const guint8 payload[2 * TENSOR_SIZE] = { 1, 2, 3, 4, 5, 6, 7, 8 };
+  const gchar *types = "uint8:4 int16:2";
+  guint8 mem[2][256];
+  GstTensorMemory input[2];
+  GstBuffer *outbuf = gst_buffer_new ();
+  AssertionCounter counter;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "concat");
+
+  ASSERT_NE (dec, nullptr);
+  _init_flexible_config (&config);
+
+  /* 4 uint8 elements and 2 int16 elements: the script refuses a shape its data does not fill */
+  input[0].data = mem[0];
+  input[0].size = _write_flexible (mem[0], _NNS_UINT8, "4", payload, TENSOR_SIZE);
+  input[1].data = mem[1];
+  input[1].size = _write_flexible (mem[1], _NNS_INT16, "2", payload + TENSOR_SIZE, TENSOR_SIZE);
+  ASSERT_GT (input[0].size, TENSOR_SIZE);
+  ASSERT_GT (input[1].size, TENSOR_SIZE);
+
+  /* a byte past what the header describes is not data */
+  mem[0][input[0].size] = 0xAA;
+  input[0].size++;
+
+  _assertion_counter_start (&counter);
+  EXPECT_EQ (dec->decode (&pdata, &config, input, outbuf), GST_FLOW_OK);
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+  EXPECT_EQ (gst_buffer_get_size (outbuf), sizeof (payload));
+  EXPECT_EQ (gst_buffer_memcmp (outbuf, 0, payload, sizeof (payload)), 0);
+  gst_buffer_unref (outbuf);
+  dec->exit (&pdata);
+
+  /* the script sees the numpy types of the headers */
+  dec = _open_decoder (&pdata, "types");
+  ASSERT_NE (dec, nullptr);
+  outbuf = gst_buffer_new ();
+  EXPECT_EQ (dec->decode (&pdata, &config, input, outbuf), GST_FLOW_OK);
+  EXPECT_EQ (gst_buffer_get_size (outbuf), strlen (types));
+  EXPECT_EQ (gst_buffer_memcmp (outbuf, 0, types, strlen (types)), 0);
+
+  gst_buffer_unref (outbuf);
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief A flexible tensor without a valid header, or with less data than its header describes, is refused.
+ */
+TEST (nnstreamerDecoderPython3, decodeFlexibleInvalidHeader_n)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  const guint8 payload[TENSOR_SIZE] = { 1, 2, 3, 4 };
+  guint8 mem[2][256];
+  gsize full_size;
+  GstTensorMemory input[2];
+  GstBuffer *outbuf;
+  AssertionCounter counter;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "concat");
+
+  ASSERT_NE (dec, nullptr);
+  _init_flexible_config (&config);
+
+  full_size = _write_flexible (mem[0], _NNS_UINT8, "4", payload, TENSOR_SIZE);
+  ASSERT_GT (full_size, TENSOR_SIZE);
+  memcpy (mem[1], mem[0], full_size);
+  input[0].data = mem[0];
+  input[0].size = full_size;
+  input[1].data = mem[1];
+
+  _assertion_counter_start (&counter);
+
+  /* shorter than a header */
+  input[1].size = TENSOR_SIZE;
+  outbuf = gst_buffer_new ();
+  EXPECT_EQ (dec->decode (&pdata, &config, input, outbuf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_buffer_get_size (outbuf), 0U);
+  gst_buffer_unref (outbuf);
+
+  /* a header with less data than it describes */
+  input[1].size = full_size - 1;
+  outbuf = gst_buffer_new ();
+  EXPECT_EQ (dec->decode (&pdata, &config, input, outbuf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_buffer_get_size (outbuf), 0U);
+  gst_buffer_unref (outbuf);
+
+  /* no header: the raw data of a static tensor */
+  memset (mem[1], 0, sizeof (mem[1]));
+  input[1].size = full_size;
+  outbuf = gst_buffer_new ();
+  EXPECT_EQ (dec->decode (&pdata, &config, input, outbuf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_buffer_get_size (outbuf), 0U);
+  gst_buffer_unref (outbuf);
+
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+
+  /* the instance still decodes a valid stream */
+  memcpy (mem[1], mem[0], full_size);
+  input[1].size = full_size;
+  outbuf = gst_buffer_new ();
+  EXPECT_EQ (dec->decode (&pdata, &config, input, outbuf), GST_FLOW_OK);
+  EXPECT_EQ (gst_buffer_get_size (outbuf), 2 * TENSOR_SIZE);
+  gst_buffer_unref (outbuf);
+
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief A sparse tensor in a flexible stream is refused instead of reaching the script as dense data.
+ */
+TEST (nnstreamerDecoderPython3, decodeFlexibleSparse_n)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  const guint8 payload[TENSOR_SIZE] = { 1, 2, 3, 4 };
+  guint8 mem[2][256];
+  GstTensorMetaInfo meta;
+  GstTensorMemory input[2];
+  GstBuffer *outbuf = gst_buffer_new ();
+  AssertionCounter counter;
+  /* "fixed" decodes anything, so only the decoder itself can refuse */
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "fixed");
+
+  ASSERT_NE (dec, nullptr);
+  _init_flexible_config (&config);
+
+  input[0].data = mem[0];
+  input[0].size = _write_flexible (mem[0], _NNS_UINT8, "4", payload, TENSOR_SIZE);
+  ASSERT_GT (input[0].size, TENSOR_SIZE);
+
+  /* one uint8 value and its index */
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4", meta.dimension);
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.sparse_info.nnz = 1;
+  ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, mem[1]));
+  memset (mem[1] + gst_tensor_meta_info_get_header_size (&meta), 0,
+      gst_tensor_meta_info_get_data_size (&meta));
+  input[1].data = mem[1];
+  input[1].size = gst_tensor_meta_info_get_header_size (&meta)
+                  + gst_tensor_meta_info_get_data_size (&meta);
+
+  _assertion_counter_start (&counter);
+  EXPECT_EQ (dec->decode (&pdata, &config, input, outbuf), GST_FLOW_ERROR);
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+  EXPECT_EQ (gst_buffer_get_size (outbuf), 0U);
+
+  gst_buffer_unref (outbuf);
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief A static tensor of no valid type is refused instead of being sized by a zero element size.
+ */
+TEST (nnstreamerDecoderPython3, decodeInvalidType_n)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  gboolean matched = TRUE;
+  AssertionCounter counter;
+  GstFlowReturn ret;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "concat");
+
+  ASSERT_NE (dec, nullptr);
+  _init_config (&config);
+  config.info.info[1].type = _NNS_END;
+
+  _assertion_counter_start (&counter);
+  ret = _decode_and_check (dec, &pdata, &config, 3, &matched);
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_FALSE (matched);
+
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Run a 4x4 RGB frame through tensor_converter and the python3 decoder ("concat").
+ * @param caps The caps between the converter and the decoder.
+ * @return the decoded buffer, or NULL if no buffer reached the sink.
+ */
+static GstBuffer *
+_decode_frame (const gchar *caps)
+{
+  gchar *script = _script_path ();
+  gchar *desc = g_strdup_printf ("videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=4,height=4 ! "
+                                 "tensor_converter ! %s ! tensor_decoder mode=python3 option1=%s ! "
+                                 "appsink name=sink sync=false",
+      caps, script);
+  GstElement *pipeline = gst_parse_launch (desc, NULL);
+  GstElement *sink;
+  GstSample *sample;
+  GstBuffer *buffer = NULL;
+
+  g_free (desc);
+  g_free (script);
+  if (pipeline == NULL)
+    return NULL;
+
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 10 * GST_SECOND);
+  if (sample) {
+    buffer = gst_buffer_ref (gst_sample_get_buffer (sample));
+    gst_sample_unref (sample);
+  }
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (sink);
+  gst_object_unref (pipeline);
+
+  return buffer;
+}
+
+/**
+ * @brief A pipeline decodes a flexible stream into the same bytes as the static stream of the same frame.
+ */
+TEST (nnstreamerDecoderPython3, pipelineFlexible)
+{
+  GstBuffer *static_buf, *flex_buf;
+  GstMapInfo map;
+
+  ASSERT_NE (nnstreamer_decoder_find ("python3"), nullptr);
+  ASSERT_TRUE (py_test_setenv ("NNS_TEST_PY_DECODER_MODE", "concat"));
+
+  static_buf = _decode_frame ("other/tensors,format=static");
+  ASSERT_NE (static_buf, nullptr);
+  flex_buf = _decode_frame ("other/tensors,format=flexible");
+  ASSERT_NE (flex_buf, nullptr);
+
+  EXPECT_EQ (gst_buffer_get_size (static_buf), 4U * 4U * 3U);
+  ASSERT_EQ (gst_buffer_get_size (flex_buf), gst_buffer_get_size (static_buf));
+  ASSERT_TRUE (gst_buffer_map (static_buf, &map, GST_MAP_READ));
+  EXPECT_EQ (gst_buffer_memcmp (flex_buf, 0, map.data, map.size), 0);
+  gst_buffer_unmap (static_buf, &map);
+
+  gst_buffer_unref (flex_buf);
+  gst_buffer_unref (static_buf);
 }
 
 /**

@@ -10,7 +10,8 @@
 # @note    NNS_TEST_PY_DECODER_MODE, read when an instance is created, selects what decode does:
 #          concat (default) checks raw_data against in_info and returns the tensors as bytes,
 #          raise raises an exception, fixed returns FIXED, text returns a str from decode
-#          and getOutCaps, init-raise raises in the constructor.
+#          and getOutCaps, init-raise raises in the constructor, types checks as concat does
+#          and returns "<dtype>:<size>" of each tensor, separated by spaces.
 
 import os
 
@@ -39,7 +40,7 @@ class CustomDecoder:
 
     ##
     # @brief  Python callback: decode
-    # @param  raw_data  List of the input tensors as 1-D uint8 numpy arrays
+    # @param  raw_data  List of the input tensors as 1-D numpy arrays of the types in in_info
     # @param  in_info  List of nns.TensorShape of the input tensors
     # @param  rate_n  Numerator of the framerate
     # @param  rate_d  Denominator of the framerate
@@ -57,4 +58,8 @@ class CustomDecoder:
             dims = [d for d in info.getDims() if d > 0]
             if data.size != int(np.prod(dims)):
                 raise ValueError('a tensor does not match its dimensions')
+            if data.dtype != info.getType():
+                raise ValueError('a tensor does not match its type')
+        if self.mode == 'types':
+            return ' '.join(f'{data.dtype}:{data.size}' for data in raw_data).encode()
         return b''.join(data.tobytes() for data in raw_data)

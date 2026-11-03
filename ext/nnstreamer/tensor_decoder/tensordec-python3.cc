@@ -131,9 +131,13 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
   PyObject *raw_data, *in_info;
   GstFlowReturn ret = GST_FLOW_OK;
   GstTensorsInfo *info;
+  GstTensorMetaInfo meta;
+  GstTensorInfo flex_info;
+  gboolean is_flexible;
 
   Py_LOCK ();
   info = (GstTensorsInfo *) &config->info;
+  is_flexible = gst_tensors_config_is_flexible (config);
   raw_data = PyList_New (info->num_tensors);
   in_info = PyList_New (info->num_tensors);
   rate_n = config->rate_n;
@@ -141,11 +145,54 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
 
   for (unsigned int i = 0; i < info->num_tensors; i++) {
     GstTensorInfo *_info = gst_tensors_info_get_nth_info (info, i);
+    guint8 *data = (guint8 *) input[i].data;
+    gsize data_size = input[i].size;
+
+    if (is_flexible) {
+      gsize hsize;
+
+      gst_tensor_meta_info_init (&meta);
+
+      /* parse_header () reads a whole header of the default version before validating it */
+      if (input[i].size < gst_tensor_meta_info_get_header_size (&meta)
+          || !gst_tensor_meta_info_parse_header (&meta, input[i].data)
+          || !gst_tensor_meta_info_convert (&meta, &flex_info)) {
+        ml_loge ("Failed to parse the meta header of the tensor %u in the python3 decoder.\n", i);
+        ret = GST_FLOW_ERROR;
+        goto done;
+      }
+
+      if (meta.format == _NNS_TENSOR_FORMAT_SPARSE) {
+        ml_loge ("The tensor %u of the python3 decoder is sparse, which it cannot pass as a dense array.\n",
+            i);
+        ret = GST_FLOW_ERROR;
+        goto done;
+      }
+
+      hsize = gst_tensor_meta_info_get_header_size (&meta);
+      data_size = gst_tensor_meta_info_get_data_size (&meta);
+      if (data_size > input[i].size - hsize) {
+        ml_loge ("The tensor %u of the python3 decoder describes %zu bytes of data after a %zu-byte header, which does not fit in the %zu bytes it carries.\n",
+            i, data_size, hsize, input[i].size);
+        ret = GST_FLOW_ERROR;
+        goto done;
+      }
+
+      data += hsize;
+      _info = &flex_info;
+    }
+
     tensor_type nns_type = _info->type;
-    npy_intp input_dims[]
-        = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
-    PyObject *input_array = PyArray_SimpleNewFromData (
-        1, input_dims, getNumpyType (nns_type), input[i].data);
+    gsize element_size = gst_tensor_get_element_size (nns_type);
+    if (element_size == 0) {
+      ml_loge ("The tensor %u of the python3 decoder has an invalid type.\n", i);
+      ret = GST_FLOW_ERROR;
+      goto done;
+    }
+
+    npy_intp input_dims[] = { (npy_intp) (data_size / element_size) };
+    PyObject *input_array
+        = PyArray_SimpleNewFromData (1, input_dims, getNumpyType (nns_type), data);
     if (!input_array) {
       Py_ERRMSG ("Cannot pass the tensor %u (%s) to 'decode' of the python3 decoder.\n",
           i, gst_tensor_get_type_string (nns_type));

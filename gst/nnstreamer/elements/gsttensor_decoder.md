@@ -137,6 +137,9 @@ class CustomDecoder(object):
     return data
 
 ```
+`raw_data` is a list of 1-D numpy arrays, one per tensor, and `in_info` is a list of `TensorShape` objects giving the dimension and type of each tensor.
+On a flexible stream (`other/tensors,format=flexible`), each array holds the data after the meta header of its memory, and its dimension and type are the ones that header describes. A memory without a valid header, with less data than its header describes, or with a sparse tensor fails the buffer.
+
 Example pipeline
 ```
 ... (tensors) ! tensor_decoder mode=python3 option1=custom_decoder_example.py ! (any media stream) ...
