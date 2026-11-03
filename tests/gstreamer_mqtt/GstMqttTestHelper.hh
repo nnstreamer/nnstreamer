@@ -104,7 +104,7 @@ class GstMqttTestHelper
    */
   void setFailUnsubscribe (bool flag)
   {
-    this->fail_subscribe = flag;
+    this->fail_unsubscribe = flag;
   }
 
   /**
@@ -333,6 +333,30 @@ class GstMqttTestHelper
   }
 
   /**
+   * @brief Record the topic given to a call to MQTTAsync_unsubscribe ()
+   */
+  void recordUnsubscribe (const char *topic)
+  {
+    this->last_unsub_topic.assign (topic ? topic : "");
+  }
+
+  /**
+   * @brief Getter for the topic given to the most recent MQTTAsync_unsubscribe () call (empty: none since the last reset)
+   */
+  const std::string &getLastUnsubscribeTopic ()
+  {
+    return this->last_unsub_topic;
+  }
+
+  /**
+   * @brief Reset the record of MQTTAsync_unsubscribe () calls
+   */
+  void resetUnsubscribeRecord ()
+  {
+    this->last_unsub_topic.clear ();
+  }
+
+  /**
    * @brief Record the timeout (in milliseconds) given to a call to MQTTAsync_disconnect ()
    */
   void recordDisconnect (int timeout)
@@ -400,5 +424,6 @@ class GstMqttTestHelper
   int last_payloadlen;
   std::vector<guint8> last_payload;
 
+  std::string last_unsub_topic;
   int last_disconnect_timeout;
 };

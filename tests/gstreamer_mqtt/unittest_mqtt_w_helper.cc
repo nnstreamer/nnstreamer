@@ -290,6 +290,7 @@ MQTTAsync_unsubscribe (MQTTAsync handle, const char *topic, MQTTAsync_responseOp
   void *ctx = response->context;
   std::future<void> ret;
 
+  GstMqttTestHelper::getInstance ().recordUnsubscribe (topic);
   if (GstMqttTestHelper::getInstance ().getFailUnsubscribe ()) {
     fdata.code = -1;
     fdata.message = "";
@@ -2623,7 +2624,7 @@ free_strs:
 }
 
 /**
- * @brief Fail test case for mqttsrc #2 (MQTTAsync_unsubscribe failure case)
+ * @brief Test mqttsrc shutting down when MQTTAsync_unsubscribe () fails
  */
 TEST (testMqttSrcWithHelper, srcNormalLaunch2)
 {
@@ -2655,6 +2656,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
 
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstMqttTestHelper::getInstance ().setFailUnsubscribe (TRUE);
+  GstMqttTestHelper::getInstance ().resetUnsubscribeRecord ();
 
   msg = (MQTTAsync_message *) g_try_malloc0 (sizeof (*msg));
   if (!msg) {
@@ -2695,16 +2697,17 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   EXPECT_TRUE (ma_ret.get ());
 
   ret = gst_element_get_state (pipeline, &cur_state, NULL, GST_CLOCK_TIME_NONE);
-  EXPECT_EQ (ret, GST_STATE_CHANGE_FAILURE);
-  EXPECT_EQ (cur_state, GST_STATE_PAUSED);
+  EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (cur_state, GST_STATE_PLAYING);
 
-  GstMqttTestHelper::getInstance ().setFailUnsubscribe (FALSE);
-
+  /* PLAYING_TO_PAUSED fails to unsubscribe; the shutdown still completes */
   ret = gst_element_set_state (pipeline, GST_STATE_NULL);
   EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
 
   ret = gst_element_get_state (pipeline, &cur_state, NULL, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_STREQ (GstMqttTestHelper::getInstance ().getLastUnsubscribeTopic ().c_str (), topic_name);
+  GstMqttTestHelper::getInstance ().setFailUnsubscribe (FALSE);
   gst_object_unref (pipeline);
 
   g_free (msg->payload);
