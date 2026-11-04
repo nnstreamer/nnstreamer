@@ -825,6 +825,160 @@ TEST (tensorRepo, setBufferAfterEos_n)
 }
 
 /**
+ * @brief Pipeline passing three frames through a tensor_reposink and a
+ *        tensor_reposrc sharing one slot.
+ */
+#define REPO_PAIR_PIPELINE                                                                       \
+  "videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "       \
+  "tensor_converter ! queue ! tensor_reposink slot-index=%u "                                    \
+  "tensor_reposrc slot-index=%u "                                                                \
+  "caps=\"other/tensor,dimension=(string)3:4:4:1,type=(string)uint8,framerate=(fraction)30/1\" " \
+  "! tensor_sink name=sinkx"
+
+/**
+ * @brief Play the pipeline and return the message that ended the stream, or
+ *        NULL if none came in time.
+ */
+static GstMessage *
+play_repo_pipeline (GstElement *pipeline)
+{
+  GstBus *bus;
+  GstMessage *msg;
+
+  bus = gst_element_get_bus (pipeline);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  msg = gst_bus_timed_pop_filtered (bus, 5 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
+  gst_object_unref (bus);
+
+  return msg;
+}
+
+/**
+ * @brief A tensor_reposink and tensor_reposrc pair played to the end, stopped
+ *        and played again passes the same buffers in the second run.
+ */
+TEST (tensorRepo, pipelineRestart)
+{
+  const guint slot = 1009;
+  gchar *str_pipeline;
+  GstElement *pipeline, *sink;
+  GstMessage *msg;
+  guint received = 0;
+  guint run;
+
+  str_pipeline = g_strdup_printf (REPO_PAIR_PIPELINE, slot, slot);
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  ASSERT_NE (pipeline, nullptr);
+
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink, nullptr);
+  g_signal_connect (sink, "new-data", G_CALLBACK (count_output), &received);
+
+  for (run = 0; run < 2; run++) {
+    g_atomic_int_set (&received, 0);
+    msg = play_repo_pipeline (pipeline);
+    EXPECT_NE (msg, nullptr) << "run " << run;
+
+    if (msg != NULL) {
+      EXPECT_EQ (GST_MESSAGE_TYPE (msg), GST_MESSAGE_EOS) << "run " << run;
+      gst_message_unref (msg);
+    }
+
+    /* the frame tensor_reposrc starts with, then the three frames */
+    EXPECT_EQ ((guint) g_atomic_int_get (&received), 4U) << "run " << run;
+
+    /* let the element waiting on the slot end if the stream did not */
+    if (msg == NULL)
+      gst_tensor_repo_set_eos (slot);
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  }
+
+  gst_object_unref (sink);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief reset_stream() lets a slot that reached eos pass buffers again, and
+ *        drops the buffer the previous stream left unpulled.
+ */
+TEST (tensorRepo, resetStream)
+{
+  const guint slot = 1106;
+  GstCaps *caps, *out_caps = NULL;
+  GstBuffer *stale, *fresh, *out_buf = NULL;
+  gboolean eos = FALSE;
+  gboolean finished;
+  guint8 value = 0;
+  guint newid = 0;
+  RepoJob *job;
+  GThread *thread;
+
+  gst_tensor_repo_init ();
+  ASSERT_TRUE (gst_tensor_repo_add_repodata (slot, TRUE));
+
+  caps = gst_caps_from_string (TEST_REPO_CAPS);
+  ASSERT_NE (caps, nullptr);
+  stale = gst_buffer_new_allocate (NULL, 4, NULL);
+  gst_buffer_memset (stale, 0, 1, 4);
+  fresh = gst_buffer_new_allocate (NULL, 4, NULL);
+  gst_buffer_memset (fresh, 0, 2, 4);
+
+  ASSERT_TRUE (gst_tensor_repo_set_buffer (slot, stale, caps));
+  ASSERT_TRUE (gst_tensor_repo_set_eos (slot));
+  EXPECT_TRUE (gst_tensor_repo_check_eos (slot));
+
+  EXPECT_TRUE (gst_tensor_repo_reset_stream (slot));
+  EXPECT_FALSE (gst_tensor_repo_check_eos (slot));
+
+  /* set_buffer() waits for a stale buffer to be pulled, so run it aside */
+  job = repo_job_new (OP_SET_BUFFER, slot);
+  job->in_buffer = fresh;
+  job->in_caps = caps;
+  thread = g_thread_new ("resetStream", repo_job_thread, job);
+
+  finished = wait_ctx_join_or_timeout (&job->ctx, REPO_WAIT_TIMEOUT_US);
+  if (finished) {
+    out_buf = gst_tensor_repo_get_buffer (slot, &eos, &newid, &out_caps);
+    EXPECT_TRUE (gst_tensor_repo_remove_repodata (slot));
+  } else {
+    /* wake the worker up to join it */
+    EXPECT_TRUE (gst_tensor_repo_remove_repodata (slot));
+    ADD_FAILURE () << "set_buffer() waited on the buffer of the previous stream";
+  }
+  g_thread_join (thread);
+
+  EXPECT_TRUE (job->set_ret);
+  EXPECT_NE (out_buf, nullptr);
+  EXPECT_FALSE (eos);
+
+  if (out_buf) {
+    EXPECT_EQ (gst_buffer_extract (out_buf, 0, &value, 1), 1U);
+    EXPECT_EQ (value, 2U);
+    gst_buffer_unref (out_buf);
+  }
+  if (out_caps)
+    gst_caps_unref (out_caps);
+
+  repo_job_free (job);
+  gst_buffer_unref (stale);
+  gst_buffer_unref (fresh);
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief reset_stream() on a slot that was never added fails.
+ */
+TEST (tensorRepo, resetStreamUnknownSlot_n)
+{
+  const guint slot = 1107;
+
+  gst_tensor_repo_init ();
+  EXPECT_FALSE (gst_tensor_repo_reset_stream (slot));
+}
+
+/**
  * @brief Number of tensors a stream carries to reach GstTensorsInfo::extra.
  */
 #define EXTRA_NUM_TENSORS ((guint) (NNS_TENSOR_MEMORY_MAX + 4))

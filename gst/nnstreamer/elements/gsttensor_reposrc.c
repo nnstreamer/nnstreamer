@@ -61,6 +61,7 @@ static void gst_tensor_reposrc_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void gst_tensor_reposrc_dispose (GObject * object);
 static GstCaps *gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter);
+static gboolean gst_tensor_reposrc_start (GstBaseSrc * src);
 static GstFlowReturn gst_tensor_reposrc_create (GstPushSrc * src,
     GstBuffer ** buffer);
 
@@ -102,6 +103,7 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   basesrc_class->get_caps = gst_tensor_reposrc_getcaps;
+  basesrc_class->start = gst_tensor_reposrc_start;
   pushsrc_class->create = gst_tensor_reposrc_create;
 
   gst_element_class_set_static_metadata (element_class,
@@ -199,6 +201,20 @@ gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter)
   GST_OBJECT_UNLOCK (self);
 
   return result;
+}
+
+/**
+ * @brief start func of tensor_reposrc, to begin each stream as the first one
+ */
+static gboolean
+gst_tensor_reposrc_start (GstBaseSrc * src)
+{
+  GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (src);
+
+  self->ini = FALSE;
+  self->negotiation = FALSE;
+
+  return TRUE;
 }
 
 /**
