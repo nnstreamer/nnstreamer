@@ -13,7 +13,14 @@ jobs:
       contents: read
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Check if rebuild required
+      uses: ./.github/actions/check-rebuild
+      with:
+        mode: rebuild
     - name: Install model-free test dependencies
+      if: env.rebuild == '1'
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential meson ninja-build pkg-config \
@@ -21,6 +28,7 @@ jobs:
           libgstreamer-plugins-base1.0-dev libunwind-dev libgtest-dev \
           liborc-0.4-dev libpng-dev flex bison gstreamer1.0-plugins-base valgrind
     - name: Build instrumented core and asynchronous fixture
+      if: env.rebuild == '1'
       env:
         CC: gcc
         CXX: g++
@@ -30,6 +38,7 @@ jobs:
           -Dnnstreamer-edge-support=disabled
         meson compile -C build-tsan -j2
     - name: Check selected-output ownership with Memcheck
+      if: env.rebuild == '1'
       env:
         CC: gcc
         CXX: g++
@@ -41,6 +50,7 @@ jobs:
           --test-args='--gtest_filter=testFilterAsyncOutput.*' \
           --wrapper='valgrind --error-exitcode=99 --leak-check=full --show-leak-kinds=definite,indirect --errors-for-leak-kinds=definite,indirect'
     - name: Check the race detector and its unsafe negative control
+      if: env.rebuild == '1'
       run: python3 tests/nnstreamer_filter_common/check_async_tsan.py build-tsan
     - uses: actions/upload-artifact@v4
       if: failure()
