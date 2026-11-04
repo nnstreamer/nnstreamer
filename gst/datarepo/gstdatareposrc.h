@@ -77,7 +77,7 @@ struct _GstDataRepoSrc {
   GstCaps *caps;                /**< optional property, datareposrc should get data format from JSON file caps field */
 
   /* flexible tensors */
-  GstTensorsConfig config;          /**< tensors information from current caps */
+  GstTensorsConfig config;          /**< tensors information of a sample in the repository */
   JsonArray *sample_offset_array;   /**< offset array of sample */
   JsonArray *tensor_size_array;     /**< size array of flexible tensor to be stored in a Gstbuffer */
   JsonArray *tensor_count_array;    /**< array for the number of cumulative tensors */
