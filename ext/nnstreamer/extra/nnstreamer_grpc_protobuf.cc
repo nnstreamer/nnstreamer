@@ -60,7 +60,7 @@ ServiceImplProtobuf::fill_tensors (Tensors &tensors)
 {
   GstDataQueueItem *item;
 
-  if (!gst_data_queue_pop (queue_, &item))
+  if (!_pop_item (&item))
     return FALSE;
 
   _get_tensors_from_buffer (GST_BUFFER (item->object), tensors);
@@ -100,7 +100,11 @@ ServiceImplProtobuf::_write_tensors (T writer)
     if (!fill_tensors (tensors))
       break;
 
-    writer->Write (tensors);
+    /* a server call whose client is gone would go on taking the buffers of the other calls */
+    if (!writer->Write (tensors) && is_server_) {
+      ml_logw ("A gRPC client is gone; its call ends and drops the buffer it was sent.");
+      break;
+    }
   }
 
   return Status::OK;
