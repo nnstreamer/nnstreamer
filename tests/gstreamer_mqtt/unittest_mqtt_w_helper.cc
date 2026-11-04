@@ -33,6 +33,7 @@
 #include "GstMqttTestHelper.hh"
 #include "mqttcommon.h"
 #include "mqttsink.h"
+#include "mqttsrc.h"
 #include "ntputil.h"
 
 std::unique_ptr<GstMqttTestHelper> GstMqttTestHelper::mInstance;
@@ -300,6 +301,33 @@ MQTTAsync_unsubscribe (MQTTAsync handle, const char *topic, MQTTAsync_responseOp
 
   ret = std::async (std::launch::async, response->onSuccess, ctx, &data);
   return MQTTASYNC_SUCCESS;
+}
+
+/** The messages and topic names mqttsrc has released through the mocks below */
+static std::atomic<int> released_message_count (0);
+static std::atomic<int> released_topic_count (0);
+
+/**
+ * @brief A mock function for MQTTAsync_free() in paho-mqtt-c
+ * @note The tests own the topic names they hand to the message callback and free them
+ *       themselves, whichever Paho build is in use, so this only counts the release.
+ */
+void
+MQTTAsync_free (void *ptr)
+{
+  if (ptr)
+    released_topic_count++;
+}
+
+/**
+ * @brief A mock function for MQTTAsync_freeMessage() in paho-mqtt-c
+ * @note The tests own the messages they hand to the message callback, as above.
+ */
+void
+MQTTAsync_freeMessage (MQTTAsync_message **msg)
+{
+  released_message_count++;
+  *msg = NULL;
 }
 
 /**
@@ -2784,6 +2812,375 @@ free_strs:
 
   if (err_flag)
     FAIL () << err_msg;
+}
+
+/** The memory sizes of the buffer sent from mqttsink to mqttsrc */
+static const gsize round_trip_sizes[] = { 24, 40 };
+
+/** The timestamps of the buffer sent from mqttsink to mqttsrc */
+static const GstClockTime round_trip_pts = 100 * GST_MSECOND;
+static const GstClockTime round_trip_dts = 50 * GST_MSECOND;
+static const GstClockTime round_trip_duration = 33 * GST_MSECOND;
+
+/**
+ * @brief A mqttsrc pipeline receiving what mqttsink sent, and the buffers its fakesink got
+ */
+struct round_trip_src {
+  GstElement *pipeline;
+  GstElement *src;
+  MQTTAsync_messageArrived *ma;
+  void *ctx;
+  GMutex lock;
+  std::vector<GstBuffer *> received;
+};
+
+/**
+ * @brief A fakesink handoff callback keeping a reference to each buffer it renders
+ */
+static void
+_round_trip_handoff (GstElement *, GstBuffer *buf, GstPad *, gpointer user_data)
+{
+  round_trip_src *rt = static_cast<round_trip_src *> (user_data);
+
+  g_mutex_lock (&rt->lock);
+  rt->received.push_back (gst_buffer_ref (buf));
+  g_mutex_unlock (&rt->lock);
+}
+
+/**
+ * @brief Start a mqttsrc pipeline that ends after one buffer, and keep its message callback
+ * @note A live mqttsrc syncs on its buffer times, so GstBaseSrc offsets its first buffer to the
+ *       running time and hides the epoch mapping: mqttsrc is not live here. The capsfilter is
+ *       there because mqttsrc leaves its pad without caps when the peer accepts any caps
+ *       (#5228): drop it once that is fixed.
+ */
+static bool
+_start_round_trip_src (round_trip_src *rt, const gchar *topic)
+{
+  gchar *str_pipeline = g_strdup_printf (
+      "mqttsrc name=src sub-topic=%s is-live=false num-buffers=1 "
+      "sub-timeout=%" G_GINT64_FORMAT " ! capsfilter caps=application/octet-stream ! "
+      "fakesink name=sink sync=false signal-handoffs=true",
+      topic, G_TIME_SPAN_MINUTE);
+  GstElement *sink;
+  GstState state;
+
+  g_mutex_init (&rt->lock);
+  rt->pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  if (!rt->pipeline)
+    return false;
+
+  rt->src = gst_bin_get_by_name (GST_BIN (rt->pipeline), "src");
+  sink = gst_bin_get_by_name (GST_BIN (rt->pipeline), "sink");
+  g_signal_connect (sink, "handoff", G_CALLBACK (_round_trip_handoff), rt);
+  gst_object_unref (sink);
+
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  if (gst_element_set_state (rt->pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE)
+    return false;
+  if (gst_element_get_state (rt->src, &state, NULL, 10 * GST_SECOND) != GST_STATE_CHANGE_SUCCESS
+      || state != GST_STATE_PLAYING)
+    return false;
+
+  /** mqttsink replaces the callbacks registered in the helper when it starts */
+  rt->ma = GstMqttTestHelper::getInstance ().getCbMessageArrived ();
+  rt->ctx = GstMqttTestHelper::getInstance ().getContext ();
+
+  return rt->ma != nullptr && rt->ctx == rt->src;
+}
+
+/**
+ * @brief Wait for the end of the stream of a round-trip mqttsrc pipeline
+ */
+static bool
+_wait_round_trip_eos (round_trip_src *rt)
+{
+  GstBus *bus = gst_element_get_bus (rt->pipeline);
+  GstMessage *msg = gst_bus_timed_pop_filtered (bus, 30 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  bool eos = msg && GST_MESSAGE_TYPE (msg) == GST_MESSAGE_EOS;
+
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  return eos;
+}
+
+/**
+ * @brief Stop a round-trip mqttsrc pipeline and drop the buffers it received
+ */
+static void
+_stop_round_trip_src (round_trip_src *rt)
+{
+  if (rt->pipeline) {
+    gst_element_set_state (rt->pipeline, GST_STATE_NULL);
+    gst_element_get_state (rt->pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
+  }
+  for (GstBuffer *buf : rt->received)
+    gst_buffer_unref (buf);
+  rt->received.clear ();
+  if (rt->src)
+    gst_object_unref (rt->src);
+  if (rt->pipeline)
+    gst_object_unref (rt->pipeline);
+  g_mutex_clear (&rt->lock);
+}
+
+/**
+ * @brief Make caps whose string takes the whole caps field of the message header but its terminator
+ */
+static GstCaps *
+_new_longest_header_caps (void)
+{
+  GstCaps *caps = gst_caps_new_simple (
+      "application/octet-stream", "pad", G_TYPE_STRING, "a", NULL);
+  gchar *str = gst_caps_to_string (caps);
+  std::string pad (GST_MQTT_MAX_LEN_GST_CAPS_STR - strlen (str), 'a');
+
+  g_free (str);
+  gst_caps_unref (caps);
+
+  return gst_caps_new_simple (
+      "application/octet-stream", "pad", G_TYPE_STRING, pad.c_str (), NULL);
+}
+
+/**
+ * @brief Publish one two-memory buffer with mqttsink and return the payload it gave MQTTAsync_send ()
+ */
+static std::vector<guint8>
+_publish_round_trip_buffer (GstCaps *caps)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  std::vector<guint8> payload;
+  GstBuffer *in_buf;
+  guint i;
+
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+  gst_harness_set_src_caps (h, gst_caps_ref (caps));
+
+  in_buf = gst_buffer_new ();
+  for (i = 0; i < G_N_ELEMENTS (round_trip_sizes); ++i) {
+    GstMemory *mem = gst_allocator_alloc (NULL, round_trip_sizes[i], NULL);
+    GstMapInfo map;
+
+    gst_memory_map (mem, &map, GST_MAP_WRITE);
+    memset (map.data, 0xA0 + i, map.size);
+    gst_memory_unmap (mem, &map);
+    gst_buffer_append_memory (in_buf, mem);
+  }
+  GST_BUFFER_PTS (in_buf) = round_trip_pts;
+  GST_BUFFER_DTS (in_buf) = round_trip_dts;
+  GST_BUFFER_DURATION (in_buf) = round_trip_duration;
+
+  if (gst_harness_push (h, in_buf) == GST_FLOW_OK
+      && GstMqttTestHelper::getInstance ().getSendCount () == 1)
+    payload = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+  gst_harness_teardown (h);
+
+  return payload;
+}
+
+/**
+ * @brief Hand a copy of @a payload to mqttsrc as a message arriving on @a topic
+ * @return The message, to be freed by the caller after the pipeline is gone
+ */
+static MQTTAsync_message *
+_deliver_round_trip_payload (
+    round_trip_src *rt, gchar *topic, const std::vector<guint8> &payload)
+{
+  MQTTAsync_message init = MQTTAsync_message_initializer;
+  MQTTAsync_message *msg = g_new (MQTTAsync_message, 1);
+
+  *msg = init;
+  msg->payloadlen = (int) payload.size ();
+  msg->payload = g_malloc (payload.size ());
+  memcpy (msg->payload, payload.data (), payload.size ());
+
+  EXPECT_TRUE (rt->ma (rt->ctx, topic, 0, msg));
+
+  return msg;
+}
+
+/**
+ * @brief Free the messages of a round trip after its pipeline is gone
+ */
+static void
+_free_round_trip_messages (std::vector<MQTTAsync_message *> &msgs)
+{
+  for (MQTTAsync_message *msg : msgs) {
+    g_free (msg->payload);
+    g_free (msg);
+  }
+  msgs.clear ();
+}
+
+/**
+ * @brief Check that @a buf carries the memories mqttsink was given in _publish_round_trip_buffer ()
+ */
+static void
+_expect_round_trip_memories (GstBuffer *buf)
+{
+  guint i;
+
+  ASSERT_EQ (gst_buffer_n_memory (buf), G_N_ELEMENTS (round_trip_sizes));
+  for (i = 0; i < G_N_ELEMENTS (round_trip_sizes); ++i) {
+    GstMemory *mem = gst_buffer_peek_memory (buf, i);
+    gsize mismatches = 0;
+    GstMapInfo map;
+    gsize j;
+
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    EXPECT_EQ (map.size, round_trip_sizes[i]);
+    for (j = 0; j < map.size; ++j) {
+      if (map.data[j] != (guint8) (0xA0 + i))
+        mismatches++;
+    }
+    EXPECT_EQ (mismatches, 0U) << "memory " << i;
+    gst_memory_unmap (mem, &map);
+  }
+}
+
+/**
+ * @brief Check that the srcpad of a round-trip mqttsrc took @a caps
+ */
+static void
+_expect_round_trip_src_caps (round_trip_src *rt, GstCaps *caps)
+{
+  GstPad *srcpad = gst_element_get_static_pad (rt->src, "src");
+  GstCaps *src_caps = gst_pad_get_current_caps (srcpad);
+
+  gst_object_unref (srcpad);
+  EXPECT_TRUE (src_caps != NULL && gst_caps_is_equal (src_caps, caps));
+  if (src_caps)
+    gst_caps_unref (src_caps);
+}
+
+/**
+ * @brief Test mqttsrc decoding what mqttsink encoded: memories, caps and timestamps on the subscriber's clock
+ */
+TEST (testMqttSrcWithHelper, sinkToSrcRoundTrip)
+{
+  const gsize len_payload
+      = GST_MQTT_LEN_MSG_HDR + round_trip_sizes[0] + round_trip_sizes[1];
+  gchar *topic = g_strdup ("round_trip_topic");
+  std::vector<MQTTAsync_message *> msgs;
+  int released_messages = released_message_count;
+  int released_topics = released_topic_count;
+  GstCaps *caps = _new_longest_header_caps ();
+  gchar *caps_str = gst_caps_to_string (caps);
+  round_trip_src rt = {};
+  std::vector<guint8> payload;
+  GstBuffer *buf = NULL;
+  GstMQTTMessageHdr hdr;
+  GstClockTimeDiff epoch_gap;
+
+  EXPECT_EQ (strlen (caps_str), (size_t) (GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
+  g_free (caps_str);
+
+  if (!_start_round_trip_src (&rt, topic)) {
+    ADD_FAILURE () << "Failed to start the mqttsrc pipeline";
+    goto stop;
+  }
+
+  payload = _publish_round_trip_buffer (caps);
+  if (payload.size () != len_payload) {
+    ADD_FAILURE () << "mqttsink sent " << payload.size () << " bytes";
+    goto stop;
+  }
+  memcpy (&hdr, payload.data (), GST_MQTT_LEN_MSG_HDR);
+
+  msgs.push_back (_deliver_round_trip_payload (&rt, topic, payload));
+  EXPECT_TRUE (_wait_round_trip_eos (&rt));
+
+  g_mutex_lock (&rt.lock);
+  EXPECT_EQ (rt.received.size (), 1U);
+  if (!rt.received.empty ())
+    buf = rt.received[0];
+  g_mutex_unlock (&rt.lock);
+  if (!buf)
+    goto stop;
+
+  _expect_round_trip_memories (buf);
+
+  _expect_round_trip_src_caps (&rt, caps);
+
+  /** The publisher started after the subscriber, so its timestamps move forward */
+  epoch_gap = hdr.base_time_epoch - GST_MQTT_SRC_CAST (rt.src)->base_time_epoch;
+  EXPECT_GT (epoch_gap, 0);
+  EXPECT_EQ (GST_BUFFER_PTS (buf), round_trip_pts + epoch_gap);
+  EXPECT_EQ (GST_BUFFER_PTS (buf) - GST_BUFFER_DTS (buf), round_trip_pts - round_trip_dts);
+  EXPECT_EQ (GST_BUFFER_DURATION (buf), round_trip_duration);
+
+stop:
+  _stop_round_trip_src (&rt);
+  /** mqttsrc releases each message and topic name it was handed exactly once */
+  EXPECT_EQ (released_message_count - released_messages, (int) msgs.size ());
+  EXPECT_EQ (released_topic_count - released_topics, (int) msgs.size ());
+  _free_round_trip_messages (msgs);
+  gst_caps_unref (caps);
+  g_free (topic);
+}
+
+/**
+ * @brief Test mqttsrc dropping a message from mqttsink patched to declare too many memories, then taking the next one
+ */
+TEST (testMqttSrcWithHelper, sinkToSrcRoundTripTooManyMemories_n)
+{
+  const gsize len_payload
+      = GST_MQTT_LEN_MSG_HDR + round_trip_sizes[0] + round_trip_sizes[1];
+  gchar *topic = g_strdup ("round_trip_topic");
+  std::vector<MQTTAsync_message *> msgs;
+  int released_messages = released_message_count;
+  int released_topics = released_topic_count;
+  GstCaps *caps = gst_caps_from_string ("application/octet-stream");
+  round_trip_src rt = {};
+  std::vector<guint8> payload;
+  std::vector<guint8> patched;
+  GstMQTTMessageHdr hdr;
+  guint i;
+
+  if (!_start_round_trip_src (&rt, topic)) {
+    ADD_FAILURE () << "Failed to start the mqttsrc pipeline";
+    goto stop;
+  }
+
+  payload = _publish_round_trip_buffer (caps);
+  if (payload.size () != len_payload) {
+    ADD_FAILURE () << "mqttsink sent " << payload.size () << " bytes";
+    goto stop;
+  }
+  patched = payload;
+  memcpy (&hdr, patched.data (), GST_MQTT_LEN_MSG_HDR);
+  hdr.num_mems = GST_MQTT_MAX_NUM_MEMS + 1;
+  for (i = G_N_ELEMENTS (round_trip_sizes); i < GST_MQTT_MAX_NUM_MEMS; ++i)
+    hdr.size_mems[i] = 0;
+  /** The 17th size would be read from base_time_epoch: make it fit, so only the count refuses */
+  hdr.base_time_epoch = 0;
+  hdr.pts = GST_MQTT_SRC_CAST (rt.src)->base_time_epoch + round_trip_pts;
+  memcpy (patched.data (), &hdr, GST_MQTT_LEN_MSG_HDR);
+
+  msgs.push_back (_deliver_round_trip_payload (&rt, topic, patched));
+  msgs.push_back (_deliver_round_trip_payload (&rt, topic, payload));
+  EXPECT_TRUE (_wait_round_trip_eos (&rt));
+
+  g_mutex_lock (&rt.lock);
+  EXPECT_EQ (rt.received.size (), 1U);
+  if (!rt.received.empty ())
+    _expect_round_trip_memories (rt.received[0]);
+  g_mutex_unlock (&rt.lock);
+  _expect_round_trip_src_caps (&rt, caps);
+
+stop:
+  _stop_round_trip_src (&rt);
+  /** mqttsrc releases each message and topic name it was handed exactly once */
+  EXPECT_EQ (released_message_count - released_messages, (int) msgs.size ());
+  EXPECT_EQ (released_topic_count - released_topics, (int) msgs.size ());
+  _free_round_trip_messages (msgs);
+  gst_caps_unref (caps);
+  g_free (topic);
 }
 
 /** How a local NTP server stub answers each request */
