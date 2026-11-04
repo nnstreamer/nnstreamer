@@ -3462,6 +3462,204 @@ TEST (tensorFilterCustomInvokeResult, zeroPassesBuffer)
   _flex_in_teardown (h);
 }
 
+/** @brief Suspend timeout (ms) of the allocate_invoke tests: long enough to release an output before the library is closed */
+#define SUSPEND_ALLOC_MS 2000U
+
+/**
+ * @brief Copy 'libnnscustom_destroy_notify' into a new directory, so that a test case can delete it.
+ * @return The path of the copy, or NULL on failure.
+ */
+static gchar *
+_suspend_alloc_copy (void)
+{
+  g_autofree gchar *lib_name = g_strconcat (
+      "libnnscustom_destroy_notify", NNSTREAMER_SO_FILE_EXTENSION, NULL);
+  g_autofree gchar *src = _b3_build_path ("nnstreamer_example", lib_name);
+  g_autofree gchar *dir = g_dir_make_tmp ("nns_suspend_alloc_XXXXXX", NULL);
+  g_autofree gchar *contents = NULL;
+  gchar *path;
+  gsize len;
+
+  if (dir == NULL || !g_file_get_contents (src, &contents, &len, NULL))
+    return NULL;
+
+  path = g_build_filename (dir, lib_name, NULL);
+  if (!g_file_set_contents (path, contents, len, NULL) || g_chmod (path, 0755) != 0) {
+    g_free (path);
+    return NULL;
+  }
+
+  return path;
+}
+
+/**
+ * @brief Delete the copy made by _suspend_alloc_copy() and its directory.
+ */
+static void
+_suspend_alloc_remove (const gchar *path)
+{
+  g_autofree gchar *dir = g_path_get_dirname (path);
+
+  g_remove (path);
+  g_rmdir (dir);
+}
+
+/**
+ * @brief Read 'nnscustom_destroy_notify_count' of the library at @a path, without loading it.
+ * @return The count, or -1 if the library is not loaded.
+ */
+static gint
+_suspend_alloc_notified (const gchar *path)
+{
+  void *handle = dlopen (path, RTLD_LAZY | RTLD_NOLOAD);
+  gint *count;
+  gint ret = -1;
+
+  if (handle == NULL)
+    return -1;
+
+  count = (gint *) dlsym (handle, "nnscustom_destroy_notify_count");
+  if (count)
+    ret = g_atomic_int_get (count);
+  dlclose (handle);
+  return ret;
+}
+
+/**
+ * @brief Wait until the suspend watchdog has closed the library at @a path.
+ */
+static gboolean
+_suspend_alloc_wait_closed (const gchar *path)
+{
+  guint waited_ms = 0;
+
+  while (_b3_is_loaded (path)) {
+    if (waited_ms >= 10 * SUSPEND_ALLOC_MS)
+      return FALSE;
+    g_usleep (10000);
+    waited_ms += 10;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Push 4 bytes and check that the output is a copy that the library releases with destroy_notify.
+ */
+static void
+_suspend_alloc_push_check (GstHarness *h, const gchar *path, guint8 seed)
+{
+  const guint8 bytes[]
+      = { seed, (guint8) (seed + 1), (guint8) (seed + 2), (guint8) (seed + 3) };
+  GstBuffer *in, *out;
+  GstMapInfo map;
+  gint notified;
+
+  in = gst_harness_create_buffer (h, sizeof (bytes));
+  gst_buffer_fill (in, 0, bytes, sizeof (bytes));
+  ASSERT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+
+  out = gst_harness_try_pull (h);
+  ASSERT_TRUE (out != nullptr);
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, sizeof (bytes));
+  EXPECT_EQ (memcmp (map.data, bytes, sizeof (bytes)), 0);
+  gst_buffer_unmap (out, &map);
+
+  notified = _suspend_alloc_notified (path);
+  EXPECT_GE (notified, 0) << "the library is not loaded while its output is alive";
+  gst_buffer_unref (out);
+  EXPECT_EQ (_suspend_alloc_notified (path), notified + 1)
+      << "the output was not allocated by allocate_invoke, or not handed back to destroy_notify";
+}
+
+/**
+ * @brief Harness a tensor_filter with the suspend watchdog on the custom library at @a path.
+ */
+static GstHarness *
+_suspend_alloc_harness (const gchar *path)
+{
+  g_autofree gchar *desc = g_strdup_printf (
+      "tensor_filter framework=custom model=%s suspend=%u", path, SUSPEND_ALLOC_MS);
+  GstHarness *h = gst_harness_new_parse (desc);
+
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,num_tensors=1,types=uint8,dimensions=4:1:1:1,format=static,framerate=(fraction)0/1");
+  return h;
+}
+
+/**
+ * @brief A model with allocate_invoke, set while the suspend watchdog has
+ * closed one without it, is invoked with allocate_invoke at the reopen.
+ * @details The custom sub-plugin refuses SUSPEND, so the watchdog closes the
+ * library. allocate_in_invoke is read from the opened library, so tensor_filter
+ * has to take the framework info again at every open (1e15d695, ca64c579): with
+ * the info of the first library, the output of the second one would be neither
+ * filled nor handed to destroy_notify.
+ */
+TEST (tensorFilterCustomSuspend, allocateInvokeAfterReopen)
+{
+  g_autofree gchar *lib_name
+      = g_strconcat ("libnnscustom_invoke_result", NNSTREAMER_SO_FILE_EXTENSION, NULL);
+  g_autofree gchar *first = _b3_build_path ("nnstreamer_example", lib_name);
+  g_autofree gchar *path = _suspend_alloc_copy ();
+  GstElement *filter;
+  GstBuffer *out;
+  GstHarness *h;
+
+  ASSERT_TRUE (path != nullptr);
+  ASSERT_TRUE (g_file_test (first, G_FILE_TEST_EXISTS));
+  h = _suspend_alloc_harness (first);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  out = gst_harness_try_pull (h);
+  EXPECT_TRUE (out != nullptr);
+  if (out)
+    gst_buffer_unref (out);
+  EXPECT_TRUE (_suspend_alloc_wait_closed (first))
+      << "the suspend watchdog did not close the library";
+
+  filter = gst_harness_find_element (h, "tensor_filter");
+  g_object_set (filter, "model", path, NULL);
+  gst_object_unref (filter);
+
+  _suspend_alloc_push_check (h, path, 11);
+
+  gst_harness_teardown (h);
+  EXPECT_FALSE (_b3_is_loaded (path));
+  _suspend_alloc_remove (path);
+}
+
+/**
+ * @brief A reopen after the suspend watchdog that fails stops the buffer, and a later buffer reopens the library.
+ */
+TEST (tensorFilterCustomSuspend, reopenFailure_n)
+{
+  g_autofree gchar *path = _suspend_alloc_copy ();
+  g_autofree gchar *contents = NULL;
+  gsize len;
+  GstHarness *h;
+
+  ASSERT_TRUE (path != nullptr);
+  ASSERT_TRUE (g_file_get_contents (path, &contents, &len, NULL));
+  h = _suspend_alloc_harness (path);
+
+  _suspend_alloc_push_check (h, path, 1);
+  EXPECT_TRUE (_suspend_alloc_wait_closed (path))
+      << "the suspend watchdog did not close the library";
+
+  EXPECT_EQ (g_remove (path), 0);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  ASSERT_TRUE (g_file_set_contents (path, contents, len, NULL));
+  EXPECT_EQ (g_chmod (path, 0755), 0);
+  _suspend_alloc_push_check (h, path, 21);
+
+  gst_harness_teardown (h);
+  _suspend_alloc_remove (path);
+}
+
 /**
  * @brief Main gtest
  */
