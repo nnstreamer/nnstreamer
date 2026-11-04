@@ -268,4 +268,13 @@ cat ssd_option3_partial.0 ssd_option3_partial.1 > ssd_option3_partial.all
 testResult $? 20-9 "mobilenet-ssd option3 thresholds change the boxes" 0 1
 rm ssd_option3_*
 
+# A config file is applied line by line, so option1 has to come before the options it takes.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder config-file=config_file.3 ! videoconvert ! video/x-raw,format=BGRx ! multifilesink location=mobilenetssd_output.%d ${MODELSIZE_SRC}" 21 0 0 $PERFORMANCE
+
+callCompareTest mobilenetssd_golden.0 mobilenetssd_output.0 21-1 "mobilenet-ssd Decode 1 with config_file.3 alone" 0
+callCompareTest mobilenetssd_golden.1 mobilenetssd_output.1 21-2 "mobilenet-ssd Decode 2 with config_file.3 alone" 0
+rm mobilenetssd_output.*
+
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder config-file=config_file.4 ! fakesink ${MODELSIZE_SRC}" 22_n
+
 report
