@@ -376,6 +376,18 @@ jobs:
         export GST_PLUGIN_PATH=`pwd`/build/gst
         export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini
         cd tests/nnstreamer_edge && ssat -n -p=1 --summary summary.txt
+    # Elsewhere this suite runs only in GBS and pdebuild.
+    - name: SSAT run on filter-custom
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      timeout-minutes: 10
+      run: |
+        export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build
+        export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter
+        export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder
+        export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter
+        export GST_PLUGIN_PATH=`pwd`/build/gst
+        export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini
+        cd tests/nnstreamer_filter_custom && ssat -n -p=1 --summary summary.txt
     # numpy goes in here and not with the other requirements: this python3 has
     # none while nnstreamer is configured, which the build above has always seen,
     # and the SSAT script generates its test data with it.
