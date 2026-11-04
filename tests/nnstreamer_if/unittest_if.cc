@@ -3210,6 +3210,69 @@ TEST_P (TensorIfPickNamedTest, repeatedInvalidSelection_n)
   gst_object_unref (element);
 }
 
+/**
+ * @brief Consecutive valid picks keep the output configuration filled once.
+ */
+TEST_P (TensorIfPickNamedTest, repeatedValidSelection)
+{
+  const bool then_branch = std::get<0> (GetParam ());
+  const guint selected = std::get<1> (GetParam ());
+  GstElement *element = NULL;
+  GstPad *sinkpad = _start_tensor_if (&element);
+  ASSERT_NE (sinkpad, nullptr);
+  GstCaps *caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  GString *indices = g_string_new (NULL);
+  GstBuffer *output = NULL;
+  GstSegment segment;
+  gchar *first_name = NULL;
+  GstTensorInfo *extra = NULL;
+
+  for (guint i = 0; i < selected; i++) {
+    if (i)
+      g_string_append_c (indices, ',');
+    g_string_append_printf (indices, "%u", selected - 1 - i);
+  }
+  g_object_set (element, "operator", then_branch ? TIFOP_EQ : TIFOP_NE, "then",
+      TIFB_TENSORPICK, "then-option", indices->str, "else", TIFB_TENSORPICK,
+      "else-option", indices->str, NULL);
+  g_signal_connect (element, "pad-added", G_CALLBACK (_watch_picked_pad), &output);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  gst_caps_unref (caps);
+  GstTensorsInfo *input = &GST_TENSOR_IF (element)->in_config.info;
+  GstTensorsInfo *config = &GST_TENSOR_IF (element)
+                                ->out_config[then_branch ? TIFSP_THEN_PAD : TIFSP_ELSE_PAD]
+                                .info;
+  for (guint i = 0; i < EXTRA_NUM_TENSORS; i++)
+    gst_tensors_info_get_nth_info (input, i)->name = g_strdup_printf ("input%u", i);
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_segment (&segment)));
+
+  for (guint frame = 0; frame < 4; frame++) {
+    EXPECT_EQ (gst_pad_chain (sinkpad, _buffer_with_tensors (input)), GST_FLOW_OK);
+    EXPECT_NE (output, nullptr);
+    if (output) {
+      EXPECT_EQ (gst_tensor_buffer_get_count (output), selected);
+      gst_buffer_unref (output);
+      output = NULL;
+    }
+
+    EXPECT_EQ (config->num_tensors, selected);
+    EXPECT_STREQ (gst_tensors_info_get_nth_info (config, selected - 1)->name, "input0");
+    if (frame == 0) {
+      first_name = config->info[0].name;
+      extra = config->extra;
+    } else {
+      EXPECT_EQ (config->info[0].name, first_name);
+      EXPECT_EQ (config->extra, extra);
+    }
+  }
+
+  g_string_free (indices, TRUE);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (sinkpad);
+  gst_object_unref (element);
+}
+
 INSTANTIATE_TEST_SUITE_P (NamedTensors, TensorIfPickNamedTest,
     ::testing::Combine (
         ::testing::Bool (), ::testing::Values (1U, NNS_TENSOR_MEMORY_MAX + 1U)));
