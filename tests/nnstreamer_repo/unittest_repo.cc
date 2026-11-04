@@ -900,6 +900,58 @@ TEST (tensorRepo, pipelineRestart)
 }
 
 /**
+ * @brief A tensor_reposrc whose slot is gone errors instead of spinning on it.
+ */
+TEST (tensorRepo, pipelineSrcUnknownSlot_n)
+{
+  const guint slot = 1010;
+  gchar *str_pipeline;
+  GstElement *pipeline;
+  GstMessage *msg;
+
+  /* no tensor_reposink initializes the repo here */
+  gst_tensor_repo_init ();
+  str_pipeline = g_strdup_printf ("tensor_reposrc name=srcx slot-index=%u "
+                                  "caps=\"other/tensor,dimension=(string)4,type=(string)uint8,"
+                                  "framerate=(fraction)0/1\" ! tensor_sink",
+      slot);
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  ASSERT_NE (pipeline, nullptr);
+
+  /* setting slot-index added the slot */
+  ASSERT_TRUE (gst_tensor_repo_remove_repodata (slot));
+
+  msg = play_repo_pipeline (pipeline);
+  EXPECT_NE (msg, nullptr);
+
+  if (msg != NULL) {
+    EXPECT_EQ (GST_MESSAGE_TYPE (msg), GST_MESSAGE_ERROR);
+
+    if (GST_MESSAGE_TYPE (msg) == GST_MESSAGE_ERROR) {
+      GError *error = NULL;
+
+      EXPECT_STREQ (GST_OBJECT_NAME (GST_MESSAGE_SRC (msg)), "srcx");
+      gst_message_parse_error (msg, &error, NULL);
+      EXPECT_NE (error, nullptr);
+
+      if (error != NULL) {
+        EXPECT_EQ (GST_RESOURCE_ERROR, error->domain);
+        EXPECT_EQ ((gint) GST_RESOURCE_ERROR_READ, error->code);
+      }
+      g_clear_error (&error);
+    }
+    gst_message_unref (msg);
+  }
+
+  /* bring the slot back at its end, so the element stops even if it did not error */
+  EXPECT_TRUE (gst_tensor_repo_add_repodata (slot, FALSE));
+  EXPECT_TRUE (gst_tensor_repo_set_eos (slot));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (pipeline);
+}
+
+/**
  * @brief reset_stream() lets a slot that reached eos pass buffers again, and
  *        drops the buffer the previous stream left unpulled.
  */
