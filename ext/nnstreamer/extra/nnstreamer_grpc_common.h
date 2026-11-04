@@ -127,8 +127,11 @@ class NNStreamerRPC {
     gboolean _check_tensor_size (guint index, gsize size);
     /** @brief register the context of a client call so that stop () can cancel it; NULL once the call is over */
     void _set_client_context (ClientContext * context);
+    /** @brief pop a buffer to send, one caller at a time; FALSE once the queue is flushing */
+    gboolean _pop_item (GstDataQueueItem ** item);
 
   private:
+    std::mutex pop_lock_;
     std::atomic<bool> shutting_down_;
     std::mutex client_lock_;
     std::condition_variable client_cond_;

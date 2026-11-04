@@ -1922,6 +1922,188 @@ _restart_server_src (const gchar *idl, gboolean blocking, GstState via,
 }
 
 /**
+ * @brief The number of frames a client restart test feeds after the restart.
+ */
+#define RESTART_FRAMES 10
+
+/**
+ * @brief The least number of the RESTART_FRAMES frames that must reach the
+ * client. The call of the client that left may take one or two until the server
+ * sees that it is gone; a call that never stops leaves the client none.
+ */
+#define RESTART_MIN_FRAMES 6U
+
+/**
+ * @brief Push @a num frames of STREAM_VIDEO_CAPS into the appsrc named "feed" in @a pipeline.
+ */
+static void
+_feed_frames (GstElement *pipeline, guint num)
+{
+  GstElement *feed = gst_bin_get_by_name (GST_BIN (pipeline), "feed");
+  GstFlowReturn ret;
+  guint i;
+
+  for (i = 0; i < num; i++) {
+    GstBuffer *buffer = gst_buffer_new_allocate (NULL, 3 * 16 * 16, NULL);
+
+    gst_buffer_memset (buffer, 0, (guint8) i, 3 * 16 * 16);
+    g_signal_emit_by_name (feed, "push-buffer", buffer, &ret);
+    gst_buffer_unref (buffer);
+  }
+
+  gst_object_unref (feed);
+}
+
+/**
+ * @brief Restart a tensor_src_grpc client through READY while the blocking
+ * tensor_sink_grpc server it reads keeps sending.
+ * @param idl the IDL both ends use
+ * @param blocking the blocking property of the client
+ * @return the number of the frames fed after the restart that the client
+ * produced, up to RESTART_MIN_FRAMES; 0 if a pipeline did not build
+ */
+static guint
+_restart_client_src (const gchar *idl, gboolean blocking)
+{
+  GstElement *server, *client = NULL, *src, *sink;
+  RecvData data;
+  gchar *str;
+  gint port;
+  guint after;
+
+  str = g_strdup_printf ("appsrc name=feed is-live=TRUE format=time do-timestamp=TRUE caps=" STREAM_VIDEO_CAPS
+                         " ! tensor_converter ! tensor_sink_grpc name=grpc server=TRUE blocking=TRUE "
+                         "idl=%s host=localhost port=0 sync=FALSE async=FALSE",
+      idl);
+  server = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!server)
+    return 0;
+
+  gst_element_set_state (server, GST_STATE_PLAYING);
+  port = _grpc_port (server);
+
+  if (port > 0) {
+    str = g_strdup_printf (
+        "tensor_src_grpc name=src server=FALSE blocking=%s idl=%s host=localhost port=%d ! " STREAM_TENSOR_CAPS
+        " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
+        blocking ? "TRUE" : "FALSE", idl, port);
+    client = gst_parse_launch (str, NULL);
+    g_free (str);
+  }
+
+  if (!client) {
+    ADD_FAILURE () << "the " << idl << " client did not build";
+    gst_element_set_state (server, GST_STATE_NULL);
+    gst_object_unref (server);
+    return 0;
+  }
+
+  g_mutex_init (&data.lock);
+  data.received = 0;
+  sink = gst_bin_get_by_name (GST_BIN (client), "sink");
+  g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), &data);
+  gst_object_unref (sink);
+  src = gst_bin_get_by_name (GST_BIN (client), "src");
+
+  /* the server call of the client waits for the next frame once it has sent one */
+  gst_element_set_state (client, GST_STATE_PLAYING);
+  _feed_frames (server, 1);
+  EXPECT_EQ (_wait_for_buffers (data, 1), 1U);
+
+  gst_element_set_state (client, GST_STATE_READY);
+  EXPECT_TRUE (_src_grpc_instance (src) == NULL);
+  gst_element_set_state (client, GST_STATE_PLAYING);
+
+  /* the call of the client that left pops the next frame; it has to stop once its write fails */
+  _feed_frames (server, RESTART_FRAMES);
+  after = _wait_for_buffers (data, 1 + RESTART_MIN_FRAMES);
+  after = (after > 0) ? after - 1 : 0;
+
+  gst_element_set_state (client, GST_STATE_NULL);
+  if (!_set_null_in_time (server))
+    ADD_FAILURE () << "the " << idl << " server did not stop";
+
+  gst_object_unref (src);
+  gst_object_unref (client);
+  g_mutex_clear (&data.lock);
+
+  return after;
+}
+
+/**
+ * @brief Bring a blocking tensor_sink_grpc server to NULL while two tensor_src_grpc clients read its stream.
+ * @param idl the IDL all ends use
+ * @return TRUE if the server reached NULL within 10 seconds after both clients got buffers
+ */
+static gboolean
+_stop_server_sink_two_clients (const gchar *idl)
+{
+  GstElement *server, *client[2] = { NULL, NULL }, *sink;
+  RecvData data[2];
+  gchar *str;
+  gint port;
+  guint i;
+  gboolean tried = FALSE, stopped = FALSE;
+
+  str = g_strdup_printf ("videotestsrc is-live=TRUE ! " STREAM_VIDEO_CAPS " ! tensor_converter ! "
+                         "tensor_sink_grpc name=grpc server=TRUE blocking=TRUE idl=%s "
+                         "host=localhost port=0 async=FALSE",
+      idl);
+  server = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!server)
+    return FALSE;
+
+  gst_element_set_state (server, GST_STATE_PLAYING);
+  port = _grpc_port (server);
+
+  for (i = 0; i < 2 && port > 0; i++) {
+    g_mutex_init (&data[i].lock);
+    data[i].received = 0;
+
+    str = g_strdup_printf (
+        "tensor_src_grpc server=FALSE blocking=TRUE idl=%s host=localhost port=%d ! " STREAM_TENSOR_CAPS
+        " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
+        idl, port);
+    client[i] = gst_parse_launch (str, NULL);
+    g_free (str);
+    if (!client[i])
+      continue;
+
+    sink = gst_bin_get_by_name (GST_BIN (client[i]), "sink");
+    g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), &data[i]);
+    gst_object_unref (sink);
+    gst_element_set_state (client[i], GST_STATE_PLAYING);
+  }
+
+  /* each call of the server has taken buffers, so both may be waiting for the next */
+  if (client[0] && client[1] && _wait_for_buffers (data[0], 1) > 0
+      && _wait_for_buffers (data[1], 1) > 0) {
+    tried = TRUE;
+    stopped = _set_null_in_time (server);
+  } else {
+    ADD_FAILURE () << "the " << idl << " clients did not both get buffers";
+  }
+
+  for (i = 0; i < 2 && port > 0; i++) {
+    if (client[i]) {
+      gst_element_set_state (client[i], GST_STATE_NULL);
+      gst_object_unref (client[i]);
+    }
+    g_mutex_clear (&data[i].lock);
+  }
+
+  /* a server stuck in its state change is left behind */
+  if (!tried) {
+    gst_element_set_state (server, GST_STATE_NULL);
+    gst_object_unref (server);
+  }
+
+  return stopped;
+}
+
+/**
  * @brief The number of frames a stream test sends, as the gst-launch pairs of runTest.sh do.
  */
 #define STREAM_FRAMES 10
@@ -2408,6 +2590,32 @@ TEST (nnstreamerGrpc, restartViaReadyServerSrcBadMessageProtobuf_n)
                  },
                  1),
       2U);
+}
+
+/**
+ * @brief A blocking tensor_src_grpc (protobuf) client reconnects and keeps
+ * delivering after PLAYING -> READY -> PLAYING while the server keeps sending.
+ */
+TEST (nnstreamerGrpc, restartViaReadyClientSrcProtobuf)
+{
+  EXPECT_GE (_restart_client_src ("protobuf", TRUE), RESTART_MIN_FRAMES);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) client reconnects and keeps
+ * delivering after PLAYING -> READY -> PLAYING while the server keeps sending.
+ */
+TEST (nnstreamerGrpc, restartViaReadyAsyncClientSrcProtobuf)
+{
+  EXPECT_GE (_restart_client_src ("protobuf", FALSE), RESTART_MIN_FRAMES);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (protobuf) server reaches NULL while two clients read its stream.
+ */
+TEST (nnstreamerGrpc, stopServerSinkTwoClientsProtobuf)
+{
+  EXPECT_TRUE (_stop_server_sink_two_clients ("protobuf"));
 }
 
 /**
@@ -3217,6 +3425,32 @@ TEST (nnstreamerGrpc, restartViaReadyAsyncServerSrcFlatbuf)
 TEST (nnstreamerGrpc, restartViaReadyServerSrcBadMessageFlatbuf_n)
 {
   EXPECT_EQ (_fb_restart_server_src (TRUE, GST_STATE_READY, { { 4, 3 }, { 4, 2 } }, 1), 2U);
+}
+
+/**
+ * @brief A blocking tensor_src_grpc (flatbuf) client reconnects and keeps
+ * delivering after PLAYING -> READY -> PLAYING while the server keeps sending.
+ */
+TEST (nnstreamerGrpc, restartViaReadyClientSrcFlatbuf)
+{
+  EXPECT_GE (_restart_client_src ("flatbuf", TRUE), RESTART_MIN_FRAMES);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) client reconnects and keeps
+ * delivering after PLAYING -> READY -> PLAYING while the server keeps sending.
+ */
+TEST (nnstreamerGrpc, restartViaReadyAsyncClientSrcFlatbuf)
+{
+  EXPECT_GE (_restart_client_src ("flatbuf", FALSE), RESTART_MIN_FRAMES);
+}
+
+/**
+ * @brief A blocking tensor_sink_grpc (flatbuf) server reaches NULL while two clients read its stream.
+ */
+TEST (nnstreamerGrpc, stopServerSinkTwoClientsFlatbuf)
+{
+  EXPECT_TRUE (_stop_server_sink_two_clients ("flatbuf"));
 }
 
 /**
