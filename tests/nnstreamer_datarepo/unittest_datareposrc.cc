@@ -1486,10 +1486,11 @@ _run_repo_pipeline (GstElement *pipeline, repo_run_s *run)
   GstElement *sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink0");
   GstBus *bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   guint watch_id, timeout_id, log_id;
+  gulong handoff_id;
 
   ASSERT_NE (sink, nullptr);
   g_object_set (sink, "signal-handoffs", TRUE, NULL);
-  g_signal_connect (sink, "handoff", G_CALLBACK (_repo_handoff_cb), run);
+  handoff_id = g_signal_connect (sink, "handoff", G_CALLBACK (_repo_handoff_cb), run);
 
   run->loop = g_main_loop_new (NULL, FALSE);
   run->type = GST_MESSAGE_UNKNOWN;
@@ -1514,6 +1515,7 @@ _run_repo_pipeline (GstElement *pipeline, repo_run_s *run)
     g_source_remove (timeout_id);
 
   g_clear_pointer (&run->loop, g_main_loop_unref);
+  g_signal_handler_disconnect (sink, handoff_id);
   gst_object_unref (bus);
   gst_object_unref (sink);
 }
@@ -3630,6 +3632,553 @@ TEST (datareposrc, readStaticTensorsSequenceInvalidSetInReady_n)
   gst_object_unref (pipeline);
   EXPECT_NE (strstr (run.error_debug, "tensors-sequence"), nullptr);
   _expect_range_refused (&run);
+}
+
+/**
+ * @brief The same datareposrc reads all its epochs again after it went back to NULL.
+ */
+TEST (datareposrc, readStaticTensorsRestartAfterEos)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 0U, 1U };
+  guint r, epochs = 0;
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle",
+      FALSE, "epochs", 2U, NULL);
+  for (r = 0; r < 2; r++) {
+    run = {};
+    _run_repo_seq_pipeline (pipeline, &run, &out);
+    EXPECT_EQ (run.type, GST_MESSAGE_EOS) << "run " << r;
+    _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2, 2);
+    _repo_seq_out_clear (&out);
+    g_clear_pointer (&run.error_src, g_free);
+
+    g_object_get (src, "epochs", &epochs, NULL);
+    EXPECT_EQ (epochs, 2U) << "run " << r;
+  }
+
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A sample range changed after a run is read from its own first sample.
+ */
+TEST (datareposrc, readStaticTensorsRestartWithNewRange)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 0U, 1U };
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle", FALSE, NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2);
+  _repo_seq_out_clear (&out);
+
+  run = {};
+  g_object_set (src, "start-sample-index", 1U, "stop-sample-index", 1U, NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_samples (&out, 1, 1, seq, 2);
+  _repo_seq_out_clear (&out);
+  g_clear_pointer (&run.error_src, g_free);
+
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A tensors-sequence set again after a run picks from the tensors of the
+ * repository, not from the ones the previous sequence picked.
+ */
+TEST (datareposrc, readStaticTensorsSequenceChangedAfterRun)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq0[] = { 1U };
+  const guint seq1[] = { 0U, 1U };
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle",
+      FALSE, "tensors-sequence", "1", NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq0, 1);
+  _repo_seq_out_clear (&out);
+
+  run = {};
+  g_object_set (src, "tensors-sequence", "0,1", NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.last_mems, 2U);
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq1, 2);
+  _repo_seq_out_clear (&out);
+  g_clear_pointer (&run.error_src, g_free);
+
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A restarted datareposrc whose data file was removed after the first
+ * run reports it missing instead of reading from a closed file.
+ */
+TEST (datareposrc, readStaticTensorsRestartFileRemoved_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle", FALSE, NULL);
+  _run_repo_pipeline (pipeline, &run);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+
+  g_remove (REPO_DATA);
+  run = {};
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_ERROR);
+  EXPECT_STREQ (run.error_src, "src0");
+  EXPECT_EQ (run.error_domain, GST_RESOURCE_ERROR);
+  EXPECT_EQ (run.error_code, GST_RESOURCE_ERROR_NOT_FOUND);
+  g_clear_pointer (&run.error_src, g_free);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A restarted datareposrc timestamps its buffers from the start again.
+ */
+TEST (datareposrc, readStaticTensorsRestartTimestamps)
+{
+  repo_run_s run = {};
+  repo_seq_out_s first = {}, second = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  guint i;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ("10/1");
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle", FALSE, NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &first);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  run = {};
+  _run_repo_seq_pipeline (pipeline, &run, &second);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  ASSERT_EQ (first.pts->len, REPO_SEQ_SAMPLES);
+  ASSERT_EQ (second.pts->len, REPO_SEQ_SAMPLES);
+  EXPECT_EQ (g_array_index (second.pts, GstClockTime, 0), 0U);
+  for (i = 0; i < REPO_SEQ_SAMPLES; i++)
+    EXPECT_EQ (g_array_index (second.pts, GstClockTime, i),
+        g_array_index (first.pts, GstClockTime, i))
+        << "buffer " << i;
+
+  _repo_seq_out_clear (&first);
+  _repo_seq_out_clear (&second);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief Every epoch of every run of a restarted shuffled datareposrc reads
+ * each sample of its range exactly once.
+ */
+TEST (datareposrc, readStaticTensorsRestartShuffled)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  const guint epochs = 2;
+  guint r, e, s, i;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle",
+      TRUE, "epochs", epochs, NULL);
+  for (r = 0; r < 2; r++) {
+    run = {};
+    _run_repo_seq_pipeline (pipeline, &run, &out);
+    EXPECT_EQ (run.type, GST_MESSAGE_EOS) << "run " << r;
+    ASSERT_EQ (out.bytes->len, epochs * REPO_SEQ_SAMPLES * REPO_SEQ_SAMPLE_SIZE)
+        << "run " << r;
+
+    for (e = 0; e < epochs; e++) {
+      guint seen = 0;
+
+      for (s = 0; s < REPO_SEQ_SAMPLES; s++) {
+        const guint8 *sample = out.bytes->data + (e * REPO_SEQ_SAMPLES + s) * REPO_SEQ_SAMPLE_SIZE;
+        guint index = sample[0] / REPO_SEQ_SAMPLE_SIZE;
+
+        EXPECT_EQ (sample[0] % REPO_SEQ_SAMPLE_SIZE, 0U);
+        for (i = 1; i < REPO_SEQ_SAMPLE_SIZE; i++)
+          EXPECT_EQ ((guint) sample[i], sample[0] + i);
+        if (index < REPO_SEQ_SAMPLES)
+          seen |= 1U << index;
+      }
+      EXPECT_EQ (seen, (1U << REPO_SEQ_SAMPLES) - 1) << "run " << r << " epoch " << e;
+    }
+    _repo_seq_out_clear (&out);
+  }
+
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A JSON file set again after a run keeps the tensors-sequence applied
+ * to the caps that are negotiated.
+ */
+TEST (datareposrc, readStaticTensorsSequenceJsonResetAfterRun)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 1U, 0U };
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  guint r;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle",
+      FALSE, "tensors-sequence", "1,0", NULL);
+  for (r = 0; r < 2; r++) {
+    run = {};
+    _run_repo_seq_pipeline (pipeline, &run, &out);
+    EXPECT_EQ (run.type, GST_MESSAGE_EOS) << "run " << r;
+    _expect_seq_caps (&out, 2, "16,4");
+    _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2);
+    _repo_seq_out_clear (&out);
+    g_object_set (src, "json", REPO_JSON, NULL);
+  }
+
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A restarted image datareposrc whose first image of the range is gone
+ * reports the read error instead of a silent EOS from the previous run.
+ */
+TEST (datareposrc, readImageFilesRestartFirstMissing_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  guint i;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  create_image_test_file ();
+
+  g_object_set (src, "location", "img_%02d.png", "json", "img.json", "is-shuffle",
+      FALSE, "start-sample-index", 1U, "stop-sample-index", 4U, NULL);
+  _run_repo_pipeline (pipeline, &run);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, 4U);
+
+  g_remove ("img_01.png");
+  run = {};
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_ERROR);
+  EXPECT_STREQ (run.error_src, "src0");
+  EXPECT_EQ (run.error_domain, GST_RESOURCE_ERROR);
+  EXPECT_EQ (run.error_code, GST_RESOURCE_ERROR_READ);
+  EXPECT_EQ (run.buffers, 0U);
+  g_clear_pointer (&run.error_src, g_free);
+
+  g_remove ("img.json");
+  for (i = 0; i < 5; i++) {
+    g_autofree gchar *filename = g_strdup_printf ("img_%02d.png", i);
+    g_remove (filename);
+  }
+}
+
+/**
+ * @brief A tensors-sequence cleared after a run reads and negotiates all
+ * tensors of a sample again.
+ */
+TEST (datareposrc, readStaticTensorsSequenceClearedAfterRun)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq0[] = { 1U };
+  const guint seq1[] = { 0U, 1U };
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle",
+      FALSE, "tensors-sequence", "1", NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq0, 1);
+  _repo_seq_out_clear (&out);
+
+  run = {};
+  g_object_set (src, "tensors-sequence", NULL, NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_caps (&out, 2, "4,16");
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq1, 2);
+  _repo_seq_out_clear (&out);
+
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A tensors-sequence cleared while READY reads and negotiates all
+ * tensors of a sample.
+ */
+TEST (datareposrc, readStaticTensorsSequenceClearedInReady)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 0U, 1U };
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle",
+      FALSE, "tensors-sequence", "1", NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (src, "tensors-sequence", NULL, NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_caps (&out, 2, "4,16");
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A tensors-sequence cleared before datareposrc is linked, which queries
+ * its caps while NULL, negotiates the caps of all tensors.
+ */
+TEST (datareposrc, readStaticTensorsSequenceClearedBeforeLink)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 0U, 1U };
+  GstElement *pipeline = gst_pipeline_new (NULL);
+  GstElement *src = gst_element_factory_make ("datareposrc", "src0");
+  GstElement *sink = gst_element_factory_make ("fakesink", "sink0");
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  ASSERT_NE (sink, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle", FALSE, NULL);
+  g_object_set (src, "tensors-sequence", NULL, NULL);
+  gst_bin_add_many (GST_BIN (pipeline), src, sink, NULL);
+  ASSERT_TRUE (gst_element_link (src, sink));
+
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_caps (&out, 2, "4,16");
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief Run the static repository with @a seq as tensors-sequence (none if
+ * NULL), go to READY, clear tensors-sequence, set a JSON file of three tensors
+ * over the same data file and run again, expecting the caps and data of all three.
+ */
+static void
+_run_json_changed_in_ready (const gchar *seq)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const gsize sizes[] = { 4U, 4U, 12U };
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  guint i;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+  ASSERT_TRUE (g_file_set_contents ("crafted3.json",
+      "{\"gst_caps\":\"other/tensors,format=static,num_tensors=3,"
+      "dimensions=(string)4.4.12,types=(string)uint8.uint8.uint8,framerate=0/1\","
+      "\"total_samples\":3}",
+      -1, NULL));
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle", FALSE, NULL);
+  if (seq)
+    g_object_set (src, "tensors-sequence", seq, NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _repo_seq_out_clear (&out);
+
+  run = {};
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  if (seq)
+    g_object_set (src, "tensors-sequence", NULL, NULL);
+  g_object_set (src, "json", "crafted3.json", NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_caps (&out, 3, "4,4,12");
+  ASSERT_EQ (out.sizes->len, 3U * REPO_SEQ_SAMPLES);
+  for (i = 0; i < out.sizes->len; i++)
+    EXPECT_EQ (g_array_index (out.sizes, gsize, i), sizes[i % 3]) << "memory " << i;
+  ASSERT_EQ (out.bytes->len, REPO_SEQ_SAMPLES * REPO_SEQ_SAMPLE_SIZE);
+  for (i = 0; i < out.bytes->len; i++)
+    EXPECT_EQ (out.bytes->data[i], (guint8) i) << "byte " << i;
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+  g_remove ("crafted3.json");
+}
+
+/**
+ * @brief A JSON file of three tensors set while READY, after a run of two
+ * tensors without tensors-sequence, reads and negotiates all three tensors.
+ */
+TEST (datareposrc, readStaticTensorsJsonChangedInReady)
+{
+  _run_json_changed_in_ready (NULL);
+}
+
+/**
+ * @brief A JSON file of three tensors set while READY, after a run with a
+ * tensors-sequence that is cleared, reads and negotiates all three tensors.
+ */
+TEST (datareposrc, readStaticTensorsSequenceClearedJsonChangedInReady)
+{
+  _run_json_changed_in_ready ("1");
+}
+
+/**
+ * @brief Pad probe stopping the stream of datareposrc at its second buffer,
+ * so that it has read two samples and pushed one.
+ */
+static GstPadProbeReturn
+_repo_stop_at_second_probe (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  repo_run_s *run = (repo_run_s *) user_data;
+
+  if (run->buffers == 0)
+    return GST_PAD_PROBE_OK;
+
+  gst_buffer_unref (GST_PAD_PROBE_INFO_BUFFER (info));
+  GST_PAD_PROBE_INFO_FLOW_RETURN (info) = GST_FLOW_FLUSHING;
+  if (run->type == GST_MESSAGE_UNKNOWN) {
+    run->type = GST_MESSAGE_APPLICATION;
+    g_main_loop_quit (run->loop);
+  }
+
+  return GST_PAD_PROBE_HANDLED;
+}
+
+/**
+ * @brief A datareposrc stopped in the middle of a run reads its range from the
+ * first sample again when it is restarted.
+ */
+TEST (datareposrc, readStaticTensorsRestartMidRun)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 1U, 0U };
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  GstPad *pad;
+  gulong id;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  pad = gst_element_get_static_pad (src, "src");
+  ASSERT_NE (pad, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "location", REPO_DATA, "json", REPO_JSON, "is-shuffle",
+      FALSE, "tensors-sequence", "1,0", NULL);
+  id = gst_pad_add_probe (
+      pad, GST_PAD_PROBE_TYPE_BUFFER, _repo_stop_at_second_probe, &run, NULL);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  gst_pad_remove_probe (pad, id);
+  EXPECT_EQ (run.type, GST_MESSAGE_APPLICATION);
+  _expect_seq_samples (&out, 0, 0, seq, 2);
+  _repo_seq_out_clear (&out);
+
+  run = {};
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  gst_object_unref (pad);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
 }
 
 /**
