@@ -1955,6 +1955,92 @@ TEST (tensorDecoderBoundingBox, trackDisabledDrawsNoId_n)
   removeTempFile (&labels);
 }
 
+/* yolov5 has three anchors for every cell of its three strides */
+#define YOLOV5_SMALL_BOXES (63U) /* 3 * (1 + 4 + 16) */
+
+/**
+ * @brief Decode one box of the single label of a yolov5 or yolov8 model of the input size YOLO_SMALL_MODEL.
+ * @param[in] option3 the option3 of the mode; its first value tells whether @a box is in pixels
+ * @param[in] box cx, cy, w and h of the box
+ */
+static gboolean
+decodeYoloBox (const gchar *mode, const gchar *option3, const float *box, uint32_t *frame)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gboolean v5 = g_str_equal (mode, "yolov5");
+  const guint info = v5 ? YOLO_BOX_INFO + 1 : YOLO_BOX_INFO;
+  const guint boxes = v5 ? YOLOV5_SMALL_BOXES : YOLO_SMALL_BOXES;
+  float tensor[(YOLO_BOX_INFO + 1) * YOLOV5_SMALL_BOXES] = { 0.0f };
+  gchar *labels = writeLabelFile ("object\n");
+  gchar *dim = g_strdup_printf ("%u:%u:1", info, boxes);
+  const gchar *const dims[] = { dim };
+  GstTensorsConfig config;
+  GstTensorMemory input;
+  void *pdata = NULL;
+  gboolean ret = FALSE;
+
+  memcpy (tensor, box, 4 * sizeof (float));
+  tensor[4] = 0.9f; /* yolov5: the objectness, yolov8: the score of the label */
+  if (v5)
+    tensor[5] = 1.0f; /* the score of the label */
+  input.data = tensor;
+  input.size = info * boxes * sizeof (float);
+  setFloatConfig (&config, 1, dims);
+
+  if (decoder != NULL && labels != NULL && decoder->init (&pdata)) {
+    ret = decoder->setOption (&pdata, 0, mode) && decoder->setOption (&pdata, 1, labels)
+          && decoder->setOption (&pdata, 2, option3)
+          && decoder->setOption (&pdata, 3, "64:48")
+          && decoder->setOption (&pdata, 4, YOLO_SMALL_MODEL)
+          && acceptsConfig (decoder, &pdata, &config)
+          && decodeFrame (decoder, &pdata, &config, &input, frame);
+    decoder->exit (&pdata);
+  }
+
+  gst_tensors_config_free (&config);
+  g_free (dim);
+  removeTempFile (&labels);
+  return ret;
+}
+
+/* The same box, normalized to the model input and in its pixels */
+static const float yolo_box_normalized[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+static const float yolo_box_pixels[] = { 16.0f, 16.0f, 16.0f, 16.0f };
+
+/**
+ * @brief yolov5 and yolov8 take a box in pixels with option3 "1" as they take it normalized with "0".
+ */
+TEST (tensorDecoderBoundingBox, yoloScaledOutputInPixels)
+{
+  const gchar *const modes[] = { "yolov5", "yolov8" };
+
+  for (const gchar *mode : modes) {
+    uint32_t normalized[BOX_OUT_PIXELS] = { 0U };
+    uint32_t pixels[BOX_OUT_PIXELS] = { 0U };
+
+    EXPECT_TRUE (decodeYoloBox (mode, "0:0.25:0.45", yolo_box_normalized, normalized))
+        << mode;
+    EXPECT_TRUE (decodeYoloBox (mode, "1:0.25:0.45", yolo_box_pixels, pixels)) << mode;
+    EXPECT_GT (countDrawnPixels (normalized, BOX_OUT_PIXELS), 0U) << mode;
+    EXPECT_EQ (memcmp (normalized, pixels, sizeof (pixels)), 0) << mode;
+  }
+}
+
+/**
+ * @brief A box in pixels is scaled again by the model input size without option3 "1", out of the frame.
+ */
+TEST (tensorDecoderBoundingBox, yoloScaledOutputNotSet_n)
+{
+  const gchar *const modes[] = { "yolov5", "yolov8" };
+
+  for (const gchar *mode : modes) {
+    uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+
+    EXPECT_TRUE (decodeYoloBox (mode, "0:0.25:0.45", yolo_box_pixels, frame)) << mode;
+    EXPECT_EQ (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U) << mode;
+  }
+}
+
 /**
  * @brief The element types the box properties decode.
  */
