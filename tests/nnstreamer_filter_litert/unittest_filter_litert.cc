@@ -786,6 +786,135 @@ TEST (nnstreamerFilterLiteRT, zeroCopyRepeatedInvoke)
 }
 
 /**
+ * @brief Positive case: two invokes that each wrap a different aligned output.
+ *
+ * Kept small enough for the CI memcheck sweep, which leaves out every other
+ * repeated deeplabv3 invoke: a wrapper never destroyed is reported there as a
+ * leak with the subplugin's invoke on its allocation stack. The second run
+ * writes to a fresh buffer while the first stays poisoned, so a wrapper of
+ * the first invoke reused by the second fails here even without memcheck.
+ * One destroyed late, at the next invoke or at close, passes both.
+ */
+TEST (nnstreamerFilterLiteRT, zeroCopyWrapTwice)
+{
+  void *data = NULL;
+  GstTensorMemory input, output[2];
+  g_autofree gchar *model_file = NULL;
+  g_autofree gchar *first_result = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 3));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = 792588;
+  input.data = g_malloc0 (input.size);
+  for (guint i = 0; i < 2U; ++i) {
+    output[i].size = 5548116;
+    ASSERT_EQ (posix_memalign (&output[i].data, 64, output[i].size), 0);
+  }
+  first_result = (gchar *) g_malloc (output[0].size);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  for (guint i = 0; i < 2U; ++i) {
+    /** Poison both, so the second round also shows the first buffer untouched. */
+    memset (output[0].data, 0xAA, output[0].size);
+    memset (output[1].data, 0xAA, output[1].size);
+
+    EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output[i]), 0)
+        << "invoke() failed on round " << i;
+
+    for (guint j = 0; j <= i; ++j) {
+      const guint8 *out = (const guint8 *) output[j].data;
+      gboolean changed = FALSE;
+
+      for (gsize b = 0; b < output[j].size; ++b) {
+        if (out[b] != 0xAA) {
+          changed = TRUE;
+          break;
+        }
+      }
+
+      if (j == i)
+        EXPECT_TRUE (changed) << "Round " << i << " left its output untouched.";
+      else
+        EXPECT_FALSE (changed)
+            << "Round " << i << " wrote to the output of round " << j << ".";
+    }
+
+    if (i == 0)
+      memcpy (first_result, output[0].data, output[0].size);
+  }
+
+  EXPECT_EQ (memcmp (first_result, output[1].data, output[1].size), 0)
+      << "The same input gave different outputs in two wrapped buffers.";
+
+  sp->close (&prop, &data);
+  g_free (input.data);
+  free (output[0].data);
+  free (output[1].data);
+}
+
+/**
+ * @brief Negative case: an output one byte off the model size is refused
+ * before anything is wrapped or written, whichever side it is off and
+ * whether or not its alignment would have let it be wrapped.
+ */
+TEST (nnstreamerFilterLiteRT, zeroCopyWrapSizeMismatch_n)
+{
+  const gsize model_size = 5548116;
+  const gsize block_size = model_size + 64;
+  void *data = NULL;
+  void *base = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 3));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = 792588;
+  input.data = g_malloc0 (input.size);
+  ASSERT_EQ (posix_memalign (&base, 64, block_size), 0);
+  memset (base, 0xAA, block_size);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /** Offset 0 is aligned and would be wrapped; offset 8 would be copied. */
+  for (const gsize offset : { (gsize) 0, (gsize) 8 }) {
+    output.data = (guint8 *) base + offset;
+
+    for (const gsize size : { model_size - 1, model_size + 1 }) {
+      output.size = size;
+      EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+          << "An output of " << size << " B at offset " << offset
+          << " was accepted for a " << model_size << " B tensor.";
+    }
+  }
+
+  for (gsize b = 0; b < block_size; ++b) {
+    if (((guint8 *) base)[b] != 0xAA) {
+      ADD_FAILURE () << "A refused invoke wrote to the output at byte " << b << ".";
+      break;
+    }
+  }
+
+  sp->close (&prop, &data);
+  g_free (input.data);
+  free (base);
+}
+
+/**
  * @brief Positive case: an aligned output below the size gate stays correct.
  *
  * The mobilenet output is 4004 B, under litert_wrap_min_bytes, so the gate
