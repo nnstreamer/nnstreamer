@@ -73,7 +73,8 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define REGEX_STAND_OPTION "^(default|dc-average)(:([u]?int(8|16|32|64)|float(16|32|64)))?(,per-channel:(true|false))?$"
 #define REGEX_CLAMP_OPTION "^((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))):"\
     "((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)))$"
-#define REGEX_PADDING_OPTION "^((left|right|top|bottom|front|back):(\\d+)(,)?)+(layout:(NCHW|NHWC))?$"
+#define REGEX_PADDING_OPTION "^(left|right|top|bottom|front|back):\\d+"\
+    "(,(left|right|top|bottom|front|back):\\d+)*(,layout:(NCHW|NHWC))?$"
 #define REGEX_ARITH_OPTION "^(typecast:([u]?int(8|16|32|64)|float(16|32|64)),)?"\
     "(per-channel:(false|true@(0*([0-9]|1[0-5]))),)?"\
     "(((add|mul|div)(:([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))+(@[0-9]+)?)(,|))+$"
@@ -1007,7 +1008,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       if (!g_regex_match_simple (REGEX_PADDING_OPTION, filter->option,
               G_REGEX_CASELESS, 0)) {
         ml_loge
-            ("%s: padding: \'%s\' is not valid option string: it should be in the form of left|right|top|bottom|front|back:PADDING,[layout:(NCHW|NHWC)]\n",
+            ("%s: padding: \'%s\' is not valid option string: it should be in the form of left|right|top|bottom|front|back:PADDING[,...][,layout:(NCHW|NHWC)]\n",
             filter_name, filter->option);
         break;
       }
