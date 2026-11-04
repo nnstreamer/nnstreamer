@@ -1857,6 +1857,251 @@ _stop_server_src_while_held (const gchar *idl, gboolean blocking,
   return stopped;
 }
 
+/**
+ * @brief Run a tensor_src_grpc server twice, going down to @a via in between, and let @a send stream to it in each run.
+ * @param idl the IDL of the server
+ * @param blocking the blocking property of the server
+ * @param via the state between the runs; READY keeps what the element negotiated, NULL resets it too
+ * @param send the client of a run; it calls the given function to wait for the buffers before it closes the call
+ * @param per_run the number of buffers one run should produce
+ * @return the number of buffers tensor_sink got in both runs, G_MAXUINT if the pipeline did not build
+ */
+static guint
+_restart_server_src (const gchar *idl, gboolean blocking, GstState via,
+    const RecvSendFunc &send, guint per_run)
+{
+  GstElement *pipeline, *src, *sink;
+  RecvData data;
+  gchar *str;
+  gint port = 0;
+  guint run, received;
+
+  str = g_strdup_printf (
+      "tensor_src_grpc name=src server=TRUE blocking=%s idl=%s host=localhost port=0 ! " RECV_STATIC_CAPS
+      " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
+      blocking ? "TRUE" : "FALSE", idl);
+  pipeline = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!pipeline)
+    return G_MAXUINT;
+
+  g_mutex_init (&data.lock);
+  data.received = 0;
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), &data);
+  gst_object_unref (sink);
+  src = gst_bin_get_by_name (GST_BIN (pipeline), "src");
+
+  for (run = 1; run <= 2; run++) {
+    if (run == 2) {
+      gst_element_set_state (pipeline, via);
+      /* the next run gets a new instance, which has to be told about the caps again */
+      EXPECT_TRUE (_src_grpc_instance (src) == NULL);
+    }
+
+    gst_element_set_state (pipeline, GST_STATE_PLAYING);
+    if (!_wait_for_caps (src)) {
+      ADD_FAILURE () << "the " << idl
+                     << " server did not negotiate its caps in run " << run;
+      break;
+    }
+
+    g_object_get (src, "port", &port, NULL);
+    send ("localhost:" + std::to_string (port),
+        [&] () { _wait_for_buffers (data, per_run * run); });
+  }
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  received = data.received;
+
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  g_mutex_clear (&data.lock);
+
+  return received;
+}
+
+/**
+ * @brief The number of frames a stream test sends, as the gst-launch pairs of runTest.sh do.
+ */
+#define STREAM_FRAMES 10
+
+/**
+ * @brief The sender and the receiver of a stream test; the formats take the
+ * server, blocking, idl and port properties, plus num-buffers first or last.
+ */
+#define STREAM_SEND_PIPELINE                                                \
+  "videotestsrc num-buffers=%u pattern=snow ! " STREAM_VIDEO_CAPS           \
+  " ! tensor_converter ! tensor_sink_grpc name=grpc server=%s blocking=%s " \
+  "idl=%s host=localhost port=%d async=FALSE"
+#define STREAM_RECV_PIPELINE                                                       \
+  "tensor_src_grpc name=grpc server=%s blocking=%s idl=%s host=localhost port=%d " \
+  "num-buffers=%u ! " STREAM_TENSOR_CAPS                                           \
+  " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE"
+
+/**
+ * @brief The bytes of the buffers one end of a stream saw, in order.
+ */
+typedef struct {
+  GMutex lock; /**< protects the frames */
+  std::vector<std::string> frames; /**< the bytes of each buffer */
+} StreamData;
+
+/**
+ * @brief Append the bytes of @a buffer to @a data.
+ */
+static void
+_stream_add (StreamData *data, GstBuffer *buffer)
+{
+  GstMapInfo map;
+  std::string bytes;
+
+  if (gst_buffer_map (buffer, &map, GST_MAP_READ)) {
+    bytes.assign ((const char *) map.data, map.size);
+    gst_buffer_unmap (buffer, &map);
+  }
+
+  g_mutex_lock (&data->lock);
+  data->frames.push_back (bytes);
+  g_mutex_unlock (&data->lock);
+}
+
+/**
+ * @brief tensor_sink new-data callback, records what the receiver got.
+ */
+static void
+_stream_recv_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  _stream_add ((StreamData *) user_data, buffer);
+}
+
+/**
+ * @brief Pad probe on the sink pad of tensor_sink_grpc, records what the sender sent.
+ */
+static GstPadProbeReturn
+_stream_sent_probe (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  _stream_add ((StreamData *) user_data, GST_PAD_PROBE_INFO_BUFFER (info));
+
+  return GST_PAD_PROBE_OK;
+}
+
+/**
+ * @brief Wait for the EOS of @a pipeline, at most 10 seconds.
+ * @return TRUE if the EOS came, FALSE on an error or the timeout
+ */
+static gboolean
+_wait_for_eos (GstElement *pipeline)
+{
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessage *msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  gboolean eos = (msg && GST_MESSAGE_TYPE (msg) == GST_MESSAGE_EOS);
+
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  return eos;
+}
+
+/**
+ * @brief Record in @a data what the sender of @a pipeline sends or what its receiver gets.
+ */
+static void
+_stream_watch (GstElement *pipeline, gboolean sender, StreamData *data)
+{
+  GstElement *element;
+  GstPad *pad;
+
+  if (sender) {
+    element = gst_bin_get_by_name (GST_BIN (pipeline), "grpc");
+    pad = gst_element_get_static_pad (element, "sink");
+    gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, _stream_sent_probe, data, NULL);
+    gst_object_unref (pad);
+  } else {
+    element = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+    g_signal_connect (element, "new-data", G_CALLBACK (_stream_recv_cb), data);
+  }
+
+  gst_object_unref (element);
+}
+
+/**
+ * @brief Stream STREAM_FRAMES frames from tensor_sink_grpc to tensor_src_grpc
+ * the way a gst-launch pair of runTest.sh does; both pipelines end by EOS.
+ * @param idl the IDL both ends use
+ * @param client_sink TRUE to let tensor_sink_grpc be the client, FALSE to let tensor_src_grpc be it
+ * @param blocking the blocking property of both ends
+ * @return TRUE if both pipelines reached EOS and the receiver got the bytes the sender sent, in order
+ */
+static gboolean
+_stream_frames (const gchar *idl, gboolean client_sink, gboolean blocking)
+{
+  GstElement *server, *client = NULL;
+  StreamData sent, received;
+  gchar *str;
+  gint port;
+  gboolean eos_sender = FALSE, eos_receiver = FALSE;
+  const gchar *mode = blocking ? "TRUE" : "FALSE";
+
+  /* the server starts first, so that the client knows the port it listens on */
+  if (client_sink)
+    str = g_strdup_printf (STREAM_RECV_PIPELINE, "TRUE", mode, idl, 0, STREAM_FRAMES);
+  else
+    str = g_strdup_printf (STREAM_SEND_PIPELINE, STREAM_FRAMES, "TRUE", mode, idl, 0);
+  server = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!server) {
+    ADD_FAILURE () << "the " << idl << " server did not build";
+    return FALSE;
+  }
+
+  g_mutex_init (&sent.lock);
+  g_mutex_init (&received.lock);
+
+  /* a sending server streams from PLAYING on */
+  _stream_watch (server, !client_sink, client_sink ? &received : &sent);
+  gst_element_set_state (server, GST_STATE_PLAYING);
+  port = _grpc_port (server);
+
+  if (port > 0) {
+    if (client_sink)
+      str = g_strdup_printf (STREAM_SEND_PIPELINE, STREAM_FRAMES, "FALSE", mode, idl, port);
+    else
+      str = g_strdup_printf (STREAM_RECV_PIPELINE, "FALSE", mode, idl, port, STREAM_FRAMES);
+    client = gst_parse_launch (str, NULL);
+    g_free (str);
+  }
+
+  if (client) {
+    _stream_watch (client, client_sink, client_sink ? &sent : &received);
+    gst_element_set_state (client, GST_STATE_PLAYING);
+
+    eos_receiver = _wait_for_eos (client_sink ? server : client);
+    eos_sender = _wait_for_eos (client_sink ? client : server);
+    EXPECT_TRUE (eos_receiver);
+    EXPECT_TRUE (eos_sender);
+
+    gst_element_set_state (client, GST_STATE_NULL);
+    gst_object_unref (client);
+  } else {
+    ADD_FAILURE () << "the " << idl << " client did not build";
+  }
+
+  gst_element_set_state (server, GST_STATE_NULL);
+  gst_object_unref (server);
+
+  EXPECT_EQ (sent.frames.size (), (gsize) STREAM_FRAMES);
+  EXPECT_EQ (received.frames.size (), sent.frames.size ());
+
+  g_mutex_clear (&sent.lock);
+  g_mutex_clear (&received.lock);
+
+  return eos_sender && eos_receiver && sent.frames.size () == STREAM_FRAMES
+         && received.frames == sent.frames;
+}
+
 #endif /* ENABLE_PROTOBUF || ENABLE_FLATBUF */
 
 #ifdef ENABLE_PROTOBUF
@@ -2109,46 +2354,94 @@ TEST (nnstreamerGrpc, stopWhileHeldAsyncClientSrcProtobuf_n)
 }
 
 /**
+ * @brief Send two protobuf messages that fit RECV_STATIC_CAPS and wait for the buffers before closing the writes.
+ */
+static void
+_pb_send_two_valid (const std::string &address, const std::function<void ()> &wait)
+{
+  _pb_send_held (address, wait, { _pb_valid_static (), _pb_valid_static () });
+}
+
+/**
  * @brief A tensor_src_grpc (protobuf) server keeps delivering after it is
  * stopped and started again; the new instance is told about the caps too.
  */
 TEST (nnstreamerGrpc, restartServerSrcProtobuf)
 {
-  const std::vector<PbTensors> msgs = { _pb_valid_static (), _pb_valid_static () };
-  GstElement *pipeline, *src, *sink;
-  RecvData data;
-  gint port = 0;
-  guint round, received = 0;
+  EXPECT_EQ (_restart_server_src ("protobuf", TRUE, GST_STATE_NULL, _pb_send_two_valid, 2), 4U);
+}
 
-  pipeline = gst_parse_launch (
-      "tensor_src_grpc name=src server=TRUE blocking=TRUE idl=protobuf host=localhost port=0 ! " RECV_STATIC_CAPS
-      " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
-      NULL);
-  ASSERT_TRUE (pipeline != NULL);
+/**
+ * @brief A blocking tensor_src_grpc (protobuf) server keeps delivering after
+ * PLAYING -> READY -> PLAYING, which does not pass through NULL.
+ */
+TEST (nnstreamerGrpc, restartViaReadyServerSrcProtobuf)
+{
+  EXPECT_EQ (
+      _restart_server_src ("protobuf", TRUE, GST_STATE_READY, _pb_send_two_valid, 2), 4U);
+}
 
-  g_mutex_init (&data.lock);
-  data.received = 0;
-  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
-  g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), &data);
-  gst_object_unref (sink);
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) server keeps delivering
+ * after PLAYING -> READY -> PLAYING, which does not pass through NULL.
+ */
+TEST (nnstreamerGrpc, restartViaReadyAsyncServerSrcProtobuf)
+{
+  EXPECT_EQ (
+      _restart_server_src ("protobuf", FALSE, GST_STATE_READY, _pb_send_two_valid, 2), 4U);
+}
 
-  for (round = 1; round <= 2; round++) {
-    gst_element_set_state (pipeline, GST_STATE_PLAYING);
-    src = gst_bin_get_by_name (GST_BIN (pipeline), "src");
-    EXPECT_TRUE (_wait_for_caps (src));
-    g_object_get (src, "port", &port, NULL);
-    gst_object_unref (src);
+/**
+ * @brief A tensor_src_grpc (protobuf) server restarted through READY checks
+ * messages against the caps again: a bad one is dropped, the next is kept.
+ */
+TEST (nnstreamerGrpc, restartViaReadyServerSrcBadMessageProtobuf_n)
+{
+  EXPECT_EQ (_restart_server_src (
+                 "protobuf", TRUE, GST_STATE_READY,
+                 [] (const std::string &addr, const std::function<void ()> &wait) {
+                   PbTensors bad;
 
-    _pb_send_held (
-        "localhost:" + std::to_string (port),
-        [&] () { received = _wait_for_buffers (data, 2 * round); }, msgs);
-    EXPECT_EQ (received, 2 * round);
+                   bad.set_num_tensor (1);
+                   _pb_add_tensor (bad, std::string (4, '\x01'));
+                   _pb_send_held (addr, wait, { bad, _pb_valid_static () });
+                 },
+                 1),
+      2U);
+}
 
-    gst_element_set_state (pipeline, GST_STATE_NULL);
-  }
+/**
+ * @brief Blocking protobuf stream from a tensor_sink_grpc client to a tensor_src_grpc server ends by EOS with the bytes sent.
+ */
+TEST (nnstreamerGrpc, streamClientSinkProtobuf)
+{
+  EXPECT_TRUE (_stream_frames ("protobuf", TRUE, TRUE));
+}
 
-  gst_object_unref (pipeline);
-  g_mutex_clear (&data.lock);
+/**
+ * @brief Non-blocking protobuf stream from a tensor_sink_grpc client to a
+ * tensor_src_grpc server ends by EOS with the bytes sent.
+ */
+TEST (nnstreamerGrpc, streamAsyncClientSinkProtobuf)
+{
+  EXPECT_TRUE (_stream_frames ("protobuf", TRUE, FALSE));
+}
+
+/**
+ * @brief Blocking protobuf stream from a tensor_sink_grpc server to a tensor_src_grpc client ends by EOS with the bytes sent.
+ */
+TEST (nnstreamerGrpc, streamServerSinkProtobuf)
+{
+  EXPECT_TRUE (_stream_frames ("protobuf", FALSE, TRUE));
+}
+
+/**
+ * @brief Non-blocking protobuf stream from a tensor_sink_grpc server to a
+ * tensor_src_grpc client ends by EOS with the bytes sent.
+ */
+TEST (nnstreamerGrpc, streamAsyncServerSinkProtobuf)
+{
+  EXPECT_TRUE (_stream_frames ("protobuf", FALSE, FALSE));
 }
 
 /**
@@ -2869,6 +3162,95 @@ TEST (nnstreamerGrpc, stopWhileHeldClientSrcFlatbuf_n)
 TEST (nnstreamerGrpc, stopWhileHeldAsyncClientSrcFlatbuf_n)
 {
   EXPECT_TRUE (_stop_client_src_while_held ("flatbuf", FALSE));
+}
+
+/**
+ * @brief Run _restart_server_src () for flatbuf with messages of the given data sizes, each a list for one message.
+ */
+static guint
+_fb_restart_server_src (gboolean blocking, GstState via,
+    const std::vector<std::vector<gint>> &sizes, guint per_run)
+{
+  return _restart_server_src (
+      "flatbuf", blocking, via,
+      [&] (const std::string &addr, const std::function<void ()> &wait) {
+        std::vector<FbMessage> msgs;
+
+        for (const std::vector<gint> &size : sizes)
+          msgs.push_back (_fb_build (2, &size));
+        _fb_send_held (addr, wait, msgs);
+      },
+      per_run);
+}
+
+/**
+ * @brief A tensor_src_grpc (flatbuf) server keeps delivering after it is
+ * stopped and started again; the new instance is told about the caps too.
+ */
+TEST (nnstreamerGrpc, restartServerSrcFlatbuf)
+{
+  EXPECT_EQ (_fb_restart_server_src (TRUE, GST_STATE_NULL, { { 4, 2 }, { 4, 2 } }, 2), 4U);
+}
+
+/**
+ * @brief A blocking tensor_src_grpc (flatbuf) server keeps delivering after
+ * PLAYING -> READY -> PLAYING, which does not pass through NULL.
+ */
+TEST (nnstreamerGrpc, restartViaReadyServerSrcFlatbuf)
+{
+  EXPECT_EQ (_fb_restart_server_src (TRUE, GST_STATE_READY, { { 4, 2 }, { 4, 2 } }, 2), 4U);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) server keeps delivering after
+ * PLAYING -> READY -> PLAYING, which does not pass through NULL.
+ */
+TEST (nnstreamerGrpc, restartViaReadyAsyncServerSrcFlatbuf)
+{
+  EXPECT_EQ (_fb_restart_server_src (FALSE, GST_STATE_READY, { { 4, 2 }, { 4, 2 } }, 2), 4U);
+}
+
+/**
+ * @brief A tensor_src_grpc (flatbuf) server restarted through READY checks
+ * messages against the caps again: a bad one is dropped, the next is kept.
+ */
+TEST (nnstreamerGrpc, restartViaReadyServerSrcBadMessageFlatbuf_n)
+{
+  EXPECT_EQ (_fb_restart_server_src (TRUE, GST_STATE_READY, { { 4, 3 }, { 4, 2 } }, 1), 2U);
+}
+
+/**
+ * @brief Blocking flatbuf stream from a tensor_sink_grpc client to a tensor_src_grpc server ends by EOS with the bytes sent.
+ */
+TEST (nnstreamerGrpc, streamClientSinkFlatbuf)
+{
+  EXPECT_TRUE (_stream_frames ("flatbuf", TRUE, TRUE));
+}
+
+/**
+ * @brief Non-blocking flatbuf stream from a tensor_sink_grpc client to a
+ * tensor_src_grpc server ends by EOS with the bytes sent.
+ */
+TEST (nnstreamerGrpc, streamAsyncClientSinkFlatbuf)
+{
+  EXPECT_TRUE (_stream_frames ("flatbuf", TRUE, FALSE));
+}
+
+/**
+ * @brief Blocking flatbuf stream from a tensor_sink_grpc server to a tensor_src_grpc client ends by EOS with the bytes sent.
+ */
+TEST (nnstreamerGrpc, streamServerSinkFlatbuf)
+{
+  EXPECT_TRUE (_stream_frames ("flatbuf", FALSE, TRUE));
+}
+
+/**
+ * @brief Non-blocking flatbuf stream from a tensor_sink_grpc server to a
+ * tensor_src_grpc client ends by EOS with the bytes sent.
+ */
+TEST (nnstreamerGrpc, streamAsyncServerSinkFlatbuf)
+{
+  EXPECT_TRUE (_stream_frames ("flatbuf", FALSE, FALSE));
 }
 
 /**
