@@ -164,6 +164,15 @@ if gtest_dep.found()
     )
     test('unittest_decoder_image_segment', unittest_decoder_image_segment, env: testenv)
 
+    # RUN unittest_decoder_image_labeling
+    unittest_decoder_image_labeling = executable('unittest_decoder_image_labeling',
+      join_paths('nnstreamer_decoder_image_labeling', 'unittest_decoder_image_labeling.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+    test('unittest_decoder_image_labeling', unittest_decoder_image_labeling, env: testenv)
+
     # RUN unittest_decoder_plugin_data
     unittest_decoder_plugin_data = executable('unittest_decoder_plugin_data',
       join_paths('nnstreamer_decoder', 'unittest_decoder_plugin_data.cc'),
