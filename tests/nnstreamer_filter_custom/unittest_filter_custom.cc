@@ -3334,6 +3334,135 @@ TEST (tensorFilterQos, latencyBelowGap_n)
 }
 
 /**
+ * @brief Harness a tensor_filter on the custom library 'nnscustom_invoke_result', with a bus to catch its messages.
+ * @param custom The custom property, which sets what invoke returns.
+ */
+static GstHarness *
+_invoke_result_harness (const gchar *custom)
+{
+  g_autofree gchar *lib_name
+      = g_strconcat ("libnnscustom_invoke_result", NNSTREAMER_SO_FILE_EXTENSION, NULL);
+  g_autofree gchar *path = _b3_build_path ("nnstreamer_example", lib_name);
+  g_autofree gchar *desc = g_strdup_printf (
+      "tensor_filter framework=custom model=%s custom=%s", path, custom);
+  GstHarness *h;
+  GstBus *bus;
+
+  if (!g_file_test (path, G_FILE_TEST_EXISTS))
+    return NULL;
+
+  h = gst_harness_new_parse (desc);
+  bus = gst_bus_new ();
+  gst_element_set_bus (h->element, bus);
+  gst_object_unref (bus);
+
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,num_tensors=1,types=uint8,dimensions=4:1:1:1,format=static,framerate=(fraction)0/1");
+  return h;
+}
+
+/**
+ * @brief Pop the 'invoke-failure' messages tensor_filter has posted so far.
+ * @param[out] text The message text of the last one, if not NULL.
+ * @return The number of messages.
+ */
+static guint
+_invoke_result_failures (GstHarness *h, gchar **text)
+{
+  GstBus *bus = gst_element_get_bus (h->element);
+  GstMessage *msg;
+  guint count = 0;
+
+  while ((msg = gst_bus_pop_filtered (bus, GST_MESSAGE_APPLICATION)) != NULL) {
+    const GstStructure *s = gst_message_get_structure (msg);
+
+    if (gst_structure_has_name (s, "nnstreamer-message")
+        && g_strcmp0 (gst_structure_get_string (s, "type"), "invoke-failure") == 0) {
+      EXPECT_STREQ (gst_structure_get_string (s, "element"), "tensor-filter");
+      EXPECT_STREQ (G_OBJECT_TYPE_NAME (GST_MESSAGE_SRC (msg)), "GstTensorFilter");
+      if (text) {
+        g_free (*text);
+        *text = g_strdup (gst_structure_get_string (s, "message"));
+      }
+      count++;
+    }
+    gst_message_unref (msg);
+  }
+
+  gst_object_unref (bus);
+  return count;
+}
+
+/**
+ * @brief An invoke returning a negative value posts 'invoke-failure' on the bus and stops the flow.
+ */
+TEST (tensorFilterCustomInvokeResult, failurePostsMessage_n)
+{
+  GstHarness *h = _invoke_result_harness ("-5");
+  gchar *text = NULL;
+
+  ASSERT_TRUE (h != nullptr);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (_invoke_result_failures (h, &text), 1U);
+  EXPECT_TRUE (text != nullptr && strstr (text, "error code (-5)") != nullptr)
+      << "message: " << GST_STR_NULL (text);
+  g_free (text);
+
+  /* Each failed invoke posts its own message. */
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_ERROR);
+  EXPECT_EQ (_invoke_result_failures (h, NULL), 1U);
+
+  _flex_in_teardown (h);
+}
+
+/**
+ * @brief An invoke returning a positive value drops the buffer without a message.
+ */
+TEST (tensorFilterCustomInvokeResult, positiveDropsBuffer)
+{
+  GstHarness *h = _invoke_result_harness ("1");
+
+  ASSERT_TRUE (h != nullptr);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (_invoke_result_failures (h, NULL), 0U);
+
+  _flex_in_teardown (h);
+}
+
+/**
+ * @brief An invoke returning 0 passes the output on without a message.
+ */
+TEST (tensorFilterCustomInvokeResult, zeroPassesBuffer)
+{
+  GstHarness *h = _invoke_result_harness ("0");
+  GstBuffer *in, *out;
+  GstMapInfo map;
+  const guint8 bytes[] = { 1, 2, 3, 4 };
+
+  ASSERT_TRUE (h != nullptr);
+
+  in = gst_harness_create_buffer (h, sizeof (bytes));
+  gst_buffer_fill (in, 0, bytes, sizeof (bytes));
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+  EXPECT_EQ (_invoke_result_failures (h, NULL), 0U);
+
+  out = gst_harness_try_pull (h);
+  ASSERT_TRUE (out != nullptr);
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, sizeof (bytes));
+  EXPECT_EQ (memcmp (map.data, bytes, sizeof (bytes)), 0);
+  gst_buffer_unmap (out, &map);
+  gst_buffer_unref (out);
+
+  _flex_in_teardown (h);
+}
+
+/**
  * @brief Main gtest
  */
 int
