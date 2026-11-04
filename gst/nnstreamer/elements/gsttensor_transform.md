@@ -94,7 +94,7 @@ title: tensor_transform
 
     - (6): padding
       - A mode for zero-padding the first three dimensions of tensor
-      - An option should be provided as left|right|top|bottom|front|back:NUMBER[,layout:(NCHW|NHWC)], where left/right pad the 1st dimension, top/bottom the 2nd and front/back the 3rd (left/right and front/back swap with `layout:NHWC`).
+      - An option should be provided as left|right|top|bottom|front|back:NUMBER[,layout:(NCHW|NHWC)], where left/right pad the 1st dimension, top/bottom the 2nd and front/back the 3rd (left/right and front/back swap with `layout:NHWC`). The entries are separated by `,` with no trailing `,`, and `layout` comes last; an option that does not follow this form (e.g., `left:1layout:NHWC`) is refused.
       - A tensor of rank 1 or 2 is padded as if its missing dimensions were 1: `4:3` with `front:1` becomes `4:3:2`, and `4:3` with `left:1` stays rank 2 as `5:3`.
       - `NUMBER` is a decimal number of any length. The option is refused if a pad or the sum of the two pads of a dimension exceeds 4294967295, and the stream is refused if a padded dimension does. The output is allocated at the padded size, so a large pad needs that much memory.
       - Example: 100:50:3 ==> 102:54:3
