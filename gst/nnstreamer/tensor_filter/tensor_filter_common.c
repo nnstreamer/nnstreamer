@@ -1818,7 +1818,7 @@ static gint
 _gtfc_setprop_IS_UPDATABLE (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
 {
-  if (priv->fw) {
+  if (priv->fw && g_value_get_boolean (value)) {
     if (GST_TF_FW_V0 (priv->fw) && priv->fw->reloadModel == NULL) {
       priv->is_updatable = FALSE;
       return 0;

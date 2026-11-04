@@ -1326,9 +1326,11 @@ TEST_F (nnstreamerFilterTensorFlow2LiteV1, reloadModel)
 {
   gchar *model_file2;
 
+  /* tensor_filter probes is-updatable with no event data, before open, too */
+  EXPECT_NE (sp->eventHandler (sp, &prop, NULL, RELOAD_MODEL, NULL), -ENOENT);
+
   ASSERT_EQ (sp->open (&prop, &data), 0);
 
-  /* tensor_filter probes is-updatable with no event data */
   EXPECT_NE (sp->eventHandler (sp, &prop, data, RELOAD_MODEL, NULL), -ENOENT);
 
   ASSERT_TRUE (_GetModelFilePath (&model_file2, 0));
