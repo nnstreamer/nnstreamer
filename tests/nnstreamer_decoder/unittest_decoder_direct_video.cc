@@ -328,12 +328,102 @@ TEST (testDecoderDirectVideo, transformSize)
   DirectVideo unpadded ("4:4:2");
   DirectVideo padded ("3:3:2");
   DirectVideo gray16 ("1:4:2", _NNS_UINT16, "GRAY16_LE");
+  DirectVideo widest ("1:2147483644:1");
 
   ASSERT_TRUE (unpadded.dec != NULL);
   EXPECT_EQ (unpadded.getTransformSize (), 32U);
   EXPECT_EQ (padded.getTransformSize (), 24U);
   EXPECT_EQ (gray16.getTransformSize (), 16U);
+  EXPECT_EQ (widest.getTransformSize (), 2147483644U);
   EXPECT_EQ (padded.getTransformSize (GST_PAD_SRC), 0U);
+}
+
+/**
+ * @brief Decode a frame of @a format and check it against the layout of GStreamer.
+ * @details The size of the frame and each row in the output must be where
+ *          GstVideoInfo puts them, the padding of each row is zero, and
+ *          nothing is written behind the frame.
+ */
+static void
+check_video_layout (const gchar *format, guint channels, tensor_type type,
+    guint width, guint height)
+{
+  gchar *dim_str = g_strdup_printf ("%u:%u:%u", channels, width, height);
+  DirectVideo dv (dim_str, type, format);
+  const gsize row = (gsize) channels * width * gst_tensor_get_element_size (type);
+  GstVideoInfo info;
+  guint8 *in = new_pattern (row * height);
+  guint8 *block = NULL;
+  GstBuffer *outbuf;
+  gsize frame_size;
+  guint mismatched = 0, dirty_padding = 0;
+
+  g_free (dim_str);
+  ASSERT_TRUE (dv.dec != NULL);
+  ASSERT_TRUE (dv.option_set);
+  ASSERT_TRUE (gst_video_info_set_format (
+      &info, gst_video_format_from_string (format), width, height));
+  frame_size = GST_VIDEO_INFO_SIZE (&info);
+
+  EXPECT_EQ (dv.getTransformSize (), frame_size) << format << " width " << width;
+
+  outbuf = new_guarded_buffer (frame_size, &block);
+  EXPECT_EQ (GST_FLOW_OK, dv.decode (in, row * height, outbuf));
+  EXPECT_EQ (gst_buffer_get_size (outbuf), frame_size);
+  for (guint y = 0; y < height; y++) {
+    const guint8 *line = block + y * GST_VIDEO_INFO_PLANE_STRIDE (&info, 0);
+
+    mismatched += memcmp (line, in + y * row, row) != 0;
+    for (gsize i = row; i < (gsize) GST_VIDEO_INFO_PLANE_STRIDE (&info, 0); i++)
+      dirty_padding += line[i] != 0;
+  }
+  EXPECT_EQ (mismatched, 0U) << format << " width " << width;
+  EXPECT_EQ (dirty_padding, 0U) << format << " width " << width;
+  EXPECT_EQ (count_broken_guard (block, frame_size), 0U);
+
+  gst_buffer_unref (outbuf);
+  g_free (block);
+  g_free (in);
+}
+
+/**
+ * @brief Each row of a 16-bit gray frame is copied in full and padded in bytes.
+ * @details 161 pixels are 322 bytes padded to 324, and 162 pixels are 324 bytes
+ *          needing no padding, although neither width is a multiple of 4.
+ */
+TEST (testDecoderDirectVideo, decodeGray16Rows)
+{
+  check_video_layout ("GRAY16_LE", 1, _NNS_UINT16, 161, 3);
+  check_video_layout ("GRAY16_LE", 1, _NNS_UINT16, 162, 3);
+  check_video_layout ("GRAY16_BE", 1, _NNS_UINT16, 161, 3);
+  check_video_layout ("GRAY16_BE", 1, _NNS_UINT16, 162, 3);
+  check_video_layout ("GRAY16_LE", 1, _NNS_UINT16, 1, 2);
+}
+
+/**
+ * @brief Frames of one byte per element keep the layout of GStreamer.
+ */
+TEST (testDecoderDirectVideo, decodeUint8Rows)
+{
+  check_video_layout ("GRAY8", 1, _NNS_UINT8, 161, 3);
+  check_video_layout ("GRAY8", 1, _NNS_UINT8, 162, 3);
+  check_video_layout ("RGB", 3, _NNS_UINT8, 161, 3);
+  check_video_layout ("BGRx", 4, _NNS_UINT8, 161, 3);
+}
+
+/**
+ * @brief A tensor whose element size differs from the pixel of the format is refused.
+ */
+TEST (testDecoderDirectVideo, gray16ElementSizeMismatch_n)
+{
+  DirectVideo uint8_gray16 ("1:161:3", _NNS_UINT8, "GRAY16_LE");
+  DirectVideo uint16_gray8 ("1:161:3", _NNS_UINT16, "GRAY8");
+
+  ASSERT_TRUE (uint8_gray16.dec != NULL);
+  EXPECT_TRUE (uint8_gray16.option_set);
+  EXPECT_EQ (uint8_gray16.getOutCaps (), nullptr);
+  EXPECT_TRUE (uint16_gray8.option_set);
+  EXPECT_EQ (uint16_gray8.getOutCaps (), nullptr);
 }
 
 /**
@@ -345,6 +435,8 @@ TEST (testDecoderDirectVideo, transformSizeUnaddressable_n)
 {
   DirectVideo no_height ("4:4");
   DirectVideo row_overflow ("4:1073741824:1");
+  DirectVideo stride_overflow ("1:2147483645:1");
+  DirectVideo gray16_row_overflow ("1:1073741823:1", _NNS_UINT16, "GRAY16_LE");
   DirectVideo frame_overflow ("4:315916329:1824726041", _NNS_FLOAT64);
   DirectVideo padding_overflow ("1:1:1073741832");
   guint64 expected = (sizeof (gsize) > 4) ? G_GUINT64_CONSTANT (4294967328) : 0;
@@ -352,6 +444,8 @@ TEST (testDecoderDirectVideo, transformSizeUnaddressable_n)
   ASSERT_TRUE (no_height.dec != NULL);
   EXPECT_EQ (no_height.getTransformSize (), 0U);
   EXPECT_EQ (row_overflow.getTransformSize (), 0U);
+  EXPECT_EQ (stride_overflow.getTransformSize (), 0U);
+  EXPECT_EQ (gray16_row_overflow.getTransformSize (), 0U);
   EXPECT_EQ (frame_overflow.getTransformSize (), 0U);
   EXPECT_EQ ((guint64) padding_overflow.getTransformSize (), expected);
 }
