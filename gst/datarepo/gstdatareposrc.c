@@ -736,7 +736,7 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
     gst_memory_unmap (mem, &info);
 
     gst_tensor_buffer_append_memory (buf, mem,
-        gst_tensors_info_get_nth_info (&src->config.info, i));
+        gst_tensors_info_get_nth_info (&src->config.info, seq_idx));
     mem = NULL;
   }
 
@@ -1445,7 +1445,7 @@ gst_data_repo_src_stop (GstBaseSrc * basesrc)
 static gboolean
 gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
 {
-  GstTensorsConfig src_config, dst_config;
+  GstTensorsConfig dst_config;
   GstTensorInfo *_src_info, *_dst_info;
   guint i;
   guint seq_num = 0;
@@ -1454,21 +1454,18 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (src->caps != NULL, FALSE);
 
-  if (!gst_tensors_config_from_caps (&src_config, src->caps, TRUE))
-    return FALSE;
-
   gst_tensors_config_init (&dst_config);
 
   /* Copy selected tensors in sequence */
   for (i = 0; i < src->tensors_seq_cnt; i++) {
     seq_num = src->tensors_seq[i];
-    _src_info = gst_tensors_info_get_nth_info (&src_config.info, seq_num);
+    _src_info = gst_tensors_info_get_nth_info (&src->config.info, seq_num);
     _dst_info = gst_tensors_info_get_nth_info (&dst_config.info, i);
     gst_tensor_info_copy (_dst_info, _src_info);
   }
-  dst_config.rate_n = src_config.rate_n;
-  dst_config.rate_d = src_config.rate_d;
-  dst_config.info.format = src_config.info.format;
+  dst_config.rate_n = src->config.rate_n;
+  dst_config.rate_d = src->config.rate_d;
+  dst_config.info.format = src->config.info.format;
   dst_config.info.num_tensors = src->tensors_seq_cnt;
 
   new_caps = gst_tensors_caps_from_config (&dst_config);
@@ -1477,9 +1474,11 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
       "datareposrc caps by tensors_sequence %" GST_PTR_FORMAT, new_caps);
 
   gst_tensors_config_free (&dst_config);
-  gst_tensors_config_free (&src_config);
 
-  return gst_data_repo_src_parse_caps (src, new_caps);
+  /* Keep the layout of the repository, which tensors_seq indexes. */
+  gst_caps_take (&src->caps, new_caps);
+
+  return TRUE;
 }
 
 /**
@@ -1712,6 +1711,12 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
           to get information on sample data */
       if (!gst_data_repo_src_read_json_file (src)) {
         GST_ERROR_OBJECT (src, "Failed to get data format");
+        break;
+      }
+      /* As with caps, apply tensors-sequence to the tensors of the new JSON. */
+      if (src->tensors_seq_str) {
+        if (gst_data_repo_src_set_tensors_sequence (src))
+          src->need_changed_caps = TRUE;
       }
       break;
     case PROP_START_SAMPLE_INDEX:

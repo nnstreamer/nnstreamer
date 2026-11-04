@@ -3083,6 +3083,424 @@ TEST (datareposrc, readVideoJsonNoWidth_n)
   g_remove (REPO_JSON);
 }
 
+#define REPO_SEQ_SAMPLES 3U
+#define REPO_SEQ_SAMPLE_SIZE 20U
+#define REPO_SEQ_CAPS                                                  \
+  "other/tensors,format=static,num_tensors=2,dimensions=(string)4.16," \
+  "types=(string)uint8.uint8"
+
+/**
+ * @brief Size and offset of the tensors of a sample in the static repository.
+ */
+static const gsize repo_seq_size[] = { 4U, 16U };
+static const gsize repo_seq_offset[] = { 0U, 4U };
+
+/**
+ * @brief Memories datareposrc pushed in a run.
+ */
+typedef struct {
+  GArray *sizes; /**< size of each memory, in push order */
+  GByteArray *bytes; /**< bytes of each memory, in push order */
+  GArray *pts; /**< timestamp of each buffer, in push order */
+  gchar *caps; /**< caps of the sink pad at the first buffer */
+} repo_seq_out_s;
+
+/**
+ * @brief Write a static repository of two uint8 tensors of 4 and 16 bytes per
+ * sample, where each byte holds its offset in the data file.
+ */
+static void
+_write_static_seq_repo (const gchar *framerate = "0/1")
+{
+  guint8 data[REPO_SEQ_SAMPLES * REPO_SEQ_SAMPLE_SIZE];
+  g_autofree gchar *json_str = g_strdup_printf (
+      "{\"gst_caps\":\"" REPO_SEQ_CAPS ",framerate=%s\",\"total_samples\":%u}",
+      framerate, REPO_SEQ_SAMPLES);
+  guint i;
+
+  for (i = 0; i < sizeof (data); i++)
+    data[i] = (guint8) i;
+
+  EXPECT_TRUE (g_file_set_contents (REPO_DATA, (const gchar *) data, sizeof (data), NULL));
+  EXPECT_TRUE (g_file_set_contents (REPO_JSON, json_str, -1, NULL));
+}
+
+/**
+ * @brief fakesink handoff callback recording the memories of each buffer.
+ */
+static void
+_repo_seq_handoff_cb (GstElement *element, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  repo_seq_out_s *out = (repo_seq_out_s *) user_data;
+  guint i, n = gst_buffer_n_memory (buffer);
+  GstClockTime pts = GST_BUFFER_PTS (buffer);
+  GstMapInfo map;
+
+  g_array_append_val (out->pts, pts);
+  if (!out->caps) {
+    GstCaps *caps = gst_pad_get_current_caps (pad);
+
+    out->caps = caps ? gst_caps_to_string (caps) : g_strdup ("");
+    if (caps)
+      gst_caps_unref (caps);
+  }
+
+  for (i = 0; i < n; i++) {
+    GstMemory *mem = gst_buffer_peek_memory (buffer, i);
+    gsize size = 0;
+
+    if (gst_memory_map (mem, &map, GST_MAP_READ)) {
+      size = map.size;
+      g_byte_array_append (out->bytes, map.data, map.size);
+      gst_memory_unmap (mem, &map);
+    }
+    g_array_append_val (out->sizes, size);
+  }
+}
+
+/**
+ * @brief Run @a pipeline and record the memories its datareposrc pushed into @a out.
+ */
+static void
+_run_repo_seq_pipeline (GstElement *pipeline, repo_run_s *run, repo_seq_out_s *out)
+{
+  GstElement *sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink0");
+  gulong id;
+
+  ASSERT_NE (sink, nullptr);
+  out->sizes = g_array_new (FALSE, FALSE, sizeof (gsize));
+  out->bytes = g_byte_array_new ();
+  out->pts = g_array_new (FALSE, FALSE, sizeof (GstClockTime));
+  id = g_signal_connect (sink, "handoff", G_CALLBACK (_repo_seq_handoff_cb), out);
+  _run_repo_pipeline (pipeline, run);
+  g_signal_handler_disconnect (sink, id);
+  gst_object_unref (sink);
+}
+
+/**
+ * @brief Free what _run_repo_seq_pipeline () recorded.
+ */
+static void
+_repo_seq_out_clear (repo_seq_out_s *out)
+{
+  g_clear_pointer (&out->sizes, g_array_unref);
+  g_clear_pointer (&out->bytes, g_byte_array_unref);
+  g_clear_pointer (&out->pts, g_array_unref);
+  g_clear_pointer (&out->caps, g_free);
+}
+
+/**
+ * @brief Expect that samples [@a start, @a stop] were pushed in order,
+ * @a epochs times, each with the tensors of @a seq in that order.
+ */
+static void
+_expect_seq_samples (const repo_seq_out_s *out, guint start, guint stop,
+    const guint *seq, guint seq_cnt, guint epochs = 1)
+{
+  g_autoptr (GByteArray) expected = g_byte_array_new ();
+  guint e, s, t, i, n = 0;
+
+  for (e = 0; e < epochs; e++) {
+    for (s = start; s <= stop; s++) {
+      for (t = 0; t < seq_cnt; t++, n++) {
+        gsize offset = s * REPO_SEQ_SAMPLE_SIZE + repo_seq_offset[seq[t]];
+
+        for (i = 0; i < repo_seq_size[seq[t]]; i++) {
+          guint8 b = (guint8) (offset + i);
+          g_byte_array_append (expected, &b, 1);
+        }
+        if (n < out->sizes->len) {
+          EXPECT_EQ (g_array_index (out->sizes, gsize, n), repo_seq_size[seq[t]])
+              << "memory " << n;
+        }
+      }
+    }
+  }
+
+  EXPECT_EQ (out->sizes->len, n);
+  ASSERT_EQ (out->bytes->len, expected->len);
+  EXPECT_EQ (memcmp (out->bytes->data, expected->data, expected->len), 0);
+}
+
+/**
+ * @brief Expect that the pushed buffers had caps of @a num_tensors uint8
+ * tensors of @a dims, at @a rate_n / @a rate_d. Tensors in @a dims are
+ * separated by ',', caps may use ',' or '.'.
+ */
+static void
+_expect_seq_caps (const repo_seq_out_s *out, gint num_tensors,
+    const gchar *dims, gint rate_n = 0, gint rate_d = 1)
+{
+  g_autofree gchar *types = NULL;
+  g_autofree gchar *caps_dims = NULL;
+  g_autofree gchar *caps_types = NULL;
+  GstCaps *caps;
+  GstStructure *s;
+  gint num = 0, n = 0, d = 0, i;
+
+  ASSERT_NE (out->caps, nullptr);
+  caps = gst_caps_from_string (out->caps);
+  ASSERT_NE (caps, nullptr) << out->caps;
+  s = gst_caps_get_structure (caps, 0);
+
+  types = g_strdup ("uint8");
+  for (i = 1; i < num_tensors; i++) {
+    gchar *more = g_strconcat (types, ",uint8", NULL);
+    g_free (types);
+    types = more;
+  }
+  caps_dims = g_strdup (gst_structure_get_string (s, "dimensions"));
+  caps_types = g_strdup (gst_structure_get_string (s, "types"));
+  if (caps_dims)
+    g_strdelimit (caps_dims, ".", ',');
+  if (caps_types)
+    g_strdelimit (caps_types, ".", ',');
+
+  EXPECT_TRUE (gst_structure_get_int (s, "num_tensors", &num)) << out->caps;
+  EXPECT_EQ (num, num_tensors) << out->caps;
+  EXPECT_STREQ (caps_dims, dims) << out->caps;
+  EXPECT_STREQ (caps_types, types) << out->caps;
+  EXPECT_TRUE (gst_structure_get_fraction (s, "framerate", &n, &d)) << out->caps;
+  EXPECT_EQ (n, rate_n) << out->caps;
+  EXPECT_EQ (d, rate_d) << out->caps;
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Read the static repository with @a seq as tensors-sequence, or without
+ * the property if @a seq is NULL.
+ */
+static void
+_read_static_seq_repo (const gchar *seq, repo_run_s *run, repo_seq_out_s *out)
+{
+  g_autofree gchar *str_pipeline
+      = g_strdup_printf ("datareposrc name=src0 location=" REPO_DATA " json=" REPO_JSON
+                         " is-shuffle=false %s%s ! fakesink name=sink0",
+          seq ? "tensors-sequence=" : "", seq ? seq : "");
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+
+  ASSERT_NE (pipeline, nullptr);
+  _run_repo_seq_pipeline (pipeline, run, out);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief A tensors-sequence that reorders tensors of unequal sizes reads each
+ * tensor at its own offset in every sample.
+ */
+TEST (datareposrc, readStaticTensorsSequenceReordered)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 1U, 0U };
+
+  _write_static_seq_repo ();
+  _read_static_seq_repo ("1,0", &run, &out);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, REPO_SEQ_SAMPLES);
+  EXPECT_EQ (run.last_mems, 2U);
+  _expect_seq_caps (&out, 2, "16,4");
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A tensors-sequence that picks the last tensor keeps the sample stride of the repository.
+ */
+TEST (datareposrc, readStaticTensorsSequenceLast)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 1U };
+
+  _write_static_seq_repo ();
+  _read_static_seq_repo ("1", &run, &out);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, REPO_SEQ_SAMPLES);
+  EXPECT_EQ (run.last_mems, 1U);
+  _expect_seq_caps (&out, 1, "16");
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 1);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A tensors-sequence that picks the first tensor keeps the sample stride of the repository.
+ */
+TEST (datareposrc, readStaticTensorsSequenceFirst)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 0U };
+
+  _write_static_seq_repo ();
+  _read_static_seq_repo ("0", &run, &out);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, REPO_SEQ_SAMPLES);
+  EXPECT_EQ (run.last_mems, 1U);
+  _expect_seq_caps (&out, 1, "4");
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 1);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A tensors-sequence keeps the framerate of the repository in its caps
+ * and timestamps.
+ */
+TEST (datareposrc, readStaticTensorsSequenceFramerate)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 1U, 0U };
+  guint i;
+
+  _write_static_seq_repo ("10/1");
+  _read_static_seq_repo ("1,0", &run, &out);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_caps (&out, 2, "16,4", 10, 1);
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2);
+  ASSERT_EQ (out.pts->len, REPO_SEQ_SAMPLES);
+  for (i = 1; i < REPO_SEQ_SAMPLES; i++)
+    EXPECT_GE (g_array_index (out.pts, GstClockTime, i),
+        g_array_index (out.pts, GstClockTime, i - 1));
+  EXPECT_GT (g_array_index (out.pts, GstClockTime, REPO_SEQ_SAMPLES - 1), 0U);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief Without tensors-sequence, every tensor of a sample is read in order.
+ */
+TEST (datareposrc, readStaticTensorsNoSequence)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 0U, 1U };
+
+  _write_static_seq_repo ();
+  _read_static_seq_repo (NULL, &run, &out);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  EXPECT_EQ (run.buffers, REPO_SEQ_SAMPLES);
+  EXPECT_EQ (run.last_mems, 2U);
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A tensors-sequence index past the tensors of a sample is refused at NULL to READY.
+ */
+TEST (datareposrc, readStaticTensorsSequenceOutOfRange_n)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+
+  _write_static_seq_repo ();
+  _read_static_seq_repo ("2", &run, &out);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_ANY);
+  EXPECT_EQ (run.buffers, 0U);
+  EXPECT_EQ (out.sizes->len, 0U);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A tensors-sequence set before the JSON file applies to the tensors of that file.
+ */
+TEST (datareposrc, readStaticTensorsSequenceBeforeJson)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 1U, 0U };
+  GstElement *pipeline;
+
+  _write_static_seq_repo ();
+  pipeline = gst_parse_launch ("datareposrc name=src0 tensors-sequence=1,0 location=" REPO_DATA
+                               " json=" REPO_JSON " is-shuffle=false ! fakesink name=sink0",
+      NULL);
+  ASSERT_NE (pipeline, nullptr);
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_caps (&out, 2, "16,4");
+  _expect_seq_samples (&out, 0, REPO_SEQ_SAMPLES - 1, seq, 2);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A reordering tensors-sequence on a repository written by datareposink
+ * returns the tensors of each sample that a read without it returns, swapped.
+ */
+TEST (datareposrc, readSinkRepoTensorsSequenceReordered)
+{
+  repo_run_s run = {};
+  repo_seq_out_s plain = {}, reordered = {};
+  GstBus *bus;
+  GMainLoop *loop;
+  guint s;
+  GstElement *pipeline = gst_parse_launch (
+      "videotestsrc num-buffers=3 pattern=snow ! "
+      "video/x-raw,format=GRAY8,width=4,height=1,framerate=10/1 ! tensor_converter ! mux.sink_0 "
+      "videotestsrc num-buffers=3 pattern=snow ! "
+      "video/x-raw,format=GRAY8,width=16,height=1,framerate=10/1 ! tensor_converter ! mux.sink_1 "
+      "tensor_mux name=mux sync-mode=nosync ! datareposink location=" REPO_DATA
+      " json=" REPO_JSON,
+      NULL);
+
+  ASSERT_NE (pipeline, nullptr);
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_main_loop_run (loop);
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  _read_static_seq_repo (NULL, &run, &plain);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  run = {};
+  _read_static_seq_repo ("1,0", &run, &reordered);
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+
+  ASSERT_EQ (plain.sizes->len, 2U * REPO_SEQ_SAMPLES);
+  ASSERT_EQ (reordered.sizes->len, 2U * REPO_SEQ_SAMPLES);
+  ASSERT_EQ (plain.bytes->len, REPO_SEQ_SAMPLES * REPO_SEQ_SAMPLE_SIZE);
+  ASSERT_EQ (reordered.bytes->len, REPO_SEQ_SAMPLES * REPO_SEQ_SAMPLE_SIZE);
+  for (s = 0; s < REPO_SEQ_SAMPLES; s++) {
+    const guint8 *p = plain.bytes->data + s * REPO_SEQ_SAMPLE_SIZE;
+    const guint8 *r = reordered.bytes->data + s * REPO_SEQ_SAMPLE_SIZE;
+
+    EXPECT_EQ (g_array_index (reordered.sizes, gsize, 2 * s), 16U);
+    EXPECT_EQ (g_array_index (reordered.sizes, gsize, 2 * s + 1), 4U);
+    EXPECT_EQ (memcmp (r, p + 4, 16), 0) << "sample " << s;
+    EXPECT_EQ (memcmp (r + 16, p, 4), 0) << "sample " << s;
+  }
+
+  _repo_seq_out_clear (&plain);
+  _repo_seq_out_clear (&reordered);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
 /**
  * @brief Main GTest
  */
