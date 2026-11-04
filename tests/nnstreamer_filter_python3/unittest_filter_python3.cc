@@ -13,9 +13,11 @@
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <unistd.h>
 #include <unittest_python3_util.h>
 #include <unittest_util.h>
 
+#include <nnstreamer_conf.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
 #include <tensor_common.h>
@@ -979,24 +981,190 @@ TEST (nnstreamerFilterPython3, openInvalidScriptKeepsSysPath_n)
 }
 
 /**
- * @brief With nnstreamer_python.so on sys.path, the filter uses the module loaded from it.
+ * @brief Take what _python3_put_api_module_link() set, or the part of it that was set, out of the interpreter.
+ * @return TRUE if the restore ran.
+ */
+static gboolean
+_python3_undo_api_module_link (void)
+{
+  gboolean done;
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+
+  done = (PyRun_SimpleString ("import importlib, sys\n"
+                              "finder = sys.__dict__.pop ('_nns_test_link_finder', None)\n"
+                              "if finder in sys.meta_path:\n"
+                              "  sys.meta_path.remove (finder)\n"
+                              "link_dir = sys.__dict__.pop ('_nns_test_link_dir', None)\n"
+                              "if link_dir in sys.path:\n"
+                              "  sys.path.remove (link_dir)\n"
+                              "sys.modules.pop ('nnstreamer_python', None)\n"
+                              "sys.modules.pop ('passthrough', None)\n"
+                              "importlib.invalidate_caches ()\n")
+          == 0);
+  PyErr_Clear ();
+  PyGILState_Release (gstate);
+
+  return done;
+}
+
+/**
+ * @brief Make a nnstreamer_python.so link the only nnstreamer_python on sys.path, as a package installs it.
+ * @param target The file the link points to.
+ * @return The temporary directory holding the link, to pass to _python3_remove_api_module_link(); NULL on failure.
+ * @note The directory goes first on sys.path, and a finder first on sys.meta_path looks nnstreamer_python up
+ *       in that directory only, so that a nnstreamer_python elsewhere (PYTHONPATH of the test runner, or the
+ *       python3 site directory of a package) is not found while the other modules there still are. passthrough
+ *       is dropped from sys.modules so that its own import runs again.
+ */
+static gchar *
+_python3_put_api_module_link (const gchar *target)
+{
+  gchar *dir;
+  gchar *link;
+  gboolean done = FALSE;
+
+  if (!Py_IsInitialized () || (dir = g_dir_make_tmp ("nns-py-XXXXXX", NULL)) == NULL)
+    return NULL;
+
+  link = g_build_filename (dir, "nnstreamer_python.so", NULL);
+  if (symlink (target, link) == 0) {
+    PyGILState_STATE gstate = PyGILState_Ensure ();
+    PyObject *entry = PyUnicode_FromString (dir);
+
+    done = entry && PySys_SetObject ("_nns_test_link_dir", entry) == 0
+           && PyRun_SimpleString (
+                  "import importlib, importlib.machinery, sys\n"
+                  "class NnsTestLinkFinder:\n"
+                  "  @staticmethod\n"
+                  "  def find_spec (name, path=None, target=None):\n"
+                  "    if name != 'nnstreamer_python':\n"
+                  "      return None\n"
+                  "    spec = importlib.machinery.PathFinder.find_spec (name, [sys._nns_test_link_dir])\n"
+                  "    if spec is None:\n"
+                  "      raise ModuleNotFoundError ('No module named ' + repr (name), name=name)\n"
+                  "    return spec\n"
+                  "sys._nns_test_link_finder = NnsTestLinkFinder\n"
+                  "sys.meta_path.insert (0, NnsTestLinkFinder)\n"
+                  "sys.path.insert (0, sys._nns_test_link_dir)\n"
+                  "sys.modules.pop ('nnstreamer_python', None)\n"
+                  "sys.modules.pop ('passthrough', None)\n"
+                  "importlib.invalidate_caches ()\n")
+                  == 0;
+    Py_XDECREF (entry);
+    PyErr_Clear ();
+    PyGILState_Release (gstate);
+    if (!done)
+      _python3_undo_api_module_link ();
+  }
+
+  if (!done) {
+    g_remove (link);
+    g_rmdir (dir);
+    g_clear_pointer (&dir, g_free);
+  }
+  g_free (link);
+
+  return dir;
+}
+
+/**
+ * @brief Undo _python3_put_api_module_link() and free the directory name.
+ * @param dir The directory it returned.
+ * @return TRUE if sys.path is restored and the directory is removed.
+ */
+static gboolean
+_python3_remove_api_module_link (gchar *dir)
+{
+  gchar *link = g_build_filename (dir, "nnstreamer_python.so", NULL);
+  gboolean done = _python3_undo_api_module_link ();
+
+  done = (g_remove (link) == 0) && done;
+  done = (g_rmdir (dir) == 0) && done;
+  g_free (link);
+  g_free (dir);
+
+  return done;
+}
+
+/**
+ * @brief Whether nnstreamer_python and the name passthrough imported are the module loaded from the link.
+ * @return TRUE if both are the module whose file is in the directory of _python3_put_api_module_link().
+ */
+static gboolean
+_python3_api_module_from_link (void)
+{
+  gboolean done;
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+
+  done = (PyRun_SimpleString ("import os, sys\n"
+                              "nns = sys.modules['nnstreamer_python']\n"
+                              "if os.path.dirname (nns.__file__) != sys._nns_test_link_dir:\n"
+                              "  raise ImportError (nns.__file__)\n"
+                              "if sys.modules['passthrough'].nns is not nns:\n"
+                              "  raise ImportError ('passthrough')\n")
+          == 0);
+  PyErr_Clear ();
+  PyGILState_Release (gstate);
+
+  return done;
+}
+
+/**
+ * @brief With nnstreamer_python.so on sys.path, the filter and its script use the module loaded from it.
  */
 TEST (nnstreamerFilterPython3, openUsesApiModuleOnSysPath)
 {
   void *data = NULL;
-  gchar *model_file = _python3_model_path ("passthrough.py");
+  g_autofree gchar *model_file = _python3_model_path ("passthrough.py");
+  const gchar *model_files[] = { model_file, NULL };
+  const gchar *build_root = g_getenv ("NNSTREAMER_BUILD_ROOT_PATH");
+  g_autofree gchar *helper = NULL;
+  GstTensorFilterProperties prop;
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+  gchar *dir;
+
+  ASSERT_NE (sp, nullptr);
+  ASSERT_NE (build_root, nullptr) << "NNSTREAMER_BUILD_ROOT_PATH is not set";
+  helper = g_build_filename (build_root, "ext", "nnstreamer", "extra",
+      "nnstreamer_python3" NNSTREAMER_SO_FILE_EXTENSION, NULL);
+  ASSERT_TRUE (g_file_test (helper, G_FILE_TEST_IS_REGULAR)) << helper;
+  dir = _python3_put_api_module_link (helper);
+  ASSERT_NE (dir, nullptr);
+  EXPECT_TRUE (py_test_api_module_on_sys_path ());
+
+  _SetFilterProp (&prop, "python3", model_files);
+  EXPECT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_FALSE (py_test_api_module_in_process ());
+  EXPECT_TRUE (_python3_api_module_from_link ());
+  if (data)
+    sp->close (&prop, &data);
+
+  EXPECT_TRUE (_python3_remove_api_module_link (dir));
+}
+
+/**
+ * @brief A nnstreamer_python.so link on sys.path to a missing file is passed over for the in-process module.
+ */
+TEST (nnstreamerFilterPython3, openBrokenApiModuleLinkOnSysPath_n)
+{
+  void *data = NULL;
+  g_autofree gchar *model_file = _python3_model_path ("passthrough.py");
   const gchar *model_files[] = { model_file, NULL };
   GstTensorFilterProperties prop;
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+  gchar *dir;
 
   ASSERT_NE (sp, nullptr);
-  if (!py_test_api_module_on_sys_path ())
-    GTEST_SKIP () << "No nnstreamer_python.so on sys.path (PYTHONPATH)";
+  dir = _python3_put_api_module_link ("nns_test_no_such_file.so");
+  ASSERT_NE (dir, nullptr);
+
   _SetFilterProp (&prop, "python3", model_files);
-  ASSERT_EQ (sp->open (&prop, &data), 0);
-  EXPECT_FALSE (py_test_api_module_in_process ());
-  sp->close (&prop, &data);
-  g_free (model_file);
+  EXPECT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_TRUE (py_test_api_module_in_process ());
+  if (data)
+    sp->close (&prop, &data);
+
+  EXPECT_TRUE (_python3_remove_api_module_link (dir));
 }
 
 /**
