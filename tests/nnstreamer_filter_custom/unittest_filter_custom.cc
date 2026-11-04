@@ -3660,6 +3660,280 @@ TEST (tensorFilterCustomSuspend, reopenFailure_n)
   _suspend_alloc_remove (path);
 }
 
+/** @brief Caps of a static stream of one uint8 tensor of 3:width:height:1 */
+#define EXAMPLE_RGB_CAPS \
+  "other/tensors,num_tensors=1,types=uint8,dimensions=3:%u:%u:1,format=static,framerate=(fraction)0/1"
+
+/**
+ * @brief Make a uint8 tensor of @a size bytes filled with a pattern that does not repeat along a row.
+ * @param seed Tensors of different seeds (0 to 250) differ at every byte.
+ */
+static GstMemory *
+_example_memory (gsize size, guint seed = 0)
+{
+  GstMemory *mem = gst_allocator_alloc (NULL, size, NULL);
+  GstMapInfo map;
+  gsize i;
+
+  if (gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+    for (i = 0; i < size; i++)
+      map.data[i] = (guint8) ((i * 31 + 7 + seed) % 251);
+    gst_memory_unmap (mem, &map);
+  }
+
+  return mem;
+}
+
+/**
+ * @brief Push @a in through an example custom filter in
+ * tests/nnstreamer_example, as tests/nnstreamer_filter_custom/runTest.sh does.
+ * @param lib The library name without 'lib' and the file extension.
+ * @param props The other properties of tensor_filter.
+ * @param caps The caps of @a in.
+ * @param[out] out The output buffer, or NULL if tensor_filter has not pushed one.
+ * @param expected The flow the push has to return.
+ * @return The harness. Release @a out before tearing it down: an output
+ * allocated in invoke refers to the tensor_filter element.
+ */
+static GstHarness *
+_example_run (const gchar *lib, const gchar *props, const gchar *caps,
+    GstBuffer *in, GstBuffer **out, GstFlowReturn expected = GST_FLOW_OK)
+{
+  g_autofree gchar *lib_name
+      = g_strconcat ("lib", lib, NNSTREAMER_SO_FILE_EXTENSION, NULL);
+  g_autofree gchar *path = _b3_build_path ("nnstreamer_example", lib_name);
+  g_autofree gchar *desc
+      = g_strdup_printf ("tensor_filter framework=custom model=%s %s", path, props);
+  GstHarness *h;
+
+  EXPECT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS)) << path;
+
+  h = gst_harness_new_parse (desc);
+  gst_harness_set_src_caps_str (h, caps);
+  EXPECT_EQ (gst_harness_push (h, in), expected);
+  *out = gst_harness_try_pull (h);
+
+  return h;
+}
+
+/**
+ * @brief Run a 3:@a w:@a h:1 uint8 tensor through an example custom filter, and check that the output is the input scaled to @a ow x @a oh.
+ * @details The output pixel (x, y) is the input pixel (x * w / ow, y * h / oh), as
+ *          compare_scaled_tensor () of tests/test_utils.py checks; a pass-through is a scale to the same size.
+ */
+static void
+_example_scale (const gchar *lib, const gchar *props, guint w, guint h, guint ow, guint oh)
+{
+  g_autofree gchar *caps = g_strdup_printf (EXAMPLE_RGB_CAPS, w, h);
+  GstMemory *mem = _example_memory ((gsize) 3 * w * h);
+  GstBuffer *in = gst_buffer_new ();
+  GstBuffer *out;
+  GstHarness *harness;
+  GstMapInfo a, b;
+  guint x, y, c, ix, iy, mismatch = 0;
+
+  gst_buffer_append_memory (in, gst_memory_ref (mem));
+  harness = _example_run (lib, props, caps, in, &out);
+  EXPECT_TRUE (out != nullptr);
+
+  if (out && gst_memory_map (mem, &a, GST_MAP_READ)) {
+    if (gst_buffer_map (out, &b, GST_MAP_READ)) {
+      EXPECT_EQ (b.size, (gsize) 3 * ow * oh);
+
+      for (y = 0; y < oh && b.size == (gsize) 3 * ow * oh; y++) {
+        for (x = 0; x < ow; x++) {
+          ix = x * w / ow;
+          iy = y * h / oh;
+          for (c = 0; c < 3; c++) {
+            if (b.data[c + 3 * x + 3 * ow * y] != a.data[c + 3 * ix + 3 * w * iy])
+              mismatch++;
+          }
+        }
+      }
+      gst_buffer_unmap (out, &b);
+    } else {
+      ADD_FAILURE () << "cannot map the output";
+    }
+    gst_memory_unmap (mem, &a);
+  }
+
+  EXPECT_EQ (mismatch, 0U);
+  if (out)
+    gst_buffer_unref (out);
+  gst_harness_teardown (harness);
+  gst_memory_unref (mem);
+}
+
+/**
+ * @brief The constant pass-through example with its dimensions given as properties (runTest.sh case 1).
+ */
+TEST (tensorFilterCustomExample, passthroughGivenDimensions)
+{
+  _example_scale ("nnstreamer_customfilter_passthrough",
+      "input=3:280:40:1 inputtype=uint8 output=3:280:40:1 outputtype=uint8",
+      280, 40, 280, 40);
+}
+
+/**
+ * @brief The constant pass-through example (runTest.sh case 2).
+ */
+TEST (tensorFilterCustomExample, passthrough)
+{
+  _example_scale ("nnstreamer_customfilter_passthrough", "", 280, 40, 280, 40);
+}
+
+/**
+ * @brief The constant pass-through example refuses a stream of other dimensions.
+ */
+TEST (tensorFilterCustomExample, passthroughOtherDimensions_n)
+{
+  g_autofree gchar *caps = g_strdup_printf (EXAMPLE_RGB_CAPS, 640U, 480U);
+  GstBuffer *in = gst_buffer_new ();
+  GstBuffer *out;
+  GstHarness *h;
+
+  gst_buffer_append_memory (in, _example_memory (3 * 640 * 480));
+  h = _example_run ("nnstreamer_customfilter_passthrough", "", caps, in, &out,
+      GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_TRUE (out == nullptr);
+  if (out)
+    gst_buffer_unref (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief The variable-dimension pass-through example with its dimensions given as properties (runTest.sh case 3).
+ */
+TEST (tensorFilterCustomExample, passthroughVariableGivenDimensions)
+{
+  _example_scale ("nnstreamer_customfilter_passthrough_variable",
+      "input=3:640:480:1 inputtype=uint8 output=3:640:480:1 outputtype=uint8",
+      640, 480, 640, 480);
+}
+
+/**
+ * @brief The variable-dimension pass-through example (runTest.sh case 4-1).
+ */
+TEST (tensorFilterCustomExample, passthroughVariable)
+{
+  _example_scale ("nnstreamer_customfilter_passthrough_variable", "", 640, 480, 640, 480);
+}
+
+/**
+ * @brief The variable-dimension pass-through example on three tensors (runTest.sh case 4-3).
+ */
+TEST (tensorFilterCustomExample, passthroughVariableTensors)
+{
+  const gsize sizes[] = { 3 * 160 * 120, 3 * 120 * 80, 3 * 64 * 48 };
+  GstBuffer *in = gst_buffer_new ();
+  GstBuffer *out;
+  GstHarness *h;
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (sizes); i++)
+    gst_buffer_append_memory (in, _example_memory (sizes[i], i));
+  gst_buffer_ref (in);
+
+  h = _example_run ("nnstreamer_customfilter_passthrough_variable", "",
+      "other/tensors,num_tensors=3,types=uint8.uint8.uint8,"
+      "dimensions=3:160:120:1.3:120:80:1.3:64:48:1,format=static,framerate=(fraction)0/1",
+      in, &out);
+  ASSERT_TRUE (out != nullptr);
+  ASSERT_EQ (gst_buffer_n_memory (out), G_N_ELEMENTS (sizes));
+
+  for (i = 0; i < G_N_ELEMENTS (sizes); i++) {
+    GstMemory *a = gst_buffer_peek_memory (in, i);
+    GstMemory *b = gst_buffer_peek_memory (out, i);
+    GstMapInfo ma, mb;
+
+    ASSERT_TRUE (gst_memory_map (a, &ma, GST_MAP_READ));
+    ASSERT_TRUE (gst_memory_map (b, &mb, GST_MAP_READ));
+    EXPECT_EQ (mb.size, sizes[i]);
+    EXPECT_EQ (memcmp (ma.data, mb.data, MIN (ma.size, mb.size)), 0) << "tensor " << i;
+    gst_memory_unmap (b, &mb);
+    gst_memory_unmap (a, &ma);
+  }
+
+  gst_buffer_unref (out);
+  gst_harness_teardown (h);
+  gst_buffer_unref (in);
+}
+
+/**
+ * @brief The scaler example without a size keeps the input (runTest.sh case 5).
+ */
+TEST (tensorFilterCustomExample, scalerSameSize)
+{
+  _example_scale ("nnstreamer_customfilter_scaler", "", 640, 480, 640, 480);
+}
+
+/**
+ * @brief The scaler example scales down (runTest.sh case 6).
+ */
+TEST (tensorFilterCustomExample, scalerDown)
+{
+  _example_scale ("nnstreamer_customfilter_scaler", "custom=320x240", 640, 480, 320, 240);
+}
+
+/**
+ * @brief The scaler example scales up, with an upper-case separator (runTest.sh case 7).
+ */
+TEST (tensorFilterCustomExample, scalerUp)
+{
+  _example_scale ("nnstreamer_customfilter_scaler", "custom=1280X960", 640, 480, 1280, 960);
+}
+
+/**
+ * @brief The scaler example scales to a tiny size (runTest.sh case 10).
+ */
+TEST (tensorFilterCustomExample, scalerTiny)
+{
+  _example_scale ("nnstreamer_customfilter_scaler", "custom=8x8", 640, 480, 8, 8);
+}
+
+/**
+ * @brief The scaler example that allocates its output in invoke (runTest.sh case 11).
+ */
+TEST (tensorFilterCustomExample, scalerAllocator)
+{
+  _example_scale ("nnstreamer_customfilter_scaler_allocator", "custom=320x240",
+      640, 480, 320, 240);
+}
+
+/**
+ * @brief The average example gives the average of each channel (runTest.sh cases 8 and 9).
+ */
+TEST (tensorFilterCustomExample, average)
+{
+  g_autofree gchar *caps = g_strdup_printf (EXAMPLE_RGB_CAPS, 640U, 480U);
+  GstMemory *mem = _example_memory (3 * 640 * 480);
+  GstBuffer *in = gst_buffer_new ();
+  GstBuffer *out;
+  GstHarness *h;
+  GstMapInfo a, b;
+  guint64 sum[3] = { 0, 0, 0 };
+  gsize i;
+
+  gst_buffer_append_memory (in, gst_memory_ref (mem));
+  h = _example_run ("nnstreamer_customfilter_average", "", caps, in, &out);
+  ASSERT_TRUE (out != nullptr);
+
+  ASSERT_TRUE (gst_memory_map (mem, &a, GST_MAP_READ));
+  for (i = 0; i < a.size; i++)
+    sum[i % 3] += a.data[i];
+  gst_memory_unmap (mem, &a);
+
+  ASSERT_TRUE (gst_buffer_map (out, &b, GST_MAP_READ));
+  ASSERT_EQ (b.size, 3U);
+  for (i = 0; i < 3; i++)
+    EXPECT_EQ (b.data[i], (guint8) (sum[i] / (640 * 480))) << "channel " << i;
+  gst_buffer_unmap (out, &b);
+
+  gst_buffer_unref (out);
+  gst_harness_teardown (h);
+  gst_memory_unref (mem);
+}
+
 /**
  * @brief Main gtest
  */
