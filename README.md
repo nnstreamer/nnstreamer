@@ -138,6 +138,7 @@ Although a framework may accelerate transparently as Tensorflow-GPU does, nnstre
 - Qualcomm SNPE via snpe subplugin: Released
 - Qualcomm AI Engine Direct (QNN) via qnn subplugin: Released
 - NVidia via TensorRT subplugin: Released
+- Hailo NPUs via hailort subplugin: Experimental
 - TRI-x NPUs: Released
 - NXP i.MX series: [via the vendor](https://www.nxp.com/docs/en/user-guide/IMX-MACHINE-LEARNING-UG.pdf)
 - Others: TVM, TensorFlow, TensorFlow-lite, PyTorch, Caffe2, SNAP, ...

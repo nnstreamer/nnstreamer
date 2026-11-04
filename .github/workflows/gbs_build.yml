@@ -60,4 +60,11 @@ jobs:
     - name: run GBS
       if: env.rebuild == '1'
       run: |
-        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }}
+        # gRPC memcheck rides on the leg that runs the unit tests. It is not a
+        # matrix value, so the job name - a required check - stays as it is.
+        # Valgrind needs glibc-debuginfo from the debug repository.
+        memcheck=()
+        if [ '${{ matrix.gbs_build_arch }}' == 'x86_64' ]; then
+          memcheck=(--define "grpc_memcheck 1" -R http://download.tizen.org/snapshots/TIZEN/Tizen/Tizen-Base/reference/repos/standard/debug/)
+        fi
+        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }} "${memcheck[@]}"

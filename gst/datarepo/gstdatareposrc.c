@@ -239,6 +239,7 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->start_sample_index = 0;
   src->stop_sample_index = 0;
   src->epochs = DEFAULT_EPOCHS;
+  src->remaining_epochs = 0;
   src->shuffled_index_array = g_array_new (FALSE, FALSE, sizeof (guint));
   src->array_index = 0;
   src->sample_offset_array = NULL;
@@ -608,7 +609,7 @@ gst_data_repo_src_epoch_is_done (GstDataRepoSrc * src)
 
   src->first_epoch_is_done = TRUE;
   src->array_index = 0;
-  src->epochs--;
+  src->remaining_epochs--;
 
   return TRUE;
 }
@@ -635,7 +636,7 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
   if (gst_data_repo_src_epoch_is_done (src)) {
-    if (src->epochs == 0) {
+    if (src->remaining_epochs == 0) {
       GST_LOG_OBJECT (src, "send EOS");
       return GST_FLOW_EOS;
     }
@@ -736,7 +737,7 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
     gst_memory_unmap (mem, &info);
 
     gst_tensor_buffer_append_memory (buf, mem,
-        gst_tensors_info_get_nth_info (&src->config.info, i));
+        gst_tensors_info_get_nth_info (&src->config.info, seq_idx));
     mem = NULL;
   }
 
@@ -824,7 +825,7 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
   if (gst_data_repo_src_epoch_is_done (src)) {
-    if (src->epochs == 0) {
+    if (src->remaining_epochs == 0) {
       GST_LOG_OBJECT (src, "send EOS");
       return GST_FLOW_EOS;
     }
@@ -1030,7 +1031,7 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
   if (gst_data_repo_src_epoch_is_done (src)) {
-    if (src->epochs == 0) {
+    if (src->remaining_epochs == 0) {
       GST_LOG_OBJECT (src, "send EOS");
       return GST_FLOW_EOS;
     }
@@ -1095,7 +1096,7 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
   if (gst_data_repo_src_epoch_is_done (src)) {
-    if (src->epochs == 0) {
+    if (src->remaining_epochs == 0) {
       GST_LOG_OBJECT (src, "send EOS");
       return GST_FLOW_EOS;
     }
@@ -1190,6 +1191,7 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
   g_autofree gchar *filename = NULL;
   struct_stat stat_results;
   int flags = O_RDONLY | O_BINARY;
+  guint i;
 
   g_return_val_if_fail (src != NULL, FALSE);
 
@@ -1199,8 +1201,31 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
   if (src->start_sample_index > src->stop_sample_index)
     goto invalid_range;
 
+  if (src->total_samples > 0 && src->stop_sample_index >= src->total_samples)
+    goto out_of_range;
+
+  /* json or caps may have been set while READY, after NULL_TO_READY. */
+  if (src->tensors_seq_str == NULL) {
+    for (i = 0; i < src->config.info.num_tensors; i++)
+      src->tensors_seq[i] = i;
+    src->tensors_seq_cnt = i;
+  }
+
+  if (src->data_type == GST_DATA_REPO_DATA_TENSOR
+      && gst_tensors_config_is_static (&src->config)
+      && src->tensors_seq_cnt == 0)
+    goto no_tensors;
+
   if (src->epochs == 0)
     goto no_epochs;
+
+  src->remaining_epochs = src->epochs;
+  src->first_epoch_is_done = FALSE;
+  src->array_index = 0;
+  g_array_set_size (src->shuffled_index_array, 0);
+  src->successful_read = FALSE;
+  src->n_frame = 0;
+  src->running_time = 0;
 
   src->current_sample_index = src->start_sample_index;
   src->num_samples = src->stop_sample_index - src->start_sample_index + 1;
@@ -1326,6 +1351,19 @@ invalid_range:
             src->start_sample_index, src->stop_sample_index));
     goto error_exit;
   }
+out_of_range:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, (NULL),
+        ("stop-sample-index %u is out of the %u samples of the repository.",
+            src->stop_sample_index, src->total_samples));
+    goto error_exit;
+  }
+no_tensors:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, (NULL),
+        ("tensors-sequence selects no tensor of the repository."));
+    goto error_exit;
+  }
 no_epochs:
   {
     GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, (NULL),
@@ -1435,6 +1473,7 @@ gst_data_repo_src_stop (GstBaseSrc * basesrc)
 
   /* close the file */
   gst_data_repo_src_safe_close_fd (src);
+  src->is_start = FALSE;
 
   return TRUE;
 }
@@ -1445,7 +1484,7 @@ gst_data_repo_src_stop (GstBaseSrc * basesrc)
 static gboolean
 gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
 {
-  GstTensorsConfig src_config, dst_config;
+  GstTensorsConfig dst_config;
   GstTensorInfo *_src_info, *_dst_info;
   guint i;
   guint seq_num = 0;
@@ -1454,7 +1493,14 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (src->caps != NULL, FALSE);
 
-  if (!gst_tensors_config_from_caps (&src_config, src->caps, TRUE))
+  /* Without tensors-sequence, select all tensors of the current config. */
+  if (src->tensors_seq_str == NULL) {
+    for (i = 0; i < src->config.info.num_tensors; i++)
+      src->tensors_seq[i] = i;
+    src->tensors_seq_cnt = i;
+  }
+
+  if (src->tensors_seq_cnt == 0)
     return FALSE;
 
   gst_tensors_config_init (&dst_config);
@@ -1462,13 +1508,13 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
   /* Copy selected tensors in sequence */
   for (i = 0; i < src->tensors_seq_cnt; i++) {
     seq_num = src->tensors_seq[i];
-    _src_info = gst_tensors_info_get_nth_info (&src_config.info, seq_num);
+    _src_info = gst_tensors_info_get_nth_info (&src->config.info, seq_num);
     _dst_info = gst_tensors_info_get_nth_info (&dst_config.info, i);
     gst_tensor_info_copy (_dst_info, _src_info);
   }
-  dst_config.rate_n = src_config.rate_n;
-  dst_config.rate_d = src_config.rate_d;
-  dst_config.info.format = src_config.info.format;
+  dst_config.rate_n = src->config.rate_n;
+  dst_config.rate_d = src->config.rate_d;
+  dst_config.info.format = src->config.info.format;
   dst_config.info.num_tensors = src->tensors_seq_cnt;
 
   new_caps = gst_tensors_caps_from_config (&dst_config);
@@ -1477,9 +1523,11 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
       "datareposrc caps by tensors_sequence %" GST_PTR_FORMAT, new_caps);
 
   gst_tensors_config_free (&dst_config);
-  gst_tensors_config_free (&src_config);
 
-  return gst_data_repo_src_parse_caps (src, new_caps);
+  /* Keep the layout of the repository, which tensors_seq indexes. */
+  gst_caps_take (&src->caps, new_caps);
+
+  return TRUE;
 }
 
 /**
@@ -1491,8 +1539,8 @@ gst_data_repo_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (basesrc);
 
   if (src->data_type == GST_DATA_REPO_DATA_TENSOR && src->need_changed_caps) {
-    gst_data_repo_get_caps_by_tensors_sequence (src);
-    src->need_changed_caps = FALSE;
+    if (gst_data_repo_get_caps_by_tensors_sequence (src))
+      src->need_changed_caps = FALSE;
   }
 
   GST_DEBUG_OBJECT (src, "Current datareposrc caps %" GST_PTR_FORMAT,
@@ -1712,6 +1760,12 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
           to get information on sample data */
       if (!gst_data_repo_src_read_json_file (src)) {
         GST_ERROR_OBJECT (src, "Failed to get data format");
+        break;
+      }
+      /* As with caps, apply tensors-sequence to the tensors of the new JSON. */
+      if (src->tensors_seq_str) {
+        if (gst_data_repo_src_set_tensors_sequence (src))
+          src->need_changed_caps = TRUE;
       }
       break;
     case PROP_START_SAMPLE_INDEX:
@@ -1729,7 +1783,10 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
     case PROP_TENSORS_SEQUENCE:
       g_free (src->tensors_seq_str);
       src->tensors_seq_str = g_value_dup_string (value);
-      if (!gst_data_repo_src_set_tensors_sequence (src)) {
+      if (!src->tensors_seq_str) {
+        /* Negotiate the caps of all tensors again. */
+        src->need_changed_caps = gst_tensors_config_is_static (&src->config);
+      } else if (!gst_data_repo_src_set_tensors_sequence (src)) {
         GST_ERROR_OBJECT (src, "Failed to set tensors sequence");
       } else {
         src->need_changed_caps = TRUE;
@@ -1804,7 +1861,6 @@ gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
 static GstStateChangeReturn
 gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
 {
-  guint i;
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (element);
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
   GstBaseSrc *basesrc = NULL;
@@ -1864,10 +1920,6 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
         /* After gst_data_repo_src_set_tensors_sequence() */
         if (src->tensors_seq_cnt == 0)
           goto state_change_failed;
-      } else {
-        for (i = 0; i < src->config.info.num_tensors; i++)
-          src->tensors_seq[i] = i;
-        src->tensors_seq_cnt = i;
       }
 
       break;

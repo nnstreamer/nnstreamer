@@ -726,9 +726,12 @@ _single_count_critical (const gchar *log_domain, GLogLevelFlags log_level,
  */
 TEST_F (NNSFilterSingleTestPrivateData, unknownFrameworkAfterStart_n)
 {
+  /* the default domain of nnstreamer and the GLib domains start () may hit */
+  const gchar *domains[] = { NULL, "GLib", "GLib-GObject" };
   guint critical_count = 0;
   GLogLevelFlags old_fatal;
   GLogFunc old_handler;
+  guint i;
 
   ASSERT_TRUE (klass->start (single));
 
@@ -737,6 +740,13 @@ TEST_F (NNSFilterSingleTestPrivateData, unknownFrameworkAfterStart_n)
 
   old_fatal = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   old_handler = g_log_set_default_handler (_single_count_critical, &critical_count);
+  for (i = 0; i < G_N_ELEMENTS (domains); i++) {
+    g_log (domains[i], G_LOG_LEVEL_CRITICAL,
+        "[probe] tensor_filter_single test log handler self-check");
+    EXPECT_EQ (critical_count, 1U) << "the default handler misses the domain "
+                                   << (domains[i] ? domains[i] : "(default)");
+    critical_count = 0;
+  }
   EXPECT_FALSE (klass->start (single));
   g_log_set_default_handler (old_handler, NULL);
   g_log_set_always_fatal (old_fatal);

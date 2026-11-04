@@ -12,6 +12,7 @@
 #include <gst/check/gsttestclock.h>
 #include <gst/gst.h>
 #include <link.h>
+#include <nnstreamer_internal.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <set>
 #include <string.h>
@@ -37,6 +38,25 @@ const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_RANK_LIMIT] = {
   1,
   0,
 };
+
+/** The accelerators tensor_filter gives once it has parsed the property */
+static accl_hw ACCL_LIST_CPU[] = { ACCL_CPU };
+static accl_hw ACCL_LIST_NPU_MOVIDIUS[] = { ACCL_NPU_MOVIDIUS };
+static accl_hw ACCL_LIST_AUTO[] = { ACCL_AUTO };
+static accl_hw ACCL_LIST_NONE[] = { ACCL_NONE };
+static accl_hw ACCL_LIST_GPU[] = { ACCL_GPU };
+
+/**
+ * @brief Give the accelerator the way tensor_filter does for a V1 sub-plugin
+ * @param prop the properties to fill
+ * @param hw a list holding the accelerator, or NULL if the user gives none
+ */
+static void
+setAccelerator (GstTensorFilterProperties *prop, accl_hw *hw)
+{
+  prop->hw_list = hw;
+  prop->num_hw = (hw != NULL) ? 1 : 0;
+}
 
 /** @brief wooksong: please fill in */
 class TensorFilterOpenvinoTest : public TensorFilterOpenvino
@@ -176,7 +196,7 @@ TEST (tensorFilterOpenvino, openAndClose0)
   ASSERT_TRUE (prop != NULL);
   prop->fwname = fw_name;
   prop->num_models = 1;
-  prop->accl_str = "true:cpu";
+  setAccelerator (prop, ACCL_LIST_CPU);
   {
     const gchar *model_files[] = {
       test_model,
@@ -287,19 +307,16 @@ TEST (tensorFilterOpenvino, openAndClose0)
 }
 
 /**
- * @brief A test case for open and close callbacks with the private_data, which has the models already loaded
+ * @brief A test case for open and close callbacks opening the model again after closing it
  */
 TEST (tensorFilterOpenvino, openAndClose1)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
-  std::string str_test_model;
   GstTensorFilterProperties *prop = NULL;
   gpointer private_data = NULL;
-  TensorFilterOpenvino *tfOv;
-  gchar *test_model_xml;
-  gchar *test_model_bin;
+  gchar *test_model;
   gint ret;
 
   /* Check if mandatory methods are contained */
@@ -309,124 +326,153 @@ TEST (tensorFilterOpenvino, openAndClose1)
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
-      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-          .append (TensorFilterOpenvino::extXml)
-          .c_str (),
-      NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
-      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-          .append (TensorFilterOpenvino::extBin)
-          .c_str (),
-      NULL);
-
-  tfOv = new TensorFilterOpenvino (str_test_model.assign (test_model_xml),
-      str_test_model.assign (test_model_bin));
-  ret = tfOv->loadModel (ACCL_CPU);
-#ifdef __OPENVINO_CPU_EXT__
-  EXPECT_EQ (ret, 0);
-#else
-  EXPECT_NE (ret, 0);
-  EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
-#endif
-  private_data = (gpointer) tfOv;
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  const gchar *model_files[] = {
+    test_model,
+    NULL,
+  };
 
   /* prepare properties */
   prop = g_new0 (GstTensorFilterProperties, 1);
   ASSERT_TRUE (prop != NULL);
   prop->fwname = fw_name;
-  prop->num_models = 2;
-  prop->accl_str = "true:cpu";
-  {
-    const gchar *model_files[] = {
-      test_model_xml,
-      test_model_bin,
-    };
+  prop->model_files = model_files;
+  prop->num_models = 1;
+  setAccelerator (prop, ACCL_LIST_CPU);
 
-    prop->model_files = model_files;
-
+  for (int i = 0; i < 2; ++i) {
     ret = fw->open (prop, &private_data);
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
+    EXPECT_TRUE (private_data != NULL);
 #else
     EXPECT_NE (ret, 0);
-    EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
+    EXPECT_TRUE (private_data == NULL);
 #endif
+
+    fw->close (prop, &private_data);
+    EXPECT_TRUE (private_data == NULL);
   }
 
-  fw->close (prop, &private_data);
-
-  g_free (test_model_xml);
-  g_free (test_model_bin);
   g_free (prop);
+  g_free (test_model);
 }
 
 /**
- * @brief A test case for open and close callbacks with the private_data, which has the models are not loaded
+ * @brief A test case for the framework info, which tensor_filter asks before opening a model
  */
-TEST (tensorFilterOpenvino, openAndClose2)
+TEST (tensorFilterOpenvino, getFrameworkInfo0)
+{
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties prop = {};
+  GstTensorFilterFrameworkInfo info = {};
+  const accl_hw expected[] = { ACCL_NPU_MOVIDIUS, ACCL_NPU, ACCL_CPU };
+
+  ASSERT_TRUE (fw != NULL);
+  EXPECT_EQ (fw->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+  ASSERT_TRUE (fw->getFrameworkInfo && fw->getModelInfo && fw->eventHandler);
+
+  prop.fwname = fw_name;
+  ASSERT_EQ (fw->getFrameworkInfo (fw, &prop, NULL, &info), 0);
+  EXPECT_STREQ (info.name, fw_name);
+  EXPECT_FALSE (info.allow_in_place);
+  EXPECT_FALSE (info.allocate_in_invoke);
+  EXPECT_FALSE (info.run_without_model);
+  EXPECT_FALSE (info.verify_model_path);
+  EXPECT_TRUE (info.statistics == NULL);
+
+  /** Movidius is the one taken when no accelerator or 'true' only is given */
+  EXPECT_EQ (info.accl_auto, ACCL_NPU_MOVIDIUS);
+  EXPECT_EQ (info.accl_default, ACCL_NPU_MOVIDIUS);
+  ASSERT_EQ (info.num_hw, (int) G_N_ELEMENTS (expected));
+  for (guint i = 0; i < G_N_ELEMENTS (expected); ++i)
+    EXPECT_EQ (info.hw_list[i], expected[i]);
+}
+
+/**
+ * @brief Test that the accelerators the sub-plugin reports are the ones it accepts
+ */
+TEST (tensorFilterOpenvino, checkHwAvailability0)
+{
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("openvino", ACCL_NPU_MOVIDIUS, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("openvino", ACCL_NPU, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("openvino", ACCL_CPU, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("openvino", ACCL_AUTO, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("openvino", ACCL_DEFAULT, NULL));
+}
+
+/**
+ * @brief Test that the accelerators the sub-plugin does not support are refused
+ */
+TEST (tensorFilterOpenvino, checkHwAvailability0_n)
+{
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("openvino", ACCL_GPU, NULL));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("openvino", ACCL_NPU_VIVANTE, NULL));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("openvino", ACCL_CPU_NEON, NULL));
+}
+
+/**
+ * @brief Test that a loaded model refuses the model info operations and the events it does not support
+ */
+TEST (tensorFilterOpenvino, unsupportedOps_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
-  std::string str_test_model;
   GstTensorFilterProperties *prop = NULL;
+  GstTensorFilterFrameworkEventData data = {};
+  GstTensorsInfo in_info;
+  GstTensorsInfo out_info;
   gpointer private_data = NULL;
-  TensorFilterOpenvino *tfOv;
-  gchar *test_model_xml;
-  gchar *test_model_bin;
-  gint ret;
+  gchar *test_model;
 
-  /* Check if mandatory methods are contained */
-  ASSERT_TRUE (fw && fw->open && fw->close);
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->getModelInfo && fw->eventHandler);
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
     root_path = "..";
 
-  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
-      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-          .append (TensorFilterOpenvino::extXml)
-          .c_str (),
-      NULL);
-  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
-      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
-          .append (TensorFilterOpenvino::extBin)
-          .c_str (),
-      NULL);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  const gchar *model_files[] = {
+    test_model,
+    NULL,
+  };
 
-  tfOv = new TensorFilterOpenvino (str_test_model.assign (test_model_xml),
-      str_test_model.assign (test_model_bin));
-  private_data = (gpointer) tfOv;
-
-  /* prepare properties */
   prop = g_new0 (GstTensorFilterProperties, 1);
   ASSERT_TRUE (prop != NULL);
   prop->fwname = fw_name;
-  prop->num_models = 2;
-  prop->accl_str = "true:cpu";
-  {
-    const gchar *model_files[] = {
-      test_model_xml,
-      test_model_bin,
-    };
+  prop->model_files = model_files;
+  prop->num_models = 1;
+  setAccelerator (prop, ACCL_LIST_CPU);
 
-    prop->model_files = model_files;
-
-    ret = fw->open (prop, &private_data);
-#ifdef __OPENVINO_CPU_EXT__
-    EXPECT_EQ (ret, 0);
-#else
-    EXPECT_NE (ret, 0);
-    EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
-#endif
+  if (fw->open (prop, &private_data) != 0) {
+    g_free (prop);
+    g_free (test_model);
+    GTEST_SKIP () << "No CPU device to load the model onto";
   }
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  EXPECT_EQ (fw->getModelInfo (fw, prop, private_data, SET_INPUT_INFO, &in_info, &out_info),
+      -ENOENT);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+
+  /** tensor_filter turns is-updatable off on -ENOENT for the model reload */
+  EXPECT_EQ (fw->eventHandler (fw, prop, private_data, RELOAD_MODEL, NULL), -ENOENT);
+  data.model_files = model_files;
+  data.num_models = 1;
+  EXPECT_EQ (fw->eventHandler (fw, prop, private_data, RELOAD_MODEL, &data), -ENOENT);
+  EXPECT_EQ (fw->eventHandler (fw, prop, private_data, SET_ACCELERATOR, NULL), -ENOENT);
+  EXPECT_EQ (fw->eventHandler (fw, prop, private_data, CUSTOM_PROP, NULL), -ENOENT);
 
   fw->close (prop, &private_data);
 
-  g_free (test_model_xml);
-  g_free (test_model_bin);
   g_free (prop);
+  g_free (test_model);
 }
 
 /**
@@ -463,7 +509,7 @@ TEST (tensorFilterOpenvino, openAndClose0_n)
   prop->fwname = fw_name;
   prop->model_files = model_files;
   prop->num_models = 1;
-  prop->accl_str = "true:cpu";
+  setAccelerator (prop, ACCL_LIST_CPU);
 
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
@@ -574,25 +620,31 @@ TEST (tensorFilterOpenvino, openAndClose1_n)
   EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
   fw->close (prop, &private_data);
 
-  prop->accl_str = "true:auto";
+  setAccelerator (prop, ACCL_LIST_AUTO);
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
   EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
   fw->close (prop, &private_data);
 
-  prop->accl_str = "true:gpu";
+  setAccelerator (prop, ACCL_LIST_GPU);
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
   EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
   fw->close (prop, &private_data);
+
+  /** What tensor_filter gives for 'false' */
+  setAccelerator (prop, ACCL_LIST_NONE);
+  ret = fw->open (prop, &private_data);
+  EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
+  EXPECT_TRUE (private_data == NULL);
 
 #ifdef __OPENVINO_CPU_EXT__
-  prop->accl_str = "true:npu.movidius";
+  setAccelerator (prop, ACCL_LIST_NPU_MOVIDIUS);
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
   EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
 #else
-  prop->accl_str = "true:cpu";
+  setAccelerator (prop, ACCL_LIST_CPU);
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
   EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
@@ -645,12 +697,12 @@ TEST (tensorFilterOpenvino, openAndClose2_n)
   fw->close (prop, &private_data);
 
 #ifdef __OPENVINO_CPU_EXT__
-  prop->accl_str = "true:npu.movidius";
+  setAccelerator (prop, ACCL_LIST_NPU_MOVIDIUS);
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
   EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
 #else
-  prop->accl_str = "true:cpu";
+  setAccelerator (prop, ACCL_LIST_CPU);
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
   EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
@@ -699,7 +751,7 @@ TEST (tensorFilterOpenvino, openAndClose3_n)
   prop->model_files = model_files;
   prop->num_models = 1;
   /* No Movidius device is attached to the machine running this test */
-  prop->accl_str = "true:npu.movidius";
+  setAccelerator (prop, ACCL_LIST_NPU_MOVIDIUS);
 
   ret = fw->open (prop, &private_data);
   EXPECT_NE (ret, TensorFilterOpenvino::RetSuccess);
@@ -753,7 +805,7 @@ TEST (tensorFilterOpenvino, openAndClose4_n)
   prop->fwname = fw_name;
   prop->model_files = model_files;
   prop->num_models = 2;
-  prop->accl_str = "true:npu.movidius";
+  setAccelerator (prop, ACCL_LIST_NPU_MOVIDIUS);
 
   /** Nothing the Inference Engine throws may leave the callback, and catching
    *  it here is also what leaves the rest of the case to run */
@@ -779,7 +831,8 @@ TEST (tensorFilterOpenvino, getTensorDim0)
   const gchar fw_name[] = "openvino";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   GstTensorFilterProperties *prop = NULL;
-  GstTensorsInfo nns_tensors_info;
+  GstTensorsInfo in_info;
+  GstTensorsInfo out_info;
   GstTensorInfo *_info;
   gpointer private_data = NULL;
   std::string str_test_model;
@@ -800,7 +853,7 @@ TEST (tensorFilterOpenvino, getTensorDim0)
   ASSERT_TRUE (prop != NULL);
   prop->fwname = fw_name;
   prop->num_models = 1;
-  prop->accl_str = "true:cpu";
+  setAccelerator (prop, ACCL_LIST_CPU);
   {
     const gchar *model_files[] = {
       test_model,
@@ -818,25 +871,24 @@ TEST (tensorFilterOpenvino, getTensorDim0)
 #endif
   }
 
-  /* Test getInputDimension () */
-  ASSERT_TRUE (fw->getInputDimension);
-  ret = fw->getInputDimension (prop, &private_data, &nns_tensors_info);
+  /* Test getModelInfo () */
+  ASSERT_TRUE (fw->getModelInfo);
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  ret = fw->getModelInfo (fw, prop, private_data, GET_IN_OUT_INFO, &in_info, &out_info);
   EXPECT_EQ (ret, 0);
-  EXPECT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
+  EXPECT_EQ (in_info.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
   for (uint32_t i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i) {
-    _info = gst_tensors_info_get_nth_info (&nns_tensors_info, i);
+    _info = gst_tensors_info_get_nth_info (&in_info, i);
     EXPECT_TRUE (gst_tensor_dimension_is_equal (_info->dimension, MOBINET_V2_IN_DIMS));
   }
-
-  /* Test getOutputDimension () */
-  ASSERT_TRUE (fw->getOutputDimension);
-  ret = fw->getOutputDimension (prop, &private_data, &nns_tensors_info);
-  EXPECT_EQ (ret, 0);
-  EXPECT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
+  EXPECT_EQ (out_info.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
   for (uint32_t i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i) {
-    _info = gst_tensors_info_get_nth_info (&nns_tensors_info, i);
+    _info = gst_tensors_info_get_nth_info (&out_info, i);
     EXPECT_TRUE (gst_tensor_dimension_is_equal (_info->dimension, MOBINET_V2_OUT_DIMS));
   }
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
 
   fw->close (prop, &private_data);
 
@@ -851,11 +903,7 @@ TEST (tensorFilterOpenvino, getTensorDim0)
 TEST (tensorFilterOpenvino, getTensorDim0_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  const gchar fw_name[] = "openvino";
-  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
-  GstTensorFilterProperties *prop = NULL;
-  gpointer private_data = NULL;
   GstTensorsInfo nns_tensors_info;
   gchar *test_model_xml;
   gchar *test_model_bin;
@@ -898,7 +946,6 @@ TEST (tensorFilterOpenvino, getTensorDim0_n)
 
     tfOvTest.setInputsDataMap (inDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer) &tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -907,16 +954,8 @@ TEST (tensorFilterOpenvino, getTensorDim0_n)
     EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
 #endif
 
-    /* prepare properties */
-    prop = g_new0 (GstTensorFilterProperties, 1);
-    ASSERT_TRUE (prop != NULL);
-    prop->fwname = fw_name;
-
-    /* Test getInputDimension () */
-    ASSERT_TRUE (fw->getInputDimension);
-    ret = fw->getInputDimension (prop, &private_data, &nns_tensors_info);
+    ret = tfOvTest.getInputTensorDim (&nns_tensors_info);
     EXPECT_NE (ret, 0);
-    g_free (prop);
   }
 
   g_free (test_model_xml);
@@ -929,11 +968,7 @@ TEST (tensorFilterOpenvino, getTensorDim0_n)
 TEST (tensorFilterOpenvino, getTensorDim1_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  const gchar fw_name[] = "openvino";
-  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
-  GstTensorFilterProperties *prop = NULL;
-  gpointer private_data = NULL;
   GstTensorsInfo nns_tensors_info;
   gchar *test_model_xml;
   gchar *test_model_bin;
@@ -974,7 +1009,6 @@ TEST (tensorFilterOpenvino, getTensorDim1_n)
 
     tfOvTest.setInputsDataMap (inDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer) &tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -983,16 +1017,8 @@ TEST (tensorFilterOpenvino, getTensorDim1_n)
     EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
 #endif
 
-    /* prepare properties */
-    prop = g_new0 (GstTensorFilterProperties, 1);
-    ASSERT_TRUE (prop != NULL);
-    prop->fwname = fw_name;
-
-    /* Test getInputDimension () */
-    ASSERT_TRUE (fw->getInputDimension);
-    ret = fw->getInputDimension (prop, &private_data, &nns_tensors_info);
+    ret = tfOvTest.getInputTensorDim (&nns_tensors_info);
     EXPECT_NE (ret, 0);
-    g_free (prop);
   }
 
   g_free (test_model_xml);
@@ -1005,11 +1031,7 @@ TEST (tensorFilterOpenvino, getTensorDim1_n)
 TEST (tensorFilterOpenvino, getTensorDim2_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  const gchar fw_name[] = "openvino";
-  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
-  GstTensorFilterProperties *prop = NULL;
-  gpointer private_data = NULL;
   GstTensorsInfo nns_tensors_info;
   gchar *test_model_xml;
   gchar *test_model_bin;
@@ -1049,7 +1071,6 @@ TEST (tensorFilterOpenvino, getTensorDim2_n)
 
     tfOvTest.setOutputsDataMap (outDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer) &tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -1058,16 +1079,8 @@ TEST (tensorFilterOpenvino, getTensorDim2_n)
     EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
 #endif
 
-    /* prepare properties */
-    prop = g_new0 (GstTensorFilterProperties, 1);
-    ASSERT_TRUE (prop != NULL);
-    prop->fwname = fw_name;
-
-    /* Test getOutputDimension () */
-    ASSERT_TRUE (fw->getOutputDimension);
-    ret = fw->getOutputDimension (prop, &private_data, &nns_tensors_info);
+    ret = tfOvTest.getOutputTensorDim (&nns_tensors_info);
     EXPECT_NE (ret, 0);
-    g_free (prop);
   }
 
   g_free (test_model_xml);
@@ -1080,11 +1093,7 @@ TEST (tensorFilterOpenvino, getTensorDim2_n)
 TEST (tensorFilterOpenvino, getTensorDim3_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  const gchar fw_name[] = "openvino";
-  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   std::string str_test_model;
-  GstTensorFilterProperties *prop = NULL;
-  gpointer private_data = NULL;
   GstTensorsInfo nns_tensors_info;
   gchar *test_model_xml;
   gchar *test_model_bin;
@@ -1122,7 +1131,6 @@ TEST (tensorFilterOpenvino, getTensorDim3_n)
 
     tfOvTest.setOutputsDataMap (outDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer) &tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -1131,16 +1139,8 @@ TEST (tensorFilterOpenvino, getTensorDim3_n)
     EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
 #endif
 
-    /* prepare properties */
-    prop = g_new0 (GstTensorFilterProperties, 1);
-    ASSERT_TRUE (prop != NULL);
-    prop->fwname = fw_name;
-
-    /* Test getOutputDimension () */
-    ASSERT_TRUE (fw->getOutputDimension);
-    ret = fw->getOutputDimension (prop, &private_data, &nns_tensors_info);
+    ret = tfOvTest.getOutputTensorDim (&nns_tensors_info);
     EXPECT_NE (ret, 0);
-    g_free (prop);
   }
 
   g_free (test_model_xml);
@@ -1556,7 +1556,7 @@ TEST (tensorFilterOpenvino, invoke0_n)
 
     tfOvTest.setInputTensorNames (std::vector<std::string> ());
 
-    ret = tfOvTest.invoke (prop, input, output);
+    ret = tfOvTest.invoke (&prop->input_meta, &prop->output_meta, input, output);
     EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
 
     for (i = 0; i < prop->input_meta.num_tensors; ++i)
@@ -1625,7 +1625,7 @@ TEST (tensorFilterOpenvino, invoke1_n)
 
     tfOvTest.setOutputTensorNames (std::vector<std::string> ());
 
-    ret = tfOvTest.invoke (prop, input, output);
+    ret = tfOvTest.invoke (&prop->input_meta, &prop->output_meta, input, output);
     EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
 
     for (i = 0; i < prop->output_meta.num_tensors; ++i)
@@ -1651,14 +1651,13 @@ TEST (tensorFilterOpenvino, invoke0)
   gpointer private_data = NULL;
   GstTensorMemory input[MOBINET_V2_IN_NUM_TENSOR];
   GstTensorMemory output[MOBINET_V2_OUT_NUM_TENSOR];
-  GstTensorsInfo nns_tensors_info;
   GstTensorInfo *_info;
   gchar *test_model;
   guint i;
   gint ret;
 
   /* Check if mandatory methods are contained */
-  ASSERT_TRUE (fw && fw->open && fw->close && fw->invoke_NN);
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->invoke);
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -1677,22 +1676,16 @@ TEST (tensorFilterOpenvino, invoke0)
   prop->fwname = fw_name;
   prop->model_files = model_files;
   prop->num_models = 1;
-  prop->accl_str = "true:cpu";
+  setAccelerator (prop, ACCL_LIST_CPU);
 
   ret = fw->open (prop, &private_data);
   ASSERT_EQ (ret, 0);
 
-  ret = fw->getInputDimension (prop, &private_data, &nns_tensors_info);
+  ret = fw->getModelInfo (fw, prop, private_data, GET_IN_OUT_INFO,
+      &prop->input_meta, &prop->output_meta);
   ASSERT_EQ (ret, 0);
-  ASSERT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
-  gst_tensors_info_copy (&prop->input_meta, &nns_tensors_info);
-  gst_tensors_info_free (&nns_tensors_info);
-
-  ret = fw->getOutputDimension (prop, &private_data, &nns_tensors_info);
-  ASSERT_EQ (ret, 0);
-  ASSERT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
-  gst_tensors_info_copy (&prop->output_meta, &nns_tensors_info);
-  gst_tensors_info_free (&nns_tensors_info);
+  ASSERT_EQ (prop->input_meta.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
+  ASSERT_EQ (prop->output_meta.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
 
   /**
    * The framework keeps the tensor info given by a user as it is when the info
@@ -1714,7 +1707,7 @@ TEST (tensorFilterOpenvino, invoke0)
     output[i].data = g_malloc0 (output[i].size);
   }
 
-  ret = fw->invoke_NN (prop, &private_data, input, output);
+  ret = fw->invoke (fw, prop, private_data, input, output);
   EXPECT_EQ (ret, 0);
 
   /** A stop and a start of a pipeline replaces the instance, and the framework
@@ -1723,7 +1716,7 @@ TEST (tensorFilterOpenvino, invoke0)
   ret = fw->open (prop, &private_data);
   ASSERT_EQ (ret, 0);
 
-  ret = fw->invoke_NN (prop, &private_data, input, output);
+  ret = fw->invoke (fw, prop, private_data, input, output);
   EXPECT_EQ (ret, 0);
 
   for (i = 0; i < prop->input_meta.num_tensors; ++i)
@@ -1736,6 +1729,247 @@ TEST (tensorFilterOpenvino, invoke0)
   gst_tensors_info_free (&prop->input_meta);
   gst_tensors_info_free (&prop->output_meta);
   g_free (prop);
+  g_free (test_model);
+}
+
+/**
+ * @brief A negative test case for the invoke callback with an input the Inference Engine refuses
+ *
+ * Wrapping the external memory in a blob throws here, and an exception that
+ * leaves a C callback of the framework terminates the process.
+ */
+TEST (tensorFilterOpenvino, invoke2_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorMemory input[MOBINET_V2_IN_NUM_TENSOR] = {};
+  GstTensorMemory output[MOBINET_V2_OUT_NUM_TENSOR] = {};
+  gchar *test_model;
+  guint i;
+  gint ret = 0;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->invoke);
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  const gchar *model_files[] = {
+    test_model,
+    NULL,
+  };
+
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+  setAccelerator (prop, ACCL_LIST_CPU);
+
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+
+  /** The sizes are right and the input data is missing */
+  for (i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i)
+    input[i].size = 224 * 224 * 3 * sizeof (float);
+  for (i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i) {
+    output[i].size = 1001 * sizeof (float);
+    output[i].data = g_malloc0 (output[i].size);
+  }
+
+  EXPECT_NO_THROW (ret = fw->invoke (fw, prop, private_data, input, output));
+  EXPECT_EQ (ret, -EINVAL);
+
+  for (i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i)
+    g_free (output[i].data);
+
+  fw->close (prop, &private_data);
+  g_free (prop);
+  g_free (test_model);
+}
+
+/**
+ * @brief A negative test case for the invoke callback with an input name the model does not have
+ *
+ * The names a user gives come first, so a wrong one has to reach the Inference Engine.
+ */
+TEST (tensorFilterOpenvino, invoke3_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorMemory input[MOBINET_V2_IN_NUM_TENSOR];
+  GstTensorMemory output[MOBINET_V2_OUT_NUM_TENSOR];
+  GstTensorInfo *_info;
+  gchar *test_model;
+  guint i;
+  gint ret = 0;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->invoke);
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  const gchar *model_files[] = {
+    test_model,
+    NULL,
+  };
+
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+  setAccelerator (prop, ACCL_LIST_CPU);
+
+  /** Take the tensor info of the model, and give it back with another input name */
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+  ASSERT_EQ (fw->getModelInfo (fw, prop, private_data, GET_IN_OUT_INFO,
+                 &prop->input_meta, &prop->output_meta),
+      0);
+  fw->close (prop, &private_data);
+
+  _info = gst_tensors_info_get_nth_info (&prop->input_meta, 0);
+  g_free (_info->name);
+  _info->name = g_strdup ("not_in_the_model");
+
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+
+  for (i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i) {
+    input[i].size = gst_tensor_info_get_size (
+        gst_tensors_info_get_nth_info (&prop->input_meta, i));
+    input[i].data = g_malloc0 (input[i].size);
+  }
+  for (i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i) {
+    output[i].size = gst_tensor_info_get_size (
+        gst_tensors_info_get_nth_info (&prop->output_meta, i));
+    output[i].data = g_malloc0 (output[i].size);
+  }
+
+  EXPECT_NO_THROW (ret = fw->invoke (fw, prop, private_data, input, output));
+  EXPECT_EQ (ret, -EINVAL);
+
+  for (i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i)
+    g_free (input[i].data);
+  for (i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i)
+    g_free (output[i].data);
+
+  fw->close (prop, &private_data);
+  gst_tensors_info_free (&prop->input_meta);
+  gst_tensors_info_free (&prop->output_meta);
+  g_free (prop);
+  g_free (test_model);
+}
+
+/**
+ * @brief Get a harness running the MobileNet v2 model with tensor_filter
+ * @param accelerator the value of the accelerator property
+ */
+static GstHarness *
+getFilterHarness (const gchar *accelerator)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstHarness *h;
+  gchar *test_model;
+  gchar *desc;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  desc = g_strdup_printf ("tensor_filter framework=openvino model=\"%s\" accelerator=%s",
+      test_model, accelerator);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+  g_free (test_model);
+
+  if (h != NULL)
+    gst_harness_set_src_caps_str (h, "other/tensors,num_tensors=1,format=static,"
+                                     "dimensions=224:224:3:1,types=float32,framerate=0/1");
+
+  return h;
+}
+
+/**
+ * @brief Test that tensor_filter runs the model with the accelerator it parses from the property
+ */
+TEST (tensorFilterOpenvino, filterElement0)
+{
+  GstHarness *h;
+  GstElement *filter;
+  GstBuffer *buf;
+  gboolean updatable = TRUE;
+
+  h = getFilterHarness ("true:cpu");
+  ASSERT_TRUE (h != NULL);
+
+  buf = gst_harness_create_buffer (h, 224 * 224 * 3 * sizeof (float));
+  gst_buffer_memset (buf, 0, 0, gst_buffer_get_size (buf));
+  ASSERT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+
+  buf = gst_harness_pull (h);
+  ASSERT_TRUE (buf != NULL);
+  EXPECT_EQ (gst_buffer_get_size (buf), 1001 * sizeof (float));
+  gst_buffer_unref (buf);
+
+  /** Reloading a model is not supported, so the property stays off */
+  filter = gst_harness_find_element (h, "tensor_filter");
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "is-updatable", TRUE, NULL);
+  g_object_get (filter, "is-updatable", &updatable, NULL);
+  EXPECT_FALSE (updatable);
+  gst_object_unref (filter);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test that tensor_filter fails to start with an accelerator that is not attached
+ */
+TEST (tensorFilterOpenvino, filterElement0_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  /** Movidius is the default and the auto config, and the unsupported 'gpu' falls back to it */
+  const gchar *accelerators[] = { "true:npu.movidius", "true", "true:gpu" };
+  GstStateChangeReturn ret;
+  GstElement *filter;
+  gchar *test_model;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+
+  for (guint i = 0; i < G_N_ELEMENTS (accelerators); ++i) {
+    filter = gst_element_factory_make ("tensor_filter", NULL);
+    ASSERT_TRUE (filter != NULL);
+    g_object_set (filter, "framework", "openvino", "model", test_model,
+        "accelerator", accelerators[i], NULL);
+
+    ret = gst_element_set_state (filter, GST_STATE_PAUSED);
+    gst_element_set_state (filter, GST_STATE_NULL);
+    gst_object_unref (filter);
+
+    if (i == 0 && ret != GST_STATE_CHANGE_FAILURE) {
+      g_free (test_model);
+      GTEST_SKIP () << "A Movidius device is attached";
+    }
+    EXPECT_EQ (ret, GST_STATE_CHANGE_FAILURE) << accelerators[i];
+  }
+
   g_free (test_model);
 }
 
@@ -1784,7 +2018,7 @@ OpenvinoCpuInstance::OpenvinoCpuInstance ()
   prop.fwname = "openvino";
   prop.model_files = modelFiles;
   prop.num_models = 1;
-  prop.accl_str = "true:cpu";
+  setAccelerator (&prop, ACCL_LIST_CPU);
 }
 
 /** @brief Close the instance and release the buffers */
@@ -1808,7 +2042,6 @@ OpenvinoCpuInstance::~OpenvinoCpuInstance ()
 int
 OpenvinoCpuInstance::open ()
 {
-  GstTensorsInfo info;
   guint i, j;
   int ret;
 
@@ -1820,23 +2053,11 @@ OpenvinoCpuInstance::open ()
     return ret;
 
   if (prop.input_meta.num_tensors == 0) {
-    gst_tensors_info_init (&info);
-    ret = fw->getInputDimension (&prop, &privateData, &info);
-    if (ret != 0 || info.num_tensors != MOBINET_V2_IN_NUM_TENSOR) {
-      gst_tensors_info_free (&info);
+    ret = fw->getModelInfo (fw, &prop, privateData, GET_IN_OUT_INFO,
+        &prop.input_meta, &prop.output_meta);
+    if (ret != 0 || prop.input_meta.num_tensors != MOBINET_V2_IN_NUM_TENSOR
+        || prop.output_meta.num_tensors != MOBINET_V2_OUT_NUM_TENSOR)
       return -EINVAL;
-    }
-    gst_tensors_info_copy (&prop.input_meta, &info);
-    gst_tensors_info_free (&info);
-
-    gst_tensors_info_init (&info);
-    ret = fw->getOutputDimension (&prop, &privateData, &info);
-    if (ret != 0 || info.num_tensors != MOBINET_V2_OUT_NUM_TENSOR) {
-      gst_tensors_info_free (&info);
-      return -EINVAL;
-    }
-    gst_tensors_info_copy (&prop.output_meta, &info);
-    gst_tensors_info_free (&info);
 
     for (i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i) {
       input[i].size = gst_tensor_info_get_size (
@@ -1862,7 +2083,7 @@ OpenvinoCpuInstance::invoke ()
   if (privateData == NULL)
     return -EINVAL;
 
-  return fw->invoke_NN (&prop, &privateData, input, output);
+  return fw->invoke (fw, &prop, privateData, input, output);
 }
 
 /** @brief Close the model if it is open */
@@ -2078,6 +2299,171 @@ TEST (tensorFilterOpenvino, loadModelUnavailableDevice_n)
 
   g_free (test_model_xml);
   g_free (test_model_bin);
+}
+
+/**
+ * @brief Write an IR model that concatenates @a num_in inputs and splits the result into @a num_out outputs
+ * @param[in] dir the directory to write the model files in
+ * @param[in] name the base name of the model files
+ * @return the path of the model without the file extension, to be freed by the caller
+ */
+static gchar *
+writeConcatSplitModel (const gchar *dir, const gchar *name, guint num_in, guint num_out)
+{
+  GString *layers = g_string_new (NULL);
+  GString *edges = g_string_new (NULL);
+  GString *concat_in = g_string_new (NULL);
+  GString *split_out = g_string_new (NULL);
+  gchar *model, *xml, *path;
+  gboolean written;
+
+  /** The CPU plugin refuses a model of disjoint subgraphs, so all go through one node */
+  for (guint i = 0; i < num_in; i++) {
+    g_string_append_printf (layers,
+        "<layer id=\"%u\" name=\"in_%u\" precision=\"FP32\" type=\"Input\">"
+        "<output><port id=\"0\"><dim>1</dim><dim>%u</dim></port></output></layer>\n",
+        i, i, num_out);
+    g_string_append_printf (edges,
+        "<edge from-layer=\"%u\" from-port=\"0\" to-layer=\"%u\" to-port=\"%u\"/>\n",
+        i, num_in, i);
+    g_string_append_printf (concat_in,
+        "<port id=\"%u\"><dim>1</dim><dim>%u</dim></port>", i, num_out);
+  }
+
+  for (guint i = 0; i < num_out; i++)
+    g_string_append_printf (split_out,
+        "<port id=\"%u\"><dim>1</dim><dim>%u</dim></port>", num_in + 1 + i, num_in);
+
+  g_string_append_printf (layers,
+      "<layer id=\"%u\" name=\"concat\" precision=\"FP32\" type=\"Concat\">"
+      "<data axis=\"1\"/><input>%s</input><output><port id=\"%u\">"
+      "<dim>1</dim><dim>%u</dim></port></output></layer>\n"
+      "<layer id=\"%u\" name=\"split\" precision=\"FP32\" type=\"Split\">"
+      "<data axis=\"1\"/><input><port id=\"0\"><dim>1</dim><dim>%u</dim></port>"
+      "</input><output>%s</output></layer>\n",
+      num_in, concat_in->str, num_in, num_in * num_out, num_in + 1,
+      num_in * num_out, split_out->str);
+  g_string_append_printf (edges,
+      "<edge from-layer=\"%u\" from-port=\"%u\" to-layer=\"%u\" to-port=\"0\"/>\n",
+      num_in, num_in, num_in + 1);
+
+  xml = g_strdup_printf ("<?xml version=\"1.0\" ?>\n"
+                         "<net batch=\"1\" name=\"%s\" version=\"6\">\n"
+                         "<layers>\n%s</layers>\n<edges>\n%s</edges>\n</net>\n",
+      name, layers->str, edges->str);
+  model = g_build_filename (dir, name, NULL);
+
+  path = g_strconcat (model, TensorFilterOpenvino::extXml.c_str (), NULL);
+  written = g_file_set_contents (path, xml, -1, NULL);
+  g_free (path);
+  path = g_strconcat (model, TensorFilterOpenvino::extBin.c_str (), NULL);
+  written = written && g_file_set_contents (path, "", 0, NULL);
+  g_free (path);
+
+  g_free (xml);
+  g_string_free (layers, TRUE);
+  g_string_free (edges, TRUE);
+  g_string_free (concat_in, TRUE);
+  g_string_free (split_out, TRUE);
+  if (!written)
+    g_clear_pointer (&model, g_free);
+
+  return model;
+}
+
+/**
+ * @brief Remove the model files that writeConcatSplitModel () wrote
+ * @param[in] model the path of the model without the file extension
+ */
+static void
+removeModel (const gchar *model)
+{
+  gchar *path;
+
+  path = g_strconcat (model, TensorFilterOpenvino::extXml.c_str (), NULL);
+  g_remove (path);
+  g_free (path);
+  path = g_strconcat (model, TensorFilterOpenvino::extBin.c_str (), NULL);
+  g_remove (path);
+  g_free (path);
+}
+
+/**
+ * @brief Test that a model with more tensors than the limit fails the open, or getModelInfo
+ */
+TEST (tensorFilterOpenvino, tooManyTensors_n)
+{
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  GstTensorsInfo in_info;
+  GstTensorsInfo out_info;
+  gpointer private_data = NULL;
+  gchar *dir, *many_in, *many_out;
+  int ret;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->getModelInfo);
+
+  dir = g_dir_make_tmp ("nns-openvino-XXXXXX", NULL);
+  ASSERT_TRUE (dir != NULL);
+  many_in = writeConcatSplitModel (dir, "many_in", NNS_TENSOR_SIZE_LIMIT + 1, 1);
+  many_out = writeConcatSplitModel (dir, "many_out", 1, NNS_TENSOR_SIZE_LIMIT + 1);
+  ASSERT_TRUE (many_in != NULL && many_out != NULL);
+
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  prop->fwname = fw_name;
+  prop->num_models = 1;
+  setAccelerator (prop, ACCL_LIST_CPU);
+  {
+    const gchar *model_files[] = {
+      many_in,
+      NULL,
+    };
+
+    prop->model_files = model_files;
+
+    /** The open needs the model's input info */
+    ret = fw->open (prop, &private_data);
+    EXPECT_EQ (ret, -EOVERFLOW);
+    EXPECT_TRUE (private_data == NULL);
+
+    /** The open needs the model's output info */
+    model_files[0] = many_out;
+    ret = fw->open (prop, &private_data);
+    EXPECT_EQ (ret, -EOVERFLOW);
+    EXPECT_TRUE (private_data == NULL);
+
+    /** With the tensor info given, the open does not ask the model, but getModelInfo does */
+    gst_tensors_info_init (&prop->input_meta);
+    prop->input_meta.num_tensors = 1;
+    prop->input_meta.info[0].type = _NNS_FLOAT32;
+    prop->input_meta.info[0].dimension[0] = 1;
+    gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
+
+    model_files[0] = many_in;
+    ret = fw->open (prop, &private_data);
+    EXPECT_EQ (ret, 0);
+
+    gst_tensors_info_init (&in_info);
+    gst_tensors_info_init (&out_info);
+    ret = fw->getModelInfo (fw, prop, private_data, GET_IN_OUT_INFO, &in_info, &out_info);
+    EXPECT_EQ (ret, -EOVERFLOW);
+    gst_tensors_info_free (&in_info);
+    gst_tensors_info_free (&out_info);
+
+    fw->close (prop, &private_data);
+  }
+
+  gst_tensors_info_free (&prop->input_meta);
+  gst_tensors_info_free (&prop->output_meta);
+  g_free (prop);
+
+  removeModel (many_in);
+  removeModel (many_out);
+  g_rmdir (dir);
+  g_free (many_in);
+  g_free (many_out);
+  g_free (dir);
 }
 #endif /* __OPENVINO_CPU_EXT__ */
 

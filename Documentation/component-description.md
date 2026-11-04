@@ -54,7 +54,7 @@ In this page, we focus on the status of each elements. For requirements and desi
       - For tensorflow-lite version 2.x, use ```tensorflow2-lite``` as the subplugin name, which allows to use both tensorflow-lite 1.x and 2.x simultaneously in a pipeline.
   - LiteRT (new) (2.2.0 tested)
       - Targets the LiteRT 2.x CompiledModel API (the successor of tensorflow-lite); use ```litert``` as the subplugin name. It may coexist with ```tensorflow2-lite``` (classic Interpreter API) in a pipeline.
-  - Caffe2 (stable)
+  - Caffe2 (deprecated. Use PyTorch or ONNX Runtime)
   - PyTorch (stable)
   - TVM (stable)
   - NNTrainer (stable. **maintained by its own community**)
@@ -76,6 +76,9 @@ In this page, we focus on the status of each elements. For requirements and desi
   - ExecuTorch (experimental)
   - NCNN (experimental)
   - DALI/NVIDIA (experimental)
+  - HailoRT/Hailo (experimental)
+      - Runs a compiled ```.hef``` model with HailoRT 4.18 or later; use ```hailort``` as the subplugin name. ```custom``` takes ```input_format``` and ```output_format``` (```auto```, ```uint8```, ```uint16``` or ```float32```; ```float32``` makes HailoRT (de)quantize on the host) and ```group_id``` (filters with the same id share the device through the HailoRT scheduler). Not built when ```tizen-hal-support``` is enabled.
+      - Each virtual stream is a tensor, in the order HailoRT reports them. An NHWC frame is ```C:W:H:1```; any other layout (NCHW, NMS results, ...) is a flat tensor of the frame size. After a failed transfer the filter refuses further invokes until the model is opened again, because HailoRT may still hold a frame of the failed one.
   - [Guide on writing a filter subplugin](writing-subplugin-tensor-filter.md)
   - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnstreamer/nnstreamer-example/tree/main/templates)
 - [tensor\_transform](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_transform.md) (stable)
@@ -114,7 +117,7 @@ In this page, we focus on the status of each elements. For requirements and desi
   - This is the opposite of ```tensor_merge```. This splits a single-tensored (```other/tensors,num_tensors=1```) stream into multiple single-tensored streams. For example, a stream of ```dimensions=1920:1080``` may split into ```dimensions=1080:1080``` and ```dimensions=840:1080```.
   - Users can adjust how dimensions are split
   - Users may output only some of the segments with ```tensorpick```. With the properties set before the stream starts, the picked segments go out on ```src_0```, ```src_1```, ... in ascending segment order, and each pad describes the segment it carries: with ```tensorseg=1:4:4,2:4:4 tensorpick=1```, ```src_0``` carries ```dimensions=2:4:4```.
-  - ```tensorseg``` and ```tensorpick``` are fixed by the first buffer that is split; setting either to a different rule while the pipeline runs is refused with a warning on the bus, so stop the pipeline to ```READY``` or ```NULL``` to change them. An input renegotiated by upstream is followed instead: a source pad keeps the dimensions of its segment and takes the new type and framerate.
+  - ```tensorpick``` and the number of segments in ```tensorseg``` are fixed by the first buffer that is split; changing them while the pipeline runs is refused with a warning on the bus, so stop the pipeline to ```READY``` or ```NULL``` to change them. A ```tensorseg``` with the same number of segments is taken while the pipeline runs: it applies from the next buffer, and the source pads announce the new dimensions before it. An input renegotiated by upstream is followed instead: a source pad keeps the dimensions of its segment and takes the new type and framerate.
 - [tensor\_mux](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_mux.c) (stable)
   - This combines multiple ```other/tensor(s)``` streams into a single ```other/tensors``` stream while keeping the input stream dimensions. Thus, the number of tensors (```num_tensors```) increase accordingly without changing dimensions of incoming tensors. For example, merging the two tensor streams, ```num_tensors=1,dimensions=3:2``` and ```num_tensors=1,dimensions=4:4:4``` becomes ```num_tensors=2,dimensions=3:2,4:4:4```, combining frames from the two streams, enforcing synchronization.
   - Both merge and mux combine multiple streams into a stream; however, merge combines multiple tensors into a tensor, updating the dimensions while mux keep the tensors and combine them into a single container.
@@ -160,7 +163,7 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_src\_grpc](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/tensor_source) (stable)
   - This element generates tensor streams from data received via grpc connection. A received message whose tensor count or data sizes do not match the negotiated caps is dropped. A message that arrives before the caps are negotiated is held until they are. A non-blocking server handles its calls in one thread, so its other calls and new connections wait for the caps as well.
 - [tensor\_sink\_grpc](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/tensor_sink) (stable)
-  - This element sends data via grpc connection from tensor streams. When a server or a blocking client stops, it keeps sending the queued buffers while the peer takes them; the buffers left once the peer has taken none for a second are dropped, so the element reaches NULL even when the peer is gone or never reads. Once every queued buffer is handed over, the element waits up to ```stop-timeout``` ms (5000 by default) for the peer to finish the call, and what the peer has not read by then is dropped. A non-blocking client stops sending as soon as the element starts stopping, so its queued buffers are dropped after that second.
+  - This element sends data via grpc connection from tensor streams. When it stops, it keeps sending the queued buffers while the peer takes them; the buffers left once the peer has taken none for a second are dropped, so the element reaches NULL even when the peer is gone or never reads. Once every queued buffer is handed over (also when none was queued), the element waits up to ```stop-timeout``` ms (5000 by default) for the peer to finish the call, and what the peer has not read by then is dropped.
 - [android supports](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/android_source) (stable)
   - This element allows to accept data streams from Android's media framework.
 

@@ -54,6 +54,7 @@ struct _GstDataRepoSrc {
   gsize tensors_offset[NNS_TENSOR_SIZE_LIMIT]; /**< each tensors offset in a sample */
   gint current_sample_index;    /**< current index of sample or file to read */
   gboolean first_epoch_is_done;
+  guint remaining_epochs;       /**< epochs left to read in the current run */
   guint total_samples;           /**< The number of total samples */
   guint num_samples;             /**< The number of samples to be used out of the total samples in the file */
   gsize sample_size;             /**< size of one sample */
@@ -77,7 +78,7 @@ struct _GstDataRepoSrc {
   GstCaps *caps;                /**< optional property, datareposrc should get data format from JSON file caps field */
 
   /* flexible tensors */
-  GstTensorsConfig config;          /**< tensors information from current caps */
+  GstTensorsConfig config;          /**< tensors information of a sample in the repository */
   JsonArray *sample_offset_array;   /**< offset array of sample */
   JsonArray *tensor_size_array;     /**< size array of flexible tensor to be stored in a Gstbuffer */
   JsonArray *tensor_count_array;    /**< array for the number of cumulative tensors */

@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [ main ]
 
+# Keep these the same as in out_of_distro_filters.yml and
+# update_executorch_cache.yml: a different version or prefix is a different cache.
+env:
+  EXECUTORCH_VERSION: v1.4.1
+  EXECUTORCH_PREFIX: /home/runner/executorch-install
+
 jobs:
   build:
     name: Build with meson and test with Valgrind in Ubuntu
@@ -39,7 +45,7 @@ jobs:
         # This PPA follows nnstreamer-edge daily, and a leak of its own is
         # reported against whichever of our elements called into it, so if one
         # ever arrives, fix it there and suppress it here meanwhile.
-        sudo apt-get install -y ssat libpaho-mqtt-dev nnstreamer-edge-dev
+        sudo apt-get install -y ssat libpaho-mqtt-dev libssl-dev nnstreamer-edge-dev
         sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
         sudo apt-get install -y libarmnn-dev libarmnntfliteparser-dev libarmnn-cpuref-backend22
         # The armnn subplugin auto-selects the NEON-accelerated CpuAcc backend on arm.
@@ -142,6 +148,41 @@ jobs:
         cp /tmp/litert-wheel/x/ai_edge_litert/libLiteRt.so $LITERT_ROOT/lib/
         echo "LITERT_ROOT=$LITERT_ROOT" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=$LITERT_ROOT/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+    # ExecuTorch has to be built from source. This is its arm64 entry, here
+    # because this leg already builds with the float16 that the sub-plugin's
+    # float16 unit test needs, and already installs everything else it uses.
+    # The x86_64 entry is out_of_distro_filters.yml, which stays apart from the
+    # memcheck sweep of the x86 leg of this job. On a cache miss, this leg builds
+    # ExecuTorch; it is not a required check, so that cannot hold up a merge.
+    - name: restore the ExecuTorch install tree
+      id: cache-executorch
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04-arm'
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ env.EXECUTORCH_PREFIX }}
+        key: executorch-${{ runner.os }}-${{ runner.arch }}-${{ env.EXECUTORCH_VERSION }}-${{ hashFiles('tools/executorch-install.sh') }}
+    - name: build and install ExecuTorch
+      id: build-executorch
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04-arm' && steps.cache-executorch.outputs.cache-hit != 'true'
+      timeout-minutes: 180
+      run: |
+        # See out_of_distro_filters.yml for these pins. A virtual environment
+        # leaves all of this out of the nnstreamer build below.
+        python3 -m venv "${RUNNER_TEMP}/executorch-venv"
+        source "${RUNNER_TEMP}/executorch-venv/bin/activate"
+        pip install pyyaml numpy 'cmake>=3.24,<4'
+        pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+        bash tools/executorch-install.sh "${EXECUTORCH_PREFIX}" "${EXECUTORCH_VERSION}"
+    # Saved separately from the restore above, and even when a later step
+    # fails, so that a red run does not force the next one to rebuild
+    # ExecuTorch from scratch. Guarded on the build itself having succeeded,
+    # so a half-installed tree cannot be cached and then restored forever.
+    - name: save the ExecuTorch install tree
+      if: '!cancelled() && steps.build-executorch.outcome == ''success'''
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.EXECUTORCH_PREFIX }}
+        key: ${{ steps.cache-executorch.outputs.cache-primary-key }}
     - name: build and unit test
       if: env.rebuild == '1'
       run: |
@@ -158,8 +199,18 @@ jobs:
         # The arm64 entry builds with float16, the only per-PR job running the
         # FLOAT16_SUPPORT-only unit tests; the x86 entry keeps it off.
         float16_opt=
-        if [ '${{ matrix.os }}' == 'ubuntu-22.04-arm' ]; then float16_opt=-Denable-float16=true; fi
-        meson setup build/ -Darmnn-support=enabled -Dmqtt-support=enabled -Dinstall-test=true ${float16_opt}
+        executorch_opt=
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04-arm' ]; then
+          float16_opt=-Denable-float16=true
+          executorch_opt="-Dexecutorch-support=enabled -Dexecutorch-llama-support=enabled"
+          export PKG_CONFIG_PATH="${EXECUTORCH_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+          export LD_LIBRARY_PATH="${EXECUTORCH_PREFIX}/lib:${LD_LIBRARY_PATH}"
+        fi
+        # Exercise TLS in both the native and Valgrind passes on x86. Keep
+        # the arm entry non-TLS so the default build stays covered as well.
+        mqtt_tls=false
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then mqtt_tls=true; fi
+        meson setup build/ -Darmnn-support=enabled -Dmqtt-support=enabled -Dmqtt-tls=${mqtt_tls} -Dinstall-test=true ${float16_opt} ${executorch_opt}
 
         # This job installs the newest meson from PyPI, so it configures
         # happily with a construct that the meson on a target distro does not
@@ -183,6 +234,8 @@ jobs:
         # into the memcheck pass; if nnstreamer-edge stopped being detected
         # they would leave it without a word.
         test -f build/gst/edge/libgstedge.so
+        # This job is the only one that builds and tests the armnn sub-plugin.
+        test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_armnn.so
 
         if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then
           # Fail loudly if meson stopped detecting llama.cpp; otherwise the
@@ -196,6 +249,11 @@ jobs:
           # Same for ncnn: its SSAT script reports success with zero cases when
           # the .so is absent.
           test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_ncnn.so
+        else
+          # Same for executorch: its SSAT script reports success with zero cases
+          # when the .so is absent.
+          test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_executorch.so
+          test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_executorch-llama.so
         fi
 
         sudo mkdir -m 777 /cores
@@ -206,6 +264,29 @@ jobs:
         meson test -C build/ -v
       env:
         CC: gcc
+    # No runner has HailoRT, so everything else compiles the hailort sub-plugin
+    # against the reduced mock header of tests/nnstreamer_filter_hailort only.
+    # Compile it against the public header of the oldest supported HailoRT
+    # (also what Tizen ships) and of the newest one, so that an API change
+    # cannot hide behind the mock. Refresh the pinned hashes on a version bump.
+    - name: Compile the hailort sub-plugin against the real HailoRT headers
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      run: |
+        while read -r ver header sha; do
+          inc=${RUNNER_TEMP}/hailort-${ver}/hailo
+          mkdir -p "${inc}"
+          wget -q -O "${inc}/${header}" "https://raw.githubusercontent.com/hailo-ai/hailort/${ver}/hailort/libhailort/include/hailo/${header}"
+          echo "${sha}  ${inc}/${header}" | sha256sum -c -
+        done <<'PINS'
+        v4.18.0 hailort.h 6c232855e93ffad06dea301d07557993772b9e0a7c68c54ee9d8bdda28616600
+        v4.18.0 platform.h efc43480476909f014a2419830559c3d3280f84ae85ba8a2efc6348ca72de3bd
+        v5.4.0 hailort.h 93daa8ee0c50ae4be5c9b9bdd196890d9228ff518ffb958cc1ef50d3cdd436f1
+        v5.4.0 platform.h bfe50d3e81286a638b6971e7aa61ddbeb44ea93b055034935090ca8590c3128c
+        PINS
+        for ver in v4.18.0 v5.4.0; do
+          echo "HailoRT ${ver}"
+          g++ -fsyntax-only -std=c++17 -Wall -Wextra -Werror -Wno-unused-parameter             $(pkg-config --cflags glib-2.0 gstreamer-1.0) -I"${RUNNER_TEMP}/hailort-${ver}"             -Igst/nnstreamer/include -Igst/nnstreamer -Ibuild/gst/nnstreamer/include -Ibuild             ext/nnstreamer/tensor_filter/tensor_filter_hailort.cc
+        done
     # The tensorflow2-lite-custom sub-plugin is gone, but out-of-tree build
     # scripts still pass its option, and meson aborts on an option it does not
     # know. So the option stays behind, selecting nothing, and a request for
@@ -271,6 +352,21 @@ jobs:
     - name: SSAT run on filter-ncnn
       if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && pushd tests/nnstreamer_filter_ncnn && ssat -n -p=1 --summary summary.txt && popd; fi
+    # numpy goes in here and not with the other requirements: this python3 has
+    # none while nnstreamer is configured, which the build above has always seen,
+    # and the SSAT script generates its test data with it.
+    - name: SSAT run on filter-executorch
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04-arm'
+      run: |
+        pip install numpy
+        export LD_LIBRARY_PATH="${EXECUTORCH_PREFIX}/lib:${LD_LIBRARY_PATH}"
+        export NNSTREAMER_BUILD_ROOT_PATH="$(pwd)/build"
+        export NNSTREAMER_FILTERS="$(pwd)/build/ext/nnstreamer/tensor_filter"
+        export NNSTREAMER_DECODERS="$(pwd)/build/ext/nnstreamer/tensor_decoder"
+        export NNSTREAMER_CONVERTERS="$(pwd)/build/ext/nnstreamer/tensor_converter"
+        export GST_PLUGIN_PATH="$(pwd)/build/gst"
+        export NNSTREAMER_CONF="$(pwd)/build/nnstreamer-test.ini"
+        cd tests/nnstreamer_filter_executorch && ssat -n -p=1 --summary summary.txt
     # This memcheck pass is the longest step of the job, and what it costs is
     # decided almost entirely by a few cases that drive a third-party inference
     # runtime, every instruction of which memcheck instruments. Two runners
@@ -391,6 +487,9 @@ jobs:
         sudo apt-get install -y tensorflow2-lite-dev
         meson setup --reconfigure build/
         meson compile -C build/
+        # The tflite example below needs the sub-plugin; fail here if the
+        # auto-detected build stopped producing it.
+        test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_tensorflow2-lite.so
         echo "::endgroup::"
         export GST_PLUGIN_PATH=$(pwd)/build/gst/nnstreamer
         currentpath=$(pwd)

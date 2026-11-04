@@ -1571,8 +1571,11 @@ _stop_client_sink_stream (const gchar *idl, gboolean blocking, const gchar *vide
 {
   grpc::ServerBuilder builder;
   GstElement *pipeline;
+  GModule *module;
+  grpc_call_stats_fn stats;
   gchar *options;
   int port = 0;
+  gint live_before = 0, unfinished_before = 0, live = 0, unfinished = 0;
   gboolean stopped = FALSE;
 
   builder.AddListeningPort ("localhost:0", grpc::InsecureServerCredentials (), &port);
@@ -1582,6 +1585,11 @@ _stop_client_sink_stream (const gchar *idl, gboolean blocking, const gchar *vide
     ADD_FAILURE () << "the " << idl << " peer server did not start";
     return FALSE;
   }
+
+  module = _open_grpc_idl_module (idl, &stats);
+  EXPECT_TRUE (stats != NULL);
+  if (stats)
+    stats (&live_before, &unfinished_before);
 
   options = g_strdup_printf ("server=FALSE blocking=%s idl=%s port=%d %s",
       blocking ? "TRUE" : "FALSE", idl, port, extra);
@@ -1594,6 +1602,15 @@ _stop_client_sink_stream (const gchar *idl, gboolean blocking, const gchar *vide
   } else {
     ADD_FAILURE () << "the " << idl << " sink pipeline did not build";
   }
+
+  /* a non-blocking client has freed its call, with its completion queue drained, by now */
+  if (stats) {
+    stats (&live, &unfinished);
+    EXPECT_EQ (live, live_before);
+    EXPECT_EQ (unfinished, unfinished_before);
+  }
+  if (module)
+    g_module_close (module);
 
   g_atomic_int_set (&state->release, 1);
   server->Shutdown (std::chrono::system_clock::now () + std::chrono::seconds (5));
@@ -2502,6 +2519,19 @@ TEST (nnstreamerGrpc, stopDrainsToReadingServerProtobuf)
 }
 
 /**
+ * @brief A non-blocking tensor_sink_grpc (protobuf) client that stops still
+ * hands every queued buffer to a server reading slowly.
+ */
+TEST (nnstreamerGrpc, stopDrainsAsyncClientToReadingServerProtobuf)
+{
+  PeerState state = { 0, 0 };
+  PeerServiceProtobuf service (TRUE, &state);
+
+  EXPECT_TRUE (_stop_client_sink_with_server ("protobuf", FALSE, &service, &state));
+  EXPECT_EQ (g_atomic_int_get (&state.count), LARGE_FRAMES);
+}
+
+/**
  * @brief A blocking tensor_sink_grpc (protobuf) client that stops lets a slow server read, within the default stop-timeout, what the transport holds for it.
  */
 TEST (nnstreamerGrpc, stopWaitsForSlowServerProtobuf)
@@ -2983,24 +3013,28 @@ class FbPeerService final : public nnstreamer::flatbuf::TensorService::Service
 };
 
 /**
- * @brief Stream frames from a blocking tensor_sink_grpc (flatbuf) client to @a
+ * @brief Stream frames from a tensor_sink_grpc (flatbuf) client to @a
  * service, and bring the client to NULL at the end of the stream.
  * @param service the server side of the call
+ * @param blocking the blocking property of the client
  * @param video_caps the caps of the raw frames
  * @param num the number of frames
  * @param options more properties of the client
  * @return TRUE if the client reached the end of the stream and then NULL
  */
 static gboolean
-_fb_send_to_peer (grpc::Service *service, const gchar *video_caps, guint num,
-    const gchar *options)
+_fb_send_to_peer (grpc::Service *service, gboolean blocking,
+    const gchar *video_caps, guint num, const gchar *options)
 {
   grpc::ServerBuilder builder;
   GstElement *client;
   GstMessage *msg;
   GstBus *bus;
+  GModule *module;
+  grpc_call_stats_fn stats;
   gchar *str;
   int port = 0;
+  gint live_before = 0, unfinished_before = 0, live = 0, unfinished = 0;
   gboolean ended;
 
   builder.AddListeningPort ("localhost:0", grpc::InsecureServerCredentials (), &port);
@@ -3012,14 +3046,19 @@ _fb_send_to_peer (grpc::Service *service, const gchar *video_caps, guint num,
   }
 
   str = g_strdup_printf ("videotestsrc num-buffers=%u ! %s ! tensor_converter ! "
-                         "tensor_sink_grpc server=FALSE blocking=TRUE idl=flatbuf host=localhost port=%d async=FALSE %s",
-      num, video_caps, port, options);
+                         "tensor_sink_grpc server=FALSE blocking=%s idl=flatbuf host=localhost port=%d async=FALSE %s",
+      num, video_caps, blocking ? "TRUE" : "FALSE", port, options);
   client = gst_parse_launch (str, NULL);
   g_free (str);
   if (!client) {
     ADD_FAILURE () << "the flatbuf client pipeline did not build";
     return FALSE;
   }
+
+  module = _open_grpc_idl_module ("flatbuf", &stats);
+  EXPECT_TRUE (stats != NULL);
+  if (stats)
+    stats (&live_before, &unfinished_before);
 
   gst_element_set_state (client, GST_STATE_PLAYING);
   bus = gst_element_get_bus (client);
@@ -3033,6 +3072,15 @@ _fb_send_to_peer (grpc::Service *service, const gchar *video_caps, guint num,
   /* the client ends its call here, after its last buffers */
   if (!_set_null_in_time (client))
     ended = FALSE;
+
+  /* a non-blocking client has freed its call, with its completion queue drained, by now */
+  if (stats) {
+    stats (&live, &unfinished);
+    EXPECT_EQ (live, live_before);
+    EXPECT_EQ (unfinished, unfinished_before);
+  }
+  if (module)
+    g_module_close (module);
 
   server->Shutdown (std::chrono::system_clock::now () + std::chrono::seconds (5));
 
@@ -3049,9 +3097,20 @@ TEST (nnstreamerGrpc, sinkClientFlatbufSlowServer)
 {
   FbPeerService service (FB_PEER_SLOW_READ);
 
-  EXPECT_TRUE (_fb_send_to_peer (&service,
+  EXPECT_TRUE (_fb_send_to_peer (&service, TRUE,
       "video/x-raw,format=RGB,width=1280,height=720,framerate=30/1", 10, ""));
   EXPECT_EQ (g_atomic_int_get (&service.count), 10);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) client that stops still hands every queued buffer to a server reading slowly.
+ */
+TEST (nnstreamerGrpc, sinkAsyncClientFlatbufSlowServer)
+{
+  FbPeerService service (FB_PEER_SLOW_READ);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, FALSE, LARGE_VIDEO_CAPS, LARGE_FRAMES, ""));
+  EXPECT_EQ (g_atomic_int_get (&service.count), LARGE_FRAMES);
 }
 
 /**
@@ -3061,7 +3120,7 @@ TEST (nnstreamerGrpc, sinkClientFlatbufSlowServerSmallFrames)
 {
   FbPeerService service (FB_PEER_SLOW_READ);
 
-  EXPECT_TRUE (_fb_send_to_peer (&service, STREAM_VIDEO_CAPS, SMALL_FRAMES, "sync=FALSE"));
+  EXPECT_TRUE (_fb_send_to_peer (&service, TRUE, STREAM_VIDEO_CAPS, SMALL_FRAMES, "sync=FALSE"));
   EXPECT_EQ (g_atomic_int_get (&service.count), SMALL_FRAMES);
 }
 
@@ -3072,8 +3131,8 @@ TEST (nnstreamerGrpc, sinkClientFlatbufStopTimeout_n)
 {
   FbPeerService service (FB_PEER_SLOW_READ);
 
-  EXPECT_TRUE (_fb_send_to_peer (
-      &service, STREAM_VIDEO_CAPS, SMALL_FRAMES, "sync=FALSE stop-timeout=200"));
+  EXPECT_TRUE (_fb_send_to_peer (&service, TRUE, STREAM_VIDEO_CAPS,
+      SMALL_FRAMES, "sync=FALSE stop-timeout=200"));
   EXPECT_LT (g_atomic_int_get (&service.count), SMALL_FRAMES);
 }
 
@@ -3084,7 +3143,7 @@ TEST (nnstreamerGrpc, sinkClientFlatbufNoReply_n)
 {
   FbPeerService service (FB_PEER_NO_REPLY);
 
-  EXPECT_TRUE (_fb_send_to_peer (&service, STREAM_VIDEO_CAPS, 10, ""));
+  EXPECT_TRUE (_fb_send_to_peer (&service, TRUE, STREAM_VIDEO_CAPS, 10, ""));
   EXPECT_EQ (g_atomic_int_get (&service.count), 10);
 }
 
@@ -3095,7 +3154,7 @@ TEST (nnstreamerGrpc, sinkClientFlatbufFailedCall_n)
 {
   FbPeerService service (FB_PEER_FAIL);
 
-  EXPECT_TRUE (_fb_send_to_peer (&service, STREAM_VIDEO_CAPS, 10, ""));
+  EXPECT_TRUE (_fb_send_to_peer (&service, TRUE, STREAM_VIDEO_CAPS, 10, ""));
   EXPECT_EQ (g_atomic_int_get (&service.count), 0);
 }
 
@@ -3106,7 +3165,65 @@ TEST (nnstreamerGrpc, sinkClientFlatbufHoldingServer_n)
 {
   FbPeerService service (FB_PEER_HOLD);
 
-  EXPECT_TRUE (_fb_send_to_peer (&service, STREAM_VIDEO_CAPS, 10, "stop-timeout=1000"));
+  EXPECT_TRUE (_fb_send_to_peer (&service, TRUE, STREAM_VIDEO_CAPS, 10, "stop-timeout=1000"));
+  EXPECT_EQ (g_atomic_int_get (&service.count), 10);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) client that stops lets a slow server read, within the default stop-timeout, what the transport holds for it.
+ */
+TEST (nnstreamerGrpc, sinkAsyncClientFlatbufSlowServerSmallFrames)
+{
+  FbPeerService service (FB_PEER_SLOW_READ);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, FALSE, STREAM_VIDEO_CAPS, SMALL_FRAMES, "sync=FALSE"));
+  EXPECT_EQ (g_atomic_int_get (&service.count), SMALL_FRAMES);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) client with a short
+ * stop-timeout drops what a slow server has not read by then.
+ */
+TEST (nnstreamerGrpc, sinkAsyncClientFlatbufStopTimeout_n)
+{
+  FbPeerService service (FB_PEER_SLOW_READ);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, FALSE, STREAM_VIDEO_CAPS,
+      SMALL_FRAMES, "sync=FALSE stop-timeout=200"));
+  EXPECT_LT (g_atomic_int_get (&service.count), SMALL_FRAMES);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) client ends its call cleanly
+ * when the server answers without a response message.
+ */
+TEST (nnstreamerGrpc, sinkAsyncClientFlatbufNoReply_n)
+{
+  FbPeerService service (FB_PEER_NO_REPLY);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, FALSE, STREAM_VIDEO_CAPS, 10, ""));
+  EXPECT_EQ (g_atomic_int_get (&service.count), 10);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) client ends its call cleanly when the server fails it.
+ */
+TEST (nnstreamerGrpc, sinkAsyncClientFlatbufFailedCall_n)
+{
+  FbPeerService service (FB_PEER_FAIL);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, FALSE, STREAM_VIDEO_CAPS, 10, ""));
+  EXPECT_EQ (g_atomic_int_get (&service.count), 0);
+}
+
+/**
+ * @brief A non-blocking tensor_sink_grpc (flatbuf) client reaches NULL, once its stop-timeout is over, when the server reads everything but never ends the call.
+ */
+TEST (nnstreamerGrpc, sinkAsyncClientFlatbufHoldingServer_n)
+{
+  FbPeerService service (FB_PEER_HOLD);
+
+  EXPECT_TRUE (_fb_send_to_peer (&service, FALSE, STREAM_VIDEO_CAPS, 10, "stop-timeout=1000"));
   EXPECT_EQ (g_atomic_int_get (&service.count), 10);
 }
 

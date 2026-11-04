@@ -1121,6 +1121,20 @@ _flood_edgesrc (guint max_buffers, IdLog *log, guint expected)
     return 0;
   }
 
+#ifndef GST_DISABLE_GST_DEBUG
+  {
+    GstDebugCategory *cat;
+
+    /* a count of zero says nothing unless the log function sees the category */
+    GST_DEBUG_CATEGORY_GET (cat, "edgesrc");
+    EXPECT_NE (cat, nullptr);
+    if (cat)
+      GST_CAT_DEBUG (cat, "Dropped 1 [probe] log function self-check");
+    EXPECT_EQ (g_atomic_int_get (&edgesrc_dropped), 1);
+    g_atomic_int_set (&edgesrc_dropped, 0);
+  }
+#endif
+
   element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   g_signal_connect (element, "handoff", (GCallback) _log_id, log);
   gst_object_unref (element);

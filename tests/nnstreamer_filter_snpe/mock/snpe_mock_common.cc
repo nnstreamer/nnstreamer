@@ -188,12 +188,14 @@ snpe_mock_total_live_count (void)
  * The in-tree add2_*.dlc fixtures are emulated as a single input and a single
  * output of one element that computes output = input + 2, quantized when the
  * name says uint8. A test that needs a shape the fixtures do not have creates
- * an empty file whose name carries one of the other keywords below.
+ * an empty file whose name carries one of the other keywords below; "rank"
+ * followed by a number gives every tensor that rank instead of the default.
  */
 gboolean
 snpe_mock_model_load (const char *path, snpe_mock_model *model)
 {
   g_autofree gchar *base = NULL;
+  const gchar *rank;
 
   if (!path || !model || path[0] == '\0')
     return FALSE;
@@ -205,6 +207,11 @@ snpe_mock_model_load (const char *path, snpe_mock_model *model)
   model->resizable = (strstr (base, "resizable") != NULL) || model->oversized_input;
   model->unsupported_encoding = (strstr (base, "badenc") != NULL);
   model->output_elements = model->resizable ? SNPE_MOCK_RESIZABLE_OUTPUT_ELEMENTS : 1;
+  rank = strstr (base, "rank");
+  if (rank && g_ascii_isdigit (rank[strlen ("rank")]))
+    model->rank = (guint) g_ascii_strtoull (rank + strlen ("rank"), NULL, 10);
+  else
+    model->rank = model->resizable ? 2U : 1U;
 
   return TRUE;
 }

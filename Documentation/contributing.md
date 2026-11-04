@@ -76,3 +76,37 @@ Including a "Signed-off-by:" tag in your commit means that you are making the De
 
 ## How to contribute to GStreamer community
 * https://gstreamer.freedesktop.org/documentation/contribute/index.html
+
+
+## Static checker environment
+
+The static-check, CPP-Linter and spelling workflows run on `ubuntu-26.04`, and
+both C++ format checks use clang-format 21 with the repository's
+`.clang-format`: the static workflow on `.cc`, `.hh`, `.hpp` and `.cpp` files,
+CPP-Linter on the changed lines of `.cc` files. The static workflow logs its
+checker versions. To reproduce a diagnostic locally, install `cppcheck` and
+`file`, then run:
+
+```sh
+clang-format-21 -i path/to/changed.cc
+echo path/to/changed.c > /tmp/files.txt
+bash .github/workflows/static.check.scripts/cppcheck.sh /tmp/files.txt 0
+python3 .github/workflows/static.check.scripts/test_cppcheck.py
+```
+
+Cppcheck checks each changed `.c` and `.cpp` file on its own, without the
+build's headers; `nnstreamer.cfg` next to the wrapper defines the GLib and
+GStreamer macros it would otherwise not know. Version checks such as
+`GST_CHECK_VERSION` are true in that model, so only the branches for current
+GLib and GStreamer are analyzed. Any diagnostic, or a failure of Cppcheck
+itself, fails the check.
+
+A file that uses a macro missing from that model can fail with `unknownMacro`
+even though it builds. Add the macro to
+`.github/workflows/static.check.scripts/nnstreamer.cfg`, expanded the way its
+header expands it so that Cppcheck still sees the code using it, and rerun both
+Cppcheck commands above. String values are written with `&quot;`:
+
+```xml
+<define name="G_GUINT32_FORMAT" value="&quot;u&quot;"/>
+```

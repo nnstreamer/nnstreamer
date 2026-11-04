@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <gst/gst.h>
 
 #include <MQTTAsync.h>
@@ -34,6 +35,29 @@
 #define WAIT_TIMEOUT_US (5 * G_TIME_SPAN_SECOND)
 #define LONG_SUB_TIMEOUT (G_GINT64_CONSTANT (10000000))
 #define QUEUE_POLL_PASSED_US (1500 * G_TIME_SPAN_MILLISECOND)
+
+/** TLS settings copied synchronously when the mocked client connects. */
+static bool last_connect_tls;
+static int last_connect_verify;
+static int last_connect_auth;
+static std::string last_connect_ca;
+static std::string last_connect_cert;
+static std::string last_connect_key;
+static std::string last_connect_key_password;
+
+/** @brief Record options while they are valid, without borrowing their storage. */
+static void
+_record_tls_options (const MQTTAsync_connectOptions *options)
+{
+  const MQTTAsync_SSLOptions *ssl = options->ssl;
+  last_connect_tls = ssl != nullptr;
+  last_connect_verify = ssl ? ssl->verify : 0;
+  last_connect_auth = ssl ? ssl->enableServerCertAuth : 0;
+  last_connect_ca = ssl && ssl->trustStore ? ssl->trustStore : "";
+  last_connect_cert = ssl && ssl->keyStore ? ssl->keyStore : "";
+  last_connect_key = ssl && ssl->privateKey ? ssl->privateKey : "";
+  last_connect_key_password = ssl && ssl->privateKeyPassword ? ssl->privateKeyPassword : "";
+}
 
 /**
  * @brief The mocked paho call a test case can hold open on another thread
@@ -61,6 +85,18 @@ typedef struct {
   gboolean fail_subscribe;
   gboolean fail_unsubscribe;
   gboolean fail_reconnect;
+  gboolean fail_disconnect;
+  gboolean omit_disconnect_callback;
+  MQTTAsync_onSuccess *disconnect_callback;
+  void *disconnect_context;
+  gboolean deliver_during_destroy;
+  gboolean destroy_callback_done;
+  gboolean destroy_drained_callback;
+  guint destroy_count;
+  gboolean model_disconnect_lock;
+  gboolean receive_lock_held;
+  gboolean disconnect_entered;
+  gboolean disconnect_acquired_lock;
 
   std::string last_client_id;
   std::string last_server_uri;
@@ -82,6 +118,7 @@ typedef struct {
 } mqtt_mock_s;
 
 static mqtt_mock_s g_mock;
+static GMutex mock_paho_mutex;
 static std::vector<std::thread> g_mock_threads;
 
 /**
@@ -100,6 +137,18 @@ _mock_reset (void)
   g_mock.fail_subscribe = FALSE;
   g_mock.fail_unsubscribe = FALSE;
   g_mock.fail_reconnect = FALSE;
+  g_mock.fail_disconnect = FALSE;
+  g_mock.omit_disconnect_callback = FALSE;
+  g_mock.disconnect_callback = NULL;
+  g_mock.disconnect_context = NULL;
+  g_mock.deliver_during_destroy = FALSE;
+  g_mock.destroy_callback_done = FALSE;
+  g_mock.destroy_drained_callback = FALSE;
+  g_mock.destroy_count = 0;
+  g_mock.model_disconnect_lock = FALSE;
+  g_mock.receive_lock_held = FALSE;
+  g_mock.disconnect_entered = FALSE;
+  g_mock.disconnect_acquired_lock = FALSE;
   g_mock.last_client_id.clear ();
   g_mock.last_server_uri.clear ();
   g_mock.has_username = FALSE;
@@ -303,6 +352,7 @@ MQTTAsync_setCallbacks (MQTTAsync handle, void *context, MQTTAsync_connectionLos
 int
 MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
 {
+  _record_tls_options (options);
   gboolean async;
   gboolean fail;
 
@@ -414,12 +464,44 @@ int
 MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *options)
 {
   (void) handle;
+  gboolean fail, omit_callback, model_lock;
 
-  if (!options)
+  g_mutex_lock (&g_mock.lock);
+  fail = g_mock.fail_disconnect;
+  omit_callback = g_mock.omit_disconnect_callback;
+  model_lock = g_mock.model_disconnect_lock;
+  g_mock.disconnect_entered = TRUE;
+  g_cond_broadcast (&g_mock.cond);
+  g_mock.disconnect_callback = options ? options->onSuccess : NULL;
+  g_mock.disconnect_context = options ? options->context : NULL;
+  g_mutex_unlock (&g_mock.lock);
+
+  if (model_lock) {
+    gint64 deadline = g_get_monotonic_time () + 2 * G_TIME_SPAN_SECOND;
+    gboolean acquired;
+    /** Paho 1.3.14 takes its library lock before checking the request.
+     * Bound this model so a regression fails instead of hanging the suite. */
+    while (!(acquired = g_mutex_trylock (&mock_paho_mutex)) && g_get_monotonic_time () < deadline)
+      g_usleep (1000);
+    g_mutex_lock (&g_mock.lock);
+    g_mock.disconnect_acquired_lock = acquired;
+    g_mutex_unlock (&g_mock.lock);
+    if (!acquired)
+      return MQTTASYNC_FAILURE;
+    g_mutex_unlock (&mock_paho_mutex);
+  }
+
+  if (fail)
+    return MQTTASYNC_FAILURE;
+
+  if (!options || omit_callback)
     return MQTTASYNC_SUCCESS;
 
-  /** The element waits for this callback with its own lock held */
-  _spawn_cb_thread (options->onSuccess, options->context);
+  /* A fast completion must remain visible when disconnect returns. */
+  if (model_lock)
+    _run_success_cb (options->onSuccess, options->context);
+  else
+    _spawn_cb_thread (options->onSuccess, options->context);
 
   return MQTTASYNC_SUCCESS;
 }
@@ -435,11 +517,57 @@ MQTTAsync_isConnected (MQTTAsync handle)
 }
 
 /**
- * @brief A mock function for MQTTAsync_destroy () in paho-mqtt-c
+ * @brief Deliver a message whose callback must finish before client destruction.
+ */
+static void
+_deliver_during_destroy (MQTTAsync_messageArrived *callback, void *context,
+    MQTTAsync_onSuccess *disconnect_callback, void *disconnect_context)
+{
+  MQTTAsync_message *message = g_new0 (MQTTAsync_message, 1);
+  GstMQTTMessageHdr *header;
+
+  /* A disconnect completion can arrive after the caller's wait timed out. */
+  if (disconnect_callback)
+    _run_success_cb (disconnect_callback, disconnect_context);
+
+  message->payloadlen = GST_MQTT_LEN_MSG_HDR + 1;
+  message->payload = g_malloc0 (message->payloadlen);
+  header = (GstMQTTMessageHdr *) message->payload;
+  header->num_mems = 1;
+  header->size_mems[0] = 1;
+  g_strlcpy (header->gst_caps_str, "application/octet-stream", sizeof (header->gst_caps_str));
+  callback (context, g_strdup ("test_topic"), 0, message);
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.destroy_callback_done = TRUE;
+  g_cond_broadcast (&g_mock.cond);
+  g_mutex_unlock (&g_mock.lock);
+}
+
+/**
+ * @brief Model paho destruction waiting for a receive callback to release its lock.
+ * @details The bounded wait records a lock inversion without hanging the test
+ *          process; the callback is joined after stop releases the element lock.
  */
 void
 MQTTAsync_destroy (MQTTAsync *handle)
 {
+  g_mutex_lock (&g_mock.lock);
+  g_mock.destroy_count++;
+  if (g_mock.deliver_during_destroy) {
+    gint64 deadline = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+
+    g_mock.destroy_callback_done = FALSE;
+    g_mock_threads.push_back (std::thread (_deliver_during_destroy, g_mock.message_arrived,
+        g_mock.context, g_mock.omit_disconnect_callback ? g_mock.disconnect_callback : NULL,
+        g_mock.disconnect_context));
+    while (!g_mock.destroy_callback_done) {
+      if (!g_cond_wait_until (&g_mock.cond, &g_mock.lock, deadline))
+        break;
+    }
+    g_mock.destroy_drained_callback = g_mock.destroy_callback_done;
+  }
+  g_mutex_unlock (&g_mock.lock);
   *handle = NULL;
 }
 
@@ -2938,6 +3066,352 @@ TEST (testMqttSrc, messageCapsAfterRestart)
   _caps_event_record_stop (&rec, &fixture);
   _fixture_teardown (&fixture);
   _caps_event_record_clear (&rec);
+}
+
+
+/** @brief A TLS URI cannot bypass the verified, explicit TLS settings. */
+TEST (testMqttSrc, tlsSchemeWithoutSwitch_n)
+{
+  for (const char *host : { "ssl://localhost", "mqtts://localhost", "wss://localhost" }) {
+    src_fixture_s fixture;
+    ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+    GstElement *element = fixture.src;
+    GstElement *pipeline = fixture.pipeline;
+    g_object_set (element, "host", host, NULL);
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+    _fixture_teardown (&fixture);
+  }
+}
+
+/** @brief TLS defaults to off, and a key password is write-only. */
+TEST (testMqttSrc, tlsProperties)
+{
+  src_fixture_s fixture;
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GstElement *element = fixture.src;
+  GstElement *pipeline = fixture.pipeline;
+  gboolean enabled = TRUE;
+  gchar *ca = nullptr;
+  g_object_get (element, "tls", &enabled, "tls-ca-file", &ca, NULL);
+  EXPECT_FALSE (enabled);
+  EXPECT_EQ (ca, nullptr);
+  GParamSpec *pspec = g_object_class_find_property (
+      G_OBJECT_GET_CLASS (element), "tls-key-password");
+  ASSERT_NE (pspec, nullptr);
+  EXPECT_FALSE (pspec->flags & G_PARAM_READABLE);
+  EXPECT_TRUE (pspec->flags & G_PARAM_WRITABLE);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (last_connect_tls);
+  _fixture_teardown (&fixture);
+}
+
+/** @brief Each TLS property has its own ID and its own storage. */
+TEST (testMqttSrc, tlsPropertyMapping)
+{
+  src_fixture_s fixture;
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GstElement *element = fixture.src;
+  GObjectClass *klass = G_OBJECT_GET_CLASS (element);
+  const char *names[]
+      = { "tls", "tls-ca-file", "tls-cert-file", "tls-key-file", "tls-key-password" };
+  guint ids[G_N_ELEMENTS (names)];
+  for (gsize i = 0; i < G_N_ELEMENTS (names); i++) {
+    GParamSpec *pspec = g_object_class_find_property (klass, names[i]);
+    ASSERT_NE (pspec, nullptr) << names[i];
+    ids[i] = pspec->param_id;
+    for (gsize j = 0; j < i; j++)
+      EXPECT_NE (ids[i], ids[j]) << names[i] << " and " << names[j];
+  }
+  EXPECT_FALSE (g_object_class_find_property (klass, "tls-key-password")->flags & G_PARAM_READABLE);
+  /* Replacing a value must free the old one; the Valgrind job checks it. */
+  g_object_set (element, "tls-ca-file", "old-ca.pem", "tls-cert-file", "old-cert.pem",
+      "tls-key-file", "old-key.pem", "tls-key-password", "old-secret", NULL);
+  g_object_set (element, "tls", TRUE, "tls-ca-file", "ca.pem", "tls-cert-file",
+      "cert.pem", "tls-key-file", "key.pem", "tls-key-password", "secret", NULL);
+  gboolean enabled = FALSE;
+  gchar *ca = nullptr, *cert = nullptr, *key = nullptr;
+  g_object_get (element, "tls", &enabled, "tls-ca-file", &ca, "tls-cert-file",
+      &cert, "tls-key-file", &key, NULL);
+  EXPECT_TRUE (enabled);
+  EXPECT_STREQ (ca, "ca.pem");
+  EXPECT_STREQ (cert, "cert.pem");
+  EXPECT_STREQ (key, "key.pem");
+  EXPECT_STREQ (GST_MQTT_SRC (element)->mqtt_tls.key_password, "secret");
+  g_free (ca);
+  g_free (cert);
+  g_free (key);
+  _fixture_teardown (&fixture);
+}
+
+/** @brief Unsupported TLS or invalid files fail before connecting. */
+TEST (testMqttSrc, tlsInvalidSettings_n)
+{
+  src_fixture_s fixture;
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GstElement *element = fixture.src;
+  GstElement *pipeline = fixture.pipeline;
+  g_object_set (element, "tls", TRUE, "tls-ca-file", "/nonexistent/mqtt-ca.pem", NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  _fixture_teardown (&fixture);
+}
+
+#ifdef ENABLE_MQTT_TLS
+/** @brief Pass verified TLS and copied client credentials to the Paho client. */
+TEST (testMqttSrc, tlsOptionsPassedToConnect)
+{
+  src_fixture_s fixture;
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GstElement *element = fixture.src;
+  GstElement *pipeline = fixture.pipeline;
+  gchar *files[3] = { nullptr, nullptr, nullptr };
+  for (gchar *&file : files) {
+    int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
+    ASSERT_GE (fd, 0);
+    close (fd);
+  }
+  g_object_set (element, "tls", TRUE, "tls-ca-file", files[0], "tls-cert-file",
+      files[1], "tls-key-file", files[2], "tls-key-password", "test-key-password", NULL);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_TRUE (last_connect_tls);
+  EXPECT_EQ (last_connect_verify, 1);
+  EXPECT_EQ (last_connect_auth, 1);
+  EXPECT_STREQ (last_connect_ca.c_str (), files[0]);
+  EXPECT_STREQ (last_connect_cert.c_str (), files[1]);
+  EXPECT_STREQ (last_connect_key.c_str (), files[2]);
+  EXPECT_STREQ (last_connect_key_password.c_str (), "test-key-password");
+  EXPECT_EQ (g_mock.last_server_uri.find ("ssl://"), 0U);
+  /* Changing a property must not invalidate Paho's reconnect options. */
+  g_object_set (element, "tls-ca-file", NULL, "tls-key-password", NULL, NULL);
+  GstMqttSrc *self = GST_MQTT_SRC (element);
+  ASSERT_NE (self->mqtt_conn_opts.ssl, nullptr);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->trustStore, files[0]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->keyStore, files[1]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->privateKey, files[2]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->privateKeyPassword, "test-key-password");
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  g_object_set (element, "tls", FALSE, NULL);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (last_connect_tls);
+  EXPECT_EQ (self->mqtt_conn_opts.ssl, nullptr);
+  _fixture_teardown (&fixture);
+  for (gchar *file : files) {
+    g_unlink (file);
+    g_free (file);
+  }
+}
+
+/** @brief Refuse a client private key without a client certificate. */
+TEST (testMqttSrc, tlsKeyWithoutCertificate_n)
+{
+  src_fixture_s fixture;
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  GstElement *element = fixture.src;
+  GstElement *pipeline = fixture.pipeline;
+  g_object_set (element, "tls", TRUE, "tls-key-file", "/nonexistent/key.pem", NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  _fixture_teardown (&fixture);
+}
+
+/** @brief Refuse a CA, certificate or key path that is not a regular file. */
+TEST (testMqttSrc, tlsCredentialNotRegularFile_n)
+{
+  gchar *file = nullptr;
+  int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
+  ASSERT_GE (fd, 0);
+  close (fd);
+  const gchar *dir = g_get_tmp_dir ();
+  const gchar *cases[][3]
+      = { { dir, NULL, NULL }, { NULL, dir, NULL }, { NULL, file, dir } };
+  for (const auto &paths : cases) {
+    src_fixture_s fixture;
+    ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+    GstElement *element = fixture.src;
+    GstElement *pipeline = fixture.pipeline;
+    g_object_set (element, "tls", TRUE, "tls-ca-file", paths[0],
+        "tls-cert-file", paths[1], "tls-key-file", paths[2], NULL);
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+    _fixture_teardown (&fixture);
+  }
+  g_unlink (file);
+  g_free (file);
+}
+#endif
+
+/**
+ * @brief Exercise the source lifecycle while destruction drains a receive callback.
+ */
+static void
+_check_disconnect_callback (gboolean fail, gboolean omit_callback, guint cycles)
+{
+  g_autoptr (GstElement) src = gst_element_factory_make ("mqttsrc", NULL);
+  GstMqttSrc *self;
+  GstBaseSrcClass *klass;
+
+  ASSERT_NE (src, nullptr);
+  gst_object_ref_sink (src);
+  self = GST_MQTT_SRC (src);
+  klass = GST_BASE_SRC_GET_CLASS (src);
+  _mock_reset ();
+
+  for (guint i = 0; i < cycles; i++) {
+    ASSERT_TRUE (klass->start (GST_BASE_SRC (src)));
+
+    /* Drive the lifecycle hooks without a streaming task or a real broker. */
+    g_mutex_lock (&self->mqtt_src_mutex);
+    self->is_subscribed = TRUE;
+    g_mutex_unlock (&self->mqtt_src_mutex);
+    g_mutex_lock (&g_mock.lock);
+    g_mock.fail_disconnect = fail;
+    g_mock.omit_disconnect_callback = omit_callback;
+    g_mock.deliver_during_destroy = TRUE;
+    g_mutex_unlock (&g_mock.lock);
+
+    EXPECT_TRUE (klass->stop (GST_BASE_SRC (src)));
+    _mock_join_threads ();
+
+    g_mutex_lock (&g_mock.lock);
+    gboolean drained = g_mock.destroy_drained_callback;
+    guint destroyed = g_mock.destroy_count;
+    guint messages = g_mock.free_message_count;
+    guint topics = g_mock.free_topic_count;
+    g_mutex_unlock (&g_mock.lock);
+    EXPECT_TRUE (drained) << "destroy could not drain the message callback";
+    EXPECT_EQ (destroyed, i + 1);
+    EXPECT_EQ (messages, i + 1);
+    EXPECT_EQ (topics, i + 1);
+    EXPECT_EQ (g_async_queue_length (self->aqueue), 0);
+    EXPECT_EQ (self->mqtt_client_handle, nullptr);
+    EXPECT_FALSE (self->is_connected);
+    EXPECT_FALSE (self->is_subscribed);
+    EXPECT_FALSE (self->is_disconnect_finished);
+  }
+}
+
+/**
+ * @brief A receive callback can complete while stop destroys the client.
+ */
+TEST (testMqttSrc, stopDrainsMessageCallback)
+{
+  _check_disconnect_callback (FALSE, FALSE, 1);
+}
+
+/**
+ * @brief A source can start again after draining a callback at shutdown.
+ */
+TEST (testMqttSrc, restartAfterDrainingMessageCallback)
+{
+  _check_disconnect_callback (FALSE, FALSE, 2);
+}
+
+/**
+ * @brief A refused disconnect still destroys the client and drains its callback.
+ */
+TEST (testMqttSrc, disconnectFailureDrainsMessageCallback_n)
+{
+  _check_disconnect_callback (TRUE, FALSE, 1);
+}
+
+/**
+ * @brief A missing disconnect response does not block destruction of the client.
+ */
+TEST (testMqttSrc, disconnectTimeoutDrainsMessageCallback_n)
+{
+  _check_disconnect_callback (FALSE, TRUE, 1);
+}
+
+/**
+ * @brief Stop while a receive callback holds the Paho-style library mutex.
+ */
+static void
+_check_disconnect_library_lock (gboolean fail, guint cycles)
+{
+  g_autoptr (GstElement) src = gst_element_factory_make ("mqttsrc", NULL);
+  ASSERT_NE (src, nullptr);
+  gst_object_ref_sink (src);
+  GstMqttSrc *self = GST_MQTT_SRC (src);
+  GstBaseSrcClass *klass = GST_BASE_SRC_GET_CLASS (src);
+  _mock_reset ();
+
+  for (guint i = 0; i < cycles; i++) {
+    ASSERT_TRUE (klass->start (GST_BASE_SRC (src)));
+    g_mutex_lock (&self->mqtt_src_mutex);
+    self->is_subscribed = TRUE;
+    g_mutex_unlock (&self->mqtt_src_mutex);
+    g_mutex_lock (&g_mock.lock);
+    g_mock.model_disconnect_lock = TRUE;
+    g_mock.fail_disconnect = fail;
+    g_mock.receive_lock_held = FALSE;
+    g_mock.disconnect_entered = FALSE;
+    g_mock.disconnect_acquired_lock = FALSE;
+    g_mutex_unlock (&g_mock.lock);
+
+    std::thread receive ([] {
+      g_mutex_lock (&mock_paho_mutex);
+      g_mutex_lock (&g_mock.lock);
+      g_mock.receive_lock_held = TRUE;
+      g_cond_broadcast (&g_mock.cond);
+      gint64 deadline = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+      while (!g_mock.disconnect_entered) {
+        if (!g_cond_wait_until (&g_mock.cond, &g_mock.lock, deadline))
+          break;
+      }
+      MQTTAsync_messageArrived *callback = g_mock.message_arrived;
+      void *context = g_mock.context;
+      g_mutex_unlock (&g_mock.lock);
+      _deliver_during_destroy (callback, context, NULL, NULL);
+      g_mutex_unlock (&mock_paho_mutex);
+    });
+
+    g_mutex_lock (&g_mock.lock);
+    gint64 deadline = g_get_monotonic_time () + WAIT_TIMEOUT_US;
+    while (!g_mock.receive_lock_held) {
+      if (!g_cond_wait_until (&g_mock.cond, &g_mock.lock, deadline))
+        break;
+    }
+    gboolean held = g_mock.receive_lock_held;
+    g_mutex_unlock (&g_mock.lock);
+    EXPECT_TRUE (held);
+
+    EXPECT_TRUE (klass->stop (GST_BASE_SRC (src)));
+    receive.join ();
+    _mock_join_threads ();
+    /* Delivery before disconnect can leave a buffer owned by the queue. */
+    GstBuffer *buffer;
+    while ((buffer = (GstBuffer *) g_async_queue_try_pop (self->aqueue)))
+      gst_buffer_unref (buffer);
+    g_mutex_lock (&g_mock.lock);
+    gboolean acquired = g_mock.disconnect_acquired_lock;
+    guint destroyed = g_mock.destroy_count;
+    guint messages = g_mock.free_message_count;
+    guint topics = g_mock.free_topic_count;
+    g_mutex_unlock (&g_mock.lock);
+    EXPECT_TRUE (acquired) << "disconnect could not acquire the callback's library lock";
+    EXPECT_EQ (destroyed, i + 1);
+    EXPECT_EQ (messages, i + 1);
+    EXPECT_EQ (topics, i + 1);
+    EXPECT_EQ (self->mqtt_client_handle, nullptr);
+    EXPECT_FALSE (self->is_connected);
+    EXPECT_FALSE (self->is_subscribed);
+    EXPECT_FALSE (self->is_disconnect_finished);
+  }
+}
+
+/** @brief Receive delivery already holds the library lock before disconnect. */
+TEST (testMqttSrc, disconnectWhileReceiveHoldsLibraryLock)
+{
+  _check_disconnect_library_lock (FALSE, 1);
+}
+
+/** @brief A rejected disconnect still releases and destroys the client. */
+TEST (testMqttSrc, disconnectFailureWhileReceiveHoldsLibraryLock_n)
+{
+  _check_disconnect_library_lock (TRUE, 1);
+}
+
+/** @brief Restart preserves the lock order and clears a fast completion. */
+TEST (testMqttSrc, restartWhileReceiveHoldsLibraryLock)
+{
+  _check_disconnect_library_lock (FALSE, 2);
 }
 
 /**

@@ -77,6 +77,7 @@ if [[ $(version $cppcheck_ver) -ge $(version "2.0.5") ]]; then
 fi
 
 static_analysis_sw="cppcheck"
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 if [[ $2 -eq 0 ]]; then
   echo "cppcheck: Default mode."
@@ -90,8 +91,10 @@ else
 fi
 
 errfile=$(mktemp)
+trap 'rm -f "$errfile"' EXIT
 error="no"
 errors=""
+unknown_macro="no"
 
 for file in `cat $files`; do
   # skip obsolete folder
@@ -110,13 +113,19 @@ for file in `cat $files`; do
       *.c|*.cpp)
         echo "( $file ) file is source code with the text format."
         # Check C/C++ file, enable all checks.
-        $static_analysis_sw $static_analysis_rules $file 2> $errfile
-        bug_line=`$errfile | wc -l `
-        if  [[ $bug_line -gt 0 ]]; then
+        tool_status=0
+        $static_analysis_sw $static_analysis_rules \
+          --library="$script_dir/nnstreamer.cfg" "$file" 2> "$errfile" || tool_status=$?
+        bug_line=$(wc -l < "$errfile")
+        if [[ $tool_status -ne 0 || $bug_line -gt 0 ]]; then
           echo "$file cppcheck result shows some errors. There are $bug_line bug(s):"
+          echo "cppcheck exit status: $tool_status"
           echo ":group:cppcheck result of $file"
           cat $errfile
           echo ":endgroup:"
+          if grep -q "\[unknownMacro\]" "$errfile"; then
+            unknown_macro="yes"
+          fi
           error="yes"
           errors+=" $file"
         else
@@ -129,5 +138,8 @@ done
 
 if [[ "$error" == "yes" ]]; then
   echo "cppcheck shows errors in: $errors"
+  if [[ "$unknown_macro" == "yes" ]]; then
+    echo "Define each unknownMacro in .github/workflows/static.check.scripts/nnstreamer.cfg; see Documentation/contributing.md."
+  fi
   exit 1
 fi

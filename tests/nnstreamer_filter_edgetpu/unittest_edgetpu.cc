@@ -139,6 +139,7 @@ TEST (edgetpuTfliteDirect, error02_n)
  *          The layout is a root table offset, the "TFL3" identifier, a vtable
  *          describing a single field, and the table holding that field.
  */
+// clang-format off
 static const guint8 unsupported_schema_model[] = {
   0x14, 0x00, 0x00, 0x00, /* offset of the root table */
   'T', 'F', 'L', '3', /* file identifier */
@@ -149,6 +150,7 @@ static const guint8 unsupported_schema_model[] = {
   0x0c, 0x00, 0x00, 0x00, /* table: offset back to the vtable */
   0x2a, 0x00, 0x00, 0x00, /* version = 42 */
 };
+// clang-format on
 
 /**
  * @brief Write @a unsupported_schema_model into a temporary file.

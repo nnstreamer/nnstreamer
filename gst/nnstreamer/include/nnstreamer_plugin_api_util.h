@@ -460,6 +460,7 @@ gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta);
  * @brief Get the data size calculated from tensor meta.
  * @param[in] meta tensor meta structure
  * @return The data size for meta info (0 if meta is invalid or the size overflows)
+ * @note For a sparse tensor, this is the size of its non-zero elements and their indices, not of its dense form.
  */
 extern gsize
 gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta);

@@ -695,9 +695,10 @@ fake_trainer_push_data (const GstTensorTrainerFramework *,
 {
   guint t;
   gsize j;
+  gint quota = g_atomic_int_get (&fake_stat.epoch_quota);
+  gint ret = g_atomic_int_get (&fake_stat.push_ret);
 
-  if (fake_stat.epoch_quota > 0
-      && g_atomic_int_get (&fake_stat.epoch_pushed) >= fake_stat.epoch_quota) {
+  if (quota > 0 && g_atomic_int_get (&fake_stat.epoch_pushed) >= quota) {
     g_atomic_int_inc (&fake_stat.quota_refused);
     return -1;
   }
@@ -750,11 +751,11 @@ fake_trainer_push_data (const GstTensorTrainerFramework *,
   if (input[0].data && input[0].size > 0)
     fake_stat.pushed_first = ((guint8 *) input[0].data)[0];
 
-  if (fake_stat.push_ret == 0)
+  if (ret == 0)
     g_atomic_int_inc (&fake_stat.epoch_pushed);
   g_atomic_int_inc (&fake_stat.push_done);
   g_atomic_int_add (&fake_stat.in_push, -1);
-  return fake_stat.push_ret;
+  return ret;
 }
 
 /**
@@ -1537,6 +1538,7 @@ TEST_F (TensorTrainerFakeFw, epochBoundaryWaitsAndResets)
 typedef enum {
   TRAINER_JOB_EOS, /**< send an EOS event to the sink pad of the element */
   TRAINER_JOB_READY, /**< set the element to READY */
+  TRAINER_JOB_TEARDOWN, /**< tear the harness down, which finalizes the element */
 } TrainerJobType;
 
 /**
@@ -1572,8 +1574,10 @@ trainer_job_func (gpointer data)
 
   if (job->type == TRAINER_JOB_EOS)
     job->ret = send_sink_event (job->h, gst_event_new_eos ());
-  else
+  else if (job->type == TRAINER_JOB_READY)
     job->ret = gst_element_set_state (job->h->element, GST_STATE_READY);
+  else
+    gst_harness_teardown (job->h);
   g_atomic_int_set (&job->done, 1);
 
   return NULL;
@@ -2200,6 +2204,94 @@ TEST_F (TensorTrainerFakeFw, epochPendingWithDummyData)
 }
 
 /**
+ * @brief Tear the harness down in a thread and wait up to five seconds for it.
+ * @return FALSE if the teardown hung; the fake sub-plugin is then made to take
+ *         the dummy data so that the teardown can still finish.
+ */
+static gboolean
+teardown_within_bound (GstHarness *h)
+{
+  static TrainerJob job;
+  GThread *thread = trainer_job_start (&job, h, TRAINER_JOB_TEARDOWN);
+  gboolean done = wait_for_done (&job.done);
+
+  if (!done) {
+    g_atomic_int_set (&fake_stat.push_ret, 0);
+    g_atomic_int_set (&fake_stat.epoch_quota, 0);
+  }
+  g_thread_join (thread);
+
+  return done;
+}
+
+/**
+ * @brief A dummy-data thread whose sub-plugin refuses the data stops pushing.
+ *
+ * It used to retry push_data() for as long as the epoch missed samples,
+ * holding the push lock, so the chain blocked behind it and finalize never
+ * joined it.
+ */
+TEST_F (TensorTrainerFakeFw, dummyDataPushFailure_n)
+{
+  GstHarness *h = make_negotiated_trainer_harness (5U);
+  const gsize sizes[2] = { 1, 1 };
+  static PushJob job;
+  GThread *thread;
+
+  ASSERT_NE (h, nullptr);
+  job.h = h;
+  job.ret = GST_FLOW_OK;
+  job.done = 0;
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+
+  fake_stat.push_ret = -1;
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_TRUE (wait_for_push_done (3));
+  g_usleep (200000);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_calls), 3);
+
+  thread = g_thread_new ("push_job", push_job_func, &job);
+  if (!wait_for_done (&job.done))
+    g_atomic_int_set (&fake_stat.push_ret, 0);
+  EXPECT_EQ (g_atomic_int_get (&job.done), 1);
+  g_thread_join (thread);
+  EXPECT_EQ (job.ret, GST_FLOW_ERROR);
+
+  EXPECT_TRUE (teardown_within_bound (h));
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.stop_calls), 1);
+}
+
+/**
+ * @brief A dummy-data thread stops at the first sample the sub-plugin refuses.
+ *
+ * A sub-plugin whose epoch quota is full refuses every further sample until
+ * the epoch completes. With five samples per epoch, two real ones pushed and
+ * room for two more, the thread pushes two and stops at the refused third.
+ */
+TEST_F (TensorTrainerFakeFw, dummyDataStopsAtRefusal_n)
+{
+  GstHarness *h = make_negotiated_trainer_harness (5U);
+  const gsize sizes[2] = { 1, 1 };
+
+  ASSERT_NE (h, nullptr);
+  fake_stat.epoch_quota = 4;
+
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+  EXPECT_EQ (push_zero_buffer (h, sizes, 2), GST_FLOW_OK);
+
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_TRUE (wait_for_done (&fake_stat.quota_refused));
+  g_usleep (200000);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.quota_refused), 1);
+  EXPECT_EQ (g_atomic_int_get (&fake_stat.push_done), 4);
+  EXPECT_TRUE (fake_stat.all_ones);
+
+  EXPECT_TRUE (teardown_within_bound (h));
+}
+
+/**
  * @brief The element does not play when the sub-plugin cannot start the training.
  */
 TEST_F (TensorTrainerFakeFw, startFailure_n)
@@ -2369,6 +2461,7 @@ trainer_map_test_push (guint num_mems, gsize mem_size, gboolean refuse_first,
   GstHarness *h = make_fake_trainer_harness ();
   GstBuffer *buf;
   guint handler;
+  GLogLevelFlags fatal_mask;
 
   memset (result, 0, sizeof (*result));
   result->first = trainer_map_test_allocator_new (refuse_first);
@@ -2384,8 +2477,14 @@ trainer_map_test_push (guint num_mems, gsize mem_size, gboolean refuse_first,
   if (num_mems > 1)
     trainer_map_test_append_memory (buf, result->second, mem_size, 8);
 
-  handler = g_log_set_handler ("GStreamer", G_LOG_LEVEL_CRITICAL,
+  handler = g_log_set_handler ("GStreamer",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       trainer_count_critical_log, &result->num_critical);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "[probe] tensor_trainer test handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (result->num_critical, 1U);
+  result->num_critical = 0;
   result->ret = gst_harness_push (h, buf);
   g_log_remove_handler ("GStreamer", handler);
 
@@ -2618,6 +2717,20 @@ trainer_count_push (guint num_inputs, guint num_labels, guint caps_tensors,
   h = gst_harness_new_with_element (trainer, "sink", "src");
   gst_object_unref (trainer);
   ASSERT_NE (h, nullptr);
+
+#ifndef GST_DISABLE_GST_DEBUG
+  {
+    GstDebugCategory *cat;
+
+    /* the counted warnings say nothing unless the log function sees the category */
+    GST_DEBUG_CATEGORY_GET (cat, "tensor_trainer");
+    EXPECT_NE (cat, nullptr);
+    if (cat)
+      GST_CAT_WARNING (cat, "[probe] more than num-inputs: log function self-check");
+    EXPECT_EQ (g_atomic_int_get (&fake_stat.extra_warnings), 1);
+    g_atomic_int_set (&fake_stat.extra_warnings, 0);
+  }
+#endif
 
   trainer_count_set_caps (h, caps_tensors);
   for (i = 0; i < num_buffers; i++)

@@ -446,7 +446,7 @@ gst_tensors_info_get_size (const GstTensorsInfo * info, gint index)
   if (index < 0) {
     for (i = 0; i < info->num_tensors; ++i) {
       _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
-      if (!gst_tensor_info_calc_size (_info, &size) ||
+      if (!_info || !gst_tensor_info_calc_size (_info, &size) ||
           !g_size_checked_add (&data_size, data_size, size))
         return 0;
     }
@@ -1539,24 +1539,24 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
  * @brief Calculate the data size described by tensor meta.
  * @param[in] meta tensor meta structure
  * @param[out] size the data size
- * @return FALSE if the dense tensor has no data (no dimension or no type),
- *         or if the size, or the size of the dense tensor, overflows
+ * @return FALSE if the tensor has no dimension or no type, if its element
+ *         count overflows, or if the size overflows
  */
 static gboolean
 gst_tensor_meta_info_calc_data_size (const GstTensorMetaInfo * meta,
     gsize * size)
 {
   gsize esize = gst_tensor_get_element_size (meta->type);
+  gulong count = gst_tensor_get_element_count (meta->dimension);
 
-  if (!g_size_checked_mul (size, esize,
-          gst_tensor_get_element_count (meta->dimension)) || *size == 0)
+  if (esize == 0 || count == 0)
     return FALSE;
 
   if (meta->format == _NNS_TENSOR_FORMAT_SPARSE)
     return g_size_checked_mul (size, meta->sparse_info.nnz,
         esize + sizeof (guint));
 
-  return TRUE;
+  return g_size_checked_mul (size, esize, count);
 }
 
 /**

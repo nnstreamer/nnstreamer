@@ -42,6 +42,11 @@ unittest_util_dep = declare_dependency(link_with: unittest_util_shared,
 # ssat repo_dynamic
 subdir('nnstreamer_repo_dynamicity')
 
+# HailoRT sub-plugin on a mock of HailoRT. It is a C++ class sub-plugin.
+if get_option('enable-filter-cpp-class')
+  subdir('nnstreamer_filter_hailort')
+endif
+
 # filter_reload (Currently, the reload test for tensor filter requires tflite)
 if tflite2_support_is_available
   subdir('nnstreamer_filter_reload')
@@ -517,6 +522,19 @@ if gtest_dep.found()
 
   test('unittest_filter_snpe_mock_v1', unittest_filter_snpe_mock_v1, env: testenv)
 
+  # HailoRT sub-plugin unit tests on the mock of tests/nnstreamer_filter_hailort.
+  # Declared here so that the binary lands in build/tests, where the GBS and
+  # valgrind jobs run every unit test.
+  if get_option('enable-filter-cpp-class')
+    unittest_filter_hailort = executable('unittest_filter_hailort',
+      [join_paths('nnstreamer_filter_hailort', 'unittest_filter_hailort.cc'), hailort_subplugin_src],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_single_dep, hailort_mock_dep],
+      install: false
+    )
+
+    test('unittest_filter_hailort', unittest_filter_hailort, env: testenv)
+  endif
+
   # tensorflow2-lite unittest
   if tflite2_support_is_available
     shared_library('nnstreamer_unittest_tflite_lifetime_delegate',
@@ -629,6 +647,11 @@ if gtest_dep.found()
 
   # Vivante sub-plugin, built against a mock of its proprietary SDK
   subdir('nnstreamer_filter_vivante')
+
+  # PyTorch sub-plugin, built against a mock of LibTorch where LibTorch is absent
+  if not pytorch_support_is_available and get_option('enable-filter-cpp-class')
+    subdir('nnstreamer_filter_pytorch')
+  endif
 
   # Tizen NNFW runtime
   if nnfw_runtime_support_is_available
@@ -826,7 +849,9 @@ if get_option('install-test')
     install_subdir('nnstreamer_filter_tensorflow', install_dir: unittest_install_dir)
   endif
   if pytorch_support_is_available
-    install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_install_dir)
+    install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_install_dir,
+      exclude_directories: ['mock'],
+      exclude_files: ['meson.build', 'unittest_filter_pytorch_mock.cc'])
   endif
   if caffe2_support_is_available
     install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_install_dir)

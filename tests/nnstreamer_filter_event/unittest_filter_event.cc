@@ -338,14 +338,33 @@ _count_critical_logs (const gchar *log_domain, GLogLevelFlags log_level,
 }
 
 /**
+ * @brief Count the critical logs of the default domain into @a count, proving the handler live first.
+ * @return The handler id, to be removed with g_log_remove_handler ().
+ */
+static guint
+_watch_critical_logs (guint *count)
+{
+  guint handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _count_critical_logs, count);
+  GLogLevelFlags fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+
+  g_log (NULL, G_LOG_LEVEL_CRITICAL, "[probe] filter event test log handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (*count, 1U);
+  *count = 0;
+
+  return handler;
+}
+
+/**
  * @brief Unloading a suspended C++ sub-plugin with suspend keeps it suspended,
  *        so it is resumed, not reopened, afterwards.
  */
 TEST_F (testFilterEvent, unloadSuspended)
 {
   guint critical_count = 0;
-  guint handler = g_log_set_handler (
-      NULL, G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
+  guint handler = _watch_critical_logs (&critical_count);
 
   gst_tensor_filter_common_unload_fw (&priv, TRUE);
   gst_tensor_filter_common_unload_fw (&priv, TRUE);
@@ -375,7 +394,7 @@ TEST_F (testFilterEvent, unloadSuspendedResumeFail_n)
   EXPECT_FALSE (gst_tensor_filter_common_open_fw (&priv));
   EXPECT_TRUE (priv.is_suspended);
 
-  handler = g_log_set_handler (NULL, G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
+  handler = _watch_critical_logs (&critical_count);
   gst_tensor_filter_common_unload_fw (&priv, TRUE);
   g_log_remove_handler (NULL, handler);
 
@@ -418,7 +437,7 @@ TEST_F (testFilterEvent, restartAfterSuspend)
   filter = gst_element_factory_make ("tensor_filter", NULL);
   ASSERT_TRUE (filter != nullptr);
   g_object_set (filter, "framework", event_mock_subplugin::mock_name, "suspend", 10, NULL);
-  handler = g_log_set_handler (NULL, G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
+  handler = _watch_critical_logs (&critical_count);
 
   EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
   for (i = 0; i < 5000 && g_atomic_int_get (suspend_count) == 0; i++)

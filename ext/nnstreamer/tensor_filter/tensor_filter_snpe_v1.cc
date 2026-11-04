@@ -513,7 +513,8 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
       output_buffer_map.getUserBuffer (_info->name)->setBufferAddress (output[i].data);
     }
 
-    snpe->execute (input_buffer_map, output_buffer_map);
+    if (!snpe->execute (input_buffer_map, output_buffer_map))
+      throw std::runtime_error ("Failed to execute the SNPE model.");
   } else {
     const size_t in_element_size = gst_tensor_get_element_size (input_data_type);
 
@@ -552,7 +553,8 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     }
 
     output_tensor_map.clear ();
-    snpe->execute (input_tensor_map, output_tensor_map);
+    if (!snpe->execute (input_tensor_map, output_tensor_map))
+      throw std::runtime_error ("Failed to execute the SNPE model.");
 
     const size_t out_element_size = gst_tensor_get_element_size (output_data_type);
 
@@ -658,6 +660,11 @@ snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map,
   for (const char *name : strList) {
     auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
     const zdl::DlSystem::TensorShape &bufferShape = (*bufferAttributesOpt)->getDims ();
+    if (bufferShape.rank () == 0 || bufferShape.rank () > NNS_TENSOR_RANK_LIMIT) {
+      throw std::invalid_argument ("Unsupported rank "
+                                   + std::to_string (bufferShape.rank ())
+                                   + " of tensor " + std::string (name));
+    }
     std::vector<size_t> strides (bufferShape.rank ());
     strides[strides.size () - 1] = sizeof (float);
     for (size_t i = strides.size () - 1; i > 0; --i) {
@@ -712,6 +719,11 @@ snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta,
     _info->name = g_strdup (name);
     auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
     const zdl::DlSystem::TensorShape &bufferShape = (*bufferAttributesOpt)->getDims ();
+    if (bufferShape.rank () == 0 || bufferShape.rank () > NNS_TENSOR_RANK_LIMIT) {
+      throw std::invalid_argument ("Unsupported rank "
+                                   + std::to_string (bufferShape.rank ())
+                                   + " of tensor " + std::string (name));
+    }
     for (size_t j = 0; j < bufferShape.rank (); ++j) {
       if (bufferShape[bufferShape.rank () - j - 1] == 0) {
         if (max_resizable_dim == 0) {

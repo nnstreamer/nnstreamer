@@ -111,8 +111,8 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   void parseCustomProperties (const GstTensorFilterProperties *prop);
   void generateTokens (GstTensorFilterProperties *prop, GstTensorMemory *output,
       const std::string &prompt);
-  bool createOutputTensor (GstTensorFilterProperties *prop,
-      GstTensorMemory *output, const std::string &buf);
+  bool createOutputTensor (
+      GstTensorsInfo *info, GstTensorMemory *output, const std::string &buf);
   bool updateOutput (GstTensorFilterProperties *prop, llama_token &token,
       std::string &accumulated);
   void outputThreadLoop ();
@@ -370,12 +370,12 @@ TensorFilterLlamaCpp::invoke (const GstTensorMemory *input, GstTensorMemory *out
  * must be freed by the caller of this function to avoid memory leaks.
  */
 bool
-TensorFilterLlamaCpp::createOutputTensor (GstTensorFilterProperties *prop,
-    GstTensorMemory *output, const std::string &buf)
+TensorFilterLlamaCpp::createOutputTensor (
+    GstTensorsInfo *info, GstTensorMemory *output, const std::string &buf)
 {
   GstTensorInfo *_info;
 
-  if (output == nullptr || prop == nullptr) {
+  if (output == nullptr || info == nullptr) {
     ml_loge ("Invalid arguments passed to createOutputTensor");
     return false;
   }
@@ -388,12 +388,12 @@ TensorFilterLlamaCpp::createOutputTensor (GstTensorFilterProperties *prop,
     return false;
   }
 
-  gst_tensors_info_free (&prop->output_meta);
+  gst_tensors_info_free (info);
 
-  prop->output_meta.num_tensors = 1;
-  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  info->num_tensors = 1;
+  info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
-  _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
+  _info = gst_tensors_info_get_nth_info (info, 0);
   _info->type = _NNS_UINT8;
   _info->dimension[0] = output[0].size;
 
@@ -419,13 +419,16 @@ TensorFilterLlamaCpp::updateOutput (GstTensorFilterProperties *prop,
   /* Dispatch output data when invoke-async is enabled. */
   if (prop->invoke_async) {
     GstTensorMemory output;
+    GstTensorsInfo info;
+    gst_tensors_info_init (&info);
 
-    if (!createOutputTensor (prop, &output, std::string (buf, n))) {
+    if (!createOutputTensor (&info, &output, std::string (buf, n))) {
       ml_loge ("Failed to create output tensor.");
       return false;
     }
 
-    nnstreamer_filter_dispatch_output_async (prop, &output);
+    nnstreamer_filter_dispatch_output_async_with_info (prop, &output, &info);
+    gst_tensors_info_free (&info);
   } else {
     accumulated.append (buf, n);
   }
@@ -437,7 +440,7 @@ TensorFilterLlamaCpp::updateOutput (GstTensorFilterProperties *prop,
  * @brief Generates output tokens from the given input prompt using llamacpp.
  *
  * If invoke_async is true, each token is dispatched asynchronously using
- * nnstreamer_filter_dispatch_output_async(); otherwise, the result is stored in
+ * nnstreamer_filter_dispatch_output_async_with_info(); otherwise, the result is stored in
  * output. GstTensorMemory is freed by nnstreamer; do not free it manually.
  *
  * Generating no token at all (the first sampled token is end-of-generation, or
@@ -508,7 +511,7 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
 
   if (!prop->invoke_async) {
     /* Final output for synchronous mode is created here. */
-    if (!createOutputTensor (prop, output, output_accumulated)) {
+    if (!createOutputTensor (&prop->output_meta, output, output_accumulated)) {
       throw std::runtime_error ("Failed to create output tensor while generating tokens");
     }
   }
@@ -548,7 +551,10 @@ TensorFilterLlamaCpp::outputThreadLoop ()
 void
 TensorFilterLlamaCpp::cleanupResources ()
 {
-  stop_thread = true;
+  {
+    std::lock_guard<std::mutex> lock (queue_mutex);
+    stop_thread = true;
+  }
   queue_cv.notify_one ();
   if (output_thread.joinable ()) {
     output_thread.join ();
@@ -578,6 +584,9 @@ TensorFilterLlamaCpp::cleanupResources ()
 
 /**
  * @brief Load context from file
+ *
+ * On success, the token counter for the context trimming continues from the
+ * restored tokens. On failure, the context is left empty.
  */
 bool
 TensorFilterLlamaCpp::loadContextFromFile (const std::string &path)
@@ -597,6 +606,7 @@ TensorFilterLlamaCpp::loadContextFromFile (const std::string &path)
     ctx_size = file.tellg ();
     file.seekg (0, std::ios::beg);
 
+    ctx_data.resize (ctx_size);
     file.read (reinterpret_cast<char *> (ctx_data.data ()), ctx_size);
     file.close ();
   } catch (const std::exception &e) {
@@ -605,10 +615,18 @@ TensorFilterLlamaCpp::loadContextFromFile (const std::string &path)
     return false;
   }
 
-  if (llama_state_set_data (ctx, ctx_data.data (), ctx_size) != ctx_size) {
-    ml_loge ("Failed to set context data");
+  if (ctx_size == 0) {
+    ml_loge ("Context file %s is empty", path.c_str ());
     return false;
   }
+
+  if (llama_state_set_data (ctx, ctx_data.data (), ctx_size) != ctx_size) {
+    ml_loge ("Failed to set context data from %s", path.c_str ());
+    /* a state read that stopped midway may have restored part of the memory */
+    llama_memory_clear (llama_get_memory (ctx), true);
+    return false;
+  }
+  n_processed = llama_memory_seq_pos_max (llama_get_memory (ctx), 0) + 1;
 
   ml_logi ("Successfully loaded context from %s", path.c_str ());
   return true;

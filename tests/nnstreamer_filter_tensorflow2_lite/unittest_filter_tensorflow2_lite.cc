@@ -9,11 +9,13 @@
  *
  */
 #include <gtest/gtest.h>
+#include <atomic>
 #include <dlfcn.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <thread>
 #ifdef __GLIBC__
 #include <malloc.h>
 #if __GLIBC_PREREQ(2, 33)
@@ -52,6 +54,9 @@ _GetModelFilePath (gchar **model_file, int option)
       break;
     case 3:
       model_name = "mobilenet_v1_1.0_224_quant.tflite";
+      break;
+    case 4:
+      model_name = "add.tflite";
       break;
     default:
       break;
@@ -123,6 +128,21 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
 
   gst_memory_unmap (mem_res, &info_res);
   gst_memory_unref (mem_res);
+}
+
+/**
+ * @brief Reload the model files in prop the way tensor_filter does.
+ */
+static int
+_ReloadModel (const GstTensorFilterFramework *sp, GstTensorFilterProperties *prop, void *data)
+{
+  GstTensorFilterFrameworkEventData event_data;
+
+  memset (&event_data, 0, sizeof (event_data));
+  event_data.model_files = prop->model_files;
+  event_data.num_models = prop->num_models;
+
+  return sp->eventHandler (sp, prop, data, RELOAD_MODEL, &event_data);
 }
 
 /**
@@ -568,7 +588,7 @@ TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, reloadModel)
   EXPECT_EQ (get_count ("prepared"), 1);
 
   model_files[0] = model_file2;
-  EXPECT_EQ (sp->reloadModel (&prop, &data), 0);
+  EXPECT_EQ (_ReloadModel (sp, &prop, data), 0);
   EXPECT_EQ (get_count ("prepared"), 2);
   EXPECT_EQ (get_count ("freed"), 1);
   EXPECT_EQ (get_count ("violations"), 0);
@@ -599,7 +619,7 @@ TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, reloadUnmatchedModel_n)
   ASSERT_EQ (sp->open (&prop, &data), 0);
 
   model_files[0] = model_file2;
-  EXPECT_NE (sp->reloadModel (&prop, &data), 0);
+  EXPECT_NE (_ReloadModel (sp, &prop, data), 0);
   EXPECT_EQ (get_count ("prepared"), 2);
   EXPECT_EQ (get_count ("freed"), 1);
   EXPECT_EQ (get_count ("violations"), 0);
@@ -672,7 +692,7 @@ TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, reloadMissingModel_n)
 
   missing = g_strdup_printf ("%s.missing", model_file);
   model_files[0] = missing;
-  EXPECT_NE (sp->reloadModel (&prop, &data), 0);
+  EXPECT_NE (_ReloadModel (sp, &prop, data), 0);
   EXPECT_EQ (get_count ("prepared"), 1);
   EXPECT_EQ (get_count ("freed"), 0);
 
@@ -710,7 +730,7 @@ TEST_F (nnstreamerFilterTensorFlow2LiteLifetime, reloadUnloadableModel_n)
   ASSERT_TRUE (g_file_set_contents (not_a_model, "not a flatbuffer", 16, NULL));
 
   model_files[0] = not_a_model;
-  EXPECT_NE (sp->reloadModel (&prop, &data), 0);
+  EXPECT_NE (_ReloadModel (sp, &prop, data), 0);
   EXPECT_EQ (get_count ("prepared"), 1);
   EXPECT_EQ (get_count ("freed"), 0);
 
@@ -1026,6 +1046,630 @@ TEST (nnstreamerFilterTensorFlow2Lite, extDelegateLibGivenTwiceNoLeak_n)
 #else
   GTEST_SKIP () << "mallinfo2 () is not available";
 #endif
+}
+
+/**
+ * @brief Fixture opening the sub-plugin directly through its v1 callbacks.
+ */
+class nnstreamerFilterTensorFlow2LiteV1 : public ::testing::Test
+{
+  protected:
+  const GstTensorFilterFramework *sp;
+  GstTensorFilterProperties prop;
+  const gchar *model_files[2];
+  gchar *model_file;
+  void *data;
+
+  /**
+   * @brief Find the sub-plugin and fill the properties for the default model.
+   */
+  void SetUp () override
+  {
+    data = NULL;
+    model_file = NULL;
+    sp = nnstreamer_filter_find ("tensorflow2-lite");
+    ASSERT_TRUE (sp != NULL);
+    ASSERT_TRUE (_GetModelFilePath (&model_file, 3));
+
+    model_files[0] = model_file;
+    model_files[1] = NULL;
+    memset (&prop, 0, sizeof (prop));
+    prop.fwname = "tensorflow2-lite";
+    prop.model_files = model_files;
+    prop.num_models = 1;
+  }
+
+  /**
+   * @brief Close the sub-plugin if a case left it open.
+   */
+  void TearDown () override
+  {
+    if (sp && data)
+      sp->close (&prop, &data);
+    g_free (model_file);
+  }
+
+  /**
+   * @brief Allocate the memory for the given tensors info.
+   */
+  static void allocMemory (const GstTensorsInfo *info, GstTensorMemory *mem)
+  {
+    for (guint i = 0; i < info->num_tensors; i++) {
+      mem[i].size = gst_tensors_info_get_size (info, i);
+      mem[i].data = g_malloc0 (mem[i].size);
+    }
+  }
+
+  /**
+   * @brief Free the memory allocated by allocMemory ().
+   */
+  static void freeMemory (const GstTensorsInfo *info, GstTensorMemory *mem)
+  {
+    for (guint i = 0; i < info->num_tensors; i++)
+      g_free (mem[i].data);
+  }
+};
+
+/**
+ * @brief The sub-plugin is registered as a v1 framework and describes itself.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, frameworkInfo)
+{
+  GstTensorFilterFrameworkInfo info;
+  gboolean has_gpu = FALSE;
+
+  EXPECT_EQ (sp->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+
+  memset (&info, 0, sizeof (info));
+  ASSERT_EQ (sp->getFrameworkInfo (sp, &prop, NULL, &info), 0);
+  EXPECT_STREQ (info.name, "tensorflow2-lite");
+  EXPECT_FALSE (info.allow_in_place);
+  EXPECT_FALSE (info.allocate_in_invoke);
+  EXPECT_FALSE (info.run_without_model);
+  EXPECT_TRUE (info.verify_model_path);
+  EXPECT_TRUE (info.statistics != NULL);
+  EXPECT_EQ (info.accl_default, ACCL_CPU);
+  ASSERT_GT (info.num_hw, 0);
+  for (int i = 0; i < info.num_hw; i++)
+    has_gpu |= (info.hw_list[i] == ACCL_GPU);
+  EXPECT_TRUE (has_gpu);
+
+  /* an opened instance reports the same */
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  memset (&info, 0, sizeof (info));
+  ASSERT_EQ (sp->getFrameworkInfo (sp, &prop, data, &info), 0);
+  EXPECT_STREQ (info.name, "tensorflow2-lite");
+}
+
+/**
+ * @brief The model info is the input and output of the model.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, getModelInfo)
+{
+  GstTensorsInfo in_info, out_info;
+  GstTensorInfo *info;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  EXPECT_EQ (sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+
+  EXPECT_EQ (in_info.num_tensors, 1U);
+  info = gst_tensors_info_get_nth_info (&in_info, 0);
+  EXPECT_EQ (info->type, _NNS_UINT8);
+  EXPECT_EQ (info->dimension[0], 3U);
+  EXPECT_EQ (info->dimension[1], 224U);
+  EXPECT_EQ (info->dimension[2], 224U);
+  EXPECT_EQ (info->dimension[3], 1U);
+
+  EXPECT_EQ (out_info.num_tensors, 1U);
+  info = gst_tensors_info_get_nth_info (&out_info, 0);
+  EXPECT_EQ (info->type, _NNS_UINT8);
+  EXPECT_EQ (info->dimension[0], 1001U);
+  EXPECT_EQ (info->dimension[1], 1U);
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief Setting the input info resizes the model and returns the new output info.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, setInputInfo)
+{
+  GstTensorsInfo in_info, out_info, set_out, get_in, get_out;
+  gchar *add_model;
+
+  ASSERT_TRUE (_GetModelFilePath (&add_model, 4));
+  model_files[0] = add_model;
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  ASSERT_EQ (sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+
+  /* the same input info keeps the output info */
+  gst_tensors_info_init (&set_out);
+  EXPECT_EQ (sp->getModelInfo (sp, &prop, data, SET_INPUT_INFO, &in_info, &set_out), 0);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&set_out, &out_info));
+  gst_tensors_info_free (&set_out);
+
+  /* a larger input is taken and reflected by the model info */
+  in_info.info[0].dimension[0] *= 2;
+  gst_tensors_info_init (&set_out);
+  EXPECT_EQ (sp->getModelInfo (sp, &prop, data, SET_INPUT_INFO, &in_info, &set_out), 0);
+
+  gst_tensors_info_init (&get_in);
+  gst_tensors_info_init (&get_out);
+  ASSERT_EQ (sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &get_in, &get_out), 0);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&get_in, &in_info));
+  EXPECT_TRUE (gst_tensors_info_is_equal (&get_out, &set_out));
+  EXPECT_EQ (get_out.info[0].dimension[0], out_info.info[0].dimension[0] * 2);
+
+  gst_tensors_info_free (&get_in);
+  gst_tensors_info_free (&get_out);
+  gst_tensors_info_free (&set_out);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+
+  sp->close (&prop, &data);
+  g_free (add_model);
+}
+
+/**
+ * @brief An input info the model cannot take is refused and the model is kept as it was.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, setInputInfoInvalid_n)
+{
+  GstTensorsInfo in_info, out_info, set_info, set_out, get_in, get_out;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  ASSERT_EQ (sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+
+  /* another type */
+  gst_tensors_info_init (&set_info);
+  gst_tensors_info_copy (&set_info, &in_info);
+  set_info.info[0].type = _NNS_FLOAT32;
+  gst_tensors_info_init (&set_out);
+  EXPECT_NE (sp->getModelInfo (sp, &prop, data, SET_INPUT_INFO, &set_info, &set_out), 0);
+  gst_tensors_info_free (&set_out);
+
+  /* another number of tensors */
+  set_info.info[0].type = in_info.info[0].type;
+  set_info.num_tensors = 2;
+  gst_tensor_info_copy (gst_tensors_info_get_nth_info (&set_info, 1),
+      gst_tensors_info_get_nth_info (&in_info, 0));
+  gst_tensors_info_init (&set_out);
+  EXPECT_NE (sp->getModelInfo (sp, &prop, data, SET_INPUT_INFO, &set_info, &set_out), 0);
+  gst_tensors_info_free (&set_out);
+
+  gst_tensors_info_init (&get_in);
+  gst_tensors_info_init (&get_out);
+  ASSERT_EQ (sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &get_in, &get_out), 0);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&get_in, &in_info));
+  EXPECT_TRUE (gst_tensors_info_is_equal (&get_out, &out_info));
+
+  gst_tensors_info_free (&get_in);
+  gst_tensors_info_free (&get_out);
+  gst_tensors_info_free (&set_info);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief Invoke runs the model through the v1 callback.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, invoke)
+{
+  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = {};
+  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = {};
+  GstTensorsInfo in_info, out_info;
+  GstTensorFilterFrameworkInfo info;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  memset (&info, 0, sizeof (info));
+  ASSERT_EQ (sp->getFrameworkInfo (sp, &prop, data, &info), 0);
+  ASSERT_TRUE (info.statistics != NULL);
+  const int64_t invoked = info.statistics->total_invoke_num;
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  ASSERT_EQ (sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+  allocMemory (&in_info, input);
+  allocMemory (&out_info, output);
+
+  EXPECT_EQ (sp->invoke (sp, &prop, data, input, output), 0);
+  EXPECT_EQ (sp->invoke (sp, &prop, data, input, output), 0);
+  EXPECT_EQ (info.statistics->total_invoke_num, invoked + 2);
+
+  freeMemory (&in_info, input);
+  freeMemory (&out_info, output);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief Invoke-dynamic is refused instead of aborting the process.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, invokeDynamic_n)
+{
+  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = {};
+  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = {};
+  GstTensorsInfo in_info, out_info;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  ASSERT_EQ (sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+  allocMemory (&in_info, input);
+  allocMemory (&out_info, output);
+
+  prop.invoke_dynamic = TRUE;
+  EXPECT_NE (sp->invoke (sp, &prop, data, input, output), 0);
+  prop.invoke_dynamic = FALSE;
+
+  freeMemory (&in_info, input);
+  freeMemory (&out_info, output);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief Reloading a model is supported; the is-updatable probe has no model.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, reloadModel)
+{
+  gchar *model_file2;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* tensor_filter probes is-updatable with no event data */
+  EXPECT_NE (sp->eventHandler (sp, &prop, data, RELOAD_MODEL, NULL), -ENOENT);
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file2, 0));
+  model_files[0] = model_file2;
+  EXPECT_EQ (_ReloadModel (sp, &prop, data), 0);
+
+  model_files[0] = model_file;
+  EXPECT_EQ (_ReloadModel (sp, &prop, data), 0);
+  g_free (model_file2);
+}
+
+/**
+ * @brief A reload is refused without an opened instance or with other than one model.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, reloadModelInvalid_n)
+{
+  EXPECT_NE (_ReloadModel (sp, &prop, NULL), 0);
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  prop.num_models = 2;
+  EXPECT_NE (_ReloadModel (sp, &prop, data), 0);
+  prop.num_models = 0;
+  EXPECT_NE (_ReloadModel (sp, &prop, data), 0);
+  prop.num_models = 1;
+}
+
+/**
+ * @brief The state of the thread invoking add.tflite while the model is reloaded.
+ */
+typedef struct {
+  const GstTensorFilterFramework *sp;
+  GstTensorFilterProperties *prop;
+  void *data;
+  const GstTensorMemory *input;
+  GstTensorMemory *output;
+  std::atomic<bool> stop;
+  std::atomic<guint> invoked;
+  std::atomic<guint> failed; /**< invokes that failed or did not return 12 */
+} reload_invoker_s;
+
+/**
+ * @brief Invoke add.tflite with 10 until stopped.
+ */
+static void
+_InvokeUntilStopped (reload_invoker_s *s)
+{
+  while (!s->stop) {
+    if (s->sp->invoke (s->sp, s->prop, s->data, s->input, s->output) != 0
+        || *((float *) s->output[0].data) != 12.0f)
+      s->failed++;
+    s->invoked++;
+  }
+}
+
+/**
+ * @brief Reload the model of reload_prop the given times while another thread invokes add.tflite.
+ * @return the number of reloads that succeeded.
+ */
+static guint
+_ReloadWhileInvoking (const GstTensorFilterFramework *sp,
+    GstTensorFilterProperties *prop, void *data,
+    GstTensorFilterProperties *reload_prop, guint rounds, reload_invoker_s *s)
+{
+  GstTensorMemory input = {}, output = {};
+  float value = 10.0f, result = 0.0f;
+  guint i, reloaded = 0;
+
+  input.data = &value;
+  input.size = sizeof (value);
+  output.data = &result;
+  output.size = sizeof (result);
+
+  s->sp = sp;
+  s->prop = prop;
+  s->data = data;
+  s->input = &input;
+  s->output = &output;
+  s->stop = false;
+  s->invoked = 0;
+  s->failed = 0;
+
+  std::thread invoker (_InvokeUntilStopped, s);
+  while (s->invoked == 0)
+    g_usleep (100);
+
+  for (i = 0; i < rounds; i++) {
+    if (_ReloadModel (sp, reload_prop, data) == 0)
+      reloaded++;
+  }
+
+  s->stop = true;
+  invoker.join ();
+
+  return reloaded;
+}
+
+/**
+ * @brief A model reloaded while another thread keeps invoking is swapped between two invokes.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, reloadWhileInvoking)
+{
+  GstTensorFilterProperties reload_prop;
+  reload_invoker_s s;
+  gchar *add_model;
+
+  ASSERT_TRUE (_GetModelFilePath (&add_model, 4));
+  model_files[0] = add_model;
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  reload_prop = prop;
+  EXPECT_EQ (_ReloadWhileInvoking (sp, &prop, data, &reload_prop, 200U, &s), 200U);
+  EXPECT_GT (s.invoked.load (), 0U);
+  EXPECT_EQ (s.failed.load (), 0U);
+
+  sp->close (&prop, &data);
+  g_free (add_model);
+}
+
+/**
+ * @brief A model refused while another thread keeps invoking leaves the old one running.
+ * @note A refused reload does not swap the interpreter, so this guards the refusal path, not the race.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, reloadUnmatchedWhileInvoking_n)
+{
+  GstTensorFilterProperties reload_prop;
+  const gchar *reload_files[] = { NULL, NULL };
+  reload_invoker_s s;
+  gchar *add_model, *other_model;
+
+  ASSERT_TRUE (_GetModelFilePath (&add_model, 4));
+  ASSERT_TRUE (_GetModelFilePath (&other_model, 2));
+  model_files[0] = add_model;
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* the tensors info of this model differs, so every reload is refused */
+  reload_prop = prop;
+  reload_files[0] = other_model;
+  reload_prop.model_files = reload_files;
+  EXPECT_EQ (_ReloadWhileInvoking (sp, &prop, data, &reload_prop, 20U, &s), 0U);
+  EXPECT_GT (s.invoked.load (), 0U);
+  EXPECT_EQ (s.failed.load (), 0U);
+
+  sp->close (&prop, &data);
+  g_free (add_model);
+  g_free (other_model);
+}
+
+/**
+ * @brief appsrc need-data handler pushing the add.tflite input 10.
+ */
+static void
+_PushAddInput (GstAppSrc *src, guint length, gpointer user_data)
+{
+  float value = 10.0f;
+  GstBuffer *buffer = gst_buffer_new_allocate (NULL, sizeof (value), NULL);
+  UNUSED (length);
+  UNUSED (user_data);
+
+  gst_buffer_fill (buffer, 0, &value, sizeof (value));
+  gst_app_src_push_buffer (src, buffer);
+}
+
+/**
+ * @brief tensor_sink new-data handler counting the add.tflite outputs other than 12.
+ */
+static void
+_CheckAddOutput (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  float value = 0.0f;
+  UNUSED (element);
+
+  if (gst_buffer_extract (buffer, 0, &value, sizeof (value)) != sizeof (value) || value != 12.0f)
+    g_atomic_int_inc ((gint *) user_data);
+}
+
+#define SHARED_RELOAD_BRANCH                                                                                   \
+  "appsrc name=src%d ! tensor_filter name=filter%d framework=tensorflow2-lite model=\"%s\" is-updatable=true " \
+  "shared-tensor-filter-key=tflite_reload_f3 ! tensor_sink name=sink%d "
+
+/**
+ * @brief Two filters sharing a key keep streaming while the shared model is reloaded.
+ * @details The model is flipped between two copies of add.tflite through one of the
+ *          filters while both streaming threads invoke the shared interpreter.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, sharedKeyReloadWhileStreaming)
+{
+  GstElement *gstpipe, *element;
+  GstCaps *caps;
+  GstBus *bus;
+  GstMessage *msg;
+  gchar *model_file, *model_copy, *contents, *pipeline, *branch1, *branch2, *readback;
+  gsize length;
+  guint count[2] = { 0U, 0U };
+  guint i, last, reloaded = 0U;
+  gint wrong = 0, fd;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+  ASSERT_TRUE (g_file_get_contents (model_file, &contents, &length, NULL));
+  model_copy = NULL;
+  fd = g_file_open_tmp ("nnsf3XXXXXX.tflite", &model_copy, NULL);
+  ASSERT_GE (fd, 0);
+  g_close (fd, NULL);
+  ASSERT_TRUE (g_file_set_contents (model_copy, contents, length, NULL));
+  g_free (contents);
+
+  branch1 = g_strdup_printf (SHARED_RELOAD_BRANCH, 1, 1, model_file, 1);
+  branch2 = g_strdup_printf (SHARED_RELOAD_BRANCH, 2, 2, model_file, 2);
+  pipeline = g_strconcat (branch1, branch2, NULL);
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  caps = gst_caps_from_string (
+      "other/tensors,num_tensors=1,dimensions=(string)1,types=float32,format=static,framerate=0/1");
+  for (i = 0; i < 2; i++) {
+    gchar *name = g_strdup_printf ("src%u", i + 1);
+
+    element = gst_bin_get_by_name (GST_BIN (gstpipe), name);
+    ASSERT_TRUE (element != nullptr);
+    g_object_set (element, "caps", caps, NULL);
+    g_signal_connect (element, "need-data", (GCallback) _PushAddInput, NULL);
+    gst_object_unref (element);
+    g_free (name);
+
+    name = g_strdup_printf ("sink%u", i + 1);
+    element = gst_bin_get_by_name (GST_BIN (gstpipe), name);
+    ASSERT_TRUE (element != nullptr);
+    g_signal_connect (element, "new-data", (GCallback) _CheckAddOutput, &wrong);
+    g_signal_connect (element, "new-data", (GCallback) count_output, &count[i]);
+    gst_object_unref (element);
+    g_free (name);
+  }
+  gst_caps_unref (caps);
+
+  ASSERT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&count[0], 1U, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&count[1], 1U, TEST_TIMEOUT_LIMIT_MS));
+
+  element = gst_bin_get_by_name (GST_BIN (gstpipe), "filter1");
+  ASSERT_TRUE (element != nullptr);
+  for (i = 0; i < 200; i++) {
+    const gchar *path = (i % 2) ? model_file : model_copy;
+
+    g_object_set (element, "model", path, NULL);
+    readback = NULL;
+    g_object_get (element, "model", &readback, NULL);
+    if (g_strcmp0 (readback, path) == 0)
+      reloaded++;
+    g_free (readback);
+  }
+  gst_object_unref (element);
+  EXPECT_EQ (reloaded, 200U);
+
+  /* both streams go on with the reloaded model */
+  for (i = 0; i < 2; i++) {
+    last = (guint) g_atomic_int_get ((gint *) &count[i]);
+    EXPECT_TRUE (wait_pipeline_process_buffers (&count[i], last + 1U, TEST_TIMEOUT_LIMIT_MS));
+  }
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (g_atomic_int_get (&wrong), 0);
+
+  bus = gst_element_get_bus (gstpipe);
+  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  EXPECT_TRUE (msg == NULL);
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  gst_object_unref (gstpipe);
+  g_remove (model_copy);
+  g_free (model_copy);
+  g_free (pipeline);
+  g_free (branch1);
+  g_free (branch2);
+  g_free (model_file);
+}
+
+/**
+ * @brief Any other event is left to tensor_filter.
+ */
+TEST_F (nnstreamerFilterTensorFlow2LiteV1, eventNotHandled_n)
+{
+  GstTensorFilterFrameworkEventData event_data;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  memset (&event_data, 0, sizeof (event_data));
+  event_data.custom_properties = "NumThreads:2";
+  EXPECT_EQ (sp->eventHandler (sp, &prop, data, CUSTOM_PROP, &event_data), -ENOENT);
+
+  memset (&event_data, 0, sizeof (event_data));
+  EXPECT_EQ (sp->eventHandler (sp, &prop, data, SET_ACCELERATOR, &event_data), -ENOENT);
+  EXPECT_EQ (sp->eventHandler (sp, &prop, data, DESTROY_NOTIFY, &event_data), -ENOENT);
+}
+
+/**
+ * @brief The accelerator property reads back the value the application set.
+ * @note End-to-end check with tensorflow2-lite; tensor_filter's own cases are in unittest_filter_common.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, acceleratorReadBack)
+{
+  static const gchar *accelerators[] = {
+    "true:cpu",
+    "true:!npu,gpu",
+    "true:cpu,gpu",
+    "false",
+    NULL,
+  };
+  gchar *model_file, *pipeline, *readback;
+  GstElement *gstpipe, *filter;
+  guint i;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 3));
+
+  for (i = 0; accelerators[i]; i++) {
+    /* both orders of the framework and accelerator properties */
+    for (int order = 0; order < 2; order++) {
+      if (order == 0)
+        pipeline = g_strdup_printf ("tensor_filter name=tfilter framework=tensorflow2-lite model=\"%s\" accelerator=%s ! fakesink",
+            model_file, accelerators[i]);
+      else
+        pipeline = g_strdup_printf ("tensor_filter name=tfilter accelerator=%s framework=tensorflow2-lite model=\"%s\" ! fakesink",
+            accelerators[i], model_file);
+
+      gstpipe = gst_parse_launch (pipeline, NULL);
+      ASSERT_TRUE (gstpipe != nullptr);
+      filter = gst_bin_get_by_name (GST_BIN (gstpipe), "tfilter");
+      ASSERT_TRUE (filter != nullptr);
+
+      readback = NULL;
+      g_object_get (filter, "accelerator", &readback, NULL);
+      EXPECT_STREQ (readback, accelerators[i]) << pipeline;
+      g_free (readback);
+
+      gst_object_unref (filter);
+      gst_object_unref (gstpipe);
+      g_free (pipeline);
+    }
+  }
+
+  g_free (model_file);
 }
 
 /**

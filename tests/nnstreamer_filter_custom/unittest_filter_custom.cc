@@ -1877,6 +1877,7 @@ _out_combi_run (const gchar *combi, gboolean flexible, out_combi_mode mode,
   GstMapInfo map;
   gsize hsize;
   guint i, handler, critical = 0;
+  GLogLevelFlags fatal_mask;
 
   if (mode != OUT_COMBI_STATIC) {
     flexible = TRUE;
@@ -1887,7 +1888,7 @@ _out_combi_run (const gchar *combi, gboolean flexible, out_combi_mode mode,
   }
 
   handler = g_log_set_handler ("GStreamer",
-      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _out_combi_count_critical, &critical);
 
   in_buf = gst_harness_create_buffer (h, 4);
@@ -1945,7 +1946,9 @@ _out_combi_run (const gchar *combi, gboolean flexible, out_combi_mode mode,
 
   EXPECT_EQ (critical, 0U);
   /* The handler is live: a critical of the domain is counted */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "self-check of the counter");
+  g_log_set_always_fatal (fatal_mask);
   EXPECT_EQ (critical, 1U);
   g_log_remove_handler ("GStreamer", handler);
 }

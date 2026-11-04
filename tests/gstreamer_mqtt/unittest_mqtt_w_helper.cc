@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <gst/base/gstbasesrc.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
@@ -36,6 +37,29 @@
 
 std::unique_ptr<GstMqttTestHelper> GstMqttTestHelper::mInstance;
 std::once_flag GstMqttTestHelper::mOnceFlag;
+
+/** TLS settings copied synchronously when the mocked client connects. */
+static bool last_connect_tls;
+static int last_connect_verify;
+static int last_connect_auth;
+static std::string last_connect_ca;
+static std::string last_connect_cert;
+static std::string last_connect_key;
+static std::string last_connect_key_password;
+
+/** @brief Record options while they are valid, without borrowing their storage. */
+static void
+_record_tls_options (const MQTTAsync_connectOptions *options)
+{
+  const MQTTAsync_SSLOptions *ssl = options->ssl;
+  last_connect_tls = ssl != nullptr;
+  last_connect_verify = ssl ? ssl->verify : 0;
+  last_connect_auth = ssl ? ssl->enableServerCertAuth : 0;
+  last_connect_ca = ssl && ssl->trustStore ? ssl->trustStore : "";
+  last_connect_cert = ssl && ssl->keyStore ? ssl->keyStore : "";
+  last_connect_key = ssl && ssl->privateKey ? ssl->privateKey : "";
+  last_connect_key_password = ssl && ssl->privateKeyPassword ? ssl->privateKeyPassword : "";
+}
 
 /** The calls a test can hold open on another thread while it changes a property */
 enum call_hold_site { HOLD_NONE, HOLD_CREATE, HOLD_EPOCH, HOLD_SEND };
@@ -129,6 +153,7 @@ MQTTAsync_create (MQTTAsync *handle, const char *serverURI,
 int
 MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
 {
+  _record_tls_options (options);
   MQTTAsync_successData data;
   void *ctx = GstMqttTestHelper::getInstance ().getContext ();
 
@@ -207,6 +232,7 @@ MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *optio
     return MQTTASYNC_SUCCESS;
 
   ctx = options->context;
+  GstMqttTestHelper::getInstance ().recordDisconnect (options->timeout);
   GstMqttTestHelper::getInstance ().setIsConnected (false);
   if (GstMqttTestHelper::getInstance ().getFailDisconnect ()) {
     fdata.code = -1;
@@ -264,6 +290,7 @@ MQTTAsync_unsubscribe (MQTTAsync handle, const char *topic, MQTTAsync_responseOp
   void *ctx = response->context;
   std::future<void> ret;
 
+  GstMqttTestHelper::getInstance ().recordUnsubscribe (topic);
   if (GstMqttTestHelper::getInstance ().getFailUnsubscribe ()) {
     fdata.code = -1;
     fdata.message = "";
@@ -714,6 +741,29 @@ TEST (testMqttSinkWithHelper, stopReturnsWhenDisconnected)
   EXPECT_EQ (state_ret, GST_STATE_CHANGE_SUCCESS);
   EXPECT_LT (elapsed_ms, 2500) << "stop () waited " << elapsed_ms
                                << " ms for a disconnect it had already been told about";
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test stop () giving MQTTAsync_disconnect () its drain timeout in milliseconds
+ */
+TEST (testMqttSinkWithHelper, stopDisconnectTimeoutInMilliseconds)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  int timeout;
+
+  ASSERT_TRUE (h != NULL);
+  helper.initFailFlags ();
+  helper.resetSendRecord ();
+  helper.resetDisconnectRecord ();
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+
+  timeout = helper.getLastDisconnectTimeout ();
+  EXPECT_EQ (timeout, 3000) << "paho takes the disconnect timeout in milliseconds";
 
   gst_harness_teardown (h);
 }
@@ -1492,6 +1542,51 @@ TEST (testMqttSinkWithHelper, defaultClientIdRandom)
 }
 
 /**
+ * @brief Test that client-id reads back its declared default before start, and that the default generates an id
+ */
+TEST (testMqttSinkWithHelper, clientIdPspecDefault)
+{
+  const gchar *elements[] = { "mqttsink", "mqttsrc" };
+  GstElement *sink;
+  GParamSpec *pspec;
+  const GValue *def;
+  gchar *prop = NULL;
+
+  for (const gchar *name : elements) {
+    GstElement *elem = gst_element_factory_make (name, NULL);
+
+    ASSERT_TRUE (elem != NULL) << name;
+    gst_object_ref_sink (elem);
+    pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (elem), "client-id");
+    ASSERT_TRUE (pspec != NULL) << name;
+    def = g_param_spec_get_default_value (pspec);
+    ASSERT_TRUE (G_VALUE_HOLDS_STRING (def)) << name;
+    g_object_get (elem, "client-id", &prop, NULL);
+    EXPECT_STREQ (prop, g_value_get_string (def)) << name;
+    g_free (prop);
+    gst_object_unref (elem);
+  }
+
+  /* Restoring the declared default after an explicit id makes start () generate one again */
+  sink = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_TRUE (sink != NULL);
+  gst_object_ref_sink (sink);
+  pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (sink), "client-id");
+  ASSERT_TRUE (pspec != NULL);
+  g_object_set (sink, "client-id", "an-explicit-client-id", NULL);
+  def = g_param_spec_get_default_value (pspec);
+  g_object_set_property (G_OBJECT (sink), "client-id", def);
+
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetCreateRecord ();
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  _expect_generated_client_id (GstMqttTestHelper::getInstance ().getLastClientId (), "nnssink");
+
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (sink);
+}
+
+/**
  * @brief Test that the generated client id does not come from a GLib generator
  */
 TEST (testMqttSinkWithHelper, generatedClientIdIgnoresGlobalSeed)
@@ -2112,6 +2207,71 @@ TEST (testMqttSink, userPubTopicKept)
 }
 
 /**
+ * @brief Start a harness on a new mqttsink with the given client-id and pub-topic (NULL: not set), and push a buffer
+ */
+static GstHarness *
+_harness_sink_with_ids (const gchar *client_id, const gchar *pub_topic)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", NULL);
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  GstHarness *h;
+
+  if (sink == NULL)
+    return NULL;
+  gst_object_ref_sink (sink);
+  g_object_set (sink, "client-id", client_id, NULL);
+  if (pub_topic)
+    g_object_set (sink, "pub-topic", pub_topic, NULL);
+
+  helper.initFailFlags ();
+  helper.resetCreateRecord ();
+  helper.resetSendRecord ();
+  h = gst_harness_new_with_element (sink, "sink", NULL);
+  gst_object_unref (sink);
+  if (h == NULL)
+    return NULL;
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  return h;
+}
+
+/**
+ * @brief Test a fixed client-id reaching MQTTAsync_create () and making the default pub-topic
+ */
+TEST (testMqttSinkWithHelper, fixedClientIdDefaultPubTopic)
+{
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  GstHarness *h = _harness_sink_with_ids ("fixed", NULL);
+  gchar *topic = NULL;
+
+  ASSERT_TRUE (h != NULL);
+  EXPECT_STREQ (helper.getLastClientId ().c_str (), "fixed");
+  EXPECT_EQ (helper.getSendCount (), 1);
+  EXPECT_STREQ (helper.getLastTopic ().c_str (), "fixed/topic");
+  g_object_get (h->element, "pub-topic", &topic, NULL);
+  EXPECT_STREQ (topic, "fixed/topic");
+  g_free (topic);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test an explicit pub-topic not being derived from a fixed client-id
+ */
+TEST (testMqttSinkWithHelper, fixedClientIdUserPubTopic)
+{
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  GstHarness *h = _harness_sink_with_ids ("fixed", "mytopic");
+
+  ASSERT_TRUE (h != NULL);
+  EXPECT_STREQ (helper.getLastClientId ().c_str (), "fixed");
+  EXPECT_EQ (helper.getSendCount (), 1);
+  EXPECT_STREQ (helper.getLastTopic ().c_str (), "mytopic");
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief A helper function for the generation of a dummy MQTT message
  */
 static void
@@ -2529,7 +2689,7 @@ free_strs:
 }
 
 /**
- * @brief Fail test case for mqttsrc #2 (MQTTAsync_unsubscribe failure case)
+ * @brief Test mqttsrc shutting down when MQTTAsync_unsubscribe () fails
  */
 TEST (testMqttSrcWithHelper, srcNormalLaunch2)
 {
@@ -2561,6 +2721,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
 
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstMqttTestHelper::getInstance ().setFailUnsubscribe (TRUE);
+  GstMqttTestHelper::getInstance ().resetUnsubscribeRecord ();
 
   msg = (MQTTAsync_message *) g_try_malloc0 (sizeof (*msg));
   if (!msg) {
@@ -2601,16 +2762,17 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   EXPECT_TRUE (ma_ret.get ());
 
   ret = gst_element_get_state (pipeline, &cur_state, NULL, GST_CLOCK_TIME_NONE);
-  EXPECT_EQ (ret, GST_STATE_CHANGE_FAILURE);
-  EXPECT_EQ (cur_state, GST_STATE_PAUSED);
+  EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (cur_state, GST_STATE_PLAYING);
 
-  GstMqttTestHelper::getInstance ().setFailUnsubscribe (FALSE);
-
+  /* PLAYING_TO_PAUSED fails to unsubscribe; the shutdown still completes */
   ret = gst_element_set_state (pipeline, GST_STATE_NULL);
   EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
 
   ret = gst_element_get_state (pipeline, &cur_state, NULL, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_STREQ (GstMqttTestHelper::getInstance ().getLastUnsubscribeTopic ().c_str (), topic_name);
+  GstMqttTestHelper::getInstance ().setFailUnsubscribe (FALSE);
   gst_object_unref (pipeline);
 
   g_free (msg->payload);
@@ -3015,6 +3177,189 @@ TEST (testMqttSinkWithHelper, sinkNtpEpochRecoversAfterFailure)
   EXPECT_GE (hdr.sent_time_epoch, (before + FAKE_NTP_OFFSET_US) * GST_US_TO_NS_MULTIPLIER);
   EXPECT_LE (hdr.sent_time_epoch, (after + FAKE_NTP_OFFSET_US) * GST_US_TO_NS_MULTIPLIER);
 }
+
+
+/** @brief A TLS URI cannot bypass the verified, explicit TLS settings. */
+TEST (testMqttSinkWithHelper, tlsSchemeWithoutSwitch_n)
+{
+  for (const char *host : { "ssl://localhost", "mqtts://localhost", "wss://localhost" }) {
+    GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+    ASSERT_NE (element, nullptr);
+    gst_object_ref_sink (element);
+    GstMqttTestHelper::getInstance ().initFailFlags ();
+    GstElement *pipeline = element;
+    g_object_set (element, "host", host, NULL);
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+    gst_element_set_state (element, GST_STATE_NULL);
+    gst_object_unref (element);
+  }
+}
+
+/** @brief TLS defaults to off, and a key password is write-only. */
+TEST (testMqttSinkWithHelper, tlsProperties)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstElement *pipeline = element;
+  gboolean enabled = TRUE;
+  gchar *ca = nullptr;
+  g_object_get (element, "tls", &enabled, "tls-ca-file", &ca, NULL);
+  EXPECT_FALSE (enabled);
+  EXPECT_EQ (ca, nullptr);
+  GParamSpec *pspec = g_object_class_find_property (
+      G_OBJECT_GET_CLASS (element), "tls-key-password");
+  ASSERT_NE (pspec, nullptr);
+  EXPECT_FALSE (pspec->flags & G_PARAM_READABLE);
+  EXPECT_TRUE (pspec->flags & G_PARAM_WRITABLE);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (last_connect_tls);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+}
+
+/** @brief Each TLS property has its own ID and its own storage. */
+TEST (testMqttSinkWithHelper, tlsPropertyMapping)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GObjectClass *klass = G_OBJECT_GET_CLASS (element);
+  const char *names[]
+      = { "tls", "tls-ca-file", "tls-cert-file", "tls-key-file", "tls-key-password" };
+  guint ids[G_N_ELEMENTS (names)];
+  for (gsize i = 0; i < G_N_ELEMENTS (names); i++) {
+    GParamSpec *pspec = g_object_class_find_property (klass, names[i]);
+    ASSERT_NE (pspec, nullptr) << names[i];
+    ids[i] = pspec->param_id;
+    for (gsize j = 0; j < i; j++)
+      EXPECT_NE (ids[i], ids[j]) << names[i] << " and " << names[j];
+  }
+  EXPECT_FALSE (g_object_class_find_property (klass, "tls-key-password")->flags & G_PARAM_READABLE);
+  /* Replacing a value must free the old one; the Valgrind job checks it. */
+  g_object_set (element, "tls-ca-file", "old-ca.pem", "tls-cert-file", "old-cert.pem",
+      "tls-key-file", "old-key.pem", "tls-key-password", "old-secret", NULL);
+  g_object_set (element, "tls", TRUE, "tls-ca-file", "ca.pem", "tls-cert-file",
+      "cert.pem", "tls-key-file", "key.pem", "tls-key-password", "secret", NULL);
+  gboolean enabled = FALSE;
+  gchar *ca = nullptr, *cert = nullptr, *key = nullptr;
+  g_object_get (element, "tls", &enabled, "tls-ca-file", &ca, "tls-cert-file",
+      &cert, "tls-key-file", &key, NULL);
+  EXPECT_TRUE (enabled);
+  EXPECT_STREQ (ca, "ca.pem");
+  EXPECT_STREQ (cert, "cert.pem");
+  EXPECT_STREQ (key, "key.pem");
+  EXPECT_STREQ (GST_MQTT_SINK (element)->mqtt_tls.key_password, "secret");
+  g_free (ca);
+  g_free (cert);
+  g_free (key);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+}
+
+/** @brief Unsupported TLS or invalid files fail before connecting. */
+TEST (testMqttSinkWithHelper, tlsInvalidSettings_n)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstElement *pipeline = element;
+  g_object_set (element, "tls", TRUE, "tls-ca-file", "/nonexistent/mqtt-ca.pem", NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+}
+
+#ifdef ENABLE_MQTT_TLS
+/** @brief Pass verified TLS and copied client credentials to the Paho client. */
+TEST (testMqttSinkWithHelper, tlsOptionsPassedToConnect)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstElement *pipeline = element;
+  gchar *files[3] = { nullptr, nullptr, nullptr };
+  for (gchar *&file : files) {
+    int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
+    ASSERT_GE (fd, 0);
+    close (fd);
+  }
+  g_object_set (element, "tls", TRUE, "tls-ca-file", files[0], "tls-cert-file",
+      files[1], "tls-key-file", files[2], "tls-key-password", "test-key-password", NULL);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_TRUE (last_connect_tls);
+  EXPECT_EQ (last_connect_verify, 1);
+  EXPECT_EQ (last_connect_auth, 1);
+  EXPECT_STREQ (last_connect_ca.c_str (), files[0]);
+  EXPECT_STREQ (last_connect_cert.c_str (), files[1]);
+  EXPECT_STREQ (last_connect_key.c_str (), files[2]);
+  EXPECT_STREQ (last_connect_key_password.c_str (), "test-key-password");
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getLastServerUri ().find ("ssl://"), 0U);
+  /* Changing a property must not invalidate Paho's reconnect options. */
+  g_object_set (element, "tls-ca-file", NULL, "tls-key-password", NULL, NULL);
+  GstMqttSink *self = GST_MQTT_SINK (element);
+  ASSERT_NE (self->mqtt_conn_opts.ssl, nullptr);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->trustStore, files[0]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->keyStore, files[1]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->privateKey, files[2]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->privateKeyPassword, "test-key-password");
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_FAILURE);
+  g_object_set (element, "tls", FALSE, NULL);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (last_connect_tls);
+  EXPECT_EQ (self->mqtt_conn_opts.ssl, nullptr);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+  for (gchar *file : files) {
+    g_unlink (file);
+    g_free (file);
+  }
+}
+
+/** @brief Refuse a client private key without a client certificate. */
+TEST (testMqttSinkWithHelper, tlsKeyWithoutCertificate_n)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstElement *pipeline = element;
+  g_object_set (element, "tls", TRUE, "tls-key-file", "/nonexistent/key.pem", NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+}
+
+/** @brief Refuse a CA, certificate or key path that is not a regular file. */
+TEST (testMqttSinkWithHelper, tlsCredentialNotRegularFile_n)
+{
+  gchar *file = nullptr;
+  int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
+  ASSERT_GE (fd, 0);
+  close (fd);
+  const gchar *dir = g_get_tmp_dir ();
+  const gchar *cases[][3]
+      = { { dir, NULL, NULL }, { NULL, dir, NULL }, { NULL, file, dir } };
+  for (const auto &paths : cases) {
+    GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+    ASSERT_NE (element, nullptr);
+    gst_object_ref_sink (element);
+    GstMqttTestHelper::getInstance ().initFailFlags ();
+    GstElement *pipeline = element;
+    g_object_set (element, "tls", TRUE, "tls-ca-file", paths[0],
+        "tls-cert-file", paths[1], "tls-key-file", paths[2], NULL);
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+    gst_element_set_state (element, GST_STATE_NULL);
+    gst_object_unref (element);
+  }
+  g_unlink (file);
+  g_free (file);
+}
+#endif
 
 /**
  * @brief Main GTest

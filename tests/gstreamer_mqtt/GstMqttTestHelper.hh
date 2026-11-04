@@ -38,7 +38,7 @@ class GstMqttTestHelper
   /**
    * @brief An empty destructor for this class
    */
-  ~GstMqttTestHelper (){};
+  ~GstMqttTestHelper () {};
 
   /**
    * @brief Initialize this class instead of explicit constructors
@@ -104,7 +104,7 @@ class GstMqttTestHelper
    */
   void setFailUnsubscribe (bool flag)
   {
-    this->fail_subscribe = flag;
+    this->fail_unsubscribe = flag;
   }
 
   /**
@@ -332,6 +332,54 @@ class GstMqttTestHelper
     return this->last_payload;
   }
 
+  /**
+   * @brief Record the topic given to a call to MQTTAsync_unsubscribe ()
+   */
+  void recordUnsubscribe (const char *topic)
+  {
+    this->last_unsub_topic.assign (topic ? topic : "");
+  }
+
+  /**
+   * @brief Getter for the topic given to the most recent MQTTAsync_unsubscribe () call (empty: none since the last reset)
+   */
+  const std::string &getLastUnsubscribeTopic ()
+  {
+    return this->last_unsub_topic;
+  }
+
+  /**
+   * @brief Reset the record of MQTTAsync_unsubscribe () calls
+   */
+  void resetUnsubscribeRecord ()
+  {
+    this->last_unsub_topic.clear ();
+  }
+
+  /**
+   * @brief Record the timeout (in milliseconds) given to a call to MQTTAsync_disconnect ()
+   */
+  void recordDisconnect (int timeout)
+  {
+    this->last_disconnect_timeout = timeout;
+  }
+
+  /**
+   * @brief Getter for the timeout given to the most recent MQTTAsync_disconnect () call (-1: none since the last reset)
+   */
+  int getLastDisconnectTimeout ()
+  {
+    return this->last_disconnect_timeout;
+  }
+
+  /**
+   * @brief Reset the record of MQTTAsync_disconnect () calls
+   */
+  void resetDisconnectRecord ()
+  {
+    this->last_disconnect_timeout = -1;
+  }
+
   private:
   /* Variables for instance management */
   static std::unique_ptr<GstMqttTestHelper> mInstance;
@@ -345,7 +393,8 @@ class GstMqttTestHelper
       : context (nullptr), cl (nullptr), ma (nullptr), dc (nullptr),
         fail_send (false), fail_disconnect (false), fail_subscribe (false),
         fail_unsubscribe (false), is_connected (false), has_username (false),
-        has_password (false), send_count (0), last_payloadlen (0){};
+        has_password (false), send_count (0), last_payloadlen (0),
+        last_disconnect_timeout (-1) {};
 
   /** @brief Disable the copy constructor to keep this class a singleton */
   GstMqttTestHelper (const GstMqttTestHelper &) = delete;
@@ -374,4 +423,7 @@ class GstMqttTestHelper
   std::string last_topic;
   int last_payloadlen;
   std::vector<guint8> last_payload;
+
+  std::string last_unsub_topic;
+  int last_disconnect_timeout;
 };
