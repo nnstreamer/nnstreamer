@@ -199,18 +199,21 @@ allocateData (const GstTensorFilterProperties * prop, void **private_data)
 {
   vivante_pdata *pdata;
 
+  if (prop->num_models < 1 || !prop->model_files[0] ||
+      prop->model_files[0][0] == '\0') {
+    printf ("Model path (.nb) is not given.\n");
+    return -1;
+  }
+  if (prop->num_models < 2 || !prop->model_files[1] ||
+      prop->model_files[1][0] == '\0') {
+    printf ("Shared library path (.so) is not given.\n");
+    return -1;
+  }
+
   if (*private_data != NULL) {
     /* Already opened */
     pdata = (vivante_pdata *) * private_data;
 
-    if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
-      printf ("Model path (.nb) is not given.");
-      return -1;
-    }
-    if (!prop->model_files[1] || prop->model_files[1][0] == '\0') {
-      printf ("Shared library path (.so) is not given.");
-      return -1;
-    }
     if (g_strcmp0 (prop->model_files[0], pdata->model_path) == 0 &&
         g_strcmp0 (prop->model_files[1], pdata->so_path) == 0) {
       return 1;                 /* Already opened with same model. Skip ops */
