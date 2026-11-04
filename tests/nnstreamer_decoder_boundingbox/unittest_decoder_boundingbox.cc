@@ -1916,6 +1916,46 @@ TEST (tensorDecoderBoundingBox, trackBoxBackAtThreshold)
 }
 
 /**
+ * @brief Boxes moving over frames are drawn without a tracking id unless option6 asks for one.
+ */
+TEST (tensorDecoderBoundingBox, trackDisabledDrawsNoId_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeLabelFile ("X\n");
+  uint32_t untracked[BOX_OUT_PIXELS] = { 0U };
+  uint32_t tracked[BOX_OUT_PIXELS] = { 0U };
+  uint32_t expected[BOX_OUT_PIXELS] = { 0U };
+  void *pdata = NULL;
+  void *tracked_pdata = NULL;
+  void *expected_pdata = NULL;
+  SsdPpBoxes t;
+
+  ASSERT_TRUE (initSsdPpDecoder (decoder, &pdata, labels, "0", "0"));
+  ASSERT_TRUE (initSsdPpDecoder (decoder, &tracked_pdata, labels, "1", "0"));
+  ASSERT_TRUE (initSsdPpDecoder (decoder, &expected_pdata, labels, "0", "0"));
+
+  t.add (0.0f, TRACK_LEFT);
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &pdata, &t, untracked));
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &tracked_pdata, &t, tracked));
+
+  t.clear ();
+  t.add (0.0f, TRACK_BELOW);
+  t.add (0.0f, TRACK_RIGHT);
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &pdata, &t, untracked));
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &tracked_pdata, &t, tracked));
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &expected_pdata, &t, expected));
+
+  EXPECT_GT (countDrawnPixels (expected, BOX_OUT_PIXELS), 0U);
+  EXPECT_EQ (memcmp (untracked, expected, sizeof (untracked)), 0);
+  EXPECT_NE (memcmp (untracked, tracked, sizeof (untracked)), 0);
+
+  decoder->exit (&expected_pdata);
+  decoder->exit (&tracked_pdata);
+  decoder->exit (&pdata);
+  removeTempFile (&labels);
+}
+
+/**
  * @brief The element types the box properties decode.
  */
 static const tensor_type decoded_types[] = { _NNS_INT8, _NNS_UINT8, _NNS_INT16, _NNS_UINT16,
