@@ -561,7 +561,8 @@ TEST_F (NNStreamerFilterPytorchMockTest, notOpened_n)
   EXPECT_EQ (sp->getModelInfo (sp, &prop, nullptr, GET_IN_OUT_INFO, &in_info, &out_info),
       -EINVAL);
   EXPECT_EQ (sp->invoke (sp, &prop, nullptr, &mem, &mem), -EINVAL);
-  EXPECT_EQ (sp->eventHandler (sp, &prop, nullptr, RELOAD_MODEL, NULL), -EINVAL);
+  /* The is-updatable probe is answered by the class: no reload. */
+  EXPECT_EQ (sp->eventHandler (sp, &prop, nullptr, RELOAD_MODEL, NULL), -ENOENT);
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
 }

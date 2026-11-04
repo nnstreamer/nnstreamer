@@ -259,6 +259,10 @@ tizen_hal_subplugin::getModelInfo (
 int
 tizen_hal_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
+  /* The empty object has no backend model to ask; keep is-updatable as set. */
+  if (this == registeredRepresentation)
+    return -EINVAL;
+
   if (!hal_handle) {
     nns_loge ("HAL backend is not configured.");
     return -1;

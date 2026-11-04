@@ -271,9 +271,19 @@ tensor_filter_subplugin::cpp_eventHandler (const GstTensorFilterFramework *tf,
   tensor_filter_subplugin *obj;
   GstTensorFilterFrameworkEventData empty_data;
 
-  GET_TFSP_WITH_CHECKS (obj, private_data);
-  UNUSED (tf);
-  UNUSED (prop);
+  if (private_data == nullptr && ops == RELOAD_MODEL && data == NULL) {
+    /** is-updatable asks before open: let the empty object of the class answer */
+    if (tf == nullptr && prop != nullptr && prop->fwname != nullptr)
+      tf = nnstreamer_filter_find (prop->fwname);
+    if (tf == nullptr || tf->version != GST_TENSOR_FILTER_FRAMEWORK_V1)
+      return -EINVAL;
+
+    obj = (tensor_filter_subplugin *) tf->v1.subplugin_data;
+    if (obj == nullptr || obj->sanity != _SANITY_CHECK)
+      return -EINVAL;
+  } else {
+    GET_TFSP_WITH_CHECKS (obj, private_data);
+  }
 
   if (data == NULL) {
     /* An aggregate initializer zeroes only the union's first member. */
