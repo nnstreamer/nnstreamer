@@ -1612,6 +1612,42 @@ TEST (tensorConverterConfig, octetFlexibleAnySize)
 }
 
 /**
+ * @brief Note that the buffer the weak reference is attached to is released.
+ */
+static void
+buffer_released_cb (gpointer data, GstMiniObject *obj)
+{
+  UNUSED (obj);
+  *(gboolean *) data = TRUE;
+}
+
+/**
+ * @brief An empty buffer is dropped and released, and the element keeps converting.
+ */
+TEST (tensorConverterConfig, emptyBufferDropped_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_converter");
+  GstBus *bus = attach_bus (h);
+  GstBuffer *buf = gst_buffer_new ();
+  gboolean released = FALSE;
+
+  set_input_info (h->element, 1, "4");
+  gst_harness_set_src_caps_str (h, OCTET_CAPS);
+
+  gst_mini_object_weak_ref (GST_MINI_OBJECT (buf), buffer_released_cb, &released);
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+  EXPECT_TRUE (released);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (pop_errors (bus), 0U);
+
+  EXPECT_EQ (push_octet (h, 4U), GST_FLOW_OK);
+  check_pulled_bytes (h, 4U, 0U);
+
+  detach_bus (h, bus);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief A video buffer of one frame is converted.
  */
 TEST (tensorConverterConfig, videoOneFrame)
