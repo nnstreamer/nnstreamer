@@ -116,6 +116,14 @@ library('nnscustom_framecounter',
   install_dir: customfilter_install_dir
 )
 
+# Used in unittest_filter_custom to make invoke fail or drop the buffer.
+library('nnscustom_invoke_result',
+  join_paths('custom_example_invoke_result', 'nnscustom_invoke_result.c'),
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+  install: get_option('install-test'),
+  install_dir: customfilter_install_dir
+)
+
 # custom-easy filter that registers itself from the constructor of its library
 library('nnscustom_easy_selfreg',
   join_paths('custom_example_easy_selfreg', 'nnscustom_easy_selfreg.c'),
