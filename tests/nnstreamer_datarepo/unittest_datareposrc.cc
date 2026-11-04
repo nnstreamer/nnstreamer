@@ -3502,6 +3502,137 @@ TEST (datareposrc, readSinkRepoTensorsSequenceReordered)
 }
 
 /**
+ * @brief A stop-sample-index one past the repository set while READY is refused when the element starts.
+ */
+TEST (datareposrc, readStaticTensorsStopOutOfRangeSetInReady_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "is-shuffle", FALSE, NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (src, "stop-sample-index", REPO_SEQ_SAMPLES, NULL);
+
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  EXPECT_NE (strstr (run.error_debug, "stop-sample-index"), nullptr);
+  _expect_range_refused (&run);
+}
+
+/**
+ * @brief The last sample of the repository set as stop-sample-index while READY is read.
+ */
+TEST (datareposrc, readStaticTensorsStopAtLastSampleSetInReady)
+{
+  repo_run_s run = {};
+  repo_seq_out_s out = {};
+  const guint seq[] = { 0U, 1U };
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "is-shuffle", FALSE, NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (src, "start-sample-index", 1U, "stop-sample-index",
+      REPO_SEQ_SAMPLES - 1, NULL);
+
+  _run_repo_seq_pipeline (pipeline, &run, &out);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  EXPECT_EQ (run.type, GST_MESSAGE_EOS);
+  _expect_seq_samples (&out, 1, REPO_SEQ_SAMPLES - 1, seq, 2);
+  _repo_seq_out_clear (&out);
+  g_remove (REPO_DATA);
+  g_remove (REPO_JSON);
+}
+
+/**
+ * @brief A stop-sample-index one past a flexible repository set while READY is refused when the element starts.
+ */
+TEST (datareposrc, readCraftedStopOutOfRangeSetInReady_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_flexible_repo (4, 2);
+  _write_valid_flexible_json (REPO_JSON, 4, 2);
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "is-shuffle", FALSE, NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (src, "stop-sample-index", 4U, NULL);
+
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  EXPECT_NE (strstr (run.error_debug, "stop-sample-index"), nullptr);
+  _expect_range_refused (&run);
+}
+
+/**
+ * @brief A stop-sample-index one past an octet repository set while READY is refused when the element starts.
+ */
+TEST (datareposrc, readOctetStopOutOfRangeSetInReady_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+  gsize size;
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  size = _write_flexible_repo (4, 2);
+  _write_octet_json (size / 2, 2);
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "is-shuffle", FALSE, NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (src, "stop-sample-index", 2U, NULL);
+
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  EXPECT_NE (strstr (run.error_debug, "stop-sample-index"), nullptr);
+  _expect_range_refused (&run);
+}
+
+/**
+ * @brief An invalid tensors-sequence set while READY is refused when the
+ * element starts instead of pushing buffers without tensors.
+ */
+TEST (datareposrc, readStaticTensorsSequenceInvalidSetInReady_n)
+{
+  repo_run_s run = {};
+  GstElement *src = NULL;
+  GstElement *pipeline = _repo_bare_pipeline (&src);
+
+  ASSERT_NE (pipeline, nullptr);
+  ASSERT_NE (src, nullptr);
+  _write_static_seq_repo ();
+
+  g_object_set (src, "json", REPO_JSON, "location", REPO_DATA, "is-shuffle", FALSE, NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  g_object_set (src, "tensors-sequence", "5", NULL);
+
+  _run_repo_pipeline (pipeline, &run);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+  EXPECT_NE (strstr (run.error_debug, "tensors-sequence"), nullptr);
+  _expect_range_refused (&run);
+}
+
+/**
  * @brief Main GTest
  */
 int

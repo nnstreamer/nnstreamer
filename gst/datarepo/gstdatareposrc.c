@@ -1199,6 +1199,14 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
   if (src->start_sample_index > src->stop_sample_index)
     goto invalid_range;
 
+  if (src->total_samples > 0 && src->stop_sample_index >= src->total_samples)
+    goto out_of_range;
+
+  if (src->data_type == GST_DATA_REPO_DATA_TENSOR
+      && gst_tensors_config_is_static (&src->config)
+      && src->tensors_seq_cnt == 0)
+    goto no_tensors;
+
   if (src->epochs == 0)
     goto no_epochs;
 
@@ -1324,6 +1332,19 @@ invalid_range:
     GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, (NULL),
         ("start-sample-index %u is larger than stop-sample-index %u.",
             src->start_sample_index, src->stop_sample_index));
+    goto error_exit;
+  }
+out_of_range:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, (NULL),
+        ("stop-sample-index %u is out of the %u samples of the repository.",
+            src->stop_sample_index, src->total_samples));
+    goto error_exit;
+  }
+no_tensors:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, (NULL),
+        ("tensors-sequence selects no tensor of the repository."));
     goto error_exit;
   }
 no_epochs:
