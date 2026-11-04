@@ -544,6 +544,91 @@ TEST (tensorConverterConfig, modeChangedToInvalidWhileStreaming_n)
 }
 
 /**
+ * @brief Append the logged message to the GString @a user_data.
+ */
+static void
+collect_log_handler (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer user_data)
+{
+  UNUSED (domain);
+  UNUSED (level);
+
+  if (message)
+    g_string_append_printf ((GString *) user_data, "%s\n", message);
+}
+
+/**
+ * @brief Set @a mode, then push a byte that is refused, and check the error
+ *        names the custom-code option the element reports, @a option.
+ */
+static void
+push_after_invalid_mode (GstHarness *h, const gchar *mode, const gchar *option)
+{
+  GString *log = g_string_new (NULL);
+  gchar *expected_mode = g_strdup_printf ("custom-code:%s", option);
+  gchar *quoted = g_strdup_printf ("\"%s\"", option);
+  gchar *reported = NULL;
+  guint handler;
+
+  g_object_set (h->element, "mode", mode, NULL);
+  g_object_get (h->element, "mode", &reported, NULL);
+  EXPECT_STREQ (reported, expected_mode);
+
+  handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      collect_log_handler, log);
+  EXPECT_NE (push_byte_and_drop (h), GST_FLOW_OK);
+  g_log_remove_handler (NULL, handler);
+
+  /* the error reaches a GLib log handler unless the platform has a log of its own */
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  EXPECT_TRUE (strstr (log->str, quoted) != NULL) << log->str;
+#endif
+
+  g_free (reported);
+  g_free (quoted);
+  g_free (expected_mode);
+  g_string_free (log, TRUE);
+}
+
+/**
+ * @brief A mode other than custom-code or custom-script, set after a custom-code
+ *        one, drops the callback and keeps custom-code; a registered name recovers.
+ */
+TEST (tensorConverterConfig, modeGarbageAfterCustomCode_n)
+{
+  TaggedData a, b;
+  GstHarness *h;
+
+  ASSERT_NO_FATAL_FAILURE (register_tagged (&a, &b));
+
+  h = gst_harness_new ("tensor_converter");
+  g_object_set (h->element, "mode", "custom-code:g10_a", NULL);
+  gst_harness_set_src_caps_str (h, OCTET_CAPS);
+  EXPECT_EQ (push_byte_and_drop (h), GST_FLOW_OK);
+
+  push_after_invalid_mode (h, "garbage", "g10_a");
+  EXPECT_EQ (a.called, 1U);
+
+  g_object_set (h->element, "mode", "custom-code:g10_a", NULL);
+  EXPECT_EQ (push_byte_and_drop (h), GST_FLOW_OK);
+  EXPECT_EQ (a.called, 2U);
+
+  /* an unknown mode with an option replaces the option the error names */
+  push_after_invalid_mode (h, "garbage:i10_option", "i10_option");
+  EXPECT_EQ (a.called, 2U);
+
+  g_object_set (h->element, "mode", "custom-code:g10_b", NULL);
+  EXPECT_EQ (push_byte_and_drop (h), GST_FLOW_OK);
+  EXPECT_EQ (b.called, 1U);
+  EXPECT_EQ (a.foreign + b.foreign, 0U);
+
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_a"));
+  EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("g10_b"));
+}
+
+/**
  * @brief State shared by the log handler holding a mode set and the thread pushing meanwhile.
  */
 typedef struct {
