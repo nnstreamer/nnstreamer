@@ -73,6 +73,30 @@ gst_tensors_info_free (GstTensorsInfo *info)
   real_free (info);
 }
 
+static gint dlopen_count;
+
+/**
+ * @brief Count the calls of dlopen(), and forward them.
+ * @details
+ * The model library is the only thing the sub-plugin dlopen()s, so this tells
+ * whether an open that is refused loaded anything before the refusal. As with
+ * gst_tensors_info_free(), every caller in the process lands here, so a test
+ * resets the counter right before the call it is about to measure.
+ */
+extern "C" void *
+dlopen (const char *filename, int flags)
+{
+  static void *(*real_dlopen) (const char *, int) = NULL;
+
+  if (real_dlopen == NULL) {
+    real_dlopen = (void *(*) (const char *, int) ) dlsym (RTLD_NEXT, "dlopen");
+    g_assert (real_dlopen != NULL);
+  }
+
+  g_atomic_int_inc (&dlopen_count);
+  return real_dlopen (filename, flags);
+}
+
 /**
  * @brief Test fixture for the vivante tensor-filter sub-plugin.
  */
@@ -830,6 +854,67 @@ TEST_F (NNStreamerFilterVivanteTest, reopenWithoutLibrary_n)
 }
 
 /**
+ * @brief Refuse to open the network binary alone, without loading anything
+ */
+TEST_F (NNStreamerFilterVivanteTest, openWithoutLibrary_n)
+{
+  SetFilterProperty (MOCK_MODEL_NB, nullptr);
+  prop.num_models = 1;
+
+  g_atomic_int_set (&dlopen_count, 0);
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (g_atomic_int_get (&dlopen_count), 0);
+
+  SetFilterProperty (MOCK_MODEL_NB, "");
+
+  g_atomic_int_set (&dlopen_count, 0);
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (g_atomic_int_get (&dlopen_count), 0);
+}
+
+/**
+ * @brief Refuse to open the model library alone, without loading anything
+ */
+TEST_F (NNStreamerFilterVivanteTest, openWithoutModel_n)
+{
+  SetFilterProperty (nullptr, MOCK_VIVANTE_MODEL_PATH);
+
+  g_atomic_int_set (&dlopen_count, 0);
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (g_atomic_int_get (&dlopen_count), 0);
+
+  SetFilterProperty ("", MOCK_VIVANTE_MODEL_PATH);
+
+  g_atomic_int_set (&dlopen_count, 0);
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (g_atomic_int_get (&dlopen_count), 0);
+}
+
+/**
+ * @brief Refuse model files that the number of the models leaves out
+ */
+TEST_F (NNStreamerFilterVivanteTest, openModelsLeftOut_n)
+{
+  prop.num_models = 1;
+
+  g_atomic_int_set (&dlopen_count, 0);
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (g_atomic_int_get (&dlopen_count), 0);
+
+  prop.num_models = 0;
+
+  g_atomic_int_set (&dlopen_count, 0);
+  EXPECT_NE (sp->open (&prop, &private_data), 0);
+  EXPECT_EQ (private_data, nullptr);
+  EXPECT_EQ (g_atomic_int_get (&dlopen_count), 0);
+}
+
+/**
  * @brief Tolerate a close of a filter that holds no model
  */
 TEST_F (NNStreamerFilterVivanteTest, closeWithoutOpen_n)
@@ -1020,6 +1105,27 @@ TEST_F (NNStreamerFilterVivanteTest, pipelineOtherDimension_n)
   gst_harness_teardown (h);
   gst_object_unref (filter);
   EXPECT_EQ (mock_ovxlib_get_live_graph (), 0);
+}
+
+/**
+ * @brief Refuse to start a tensor_filter given the network binary alone
+ */
+TEST_F (NNStreamerFilterVivanteTest, pipelineWithoutLibrary_n)
+{
+  GstElement *filter = gst_element_factory_make ("tensor_filter", NULL);
+
+  ASSERT_NE (filter, nullptr);
+  gst_object_ref_sink (filter);
+  g_object_set (filter, "framework", "vivante", "model", MOCK_MODEL_NB, NULL);
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+
+  g_atomic_int_set (&dlopen_count, 0);
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (g_atomic_int_get (&dlopen_count), 0);
+  EXPECT_EQ (mock_ovxlib_get_live_graph (), 0);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
 }
 
 /**
