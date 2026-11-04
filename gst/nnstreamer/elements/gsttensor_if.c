@@ -1441,7 +1441,8 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
           gst_tensors_info_free (&config->info);
         break;
       }
-      config->info.num_tensors = info_idx;
+      if (config->info.num_tensors == 0)
+        config->info.num_tensors = info_idx;
       break;
     }
     case TIFB_SKIP:
