@@ -42,7 +42,7 @@
  *          for yolov5 and yolov8 mode:
  *            The option3 requires up to 3 numbers, which tell
  *              - whether the output values are scaled or not
- *                0: not scaled (default), 1: scaled (e.g., 0.0 ~ 1.0)
+ *                0: normalized to 0.0 ~ 1.0 of option5 (default), 1: in pixels of option5
  *              - the threshold of confidence (optional, default set to 0.25)
  *              - the threshold of IOU (optional, default set to 0.45)
  *            An example of option3 is "option3=0:0.65:0.6"
