@@ -11,9 +11,11 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <gst/gst.h>
 #include <nnstreamer_util.h>
 #include <tensor_common.h>
+#include <unistd.h>
 #include <unittest_util.h>
 
 #define RELOAD_TIMEOUT_MS (10000U)
@@ -30,6 +32,10 @@ static const gchar data_name[] = "orange.png";
  */
 static const gchar reload_data_name[] = "9.png";
 static const gchar shared_key[] = "mobilenet";
+/** @brief The class model_name3 gives data_name, through _new_float_data_cb */
+static const guint float_golden = 951U;
+/** @brief The last float output (1001 classes of model_name3) at each sink */
+static gfloat float_out[2][1001];
 static guint res[2];
 static guint num_data[2];
 
@@ -61,11 +67,42 @@ _new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 }
 
 /**
- * @brief helper to get base pipeline string; a NULL key omits shared-tensor-filter-key
+ * @brief callback for tensor sink to get arg max of a float32 output and keep the output
  */
 static void
-_get_pipeline_str (gchar **str, const gchar *model1, const gchar *model2,
-    const gchar *key, const gchar *image)
+_new_float_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  GstMemory *mem;
+  GstMapInfo info;
+  gsize i, max_i = 0;
+  gfloat *data;
+  gint idx = *(gint *) user_data;
+  UNUSED (element);
+
+  mem = gst_buffer_get_memory (buffer, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+
+  data = (gfloat *) info.data;
+  for (i = 1; i < info.size / sizeof (gfloat); ++i) {
+    if (data[i] > data[max_i])
+      max_i = i;
+  }
+  res[idx] = (guint) max_i;
+  EXPECT_EQ (info.size, sizeof (float_out[idx]));
+  if (info.size == sizeof (float_out[idx]))
+    memcpy (float_out[idx], data, info.size);
+  gst_memory_unmap (mem, &info);
+  gst_memory_unref (mem);
+}
+
+/**
+ * @brief helper to get base pipeline string; a NULL key omits shared-tensor-filter-key
+ * @param custom2 the custom property of filter2, omitted if NULL
+ * @param is_float TRUE to feed float32 input normalized for model_name3
+ */
+static void
+_get_pipeline_str (gchar **str, const gchar *model1, const gchar *model2, const gchar *key,
+    const gchar *image, const gchar *custom2 = NULL, gboolean is_float = FALSE)
 {
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
@@ -75,26 +112,30 @@ _get_pipeline_str (gchar **str, const gchar *model1, const gchar *model2,
       = g_build_filename (root_path, "tests", "test_models", "models", model2, NULL);
   gchar *image_path
       = g_build_filename (root_path, "tests", "test_models", "data", image, NULL);
-  gchar *key_prop;
+  gchar *key_prop, *custom_prop;
 
   ASSERT_TRUE (g_file_test (model_path1, G_FILE_TEST_EXISTS));
   ASSERT_TRUE (g_file_test (model_path2, G_FILE_TEST_EXISTS));
   ASSERT_TRUE (g_file_test (image_path, G_FILE_TEST_EXISTS));
 
   key_prop = key ? g_strdup_printf ("shared-tensor-filter-key=%s ", key) : g_strdup ("");
+  custom_prop = custom2 ? g_strdup_printf ("custom=%s ", custom2) : g_strdup ("");
   *str = g_strdup_printf (
       "filesrc location=%s ! pngdec ! videoscale ! imagefreeze ! videoconvert ! "
-      "video/x-raw,format=RGB,framerate=10/1 ! tensor_converter ! tee name=t t. ! "
+      "video/x-raw,format=RGB,framerate=10/1 ! tensor_converter ! %s tee name=t t. ! "
       "queue ! tensor_filter name=filter1 framework=tensorflow-lite model=%s is-updatable=TRUE "
       "%s! tensor_sink name=sink1 t. ! "
       "queue ! tensor_filter name=filter2 framework=tensorflow-lite model=%s is-updatable=TRUE "
-      "%s! tensor_sink name=sink2",
-      image_path, model_path1, key_prop, model_path2, key_prop);
+      "%s%s! tensor_sink name=sink2",
+      image_path,
+      is_float ? "tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 !" : "",
+      model_path1, key_prop, model_path2, key_prop, custom_prop);
   g_free (root_path);
   g_free (model_path1);
   g_free (model_path2);
   g_free (image_path);
   g_free (key_prop);
+  g_free (custom_prop);
 }
 
 /**
@@ -120,14 +161,15 @@ _play_until_buffers (GstElement *pipeline, guint num)
 }
 
 /**
- * @brief helper to connect the result and the counting handlers of both sinks
+ * @brief helper to connect the result (@a data_cb) and the counting handlers of both sinks
  */
 static void
-_connect_sinks (GstElement *sink1, GstElement *sink2, gint *idx0, gint *idx1)
+_connect_sinks (GstElement *sink1, GstElement *sink2, gint *idx0, gint *idx1,
+    GCallback data_cb = (GCallback) _new_data_cb)
 {
-  g_signal_connect (sink1, "new-data", (GCallback) _new_data_cb, (gpointer) idx0);
+  g_signal_connect (sink1, "new-data", data_cb, (gpointer) idx0);
   g_signal_connect (sink1, "new-data", (GCallback) count_output, (gpointer) &num_data[0]);
-  g_signal_connect (sink2, "new-data", (GCallback) _new_data_cb, (gpointer) idx1);
+  g_signal_connect (sink2, "new-data", data_cb, (gpointer) idx1);
   g_signal_connect (sink2, "new-data", (GCallback) count_output, (gpointer) &num_data[1]);
 }
 
@@ -459,6 +501,214 @@ TEST (nnstreamerFilterSharedModel, tfliteReloadUnmatched_n)
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (filter1);
+  gst_object_unref (sink1);
+  gst_object_unref (sink2);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test filters sharing a key and a model with different delegates (XNNPACK on
+ *        filter2 only) keep the golden through a reload from either of them, and
+ *        both run the interpreter, with its delegate, of the filter that reloaded.
+ */
+TEST (nnstreamerFilterSharedModel, tfliteSharedReloadDiffDelegate)
+{
+  gchar *pipeline_str;
+  GstElement *pipeline, *filter1, *filter2, *sink1, *sink2;
+  gint idx0 = 0, idx1 = 1;
+  gfloat out_plain[G_N_ELEMENTS (float_out[0])],
+      out_xnnpack[G_N_ELEMENTS (float_out[0])];
+  const gchar *src_root;
+  gchar *root_path, *rel_path, *model_path, *tmp_dir, *link1, *link2, *path;
+
+  /* the outputs of private interpreters without (filter1) and with (filter2) XNNPACK */
+  _get_pipeline_str (&pipeline_str, model_name3, model_name3, NULL, data_name,
+      "Delegate:XNNPACK", TRUE);
+  pipeline = gst_parse_launch (pipeline_str, NULL);
+  g_free (pipeline_str);
+  ASSERT_TRUE (pipeline != NULL);
+  sink1 = gst_bin_get_by_name (GST_BIN (pipeline), "sink1");
+  sink2 = gst_bin_get_by_name (GST_BIN (pipeline), "sink2");
+  _connect_sinks (sink1, sink2, &idx0, &idx1, (GCallback) _new_float_data_cb);
+  memset (float_out, 0, sizeof (float_out));
+
+  /* no PAUSED: a sink prerolled on one branch may block the tee before the other prerolls */
+  num_data[0] = num_data[1] = 0;
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&num_data[0], RELOAD_NUM_BUFFERS, RELOAD_TIMEOUT_MS));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&num_data[1], RELOAD_NUM_BUFFERS, RELOAD_TIMEOUT_MS));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  memcpy (out_plain, float_out[0], sizeof (out_plain));
+  memcpy (out_xnnpack, float_out[1], sizeof (out_xnnpack));
+  gst_object_unref (sink1);
+  gst_object_unref (sink2);
+  gst_object_unref (pipeline);
+
+#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
+  /* equal outputs mean filter2 silently ran without XNNPACK */
+  ASSERT_NE (memcmp (out_plain, out_xnnpack, sizeof (out_plain)), 0)
+      << "Delegate:XNNPACK does not change the output.";
+#else
+  GTEST_SKIP () << "The TF-Lite sub-plugin is built without XNNPACK.";
+#endif
+
+  _get_pipeline_str (&pipeline_str, model_name3, model_name3, shared_key,
+      data_name, "Delegate:XNNPACK", TRUE);
+  pipeline = gst_parse_launch (pipeline_str, NULL);
+  g_free (pipeline_str);
+  memset (res, 0, sizeof (res));
+
+  filter1 = gst_bin_get_by_name (GST_BIN (pipeline), "filter1");
+  ASSERT_TRUE (filter1 != NULL);
+  filter2 = gst_bin_get_by_name (GST_BIN (pipeline), "filter2");
+  ASSERT_TRUE (filter2 != NULL);
+
+  /* after the last ASSERT, so no failure leaves tmp_dir behind */
+  tmp_dir = g_dir_make_tmp ("nns_shared_delegate_XXXXXX", NULL);
+  ASSERT_TRUE (tmp_dir != NULL);
+  src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
+  rel_path = g_build_filename (
+      root_path, "tests", "test_models", "models", model_name3, NULL);
+  /* absolute, so the links in tmp_dir do not dangle with a relative source root */
+  model_path = g_canonicalize_filename (rel_path, NULL);
+  g_free (root_path);
+  g_free (rel_path);
+
+  /* distinct paths of the same model, so an accepted reload changes the model property */
+  link1 = g_build_filename (tmp_dir, "reload1.tflite", NULL);
+  link2 = g_build_filename (tmp_dir, "reload2.tflite", NULL);
+  EXPECT_EQ (symlink (model_path, link1), 0);
+  EXPECT_EQ (symlink (model_path, link2), 0);
+
+  sink1 = gst_bin_get_by_name (GST_BIN (pipeline), "sink1");
+  EXPECT_NE (sink1, nullptr);
+  sink2 = gst_bin_get_by_name (GST_BIN (pipeline), "sink2");
+  EXPECT_NE (sink2, nullptr);
+  _connect_sinks (sink1, sink2, &idx0, &idx1, (GCallback) _new_float_data_cb);
+
+  EXPECT_TRUE (_play_until_buffers (pipeline, RELOAD_NUM_BUFFERS));
+  EXPECT_EQ (res[0], float_golden);
+  EXPECT_EQ (res[1], float_golden);
+  /* one interpreter for both */
+  EXPECT_EQ (memcmp (float_out[0], float_out[1], sizeof (float_out[0])), 0);
+  memset (res, 0, sizeof (res));
+
+  /* reload the same model (no other one matches) through the filter without the delegate */
+  g_object_set (filter1, "model", link1, NULL);
+  g_object_get (filter1, "model", &path, NULL);
+  EXPECT_STREQ (link1, path);
+  g_free (path);
+
+  EXPECT_TRUE (_play_until_buffers (pipeline, RELOAD_NUM_BUFFERS));
+  EXPECT_EQ (res[0], float_golden);
+  EXPECT_EQ (res[1], float_golden);
+  EXPECT_EQ (memcmp (float_out[0], out_plain, sizeof (out_plain)), 0);
+  EXPECT_EQ (memcmp (float_out[1], out_plain, sizeof (out_plain)), 0);
+  memset (res, 0, sizeof (res));
+
+  /* reload through the filter with the delegate */
+  g_object_set (filter2, "model", link2, NULL);
+  g_object_get (filter2, "model", &path, NULL);
+  EXPECT_STREQ (link2, path);
+  g_free (path);
+
+  EXPECT_TRUE (_play_until_buffers (pipeline, RELOAD_NUM_BUFFERS));
+  EXPECT_EQ (res[0], float_golden);
+  EXPECT_EQ (res[1], float_golden);
+  EXPECT_EQ (memcmp (float_out[0], out_xnnpack, sizeof (out_xnnpack)), 0);
+  EXPECT_EQ (memcmp (float_out[1], out_xnnpack, sizeof (out_xnnpack)), 0);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  g_unlink (link1);
+  g_unlink (link2);
+  g_rmdir (tmp_dir);
+  g_free (link1);
+  g_free (link2);
+  g_free (tmp_dir);
+  g_free (model_path);
+  gst_object_unref (filter1);
+  gst_object_unref (filter2);
+  gst_object_unref (sink1);
+  gst_object_unref (sink2);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test filters sharing a key and a model with different delegates
+ *        refuse an unmatched reload through either one and keep the golden.
+ */
+TEST (nnstreamerFilterSharedModel, tfliteSharedReloadDiffDelegateUnmatched_n)
+{
+  gchar *pipeline_str;
+  GstElement *pipeline, *filter1, *filter2, *sink1, *sink2;
+  gint idx0 = 0, idx1 = 1;
+  const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
+  gchar *old_model_path = g_build_filename (
+      root_path, "tests", "test_models", "models", model_name3, NULL);
+  gchar *unmatched_model_path = g_build_filename (
+      root_path, "tests", "test_models", "models", model_name1, NULL);
+  gchar *path;
+  gboolean refused;
+  g_free (root_path);
+
+  _get_pipeline_str (&pipeline_str, model_name3, model_name3, shared_key,
+      data_name, "Delegate:XNNPACK", TRUE);
+  pipeline = gst_parse_launch (pipeline_str, NULL);
+  g_free (pipeline_str);
+  memset (res, 0, sizeof (res));
+
+  filter1 = gst_bin_get_by_name (GST_BIN (pipeline), "filter1");
+  ASSERT_TRUE (filter1 != NULL);
+  filter2 = gst_bin_get_by_name (GST_BIN (pipeline), "filter2");
+  ASSERT_TRUE (filter2 != NULL);
+
+  sink1 = gst_bin_get_by_name (GST_BIN (pipeline), "sink1");
+  EXPECT_NE (sink1, nullptr);
+  sink2 = gst_bin_get_by_name (GST_BIN (pipeline), "sink2");
+  EXPECT_NE (sink2, nullptr);
+  _connect_sinks (sink1, sink2, &idx0, &idx1, (GCallback) _new_float_data_cb);
+
+  EXPECT_TRUE (_play_until_buffers (pipeline, RELOAD_NUM_BUFFERS));
+  EXPECT_EQ (res[0], float_golden);
+  EXPECT_EQ (res[1], float_golden);
+  /* one interpreter for both */
+  EXPECT_EQ (memcmp (float_out[0], float_out[1], sizeof (float_out[0])), 0);
+  memset (res, 0, sizeof (res));
+
+  /* refused reload (quant vs float) through either filter keeps the model property */
+  g_object_set (filter1, "model", unmatched_model_path, NULL);
+  g_object_get (filter1, "model", &path, NULL);
+  EXPECT_STREQ (old_model_path, path);
+  refused = (g_strcmp0 (old_model_path, path) == 0);
+  g_free (path);
+
+  if (refused) {
+    g_object_set (filter2, "model", unmatched_model_path, NULL);
+    g_object_get (filter2, "model", &path, NULL);
+    EXPECT_STREQ (old_model_path, path);
+    refused = (g_strcmp0 (old_model_path, path) == 0);
+    g_free (path);
+  }
+
+  /* An accepted reload leaves the cores with a freed interpreter, which may hang invoke. */
+  if (refused) {
+    EXPECT_TRUE (_play_until_buffers (pipeline, RELOAD_NUM_BUFFERS));
+
+    /* both cores still run the old, still-alive interpreter */
+    EXPECT_EQ (res[0], float_golden);
+    EXPECT_EQ (res[1], float_golden);
+    EXPECT_EQ (memcmp (float_out[0], float_out[1], sizeof (float_out[0])), 0);
+  }
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  g_free (old_model_path);
+  g_free (unmatched_model_path);
+  gst_object_unref (filter1);
+  gst_object_unref (filter2);
   gst_object_unref (sink1);
   gst_object_unref (sink2);
   gst_object_unref (pipeline);

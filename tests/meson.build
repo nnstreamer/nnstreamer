@@ -713,9 +713,18 @@ if gtest_dep.found()
   endif
 
   if tflite_support_is_available or tflite2_support_is_available
+    # framework=tensorflow-lite picks tensorflow2-lite first, so its delegates apply
+    shared_model_args = []
+    if tflite2_support_is_available
+      if tflite2_compile_args.contains('-DTFLITE_XNNPACK_DELEGATE_SUPPORTED')
+        shared_model_args += '-DTFLITE_XNNPACK_DELEGATE_SUPPORTED'
+      endif
+    endif
+
     unittest_filter_shared_model = executable('unittest_filter_shared_model',
       join_paths('nnstreamer_filter_shared_model', 'unittest_filter_shared_model.cc'),
       dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      cpp_args: shared_model_args,
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
