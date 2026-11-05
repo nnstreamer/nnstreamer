@@ -1734,6 +1734,9 @@ static void
 _expect_accepted_connect_failure (gboolean callback_on_thread)
 {
   src_fixture_s fixture;
+  GstMessage *msg;
+  GError *err = NULL;
+  gchar *debug = NULL;
   gint64 started, elapsed;
   GstStateChangeReturn result;
   GstMqttSrc *self;
@@ -1759,6 +1762,20 @@ _expect_accepted_connect_failure (gboolean callback_on_thread)
   ASSERT_NE (self->err, nullptr);
   EXPECT_EQ (self->err->code, -1);
   EXPECT_NE (strstr (self->err->message, "mocked failure"), nullptr);
+
+  /* Applications must receive the broker's reason, not just "Failed to start". */
+  msg = gst_bus_pop_filtered (fixture.bus, GST_MESSAGE_ERROR);
+  ASSERT_NE (msg, nullptr);
+  EXPECT_EQ (GST_MESSAGE_SRC (msg), GST_OBJECT (fixture.src));
+  gst_message_parse_error (msg, &err, &debug);
+  EXPECT_TRUE (g_error_matches (err, GST_RESOURCE_ERROR, GST_RESOURCE_ERROR_OPEN_READ));
+  EXPECT_NE (debug, nullptr);
+  if (debug) {
+    EXPECT_NE (strstr (debug, "mocked failure"), nullptr);
+  }
+  g_clear_error (&err);
+  g_free (debug);
+  gst_message_unref (msg);
   _fixture_teardown (&fixture);
 }
 

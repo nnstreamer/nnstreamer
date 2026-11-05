@@ -692,7 +692,12 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
   g_mutex_lock (&self->mqtt_src_mutex);
   while (!self->is_connected) {
     if (self->err) {
+      gchar *message = g_strdup (self->err->message);
+
       g_mutex_unlock (&self->mqtt_src_mutex);
+      GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ,
+          ("Cannot connect to the MQTT broker."), ("%s", message));
+      g_free (message);
       goto error;
     }
     if (!g_cond_wait_until (&self->mqtt_src_gcond, &self->mqtt_src_mutex,
