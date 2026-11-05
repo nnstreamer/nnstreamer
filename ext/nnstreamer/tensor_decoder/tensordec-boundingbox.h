@@ -36,6 +36,7 @@
  *                     tflite-ssd (deprecated, recommend to use mobilenet-ssd)
  * option2: Location of label file
  *          Set option1 first: the labels are given to the box properties of its mode
+ *          Optional for mp-palm-detection, which draws every box with the first label
  * option3: Any option1-dependent values
  *          !!This depends on option1 values!!
  *          for yolov5 and yolov8 mode:

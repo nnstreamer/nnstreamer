@@ -2090,6 +2090,93 @@ TEST (tensorDecoderBoundingBox, switchModeFromYoloV8Obb)
 }
 
 /**
+ * @brief Decode the box of PalmDetectionTensors with the given option2.
+ * @param[in] label_file option2, or NULL to give none
+ * @param[out] label_set whether option2 was taken, if not NULL
+ */
+static gboolean
+decodePalmBox (const gchar *label_file, gboolean *label_set, uint32_t *frame)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  void *pdata = NULL;
+  gboolean ret = FALSE;
+
+  if (!initPalmDecoder (decoder, &pdata))
+    return FALSE;
+
+  if (label_file != NULL) {
+    gboolean set = decoder->setOption (&pdata, 1, label_file);
+    if (label_set != NULL)
+      *label_set = set;
+  }
+
+  ret = decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32)
+        && acceptsConfig (decoder, &pdata, &t.config)
+        && decodeFrame (decoder, &pdata, &t.config, t.input, frame);
+
+  decoder->exit (&pdata);
+  return ret;
+}
+
+/**
+ * @brief mp-palm-detection draws every box with the first label of option2, which is optional.
+ * @details setLabelPath () had a check meant to drop the labels of this mode,
+ *          but it compared a mode that was only ever set for yolov8-obb. The
+ *          labels have been drawn since, and the tracking ids of palm boxes
+ *          are drawn after them, so the labels are what is kept.
+ */
+TEST (tensorDecoderBoundingBox, palmDrawsFirstLabel)
+{
+  gchar *one_label = writeLabelFile ("X\n");
+  gchar *two_labels = writeLabelFile ("X\nY\n");
+  uint32_t unlabelled[BOX_OUT_PIXELS] = { 0U };
+  uint32_t labelled[BOX_OUT_PIXELS] = { 0U };
+  uint32_t first_label[BOX_OUT_PIXELS] = { 0U };
+  gboolean label_set = FALSE;
+
+  ASSERT_TRUE (one_label != NULL);
+  ASSERT_TRUE (two_labels != NULL);
+
+  EXPECT_TRUE (decodePalmBox (NULL, NULL, unlabelled));
+  EXPECT_TRUE (decodePalmBox (one_label, &label_set, labelled));
+  EXPECT_TRUE (label_set);
+  EXPECT_TRUE (decodePalmBox (two_labels, &label_set, first_label));
+  EXPECT_TRUE (label_set);
+
+  EXPECT_GT (countDrawnPixels (unlabelled, BOX_OUT_PIXELS), 0U);
+  EXPECT_GT (countDrawnPixels (labelled, BOX_OUT_PIXELS),
+      countDrawnPixels (unlabelled, BOX_OUT_PIXELS));
+  EXPECT_EQ (memcmp (labelled, first_label, sizeof (labelled)), 0);
+
+  removeTempFile (&two_labels);
+  removeTempFile (&one_label);
+}
+
+/**
+ * @brief An mp-palm-detection decoder whose label file cannot be read still draws its boxes.
+ */
+TEST (tensorDecoderBoundingBox, palmMissingLabelFile_n)
+{
+  gchar *missing = getTempFilename ();
+  uint32_t unlabelled[BOX_OUT_PIXELS] = { 0U };
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  gboolean label_set = TRUE;
+
+  ASSERT_TRUE (missing != NULL);
+  g_remove (missing);
+
+  EXPECT_TRUE (decodePalmBox (NULL, NULL, unlabelled));
+  EXPECT_TRUE (decodePalmBox (missing, &label_set, frame));
+  EXPECT_FALSE (label_set);
+
+  EXPECT_GT (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
+  EXPECT_EQ (memcmp (frame, unlabelled, sizeof (frame)), 0);
+
+  g_free (missing);
+}
+
+/**
  * @brief The element types the box properties decode.
  */
 static const tensor_type decoded_types[] = { _NNS_INT8, _NNS_UINT8, _NNS_INT16, _NNS_UINT16,

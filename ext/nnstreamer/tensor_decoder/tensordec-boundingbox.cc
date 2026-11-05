@@ -216,7 +216,7 @@ init_bb (void)
 
     nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_bounding_box,
         "option1", custom_prop_desc, "option2",
-        "Location of the label file. Set option1 first: the labels are given to the box properties of its mode.",
+        "Location of the label file. Set option1 first: the labels are given to the box properties of its mode. Optional for mp-palm-detection, which draws every box with the first label.",
         "option3",
         "Sub-option values that depend on option1;\n"
         "\tfor yolov5 and yolov8 mode:\n"
@@ -959,11 +959,6 @@ BoundingBox::setLabelPath (const char *param)
     nns_logw ("option2 of boundingbox (\"%s\") is not applied because option1, which selects the box decoding mode, is not set yet. Set option1 before option2.",
         GST_STR_NULL (param));
     return FALSE;
-  }
-
-  if (mode == MP_PALM_DETECTION_BOUNDING_BOX) {
-    /* palm detection does not need label information */
-    return TRUE;
   }
 
   if (NULL != label_path)
