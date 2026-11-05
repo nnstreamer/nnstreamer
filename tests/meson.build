@@ -742,6 +742,18 @@ if gtest_dep.found()
     test('unittest_filter_onnxruntime', unittest_filter_onnxruntime, timeout: 120, env: testenv)
   endif
 
+  # ncnn unittest
+  if ncnn_support_is_available
+    unittest_filter_ncnn = executable('unittest_filter_ncnn',
+      join_paths('nnstreamer_filter_ncnn', 'unittest_filter_ncnn.cc'),
+      dependencies: [nnstreamer_unittest_deps, ncnn_support_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_ncnn', unittest_filter_ncnn, timeout: 60, env: testenv)
+  endif
+
   # LiteRT unittest
   if litert_support_is_available
     unittest_filter_litert = executable('unittest_filter_litert',
