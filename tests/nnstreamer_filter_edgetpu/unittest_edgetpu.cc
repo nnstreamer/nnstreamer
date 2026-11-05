@@ -8,9 +8,12 @@
  */
 
 #include <gtest/gtest.h>
+#include <errno.h>
 #include <glib.h>
 #include <glib/gstdio.h> /* GStatBuf */
 #include <gst/gst.h>
+#include <nnstreamer_plugin_api_filter.h>
+#include <string.h>
 #include <tensor_common.h>
 
 /**
@@ -265,6 +268,68 @@ TEST (edgetpuTfliteDirect, customPropNoToken_n)
 
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_IS_REGULAR));
   EXPECT_FALSE (_edgetpu_pipeline_plays (test_model, ",device_type:dummy"));
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Open and close the edgetpu sub-plugin with the given model and 'custom' property.
+ * @return The value the sub-plugin's open () returns.
+ */
+static int
+_edgetpu_open (const gchar *model, const gchar *custom)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("edgetpu");
+  const gchar *model_files[] = { model, NULL };
+  GstTensorFilterProperties prop;
+  void *data = NULL;
+  int ret;
+
+  if (sp == NULL) {
+    ADD_FAILURE () << "Cannot find the edgetpu sub-plugin.";
+    return -EINVAL;
+  }
+
+  memset (&prop, 0, sizeof (prop));
+  prop.fwname = "edgetpu";
+  prop.model_files = model_files;
+  prop.num_models = 1;
+  prop.custom_properties = custom;
+
+  ret = sp->open (&prop, &data);
+  if (ret == 0)
+    sp->close (&prop, &data);
+
+  return ret;
+}
+
+/**
+ * @brief Positive case with the key and the value of 'device_type' in mixed case
+ */
+TEST (edgetpuTfliteDirect, customPropMixedCase)
+{
+  gchar *test_model = _edgetpu_dummy_model ();
+
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_IS_REGULAR));
+  EXPECT_EQ (_edgetpu_open (test_model, "DEVICE_TYPE:Dummy"), 0);
+  EXPECT_TRUE (_edgetpu_pipeline_plays (test_model, "DEVICE_TYPE:Dummy"));
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Negative case asking for a USB device where none is attached
+ * @details No CI machine has an Edge TPU, so opening the device fails and
+ *          the sub-plugin refuses the model with ENODEV. The case fails on a
+ *          machine with a USB Edge TPU attached.
+ */
+TEST (edgetpuTfliteDirect, customPropUsbNoDevice_n)
+{
+  gchar *test_model = _edgetpu_dummy_model ();
+
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_IS_REGULAR));
+  EXPECT_EQ (_edgetpu_open (test_model, "device_type:usb"), -ENODEV);
+  EXPECT_FALSE (_edgetpu_pipeline_plays (test_model, "device_type:usb"));
 
   g_free (test_model);
 }
