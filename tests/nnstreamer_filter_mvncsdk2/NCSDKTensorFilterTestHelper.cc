@@ -11,6 +11,7 @@
  */
 
 #include "NCSDKTensorFilterTestHelper.hh"
+#include <new>
 #include <nnstreamer_util.h>
 
 /* Static member variables for instance management */
@@ -190,6 +191,8 @@ NCSDKTensorFilterTestHelper::ncGlobalGetOption (int option, void *data, unsigned
 
 /**
  * @brief A method mocking ncDeviceCreate()
+ * @details A new handle is made if the previous one was destroyed, so that the
+ *          sub-plugin can be closed and opened again.
  */
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncDeviceCreate (int index, struct ncDeviceHandle_t **deviceHandle)
@@ -200,6 +203,9 @@ NCSDKTensorFilterTestHelper::ncDeviceCreate (int index, struct ncDeviceHandle_t 
 
   if ((index < 0) || (index >= SUPPORT_MAX_NUMS_DEVICES))
     return NC_INVALID_PARAMETERS;
+
+  if (this->mDevHandle == nullptr)
+    this->mDevHandle = new (std::nothrow) ncDeviceHandle_t;
 
   if (this->mDevHandle == nullptr)
     return NC_OUT_OF_MEMORY;
@@ -261,6 +267,8 @@ NCSDKTensorFilterTestHelper::ncDeviceDestroy (struct ncDeviceHandle_t **deviceHa
 
 /**
  * @brief A method mocking ncGraphCreate()
+ * @details A new handle is made if the previous one was destroyed, so that the
+ *          sub-plugin can be closed and opened again.
  */
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncGraphCreate (const char *name, struct ncGraphHandle_t **graphHandle)
@@ -271,6 +279,10 @@ NCSDKTensorFilterTestHelper::ncGraphCreate (const char *name, struct ncGraphHand
 
   if (!g_file_test (name, G_FILE_TEST_IS_REGULAR)) {
     return NC_INVALID_PARAMETERS;
+  }
+
+  if (this->mGraphHandle == nullptr) {
+    this->mGraphHandle = new (std::nothrow) ncGraphHandle_t;
   }
 
   if (this->mGraphHandle == nullptr) {
@@ -463,15 +475,19 @@ NCSDKTensorFilterTestHelper::ncFifoGetOption (struct ncFifoHandle_t *fifoHandle,
 }
 
 /**
- * @brief A method mocking ncFifoDestroy(); only counts the call.
+ * @brief A method mocking ncFifoDestroy(); counts the call and drops the queued tags.
  * @details The count tells a test whether the sub-plugin has released its
  *          handles, which it must not do while the framework still holds it.
+ *          The mock does not tell the two FIFOs apart, so destroying either
+ *          drops what both hold; the sub-plugin always destroys them together.
  */
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoDestroy (struct ncFifoHandle_t **fifoHandle)
 {
   UNUSED (fifoHandle);
   this->mNumFifoDestroy++;
+  std::queue<uint32_t> ().swap (this->mFifoIn);
+  std::queue<uint32_t> ().swap (this->mFifoOut);
   return NC_OK;
 }
 
