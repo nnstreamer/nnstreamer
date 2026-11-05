@@ -492,7 +492,12 @@ _gst_tensor_query_serversrc_get_buffer (GstTensorQueryServerSrc * src)
 
   if (src->is_tensor
       && !gst_tensor_query_validate_edge_data (data_h, &src->config)) {
-    nns_loge ("The edge data from the client does not match the caps.");
+    char *client_id = NULL;
+
+    nns_edge_data_get_info (data_h, "client_id", &client_id);
+    nns_logw ("Dropped a request of client %s that does not match the caps.",
+        GST_STR_NULL (client_id));
+    g_free (client_id);
     goto done;
   }
 
@@ -552,7 +557,11 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
     src->configured = TRUE;
   }
 
-  *outbuf = _gst_tensor_query_serversrc_get_buffer (src);
+  /* A request that cannot be pushed is dropped; keep serving the others. */
+  do {
+    *outbuf = _gst_tensor_query_serversrc_get_buffer (src);
+  } while (*outbuf == NULL && src->playing);
+
   if (*outbuf == NULL) {
     sret = gst_element_get_state (GST_ELEMENT (psrc), &state, NULL, 0);
     if (sret != GST_STATE_CHANGE_SUCCESS || state != GST_STATE_PLAYING) {
