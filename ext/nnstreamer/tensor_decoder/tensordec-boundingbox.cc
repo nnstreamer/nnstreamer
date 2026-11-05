@@ -942,9 +942,8 @@ BoundingBox::setBoxDecodingMode (const char *param)
     g_hash_table_insert (properties, g_strdup (mode_name), new_bdata);
   }
 
-  if (g_strcmp0 (mode_name, "yolov8-obb") == 0) {
-    mode = YOLOV8_ORIENTED_BOUNDING_BOX;
-  }
+  int mode_index = find_key_strv (bb_modes, mode_name);
+  mode = (mode_index < 0) ? BOUNDING_BOX_UNKNOWN : (bounding_box_modes) mode_index;
   bdata = new_bdata;
 
   return TRUE;
