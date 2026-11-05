@@ -328,6 +328,8 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
   }
 
   priv->configured = gst_tensor_filter_validate_prop (priv);
+  if (!priv->configured)
+    gst_tensor_filter_common_unload_fw (priv, FALSE);
 
   return priv->configured;
 }

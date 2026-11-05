@@ -746,8 +746,10 @@ TensorFilterLlamaCpp::getModelInfo (
 int
 TensorFilterLlamaCpp::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
-  UNUSED (ops);
-  UNUSED (data);
+  if (ops == CHECK_ASYNC_SUPPORT) {
+    data.async_support = TRUE;
+    return 0;
+  }
   return -ENOENT;
 }
 
