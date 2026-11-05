@@ -2042,6 +2042,54 @@ TEST (tensorDecoderBoundingBox, yoloScaledOutputNotSet_n)
 }
 
 /**
+ * @brief A decoder switched from yolov8-obb to yolov8 draws the boxes of yolov8.
+ * @details The decoding mode was set only when option1 chose yolov8-obb, so
+ *          the decoder kept drawing the yolov8 boxes as oriented ones, which
+ *          have no label.
+ */
+TEST (tensorDecoderBoundingBox, switchModeFromYoloV8Obb)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeLabelFile ("object\n");
+  float tensor[YOLO_BOX_INFO * YOLO_SMALL_BOXES] = { 0.0f };
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  uint32_t expected[BOX_OUT_PIXELS] = { 0U };
+  GstTensorsConfig config;
+  GstTensorMemory input;
+  void *pdata = NULL;
+  void *expected_pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (labels != NULL);
+  memcpy (tensor, yolo_box_normalized, sizeof (yolo_box_normalized));
+  tensor[4] = 0.9f;
+  input.data = tensor;
+  input.size = sizeof (tensor);
+  setYoloV8Config (&config, YOLO_SMALL_BOXES);
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov8-obb"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov8"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, YOLO_SMALL_MODEL));
+  ASSERT_TRUE (initYoloV8Decoder (decoder, &expected_pdata, labels, YOLO_SMALL_MODEL));
+
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &config, &input, frame));
+  EXPECT_TRUE (acceptsConfig (decoder, &expected_pdata, &config));
+  EXPECT_TRUE (decodeFrame (decoder, &expected_pdata, &config, &input, expected));
+
+  EXPECT_GT (countDrawnPixels (expected, BOX_OUT_PIXELS), 0U);
+  EXPECT_EQ (memcmp (frame, expected, sizeof (frame)), 0);
+
+  decoder->exit (&expected_pdata);
+  decoder->exit (&pdata);
+  gst_tensors_config_free (&config);
+  removeTempFile (&labels);
+}
+
+/**
  * @brief The element types the box properties decode.
  */
 static const tensor_type decoded_types[] = { _NNS_INT8, _NNS_UINT8, _NNS_INT16, _NNS_UINT16,
