@@ -786,7 +786,8 @@ gst_mqtt_src_renegotiate (GstBaseSrc * basesrc)
     gst_caps_unref (thiscaps);
 
   peercaps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (basesrc), self->caps);
-  if (gst_caps_is_empty (peercaps) || peercaps == self->caps) {
+  /* An ANY peer can return self->caps; the pad may still have no caps. */
+  if (gst_caps_is_empty (peercaps)) {
     gst_caps_unref (peercaps);
     goto no_nego_needed;
   }

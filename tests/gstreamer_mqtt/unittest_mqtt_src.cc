@@ -549,9 +549,11 @@ _buffer_probe (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
  * @brief Build a pipeline that feeds the element's output into a fakesink
  */
 static gboolean
-_fixture_setup (src_fixture_s *fixture, const gchar *topic, const gchar *filter_caps)
+_fixture_setup (src_fixture_s *fixture, const gchar *topic,
+    const gchar *filter_caps, const gchar *downstream = "fakesink sync=false")
 {
   gchar *desc;
+  gchar *filter;
 
   memset (fixture, 0, sizeof (*fixture));
   g_mutex_init (&fixture->lock);
@@ -559,9 +561,11 @@ _fixture_setup (src_fixture_s *fixture, const gchar *topic, const gchar *filter_
 
   _mock_reset ();
 
-  desc = g_strdup_printf ("mqttsrc name=src sub-topic=%s sub-timeout=%" G_GINT64_FORMAT
-                          " ! capsfilter caps=%s ! fakesink sync=false",
-      topic, DEFAULT_SUB_TIMEOUT, filter_caps);
+  filter = filter_caps ? g_strdup_printf ("capsfilter caps=%s ! ", filter_caps) :
+                         g_strdup ("");
+  desc = g_strdup_printf ("mqttsrc name=src sub-topic=%s sub-timeout=%" G_GINT64_FORMAT " ! %s%s",
+      topic, DEFAULT_SUB_TIMEOUT, filter, downstream);
+  g_free (filter);
   fixture->pipeline = gst_parse_launch (desc, NULL);
   g_free (desc);
   if (!fixture->pipeline)
@@ -916,6 +920,93 @@ TEST (testMqttSrc, messageArrived)
   EXPECT_TRUE (_fixture_wait_buffers (&fixture, 1));
 
   _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief Unconstrained peers receive header caps, including changes between messages.
+ */
+static void
+_expect_any_peer_caps (const gchar *downstream, gboolean malformed_update)
+{
+  src_fixture_s fixture;
+  GstMQTTMessageHdr hdr = {};
+  const gchar *initial = "video/x-raw,format=RGB,width=640,height=320";
+  const gchar *updated = "video/x-raw,format=RGB,width=320,height=160";
+  GstCaps *expected;
+  GstCaps *caps;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", NULL, downstream));
+  ASSERT_TRUE (_fixture_play (&fixture));
+  _set_header_timestamps (fixture.src, &hdr);
+  _set_header_caps (&hdr, initial, NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 512;
+  EXPECT_TRUE (_deliver (_new_message (&hdr, 512)));
+  EXPECT_TRUE (_fixture_wait_buffers (&fixture, 1));
+
+  /* The caps event must precede the buffer even without a capsfilter. */
+  caps = _fixture_last_caps (&fixture);
+  expected = gst_caps_from_string (initial);
+  EXPECT_NE (caps, nullptr);
+  if (caps) {
+    EXPECT_TRUE (gst_caps_is_equal (caps, expected));
+    gst_caps_unref (caps);
+  }
+  gst_caps_unref (expected);
+
+  _set_header_caps (&hdr, updated, NULL);
+  hdr.size_mems[0] = malformed_update ? 1024 : 512;
+  EXPECT_TRUE (_deliver (_new_message (&hdr, 512)));
+  if (malformed_update) {
+    g_usleep (SETTLE_TIME_US);
+    EXPECT_EQ (_fixture_num_buffers (&fixture), 1U);
+  } else {
+    EXPECT_TRUE (_fixture_wait_buffers (&fixture, 2));
+  }
+
+  /* A rejected packet must not replace the last valid negotiated caps. */
+  caps = gst_pad_get_current_caps (fixture.srcpad);
+  expected = gst_caps_from_string (malformed_update ? initial : updated);
+  EXPECT_NE (caps, nullptr);
+  if (caps) {
+    EXPECT_TRUE (gst_caps_is_equal (caps, expected));
+    gst_caps_unref (caps);
+  }
+  gst_caps_unref (expected);
+  _fixture_teardown (&fixture);
+  EXPECT_EQ (_freed_messages (), 2U);
+}
+
+/**
+ * @brief A direct ANY peer receives the initial and changed header caps.
+ */
+TEST (testMqttSrc, anyPeerCaps)
+{
+  _expect_any_peer_caps ("fakesink sync=false", FALSE);
+}
+
+/**
+ * @brief An intervening queue preserves negotiation with an ANY peer.
+ */
+TEST (testMqttSrc, anyPeerCapsThroughQueue)
+{
+  _expect_any_peer_caps ("queue ! fakesink sync=false", FALSE);
+}
+
+/**
+ * @brief A malformed update cannot replace caps negotiated with an ANY peer.
+ */
+TEST (testMqttSrc, anyPeerCapsMalformedUpdate_n)
+{
+  _expect_any_peer_caps ("fakesink sync=false", TRUE);
+}
+
+/**
+ * @brief A queue cannot expose caps from a malformed incoming packet.
+ */
+TEST (testMqttSrc, anyPeerCapsThroughQueueMalformedUpdate_n)
+{
+  _expect_any_peer_caps ("queue ! fakesink sync=false", TRUE);
 }
 
 /**
