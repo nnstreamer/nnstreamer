@@ -406,11 +406,17 @@ class TensorMergeDimensions : public testing::TestWithParam<std::tuple<guint, gu
 };
 
 /**
- * @brief Full and abbreviated shapes produce the same bytes and output caps.
+ * @brief Full and abbreviated shapes produce the same bytes and output caps,
+ *        written with the highest input rank or the merge axis if above it.
  */
 TEST_P (TensorMergeDimensions, equivalentNotation)
 {
+  const guint rank = std::get<0> (GetParam ());
+  const guint axis = std::get<1> (GetParam ());
+
   for (guint notation = 0; notation < 4; notation++) {
+    const guint out_rank = MAX (notation == 3 ? rank : 4U, axis + 1);
+
     SCOPED_TRACE (notation);
     configure (notation);
     EXPECT_EQ (run (), GST_MESSAGE_EOS);
@@ -429,7 +435,8 @@ TEST_P (TensorMergeDimensions, equivalentNotation)
     EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, TRUE));
     EXPECT_EQ (config.info.num_tensors, 1U);
     EXPECT_EQ (config.info.info[0].type, _NNS_UINT8);
-    for (guint i = 0; i < 4; i++)
+    EXPECT_EQ (gst_tensor_info_get_rank (&config.info.info[0]), out_rank);
+    for (guint i = 0; i < out_rank; i++)
       EXPECT_EQ (config.info.info[0].dimension[i], merged[i]);
     gst_tensors_config_free (&config);
   }
@@ -456,6 +463,201 @@ TEST_P (TensorMergeDimensions, wrongBufferSize_n)
 
 INSTANTIATE_TEST_SUITE_P (RanksAndAxes, TensorMergeDimensions,
     testing::Combine (testing::Values (1U, 2U, 3U), testing::Values (0U, 1U, 2U, 3U)));
+
+/**
+ * @brief Caps of a rank-3 static stream of one 3:4:4 uint8 tensor.
+ */
+#define MERGE_RANK3_CAPS                                   \
+  "other/tensors,format=static,num_tensors=1,types=uint8," \
+  "dimensions=3:4:4,framerate=0/1"
+
+/**
+ * @brief Size of the 3:4:4 uint8 tensor of MERGE_RANK3_CAPS.
+ */
+#define MERGE_RANK3_SIZE (48U)
+
+/**
+ * @brief Merge two rank-3 streams along the first dimension into a peer that
+ *        pins the dimension notation or leaves it to tensor_merge.
+ */
+class TensorMergeNotation : public testing::Test
+{
+  protected:
+  GstElement *pipeline = nullptr;
+
+  /**
+   * @brief Stop the pipeline even after a failed assertion.
+   */
+  void TearDown () override
+  {
+    if (pipeline) {
+      gst_element_set_state (pipeline, GST_STATE_NULL);
+      gst_object_unref (pipeline);
+      pipeline = nullptr;
+    }
+  }
+
+  /**
+   * @brief Push one 3:4:4 tensor on each sink pad and wait for the end.
+   * @param downstream the elements after tensor_merge, ending with a sink named "out"
+   * @param[out] debug the debug text of the error the pipeline posted, nullable
+   * @return the pipeline's EOS or error message type, or UNKNOWN on timeout
+   */
+  GstMessageType run (const gchar *downstream, gchar **debug = nullptr)
+  {
+    g_autofree gchar *desc = g_strdup_printf (
+        "tensor_merge name=merge mode=linear option=0 sync-mode=nosync ! %s "
+        "appsrc name=in0 format=time caps=\"" MERGE_RANK3_CAPS "\" ! merge.sink_0 "
+        "appsrc name=in1 format=time caps=\"" MERGE_RANK3_CAPS "\" ! merge.sink_1",
+        downstream);
+
+    pipeline = gst_parse_launch (desc, NULL);
+    if (!pipeline)
+      return GST_MESSAGE_UNKNOWN;
+
+    g_autoptr (GstElement) sink = gst_bin_get_by_name (GST_BIN (pipeline), "out");
+    if (g_signal_lookup ("new-data", G_OBJECT_TYPE (sink))) {
+      g_signal_connect (sink, "new-data", G_CALLBACK (_record_size_cb), NULL);
+      g_signal_connect (sink, "new-data", G_CALLBACK (count_output), &received_count);
+    }
+
+    gst_element_set_state (pipeline, GST_STATE_PLAYING);
+    for (guint i = 0; i < 2; i++) {
+      guint8 bytes[MERGE_RANK3_SIZE];
+      for (guint j = 0; j < MERGE_RANK3_SIZE; j++)
+        bytes[j] = (guint8) (j + i * 100);
+
+      GstBuffer *in = gst_buffer_new_allocate (NULL, sizeof (bytes), NULL);
+      gst_buffer_fill (in, 0, bytes, sizeof (bytes));
+      GST_BUFFER_PTS (in) = 0;
+      g_autofree gchar *name = g_strdup_printf ("in%u", i);
+      g_autoptr (GstElement) src = gst_bin_get_by_name (GST_BIN (pipeline), name);
+      gst_app_src_push_buffer (GST_APP_SRC (src), in);
+      gst_app_src_end_of_stream (GST_APP_SRC (src));
+    }
+
+    g_autoptr (GstBus) bus = gst_element_get_bus (pipeline);
+    g_autoptr (GstMessage) msg = gst_bus_timed_pop_filtered (bus,
+        10 * GST_SECOND, (GstMessageType) (GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
+    if (!msg)
+      return GST_MESSAGE_UNKNOWN;
+    if (debug && GST_MESSAGE_TYPE (msg) == GST_MESSAGE_ERROR)
+      gst_message_parse_error (msg, NULL, debug);
+    return GST_MESSAGE_TYPE (msg);
+  }
+
+  /**
+   * @brief Get the dimension string of the caps tensor_merge negotiated.
+   * @return the string, which the caller should free, or NULL without caps
+   */
+  gchar *mergedDimensions ()
+  {
+    g_autoptr (GstElement) merge = gst_bin_get_by_name (GST_BIN (pipeline), "merge");
+    g_autoptr (GstPad) pad = gst_element_get_static_pad (merge, "src");
+    g_autoptr (GstCaps) caps = gst_pad_get_current_caps (pad);
+    GstStructure *st;
+    const gchar *dim;
+
+    if (!caps)
+      return NULL;
+    st = gst_caps_get_structure (caps, 0);
+    dim = gst_structure_get_string (st, "dimensions");
+    if (!dim)
+      dim = gst_structure_get_string (st, "dimension");
+    return g_strdup (dim);
+  }
+};
+
+/**
+ * @brief A peer pinning the rank-3 notation negotiates it and gets the
+ *        channels of the two inputs interleaved.
+ */
+TEST_F (TensorMergeNotation, pinningPeer)
+{
+  guint8 expected[MERGE_RANK3_SIZE * 2];
+
+  for (guint i = 0; i < 16; i++) {
+    for (guint j = 0; j < 3; j++) {
+      expected[i * 6 + j] = (guint8) (i * 3 + j);
+      expected[i * 6 + 3 + j] = (guint8) (i * 3 + j + 100);
+    }
+  }
+
+  ASSERT_EQ (run ("capsfilter caps=\"other/tensors,format=static,num_tensors=1,"
+                  "types=uint8,dimensions=6:4:4\" ! "
+                  "appsink name=out sync=false async=false wait-on-eos=false"),
+      GST_MESSAGE_EOS);
+
+  g_autofree gchar *dim = mergedDimensions ();
+  EXPECT_STREQ (dim, "6:4:4");
+
+  g_autoptr (GstElement) sink = gst_bin_get_by_name (GST_BIN (pipeline), "out");
+  g_autoptr (GstSample) sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 0);
+  ASSERT_NE (sample, nullptr);
+  GstBuffer *out = gst_sample_get_buffer (sample);
+  EXPECT_EQ (gst_buffer_get_size (out), sizeof (expected));
+  EXPECT_EQ (gst_buffer_memcmp (out, 0, expected, sizeof (expected)), 0);
+}
+
+/**
+ * @brief A peer pinning the four-dimension notation of the same shape still
+ *        negotiates it.
+ */
+TEST_F (TensorMergeNotation, pinningPeerFourDimensions)
+{
+  ASSERT_EQ (run ("capsfilter caps=\"other/tensors,format=static,num_tensors=1,"
+                  "types=uint8,dimensions=6:4:4:1\" ! "
+                  "appsink name=out sync=false async=false wait-on-eos=false"),
+      GST_MESSAGE_EOS);
+
+  g_autofree gchar *dim = mergedDimensions ();
+  EXPECT_STREQ (dim, "6:4:4:1");
+
+  g_autoptr (GstElement) sink = gst_bin_get_by_name (GST_BIN (pipeline), "out");
+  g_autoptr (GstSample) sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 0);
+  ASSERT_NE (sample, nullptr);
+  EXPECT_EQ (gst_buffer_get_size (gst_sample_get_buffer (sample)), MERGE_RANK3_SIZE * 2);
+}
+
+/**
+ * @brief A peer leaving the notation to tensor_merge gets the rank of the
+ *        inputs, not the four dimensions the merge expands them to.
+ */
+TEST_F (TensorMergeNotation, nonPinningPeer)
+{
+  received_size = 0;
+  received_count = 0;
+
+  ASSERT_EQ (run ("tensor_sink name=out"), GST_MESSAGE_EOS);
+
+  g_autofree gchar *dim = mergedDimensions ();
+  ASSERT_NE (dim, nullptr);
+  EXPECT_STREQ (dim, "6:4:4");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim, "6:4:4"));
+  EXPECT_EQ (received_count, 1U);
+  EXPECT_EQ (received_size, MERGE_RANK3_SIZE * 2);
+}
+
+/**
+ * @brief A peer pinning a dimension the inputs do not add up to refuses the
+ *        merged caps, and the stream stops as not negotiated.
+ */
+TEST_F (TensorMergeNotation, pinningPeerMismatch_n)
+{
+  g_autofree gchar *debug = NULL;
+
+  ASSERT_EQ (run ("capsfilter caps=\"other/tensors,format=static,num_tensors=1,"
+                  "types=uint8,dimensions=6:4:4:2\" ! "
+                  "appsink name=out sync=false async=false wait-on-eos=false",
+                 &debug),
+      GST_MESSAGE_ERROR);
+  ASSERT_NE (debug, nullptr);
+  EXPECT_NE (strstr (debug, "not-negotiated"), nullptr) << debug;
+
+  g_autoptr (GstElement) sink = gst_bin_get_by_name (GST_BIN (pipeline), "out");
+  g_autoptr (GstSample) sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 0);
+  EXPECT_EQ (sample, nullptr);
+}
 
 /**
  * @brief Main GTest
