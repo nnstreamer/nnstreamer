@@ -2695,6 +2695,7 @@ class MetaHeaderAlignment : public ::testing::TestWithParam<guint>
   guint8 *header;
   gsize hsize;
 
+  /** @brief Create a valid wire header at the selected byte offset. */
   void SetUp () override
   {
     gst_tensor_meta_info_init (&meta);
@@ -2709,6 +2710,7 @@ class MetaHeaderAlignment : public ::testing::TestWithParam<guint>
     ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
   }
 
+  /** @brief Check the surrounding sentinels and release the wire storage. */
   void TearDown () override
   {
     for (guint i = 0; i < GetParam (); i++) {
@@ -2718,11 +2720,13 @@ class MetaHeaderAlignment : public ::testing::TestWithParam<guint>
     g_free (storage);
   }
 
+  /** @brief Change a wire word without an unaligned store in the test itself. */
   void setWord (guint index, uint32_t value)
   {
     memcpy (header + index * sizeof (value), &value, sizeof (value));
   }
 
+  /** @brief Check the parse result and all metadata fields of a valid header. */
   void expectParsed (bool valid)
   {
     GstTensorMetaInfo parsed;
