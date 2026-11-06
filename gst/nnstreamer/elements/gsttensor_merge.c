@@ -399,6 +399,20 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
   type = _info->type;
   memcpy (&dim, &_info->dimension, sizeof (tensor_dim));
 
+  for (i = 0; i < in_config->info.num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info (in_info, i);
+
+    for (j = LINEAR_END; j < NNS_TENSOR_RANK_LIMIT; j++) {
+      if (_info->dimension[j] > 1) {
+        GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
+            ("The dimension index %d of the input %u is %u, but tensor_merge "
+                "merges tensors of up to four dimensions (indices 0 to 3).",
+                j, i, _info->dimension[j]));
+        return FALSE;
+      }
+    }
+  }
+
   for (i = 1; i < in_config->info.num_tensors; i++) {
     _info = gst_tensors_info_get_nth_info (in_info, i);
 
