@@ -2685,6 +2685,147 @@ TEST (commonMetaInfo, parseHeaderMinorVersion)
 }
 
 /**
+ * @brief Exercise wire headers at each non-word-aligned byte offset.
+ */
+class MetaHeaderAlignment : public ::testing::TestWithParam<guint>
+{
+  protected:
+  GstTensorMetaInfo meta;
+  guint8 *storage;
+  guint8 *header;
+  gsize hsize;
+
+  void SetUp () override
+  {
+    gst_tensor_meta_info_init (&meta);
+    meta.type = _NNS_UINT8;
+    meta.dimension[0] = 9;
+    meta.dimension[1] = 3;
+    meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+    storage = (guint8 *) g_malloc (hsize + GetParam () + 1);
+    memset (storage, 0xa5, hsize + GetParam () + 1);
+    header = storage + GetParam ();
+    ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
+  }
+
+  void TearDown () override
+  {
+    for (guint i = 0; i < GetParam (); i++) {
+      EXPECT_EQ (storage[i], 0xa5);
+    }
+    EXPECT_EQ (header[hsize], 0xa5);
+    g_free (storage);
+  }
+
+  void setWord (guint index, uint32_t value)
+  {
+    memcpy (header + index * sizeof (value), &value, sizeof (value));
+  }
+
+  void expectParsed (bool valid)
+  {
+    GstTensorMetaInfo parsed;
+    ASSERT_EQ (gst_tensor_meta_info_parse_header (&parsed, header), valid);
+    if (valid) {
+      EXPECT_EQ (parsed.magic, meta.magic);
+      EXPECT_EQ (parsed.version, meta.version);
+      EXPECT_EQ (parsed.type, meta.type);
+      EXPECT_EQ (parsed.format, meta.format);
+      EXPECT_EQ (parsed.media_type, meta.media_type);
+      EXPECT_EQ (memcmp (parsed.dimension, meta.dimension, sizeof (meta.dimension)), 0);
+      if (meta.format == _NNS_TENSOR_FORMAT_SPARSE) {
+        EXPECT_EQ (parsed.sparse_info.nnz, meta.sparse_info.nnz);
+      }
+    }
+  }
+};
+
+/** @brief A dense header can start at any byte offset. */
+TEST_P (MetaHeaderAlignment, flexible)
+{
+  expectParsed (true);
+}
+
+/** @brief The sparse nnz field has the same alignment requirement as the prefix. */
+TEST_P (MetaHeaderAlignment, sparse)
+{
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.sparse_info.nnz = 3;
+  ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
+  expectParsed (true);
+}
+
+/** @brief A GstMemory may expose a header at a non-word-aligned offset. */
+TEST_P (MetaHeaderAlignment, memory)
+{
+  GstTensorMetaInfo parsed;
+  GstMemory *memory = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, storage,
+      hsize + GetParam () + 1, GetParam (), hsize, NULL, NULL);
+  ASSERT_NE (memory, nullptr);
+  EXPECT_TRUE (gst_tensor_meta_info_parse_memory (&parsed, memory));
+  EXPECT_EQ (parsed.type, meta.type);
+  EXPECT_EQ (memcmp (parsed.dimension, meta.dimension, sizeof (meta.dimension)), 0);
+  gst_memory_unref (memory);
+}
+
+/** @brief A non-aligned invalid magic must be rejected without a word load. */
+TEST_P (MetaHeaderAlignment, invalidMagic_n)
+{
+  setWord (0, 0);
+  expectParsed (false);
+}
+
+/** @brief An unknown major version remains invalid at every offset. */
+TEST_P (MetaHeaderAlignment, invalidVersion_n)
+{
+  setWord (1, 0xDE002000U);
+  expectParsed (false);
+}
+
+/** @brief An invalid element type remains invalid at every offset. */
+TEST_P (MetaHeaderAlignment, invalidType_n)
+{
+  setWord (2, _NNS_END);
+  expectParsed (false);
+}
+
+/** @brief A zero first dimension remains invalid at every offset. */
+TEST_P (MetaHeaderAlignment, invalidDimension_n)
+{
+  setWord (3, 0);
+  expectParsed (false);
+}
+
+/** @brief An invalid tensor format remains invalid at every offset. */
+TEST_P (MetaHeaderAlignment, invalidFormat_n)
+{
+  setWord (19, _NNS_TENSOR_FORMAT_END);
+  expectParsed (false);
+}
+
+/** @brief An invalid media type remains invalid at every offset. */
+TEST_P (MetaHeaderAlignment, invalidMediaType_n)
+{
+  setWord (20, _NNS_TENSOR + 1);
+  expectParsed (false);
+}
+
+/** @brief The memory wrapper must not bypass header validation. */
+TEST_P (MetaHeaderAlignment, invalidMemory_n)
+{
+  GstTensorMetaInfo parsed;
+  setWord (2, _NNS_END);
+  GstMemory *memory = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, storage,
+      hsize + GetParam () + 1, GetParam (), hsize, NULL, NULL);
+  ASSERT_NE (memory, nullptr);
+  EXPECT_FALSE (gst_tensor_meta_info_parse_memory (&parsed, memory));
+  gst_memory_unref (memory);
+}
+
+INSTANTIATE_TEST_SUITE_P (Offsets, MetaHeaderAlignment, ::testing::Values (1U, 2U, 3U));
+
+/**
  * @brief Test for tensor meta info (update header with invalid param).
  */
 TEST (commonMetaInfo, updateHeaderInvalidParam_n)
@@ -3633,6 +3774,44 @@ static gsize
 peek_memory_size (GstBuffer *buf, guint nth)
 {
   return gst_memory_get_sizes (gst_buffer_peek_memory (buf, nth), NULL, NULL);
+}
+
+/** @brief Odd payload sizes put later flexible headers between word boundaries. */
+TEST (commonUtil, createFlexTensorBufferUnaligned)
+{
+  gsize total, each;
+  guint8 *data = build_flex_tensor_data (3, 1, &total, &each);
+  GstBuffer *out = flex_buffer_from_config (data, total);
+  ASSERT_NE (out, nullptr);
+  ASSERT_EQ (gst_buffer_n_memory (out), 3U);
+  for (guint i = 0; i < 3; i++) {
+    GstMapInfo map;
+    GstTensorMetaInfo meta;
+    GstMemory *mem = gst_buffer_peek_memory (out, i);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    EXPECT_EQ (map.size, each);
+    ASSERT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+    EXPECT_EQ (meta.type, _NNS_UINT8);
+    EXPECT_EQ (meta.dimension[0], 1U);
+    EXPECT_EQ (map.data[each - 1], i);
+    gst_memory_unmap (mem, &map);
+  }
+  gst_buffer_unref (out);
+}
+
+/** @brief An invalid later unaligned header preserves the undecodable remainder. */
+TEST (commonUtil, createFlexTensorBufferUnalignedInvalid_n)
+{
+  gsize total, each;
+  guint8 *data = build_flex_tensor_data (3, 1, &total, &each);
+  uint32_t invalid_type = _NNS_END;
+  memcpy (data + each + 2 * sizeof (invalid_type), &invalid_type, sizeof (invalid_type));
+  GstBuffer *out = flex_buffer_from_config (data, total);
+  ASSERT_NE (out, nullptr);
+  ASSERT_EQ (gst_buffer_n_memory (out), 2U);
+  EXPECT_EQ (peek_memory_size (out, 0), each);
+  EXPECT_EQ (peek_memory_size (out, 1), total - each);
+  gst_buffer_unref (out);
 }
 
 /**
