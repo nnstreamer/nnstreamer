@@ -21624,6 +21624,51 @@ TEST (testTensorMerge, lowerRankUndersizedMemory_n)
 }
 
 /**
+ * @brief Unit dimensions above the fourth do not stop a merge in any direction.
+ */
+TEST (testTensorMerge, unitDimensionsAboveFourth)
+{
+  mergeOutput out;
+
+  for (const gchar *option : { "0", "1", "2", "3" }) {
+    g_autofree gchar *desc = g_strdup_printf (
+        "tensor_merge name=merge mode=linear option=%s ! tensor_sink name=sinkx "
+        "videotestsrc num-buffers=1 ! "
+        "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! tensor_converter ! "
+        "other/tensors,format=static,num_tensors=1,dimensions=3:4:4:1:1 ! merge.sink_0 "
+        "videotestsrc num-buffers=1 ! "
+        "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! tensor_converter ! "
+        "other/tensors,format=static,num_tensors=1,dimensions=3:4:4:1:1 ! merge.sink_1",
+        option);
+
+    EXPECT_EQ (_run_merge_pipeline (desc, &out), GST_MESSAGE_EOS) << "option=" << option;
+    EXPECT_EQ (out.received, 1U) << "option=" << option;
+    EXPECT_EQ (out.size, 2U * 3 * 4 * 4) << "option=" << option;
+  }
+}
+
+/**
+ * @brief A tensor with a dimension above the fourth is refused while the
+ *        source caps are negotiated, not later by the copy in any direction.
+ */
+TEST (testTensorMerge, dimensionAboveFourth_n)
+{
+  mergeOutput out;
+
+  for (const gchar *dim : { "3:4:4:1:2", "3:4:4:1:1:2" }) {
+    for (const gchar *option : { "0", "1", "2", "3" }) {
+      EXPECT_EQ (_run_merge_appsrc (option, dim, 2 * 3 * 4 * 4, dim, 2 * 3 * 4 * 4, &out),
+          GST_MESSAGE_ERROR)
+          << dim << " option=" << option;
+      EXPECT_STREQ (out.error_src, "merge") << dim << " option=" << option;
+      EXPECT_EQ (out.error_domain, (GQuark) GST_CORE_ERROR) << dim << " option=" << option;
+      EXPECT_EQ (out.error_code, GST_CORE_ERROR_NEGOTIATION) << dim << " option=" << option;
+      EXPECT_EQ (out.received, 0U) << dim << " option=" << option;
+    }
+  }
+}
+
+/**
  * @brief A mode the element does not know is refused by the element itself.
  * @details The source caps cannot be built without a mode, and the reason has
  *          to come from here: the flow error alone only makes the source post
