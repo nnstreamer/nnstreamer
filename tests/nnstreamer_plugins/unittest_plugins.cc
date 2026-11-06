@@ -21255,6 +21255,8 @@ typedef struct {
   gchar error_src[32]; /**< the element an error was posted by, if any */
   GQuark error_domain; /**< the domain of that error */
   gint error_code; /**< the code of that error */
+  gchar error_debug[512]; /**< the debug text of that error */
+  guint src_caps; /**< CAPS events sent from merge.src, bumped by the streaming thread */
 } mergeOutput;
 
 /**
@@ -21266,6 +21268,7 @@ _record_merge_message (GstMessage *msg, mergeOutput *out)
 {
   const gchar *name = NULL;
   GError *err = NULL;
+  gchar *debug = NULL;
 
   if (msg == NULL || GST_MESSAGE_TYPE (msg) != GST_MESSAGE_ERROR)
     return;
@@ -21274,12 +21277,30 @@ _record_merge_message (GstMessage *msg, mergeOutput *out)
     name = GST_OBJECT_NAME (GST_MESSAGE_SRC (msg));
   g_strlcpy (out->error_src, name ? name : "", sizeof (out->error_src));
 
-  gst_message_parse_error (msg, &err, NULL);
+  gst_message_parse_error (msg, &err, &debug);
   if (err) {
     out->error_domain = err->domain;
     out->error_code = err->code;
     g_error_free (err);
   }
+  g_strlcpy (out->error_debug, debug ? debug : "", sizeof (out->error_debug));
+  g_free (debug);
+}
+
+/**
+ * @brief Count the CAPS events tensor_merge sends downstream.
+ */
+static GstPadProbeReturn
+_count_merge_src_caps (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  mergeOutput *out = (mergeOutput *) user_data;
+
+  UNUSED (pad);
+
+  if (GST_EVENT_TYPE (GST_PAD_PROBE_INFO_EVENT (info)) == GST_EVENT_CAPS)
+    g_atomic_int_inc (&out->src_caps);
+
+  return GST_PAD_PROBE_OK;
 }
 
 /**
@@ -21493,7 +21514,8 @@ TEST (testTensorMerge, renegotiatedDimension_n)
  * @details appsrc lets the caps and the memory disagree, which no in-tree
  *          source does. Each buffer is pushed with the caps of the dimension
  *          given for it, so the element sees a self-consistent stream.
- * @param[out] out what the tensor_sink named 'sinkx' received
+ * @param[out] out what the tensor_sink named 'sinkx' received, and how many
+ *                 CAPS events left the source pad of tensor_merge
  * @return GST_MESSAGE_EOS or GST_MESSAGE_ERROR as the pipeline posted it,
  *         GST_MESSAGE_UNKNOWN if it posted neither within the time limit
  */
@@ -21501,7 +21523,8 @@ static GstMessageType
 _run_merge_appsrc (const gchar *option, const gchar *dim0, gsize size0,
     const gchar *dim1, gsize size1, mergeOutput *out)
 {
-  GstElement *pipeline, *src[2], *sink;
+  GstElement *pipeline, *src[2], *sink, *merge;
+  GstPad *merge_src;
   GstTensorsConfig config;
   GstBus *bus;
   GstMessage *msg;
@@ -21529,6 +21552,13 @@ _run_merge_appsrc (const gchar *option, const gchar *dim0, gsize size0,
     return GST_MESSAGE_ANY;
   }
   g_signal_connect (sink, "new-data", G_CALLBACK (_record_merge_output), out);
+
+  merge = gst_bin_get_by_name (GST_BIN (pipeline), "merge");
+  merge_src = gst_element_get_static_pad (merge, "src");
+  gst_pad_add_probe (merge_src, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
+      _count_merge_src_caps, out, NULL);
+  gst_object_unref (merge_src);
+  gst_object_unref (merge);
 
   for (i = 0; i < 2; i++) {
     gchar *name = g_strdup_printf ("src%u", i);
@@ -21621,6 +21651,76 @@ TEST (testTensorMerge, lowerRankUndersizedMemory_n)
   EXPECT_EQ (out.error_domain, (GQuark) GST_STREAM_ERROR);
   EXPECT_EQ (out.error_code, GST_STREAM_ERROR_WRONG_TYPE);
   EXPECT_EQ (out.received, 0U);
+}
+
+/**
+ * @brief Unit dimensions above the fourth do not stop a merge in any direction.
+ */
+TEST (testTensorMerge, unitDimensionsAboveFourth)
+{
+  mergeOutput out;
+
+  for (const gchar *option : { "0", "1", "2", "3" }) {
+    g_autofree gchar *desc = g_strdup_printf (
+        "tensor_merge name=merge mode=linear option=%s ! tensor_sink name=sinkx "
+        "videotestsrc num-buffers=1 ! "
+        "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! tensor_converter ! "
+        "other/tensors,format=static,num_tensors=1,dimensions=3:4:4:1:1 ! merge.sink_0 "
+        "videotestsrc num-buffers=1 ! "
+        "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! tensor_converter ! "
+        "other/tensors,format=static,num_tensors=1,dimensions=3:4:4:1:1 ! merge.sink_1",
+        option);
+
+    EXPECT_EQ (_run_merge_pipeline (desc, &out), GST_MESSAGE_EOS) << "option=" << option;
+    EXPECT_EQ (out.received, 1U) << "option=" << option;
+    EXPECT_EQ (out.size, 2U * 3 * 4 * 4) << "option=" << option;
+  }
+}
+
+/**
+ * @brief A tensor with a dimension above the fourth is refused while the
+ *        source caps are negotiated, not later by the copy in any direction.
+ */
+TEST (testTensorMerge, dimensionAboveFourth_n)
+{
+  mergeOutput out;
+
+  for (const gchar *dim : { "3:4:4:1:2", "3:4:4:1:1:2" }) {
+    for (const gchar *option : { "0", "1", "2", "3" }) {
+      EXPECT_EQ (_run_merge_appsrc (option, dim, 2 * 3 * 4 * 4, dim, 2 * 3 * 4 * 4, &out),
+          GST_MESSAGE_ERROR)
+          << dim << " option=" << option;
+      EXPECT_STREQ (out.error_src, "merge") << dim << " option=" << option;
+      EXPECT_EQ (out.error_domain, (GQuark) GST_CORE_ERROR) << dim << " option=" << option;
+      EXPECT_EQ (out.error_code, GST_CORE_ERROR_NEGOTIATION) << dim << " option=" << option;
+      EXPECT_EQ (out.received, 0U) << dim << " option=" << option;
+      EXPECT_EQ (out.src_caps, 0U) << dim << " option=" << option;
+    }
+  }
+}
+
+/**
+ * @brief A dimension above the fourth is found on an input after the first.
+ * @details Input 0 is fine, so the refusal has to come from the scan over
+ *          every input and name input 1, not from comparing it with input 0.
+ */
+TEST (testTensorMerge, laterInputAboveFourth_n)
+{
+  mergeOutput out;
+
+  for (const gchar *option : { "0", "1", "2", "3" }) {
+    EXPECT_EQ (_run_merge_appsrc (option, "3:4:4:1:1", 3 * 4 * 4, "3:4:4:1:2",
+                   2 * 3 * 4 * 4, &out),
+        GST_MESSAGE_ERROR)
+        << "option=" << option;
+    EXPECT_STREQ (out.error_src, "merge") << "option=" << option;
+    EXPECT_EQ (out.error_domain, (GQuark) GST_CORE_ERROR) << "option=" << option;
+    EXPECT_EQ (out.error_code, GST_CORE_ERROR_NEGOTIATION) << "option=" << option;
+    EXPECT_NE (strstr (out.error_debug, "dimension index 4 of the input 1 is 2,"), nullptr)
+        << "option=" << option << " debug=" << out.error_debug;
+    EXPECT_EQ (out.received, 0U) << "option=" << option;
+    EXPECT_EQ (out.src_caps, 0U) << "option=" << option;
+  }
 }
 
 /**
