@@ -377,6 +377,138 @@ TEST (pipelineMvncsdk2Filter, invokeFailure2_n)
 }
 
 /**
+ * @brief Take the harness element to NULL and back to PLAYING.
+ * @details tensor_filter closes the sub-plugin when it stops and opens it
+ *          again when it starts. The input pad lost its sticky events on the
+ *          way down, so they are pushed again once the element is up.
+ * @return The result of the change to PLAYING.
+ */
+static GstStateChangeReturn
+_mvncsdk2_restart (GstHarness *h)
+{
+  GstStateChangeReturn ret;
+
+  ret = gst_element_set_state (h->element, GST_STATE_NULL);
+  if (ret != GST_STATE_CHANGE_SUCCESS)
+    return ret;
+
+  ret = gst_element_set_state (h->element, GST_STATE_PLAYING);
+  if (ret == GST_STATE_CHANGE_SUCCESS) {
+    gst_harness_push_event (h, gst_event_new_stream_start ("mvncsdk2-reopen"));
+    gst_harness_set_src_caps_str (h, MVNCSDK2_IN_CAPS_STR);
+  }
+
+  return ret;
+}
+
+/**
+ * @brief Make the sub-plugin give up on its instance with an injected failure.
+ * @return The harness, or NULL if the description cannot be parsed.
+ */
+static GstHarness *
+_mvncsdk2_harness_new_given_up (fail_stage_t stage)
+{
+  GstHarness *h = _mvncsdk2_harness_new ();
+
+  if (h == NULL)
+    return NULL;
+
+  EXPECT_EQ (_mvncsdk2_push (h, 1), GST_FLOW_OK);
+  EXPECT_EQ (_mvncsdk2_pull (h), 1U);
+
+  NCSDKTensorFilterTestHelper::getInstance ().setFailStage (stage);
+  EXPECT_EQ (_mvncsdk2_push (h, 2), GST_FLOW_ERROR);
+  NCSDKTensorFilterTestHelper::getInstance ().setFailStage (fail_stage_t::NONE);
+  EXPECT_EQ (_mvncsdk2_push (h, 3), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_in_queue (h), 0U);
+
+  return h;
+}
+
+/**
+ * @brief Check that a reopen after a failed invoke () infers again.
+ * @details The refusal is promised to last only until close () and a reopen.
+ *          Closing destroys both FIFOs, so whatever the failure left in them
+ *          must not come back as the result of the next input.
+ */
+static void
+_mvncsdk2_run_invoke_failure_reopen (fail_stage_t stage)
+{
+  GstHarness *h;
+  guint32 tag;
+
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  h = _mvncsdk2_harness_new_given_up (stage);
+  if (h == NULL) {
+    ADD_FAILURE () << "Failed to parse the tensor_filter description";
+    NCSDKTensorFilterTestHelper::getInstance ().release ();
+    return;
+  }
+
+  EXPECT_EQ (_mvncsdk2_restart (h), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_GE (NCSDKTensorFilterTestHelper::getInstance ().getNumFifoDestroy (), 2U);
+
+  for (tag = 4; tag <= 5; tag++) {
+    EXPECT_EQ (_mvncsdk2_push (h, tag), GST_FLOW_OK);
+    EXPECT_EQ (_mvncsdk2_pull (h), tag);
+  }
+
+  gst_harness_teardown (h);
+
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
+}
+
+/**
+ * @brief Testing that a reopen after each kind of invoke () failure infers again
+ */
+TEST (pipelineMvncsdk2Filter, invokeFailureReopen)
+{
+  const fail_stage_t stages[] = { fail_stage_t::FAIL_FIFO_WRT_ELEM,
+    fail_stage_t::FAIL_GRAPH_Q_INFER, fail_stage_t::FAIL_FIFO_RD_ELEM };
+
+  for (const fail_stage_t stage : stages) {
+    SCOPED_TRACE (testing::Message () << "fail stage " << stage);
+    _mvncsdk2_run_invoke_failure_reopen (stage);
+  }
+}
+
+/**
+ * @brief Testing a reopen that fails after a failed invoke ()
+ * @details The failed open releases what it took, the element does not infer,
+ *          and a later reopen without the fault still brings the instance back.
+ */
+TEST (pipelineMvncsdk2Filter, invokeFailureReopen_n)
+{
+  GstHarness *h;
+
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  h = _mvncsdk2_harness_new_given_up (fail_stage_t::FAIL_FIFO_RD_ELEM);
+  if (h == NULL) {
+    ADD_FAILURE () << "Failed to parse the tensor_filter description";
+    NCSDKTensorFilterTestHelper::getInstance ().release ();
+    return;
+  }
+
+  NCSDKTensorFilterTestHelper::getInstance ().setFailStage (fail_stage_t::FAIL_FIFO_ALLOC_OUTPUT);
+  EXPECT_EQ (_mvncsdk2_restart (h), GST_STATE_CHANGE_FAILURE);
+  /* Two from close () and two from the error path of the failed open () */
+  EXPECT_GE (NCSDKTensorFilterTestHelper::getInstance ().getNumFifoDestroy (), 4U);
+  EXPECT_NE (_mvncsdk2_push (h, 4), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_in_queue (h), 0U);
+
+  NCSDKTensorFilterTestHelper::getInstance ().setFailStage (fail_stage_t::NONE);
+  EXPECT_EQ (_mvncsdk2_restart (h), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (_mvncsdk2_push (h, 5), GST_FLOW_OK);
+  EXPECT_EQ (_mvncsdk2_pull (h), 5U);
+
+  gst_harness_teardown (h);
+
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
+}
+
+/**
  * @brief Get the tensor_filter a harness made by _mvncsdk2_harness_new () holds.
  * @param h : The harness made by _mvncsdk2_harness_new ()
  * @return The tensor_filter named "tfilter"; unref it after use.

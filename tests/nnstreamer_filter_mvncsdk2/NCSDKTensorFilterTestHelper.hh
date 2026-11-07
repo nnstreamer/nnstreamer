@@ -144,7 +144,7 @@ class NCSDKTensorFilterTestHelper
   /** @brief Mock of ncFifoGetOption (); always returns NC_OK */
   ncStatus_t ncFifoGetOption (struct ncFifoHandle_t *fifoHandle, int option,
       void *data, unsigned int *dataLength);
-  /** @brief Mock of ncFifoDestroy (); always returns NC_OK */
+  /** @brief Mock of ncFifoDestroy (); drops the queued tags */
   ncStatus_t ncFifoDestroy (struct ncFifoHandle_t **fifoHandle);
   /** @brief Mock of ncFifoWriteElem (); queues the tag the input tensor opens with */
   ncStatus_t ncFifoWriteElem (struct ncFifoHandle_t *fifoHandle,
