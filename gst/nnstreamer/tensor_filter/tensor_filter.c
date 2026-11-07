@@ -2053,6 +2053,19 @@ gst_tensor_filter_start (GstBaseTransform * trans)
   if (!gst_tensor_filter_common_open_fw (priv))
     return FALSE;
 
+  if (priv->prop.invoke_async) {
+    gst_tensor_filter_enable_invoke_async (&priv->prop,
+        gst_tensor_filter_async_output_callback, self);
+  }
+
+  if (!gst_tensor_filter_validate_prop (priv)) {
+    gst_tensor_filter_common_unload_fw (priv, FALSE);
+    return FALSE;
+  }
+
+  /* Watchdog unloads do not end the active element lifecycle. */
+  priv->is_started = TRUE;
+
   if (priv->prop.suspend != 0) {
     GST_OBJECT_LOCK (self);
     if (!nnstreamer_watchdog_create (&priv->watchdog_h)) {
@@ -2064,15 +2077,7 @@ gst_tensor_filter_start (GstBaseTransform * trans)
     GST_OBJECT_UNLOCK (self);
   }
 
-  if (priv->prop.invoke_async) {
-    gst_tensor_filter_enable_invoke_async (&priv->prop,
-        gst_tensor_filter_async_output_callback, self);
-  }
-
-  if (!gst_tensor_filter_validate_prop (priv))
-    return FALSE;
-
-  return priv->prop.fw_opened;
+  return TRUE;
 }
 
 /**
@@ -2096,6 +2101,7 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
   }
 
   gst_tensor_filter_common_unload_fw (priv, TRUE);
+  priv->is_started = FALSE;
 
   return TRUE;
 }
