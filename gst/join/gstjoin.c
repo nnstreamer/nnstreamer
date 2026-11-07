@@ -20,6 +20,15 @@
  * buffer is still forwarded, in the order it arrived.
  * All capabilities (input stream i and output stream) should be the same.
  * EOS reaches the output pad only after every linked input stream has ended.
+ * A linked sink pad that has not received stream-start yet is waited for only
+ * while a stream can still reach it: when every path upstream of it ends at an
+ * unlinked pad, as behind a tensor_if, tensor_demux or tensor_split src pad
+ * that is never created, it is not. This also applies to a branch fed only by
+ * an element that streams with all of its sink pads unlinked, such as a live
+ * aggregator, and to a branch whose upstream pad appears only later (e.g., a
+ * decodebin src pad) if every other branch has ended before that. A pad whose
+ * upstream walk takes more than 64 pad visits is always waited for; a pad that
+ * several paths reach is visited once per path.
  * A sink pad that is unlinked or released is no longer waited for, since no
  * stream can end on it; the output would otherwise never see EOS. Either one
  * re-examines the set, so a branch may be retired mid-stream by unlinking it or
@@ -106,6 +115,7 @@ struct _GstJoinPad
   GstSegment segment;           /* the current segment on the pad */
   guint32 segment_seqnum;       /* sequence number of the current segment */
   gboolean eos;                 /* TRUE if EOS is received on this pad */
+  gboolean started;             /* TRUE once stream-start is received */
 };
 
 /**
@@ -171,6 +181,7 @@ gst_join_pad_reset (GstJoinPad * pad)
   GST_OBJECT_LOCK (pad);
   gst_segment_init (&pad->segment, GST_FORMAT_UNDEFINED);
   pad->eos = FALSE;
+  pad->started = FALSE;
   GST_OBJECT_UNLOCK (pad);
 }
 
@@ -236,19 +247,94 @@ forward_sticky_events (GstPad * sinkpad, GstEvent ** event, gpointer user_data)
 }
 
 /**
- * @brief Check whether every linked sink pad has received EOS.
+ * @brief The number of pad visits at most when looking for a source; a pad is
+ *        visited once per path that reaches it.
+ */
+#define JOIN_UPSTREAM_PADS_MAX (64U)
+
+/**
+ * @brief Check whether a stream can still reach a sink pad.
+ * @param[in,out] budget The number of pad visits the walk may still make.
+ * @return FALSE if every path upstream of the pad ends at an unlinked sink pad,
+ *         TRUE otherwise, and also when the walk runs out of budget.
+ * @note An element may produce data from any of its sink pads, whatever its
+ *       internal links report (join and selectors report the active pad only),
+ *       so every sink pad of the upstream element is followed. A ghost or proxy
+ *       pad is followed through its internal link, which is exact.
+ *       Takes the object locks of the pads and elements it passes, so it must
+ *       be called with no object lock held.
+ */
+static gboolean
+gst_join_upstream_can_stream (GstPad * sinkpad, guint * budget)
+{
+  GstPad *peer;
+  GstElement *parent;
+  GstIterator *it = NULL;
+  GstIteratorResult res;
+  GValue item = G_VALUE_INIT;
+  gboolean reachable = FALSE, found = FALSE, done = FALSE;
+
+  if (*budget == 0)
+    return TRUE;
+  (*budget)--;
+
+  peer = gst_pad_get_peer (sinkpad);
+  if (!peer)
+    return FALSE;
+
+  if (GST_IS_PROXY_PAD (peer)) {
+    it = gst_pad_iterate_internal_links (peer);
+  } else if ((parent = gst_pad_get_parent_element (peer))) {
+    it = gst_element_iterate_sink_pads (parent);
+    gst_object_unref (parent);
+  }
+  gst_object_unref (peer);
+
+  /* A pad with nothing upstream of it is where a stream originates. */
+  if (!it)
+    return TRUE;
+
+  while (!done) {
+    res = gst_iterator_next (it, &item);
+    switch (res) {
+      case GST_ITERATOR_OK:
+        found = TRUE;
+        reachable = gst_join_upstream_can_stream (g_value_get_object (&item),
+            budget);
+        done = reachable;
+        g_value_reset (&item);
+        break;
+      case GST_ITERATOR_RESYNC:
+        found = FALSE;
+        gst_iterator_resync (it);
+        break;
+      default:
+        reachable = (res == GST_ITERATOR_ERROR);
+        done = TRUE;
+        break;
+    }
+  }
+  g_value_unset (&item);
+  gst_iterator_free (it);
+
+  return reachable || !found;
+}
+
+/**
+ * @brief Check whether every awaited sink pad has received EOS.
  * @param[out] any_eos If not NULL, set to whether at least one sink pad is EOS.
  * @note must be called with the JOIN_LOCK, and with no sink pad's object lock
  *       held: gst_pad_is_linked() takes it, on every sink pad in turn. A pad's
  *       unlink function runs with that pad's object lock held, so calling this
  *       from one deadlocks; gst_join_sinkpad_unlinked() is where an unlink is
  *       picked up instead. Unlinked pads are ignored, as no stream can ever
- *       end on them.
+ *       end on them, and so are pads that have not received stream-start and
+ *       that no stream can reach.
  */
 static gboolean
 gst_join_all_sinkpads_eos (GstJoin * sel, gboolean * any_eos)
 {
-  GList *l;
+  GList *l, *idle = NULL;
   gboolean all = TRUE, any = FALSE;
 
   GST_OBJECT_LOCK (sel);
@@ -257,10 +343,20 @@ gst_join_all_sinkpads_eos (GstJoin * sel, gboolean * any_eos)
 
     if (selpad->eos)
       any = TRUE;
+    else if (!selpad->started)
+      idle = g_list_prepend (idle, gst_object_ref (selpad));
     else if (gst_pad_is_linked (GST_PAD_CAST (selpad)))
       all = FALSE;
   }
   GST_OBJECT_UNLOCK (sel);
+
+  for (l = idle; l && all; l = l->next) {
+    guint budget = JOIN_UPSTREAM_PADS_MAX;
+
+    if (gst_join_upstream_can_stream (GST_PAD_CAST (l->data), &budget))
+      all = FALSE;
+  }
+  g_list_free_full (idle, gst_object_unref);
 
   if (any_eos)
     *any_eos = any;
@@ -340,6 +436,7 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
       break;
     }
     case GST_EVENT_STREAM_START:{
+      selpad->started = TRUE;
       if (!gst_event_parse_group_id (event, &selpad->group_id)) {
         sel->have_group_id = FALSE;
         selpad->group_id = 0;
@@ -554,7 +651,7 @@ gst_join_class_init (GstJoinClass * klass)
 }
 
 /**
- * @brief Clear the per-pad EOS flags so that a restarted pipeline starts clean.
+ * @brief Clear the per-pad stream flags so that a restarted pipeline starts clean.
  */
 static GstStateChangeReturn
 gst_join_change_state (GstElement * element, GstStateChange transition)
@@ -565,8 +662,10 @@ gst_join_change_state (GstElement * element, GstStateChange transition)
   if (transition == GST_STATE_CHANGE_READY_TO_PAUSED) {
     GST_JOIN_LOCK (sel);
     GST_OBJECT_LOCK (sel);
-    for (l = element->sinkpads; l; l = l->next)
+    for (l = element->sinkpads; l; l = l->next) {
       GST_JOIN_PAD_CAST (l->data)->eos = FALSE;
+      GST_JOIN_PAD_CAST (l->data)->started = FALSE;
+    }
     sel->eos_sent = FALSE;
     GST_OBJECT_UNLOCK (sel);
     GST_JOIN_UNLOCK (sel);

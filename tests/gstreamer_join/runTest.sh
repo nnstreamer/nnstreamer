@@ -66,6 +66,18 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
             tif.src_1 ! queue ! join.sink_1 \
             join name=join ! fakesink sync=true" 3_n 0 1 $PERFORMANCE $TIMEOUT_SEC
 
+# tensor_if condition never flips, so tif.src_1 is never created: the linked but idle branch must not hold EOS.
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 pattern=13 ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! filesink location=idle.golden
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+        videotestsrc num-buffers=3 pattern=13 ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! \
+        tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0,0 supplied-value=0 operator=GE then=PASSTHROUGH else=PASSTHROUGH \
+            tif.src_0 ! queue ! join.sink_0 \
+            tif.src_1 ! queue ! join.sink_1 \
+            join name=join ! multifilesink location=testJoin4_%1d.log" 4 0 0 $PERFORMANCE $TIMEOUT_SEC
+callCompareTest idle.golden testJoin4_0.log 4-1 "Compare 4-1" 1 0
+callCompareTest idle.golden testJoin4_1.log 4-2 "Compare 4-2" 1 0
+callCompareTest idle.golden testJoin4_2.log 4-3 "Compare 4-3" 1 0
+
 rm *.golden
 rm *.log
 
