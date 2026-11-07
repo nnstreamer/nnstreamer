@@ -82,6 +82,29 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" bl
 python3 checkResult.py dimchg0:b testcase05.direct.log testcase05.dimchg04.log 3 6000 1
 testResult $? 5 "Golden test comparison" 0 1
 
+# Test with a non-zero FROM_DIM (6, 7), checked against numpy.moveaxis
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=int8 ! tee name=t ! queue ! tensor_transform mode=dimchg option=1:2 ! filesink location=\"testcase06.dimchg12.log\" sync=true t. ! queue ! filesink location=\"testcase06.direct.log\" sync=true" 6 0 0 $PERFORMANCE
+python3 checkResult.py dimchg testcase06.direct.log testcase06.dimchg12.log 3:10:10:4:5:6 int8 1 2
+testResult $? 6 "Golden test comparison" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=int8 ! tee name=t ! queue ! tensor_transform mode=dimchg option=2:3 ! filesink location=\"testcase07.dimchg23.log\" sync=true t. ! queue ! filesink location=\"testcase07.direct.log\" sync=true" 7 0 0 $PERFORMANCE
+python3 checkResult.py dimchg testcase07.direct.log testcase07.dimchg23.log 3:10:10:4:5:6 int8 2 3
+testResult $? 7 "Golden test comparison" 0 1
+
+# Test with a non-zero FROM_DIM spanning two dimensions and a 4-byte element (8)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=8:4:2:4:4 input-type=float32 ! tee name=t ! queue ! tensor_transform mode=dimchg option=1:3 ! filesink location=\"testcase08.dimchg13.log\" sync=true t. ! queue ! filesink location=\"testcase08.direct.log\" sync=true" 8 0 0 $PERFORMANCE
+python3 checkResult.py dimchg testcase08.direct.log testcase08.dimchg13.log 8:4:2:4:4 float32 1 3
+testResult $? 8 "Golden test comparison" 0 1
+
+# FROM_DIM > TO_DIM is not implemented: the stream must fail (9_n)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=int8 ! tensor_transform mode=dimchg option=2:1 ! filesink location=\"testcase09.dimchg21.log\" sync=true" 9_n 0 1 $PERFORMANCE
+
+# TO_DIM must be a dimension of the incoming tensor: rank-6 input has none at 6 (10_n)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=int8 ! tensor_transform mode=dimchg option=1:6 ! filesink location=\"testcase10.dimchg16.log\" sync=true" 10_n 0 1 $PERFORMANCE
+
+# TO_DIM beyond the rank limit is refused as an option string (11_n)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=int8 ! tensor_transform mode=dimchg option=1:16 ! filesink location=\"testcase11.dimchg116.log\" sync=true" 11_n 0 1 $PERFORMANCE
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report
