@@ -207,6 +207,10 @@ snpe_tizen_hal_subplugin::getModelInfo (
 int
 snpe_tizen_hal_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
+  /* The empty object has no backend model to ask; keep is-updatable as set. */
+  if (this == registeredRepresentation)
+    return -EINVAL;
+
   hal_ml_param_h param = nullptr;
   int ret = hal_ml_param_create (&param);
 

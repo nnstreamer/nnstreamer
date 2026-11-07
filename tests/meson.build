@@ -544,6 +544,23 @@ if gtest_dep.found()
     test('unittest_filter_hailort', unittest_filter_hailort, env: testenv)
   endif
 
+  # Tizen HAL sub-plugins on a mock of the HAL ML API. They build only with
+  # tizen-hal-support, so the sources are compiled here against the mock.
+  if get_option('enable-filter-cpp-class')
+    tizen_hal_subplugin_dir = join_paths('..', 'ext', 'nnstreamer', 'tensor_filter')
+    unittest_filter_tizen_hal = executable('unittest_filter_tizen_hal',
+      [join_paths('nnstreamer_filter_tizen_hal', 'unittest_filter_tizen_hal.cc'),
+        join_paths(tizen_hal_subplugin_dir, 'tensor_filter_tizen_hal.cc'),
+        join_paths(tizen_hal_subplugin_dir, 'tensor_filter_tizen_hal_snpe.cc'),
+        join_paths(tizen_hal_subplugin_dir, 'tensor_filter_tizen_hal_vivante.cc')],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_single_dep],
+      include_directories: include_directories(join_paths('nnstreamer_filter_tizen_hal', 'mock')),
+      install: false
+    )
+
+    test('unittest_filter_tizen_hal', unittest_filter_tizen_hal, env: testenv)
+  endif
+
   # tensorflow2-lite unittest
   if tflite2_support_is_available
     shared_library('nnstreamer_unittest_tflite_lifetime_delegate',
