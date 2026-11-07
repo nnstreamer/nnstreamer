@@ -1687,12 +1687,15 @@ gst_tensor_meta_info_update_header (GstTensorMetaInfo * meta, gpointer header)
 gboolean
 gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
 {
-  uint32_t *val = (uint32_t *) header;
+  uint32_t val[21];
 
   g_return_val_if_fail (header != NULL, FALSE);
   g_return_val_if_fail (meta != NULL, FALSE);
 
   gst_tensor_meta_info_init (meta);
+
+  /* Packed tensors may place a header after an odd-sized payload. */
+  memcpy (val, header, sizeof (val));
 
   meta->magic = val[0];
   meta->version = val[1];
@@ -1703,7 +1706,8 @@ gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
 
   switch ((tensor_format) meta->format) {
     case _NNS_TENSOR_FORMAT_SPARSE:
-      meta->sparse_info.nnz = val[21];
+      memcpy (&meta->sparse_info.nnz, (guint8 *) header + sizeof (val),
+          sizeof (meta->sparse_info.nnz));
       break;
     default:
       break;

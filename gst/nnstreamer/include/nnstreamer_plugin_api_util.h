@@ -480,6 +480,8 @@ gst_tensor_meta_info_update_header (GstTensorMetaInfo * meta, gpointer header);
  * @param[out] meta tensor meta structure to be filled
  * @param[in] header pointer to header to be parsed
  * @return TRUE if successfully set the meta
+ * @note The header does not need word alignment. The caller must provide enough
+ *       bytes for the tensor meta header; this function has no size argument.
  */
 extern gboolean
 gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header);
