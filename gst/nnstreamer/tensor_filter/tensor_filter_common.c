@@ -2078,10 +2078,15 @@ static gint
 _gtfc_setprop_PROP_INVOKE_ASYNC (GstTensorFilterPrivate * priv,
     const GValue * value)
 {
-  if (priv->prop.fw_opened &&
-      priv->prop.invoke_async != g_value_get_boolean (value)) {
-    ml_logw ("Stop the filter before changing invoke-async.");
-    return 0;
+  if (priv->prop.invoke_async != g_value_get_boolean (value)) {
+    if (priv->is_started) {
+      ml_logw ("Stop the filter before changing invoke-async.");
+      return 0;
+    }
+
+    /** A stopped framework may retain its model through SUSPEND. Reopen it
+     * in the new mode instead of reusing its previous callback ownership. */
+    gst_tensor_filter_common_unload_fw (priv, FALSE);
   }
 
   priv->prop.invoke_async = g_value_get_boolean (value);

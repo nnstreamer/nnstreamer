@@ -71,3 +71,9 @@ run with a ThreadSanitizer build to detect input-side reads of worker metadata.
 System GLib/GStreamer libraries must either be instrumented with compatible
 sanitizers or accounted for separately when interpreting their diagnostics.
 These model-free tests do not replace framework-specific model execution.
+
+The invoke mode stays fixed for the entire active element or single-shot lifecycle,
+even if the idle watchdog unloads its model. After an explicit stop, changing the
+mode closes any model retained by a successful SUSPEND event. The next start or
+single-shot invoke then opens and validates a model in the new mode. Setting the
+same mode does not discard a retained model.

@@ -322,7 +322,7 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
 
   spriv->allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
-  if (spriv->async_cb) {
+  if (priv->prop.invoke_async && spriv->async_cb) {
     gst_tensor_filter_enable_invoke_async (&priv->prop,
         g_tensor_filter_single_async_cb, self);
   }
@@ -330,6 +330,8 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
   priv->configured = gst_tensor_filter_validate_prop (priv);
   if (!priv->configured)
     gst_tensor_filter_common_unload_fw (priv, FALSE);
+
+  priv->is_started = priv->configured;
 
   return priv->configured;
 }
@@ -351,6 +353,7 @@ g_tensor_filter_single_stop (GTensorFilterSingle * self)
   /** close framework, unload model */
   gst_tensor_filter_disable_invoke_async (&priv->prop);
   gst_tensor_filter_common_unload_fw (priv, TRUE);
+  priv->is_started = FALSE;
 
   return TRUE;
 }
@@ -400,8 +403,8 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
   priv = &spriv->filter_priv;
 
-  /** start if not already started */
-  if (!priv->configured) {
+  /** start if not already started, including a retained model after stop */
+  if (!priv->is_started || !priv->configured) {
     if (!g_tensor_filter_single_start (self)) {
       return FALSE;
     }
