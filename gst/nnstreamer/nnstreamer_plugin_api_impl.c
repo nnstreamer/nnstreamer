@@ -50,6 +50,19 @@ typedef struct
 } GstTensorExtraInfo;
 
 /**
+ * @brief Read an extra tensor count from possibly byte-aligned memory.
+ */
+static guint32
+gst_tensor_extra_info_get_count (const guint8 *data)
+{
+  guint32 count;
+
+  memcpy (&count, data + G_STRUCT_OFFSET (GstTensorExtraInfo,
+          num_extra_tensors), sizeof (count));
+  return count;
+}
+
+/**
  * @brief Check if given memory has extra tensors.
  * @param[in] map GstMapInfo of GstMemory to be checked.
  * @return TRUE if @map has extra tensors, otherwise FALSE.
@@ -57,23 +70,26 @@ typedef struct
 static gboolean
 gst_memory_map_is_extra_tensor (GstMapInfo * map)
 {
-  GstTensorExtraInfo *extra_info;
+  guint32 magic, count;
 
   g_return_val_if_fail (map != NULL, FALSE);
 
   if (map->size < sizeof (GstTensorExtraInfo))
     return FALSE;
 
-  extra_info = (GstTensorExtraInfo *) map->data;
+  /* GstMemory may expose an offset into an otherwise aligned allocation. */
+  memcpy (&magic, map->data + G_STRUCT_OFFSET (GstTensorExtraInfo, magic),
+      sizeof (magic));
 
   /* check magic in header (extra info) of the memory */
-  if (extra_info->magic != NNS_TENSOR_EXTRA_MAGIC)
+  if (magic != NNS_TENSOR_EXTRA_MAGIC)
     return FALSE;
 
   /* the header comes from the buffer data, do not trust its tensor count */
-  if (extra_info->num_extra_tensors > NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+  count = gst_tensor_extra_info_get_count (map->data);
+  if (count > NNS_TENSOR_SIZE_EXTRA_LIMIT) {
     nns_loge ("Invalid extra header, the number of extra tensors (%u) "
-        "exceeds the limit (%d).", extra_info->num_extra_tensors,
+        "exceeds the limit (%d).", count,
         NNS_TENSOR_SIZE_EXTRA_LIMIT);
     return FALSE;
   }
@@ -82,25 +98,37 @@ gst_memory_map_is_extra_tensor (GstMapInfo * map)
 }
 
 /**
- * @brief Initialize GstTensorExtraInfo structure with given @a memory.
- * @param[in/out] extra GstTensorExtraInfo to be initialized.
+ * @brief Initialize GstTensorExtraInfo in the byte-aligned memory @a data.
+ * @param[out] data Memory for the header, with no alignment requirement.
  * @param[in] reserved_size The memory size of extra memory block.
  */
 static void
-gst_tensor_extra_info_init (GstTensorExtraInfo * extra, gsize reserved_size)
+gst_tensor_extra_info_init (guint8 *data, gsize reserved_size)
 {
   guint i;
+  guint32 value;
+  guint64 reserved = reserved_size;
+  GstTensorInfo info;
 
-  g_return_if_fail (extra != NULL);
+  g_return_if_fail (data != NULL);
 
-  extra->magic = NNS_TENSOR_EXTRA_MAGIC;
-  extra->version = 0;
-  extra->num_extra_tensors = 0;
+  value = NNS_TENSOR_EXTRA_MAGIC;
+  memcpy (data + G_STRUCT_OFFSET (GstTensorExtraInfo, magic), &value,
+      sizeof (value));
+  value = 0;
+  memcpy (data + G_STRUCT_OFFSET (GstTensorExtraInfo, version), &value,
+      sizeof (value));
+  memcpy (data + G_STRUCT_OFFSET (GstTensorExtraInfo, num_extra_tensors),
+      &value, sizeof (value));
 
-  /* set reserved size of NNS_TENSOR_SIZE_LIMIT-th memory */
-  extra->reserved = reserved_size;
+  /* Preserve the native private layout, including its 64-bit reserved size. */
+  memcpy (data + G_STRUCT_OFFSET (GstTensorExtraInfo, reserved), &reserved,
+      sizeof (reserved));
+  memset (&info, 0, sizeof (info));
+  gst_tensor_info_init (&info);
   for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
-    gst_tensor_info_init (&extra->infos[i]);
+    memcpy (data + G_STRUCT_OFFSET (GstTensorExtraInfo, infos) +
+        i * sizeof (info), &info, sizeof (info));
   }
 }
 
@@ -1859,7 +1887,8 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
   gsize offset, size;
   GstMemory *extra_tensors_memory, *res_mem = NULL;
   GstMapInfo extra_tensors_map;
-  GstTensorExtraInfo *extra_info;
+  GstTensorInfo info;
+  guint64 reserved;
 
   if (!GST_IS_BUFFER (buffer)) {
     nns_loge ("Failed to parse GstBuffer (invalid input buffer).");
@@ -1898,9 +1927,12 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
   }
 
   /* parse the memory, the reserved data is followed by the extra tensors */
-  extra_info = (GstTensorExtraInfo *) extra_tensors_map.data;
+  memcpy (&reserved, extra_tensors_map.data +
+      G_STRUCT_OFFSET (GstTensorExtraInfo, reserved), sizeof (reserved));
   offset = sizeof (GstTensorExtraInfo);
-  size = extra_info->reserved;
+  if (reserved > extra_tensors_map.size - offset)
+    goto invalid;
+  size = reserved;
 
   /* every offset and size below is parsed from the buffer data, bound them */
   for (i = NNS_TENSOR_MEMORY_MAX - 1; i < index; ++i) {
@@ -1908,8 +1940,10 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
       goto invalid;
 
     offset += size;
-    size = gst_tensor_info_get_size (&extra_info->infos[i -
-            (NNS_TENSOR_MEMORY_MAX - 1)]);
+    memcpy (&info, extra_tensors_map.data +
+        G_STRUCT_OFFSET (GstTensorExtraInfo, infos) +
+        (i - (NNS_TENSOR_MEMORY_MAX - 1)) * sizeof (info), sizeof (info));
+    size = gst_tensor_info_get_size (&info);
   }
 
   if (size > extra_tensors_map.size - offset)
@@ -1943,7 +1977,8 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   GstMemory *new_memory = NULL, *last_memory = NULL;
   gsize offset, new_mem_size, last_mem_size, incoming_mem_size;
   GstMapInfo new_memory_map, last_memory_map, incoming_memory_map;
-  GstTensorExtraInfo *extra_info;
+  guint32 num_extra_tensors = 0;
+  GstTensorInfo extra_tensor_info;
   GstTensorMetaInfo meta;
   gboolean is_extra;
   gboolean appended = FALSE;
@@ -2000,9 +2035,9 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   /* if the memory does not have proper header, append it */
   is_extra = gst_memory_map_is_extra_tensor (&last_memory_map);
   if (is_extra) {
-    extra_info = (GstTensorExtraInfo *) last_memory_map.data;
+    num_extra_tensors = gst_tensor_extra_info_get_count (last_memory_map.data);
 
-    if (extra_info->num_extra_tensors >= NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+    if (num_extra_tensors >= NNS_TENSOR_SIZE_EXTRA_LIMIT) {
       nns_loge ("Failed to append memory, the buffer already has the maximum "
           "number of tensors (%d).", NNS_TENSOR_SIZE_LIMIT);
       goto failed;
@@ -2031,11 +2066,9 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     goto failed;
   }
 
-  extra_info = (GstTensorExtraInfo *) new_memory_map.data;
-
   /* if the last_memory does not have proper header, append it */
   if (!is_extra) {
-    gst_tensor_extra_info_init (extra_info, last_mem_size);
+    gst_tensor_extra_info_init (new_memory_map.data, last_mem_size);
     offset = sizeof (GstTensorExtraInfo);
   } else {
     offset = 0;
@@ -2046,13 +2079,19 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
       last_memory_map.size);
 
   /* copy incoming_memory into new_memory */
-  new_mem_index = extra_info->num_extra_tensors;
-  extra_info->num_extra_tensors += 1;
+  new_mem_index = num_extra_tensors++;
+  memcpy (new_memory_map.data +
+      G_STRUCT_OFFSET (GstTensorExtraInfo, num_extra_tensors),
+      &num_extra_tensors, sizeof (num_extra_tensors));
 
   /* Describe the bytes of the memory as they are copied into extra. */
-  gst_tensor_info_init (&extra_info->infos[new_mem_index]);
-  extra_info->infos[new_mem_index].type = _NNS_UINT8;
-  extra_info->infos[new_mem_index].dimension[0] = (uint32_t) incoming_mem_size;
+  memset (&extra_tensor_info, 0, sizeof (extra_tensor_info));
+  gst_tensor_info_init (&extra_tensor_info);
+  extra_tensor_info.type = _NNS_UINT8;
+  extra_tensor_info.dimension[0] = (uint32_t) incoming_mem_size;
+  memcpy (new_memory_map.data + G_STRUCT_OFFSET (GstTensorExtraInfo, infos) +
+      new_mem_index * sizeof (extra_tensor_info), &extra_tensor_info,
+      sizeof (extra_tensor_info));
 
   memcpy (new_memory_map.data + offset + last_memory_map.size,
       incoming_memory_map.data, incoming_memory_map.size);
@@ -2090,7 +2129,6 @@ gst_tensor_buffer_get_count (GstBuffer * buffer)
   guint num_mems;
   GstMemory *mem;
   GstMapInfo map;
-  GstTensorExtraInfo *extra_info;
 
   g_return_val_if_fail (buffer != NULL, 0);
 
@@ -2112,8 +2150,8 @@ gst_tensor_buffer_get_count (GstBuffer * buffer)
   }
 
   if (gst_memory_map_is_extra_tensor (&map)) {
-    extra_info = (GstTensorExtraInfo *) map.data;
-    num_mems = extra_info->num_extra_tensors + NNS_TENSOR_MEMORY_MAX;
+    num_mems =
+        gst_tensor_extra_info_get_count (map.data) + NNS_TENSOR_MEMORY_MAX;
   } else {
     nns_logi ("The last memory does not have extra tensors header. "
         "Assuming the number of tensors is %d.", num_mems);
