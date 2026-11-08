@@ -4108,6 +4108,151 @@ map_extra_tensors_info (GstBuffer *buf, GstMemory **out_mem, GstMapInfo *out_map
 }
 
 /**
+ * @brief Exercise the private extra header at every byte offset modulo eight.
+ */
+class ExtraHeaderAlignment : public ::testing::TestWithParam<guint>
+{
+  protected:
+  GstBuffer *buffer = nullptr;
+  GstMemory *wrapped = nullptr;
+  guint8 *storage = nullptr;
+  guint8 *header = nullptr;
+  gsize wire_size = 0;
+
+  /** @brief Copy a genuine extra header into an offset wrapped allocation. */
+  void SetUp () override
+  {
+    GstMapInfo map;
+    buffer = build_extra_tensors_buffer (NNS_TENSOR_MEMORY_MAX + 2, 7);
+    ASSERT_NE (buffer, nullptr);
+    GstMemory *original = gst_buffer_peek_memory (buffer, NNS_TENSOR_MEMORY_MAX - 1);
+    ASSERT_TRUE (gst_memory_map (original, &map, GST_MAP_READ));
+    wire_size = map.size;
+    storage = (guint8 *) g_malloc (wire_size + GetParam () + 1);
+    memset (storage, 0xa5, wire_size + GetParam () + 1);
+    header = storage + GetParam ();
+    memcpy (header, map.data, wire_size);
+    gst_memory_unmap (original, &map);
+    wrapped = gst_memory_new_wrapped ((GstMemoryFlags) 0, storage,
+        wire_size + GetParam () + 1, GetParam (), wire_size, storage, g_free);
+    ASSERT_NE (wrapped, nullptr);
+    // Keep our own reference so append can replace the memory before TearDown.
+    gst_buffer_replace_memory (buffer, NNS_TENSOR_MEMORY_MAX - 1, gst_memory_ref (wrapped));
+    ASSERT_TRUE (gst_memory_map (wrapped, &map, GST_MAP_READ));
+    EXPECT_EQ (map.data, header);
+    gst_memory_unmap (wrapped, &map);
+  }
+
+  /** @brief Check allocation guards and release both memory references. */
+  void TearDown () override
+  {
+    if (storage) {
+      for (guint i = 0; i < GetParam (); ++i)
+        EXPECT_EQ (storage[i], 0xa5);
+      EXPECT_EQ (header[wire_size], 0xa5);
+    }
+    if (buffer)
+      gst_buffer_unref (buffer);
+    if (wrapped)
+      gst_memory_unref (wrapped);
+  }
+
+  /** @brief Corrupt a header word without an unaligned access in the fixture. */
+  void setWord (gsize offset, guint32 value)
+  {
+    memcpy (header + offset, &value, sizeof (value));
+  }
+
+  /** @brief Check one returned tensor, including the byte-sized wire entries. */
+  void expectTensor (guint index, guint8 expected)
+  {
+    GstMapInfo map;
+    GstMemory *memory = gst_tensor_buffer_get_nth_memory (buffer, index);
+    ASSERT_NE (memory, nullptr);
+    ASSERT_TRUE (gst_memory_map (memory, &map, GST_MAP_READ));
+    EXPECT_EQ (map.size, 7U);
+    for (gsize i = 0; i < map.size; ++i)
+      EXPECT_EQ (map.data[i], expected);
+    gst_memory_unmap (memory, &map);
+    gst_memory_unref (memory);
+  }
+};
+
+/** @brief Count tensors without assuming that the wrapped header is aligned. */
+TEST_P (ExtraHeaderAlignment, count)
+{
+  EXPECT_EQ (gst_tensor_buffer_get_count (buffer), NNS_TENSOR_MEMORY_MAX + 2U);
+}
+
+/** @brief Read the reserved and both extra tensor ranges from offset memory. */
+TEST_P (ExtraHeaderAlignment, readTensors)
+{
+  expectTensor (0, 0);
+  expectTensor (NNS_TENSOR_MEMORY_MAX - 1, NNS_TENSOR_MEMORY_MAX - 1);
+  expectTensor (NNS_TENSOR_MEMORY_MAX, NNS_TENSOR_MEMORY_MAX);
+  expectTensor (NNS_TENSOR_MEMORY_MAX + 1, NNS_TENSOR_MEMORY_MAX + 1);
+}
+
+/** @brief Append after an offset extra header and preserve every tensor byte. */
+TEST_P (ExtraHeaderAlignment, append)
+{
+  GstTensorInfo info;
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT8;
+  info.dimension[0] = 7;
+  guint8 *data = (guint8 *) g_malloc0 (7);
+  memset (data, 0x72, 7);
+  GstMemory *memory
+      = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, 7, 0, 7, data, g_free);
+  ASSERT_TRUE (gst_tensor_buffer_append_memory (buffer, memory, &info));
+  EXPECT_EQ (gst_tensor_buffer_get_count (buffer), NNS_TENSOR_MEMORY_MAX + 3U);
+  expectTensor (NNS_TENSOR_MEMORY_MAX - 1, NNS_TENSOR_MEMORY_MAX - 1);
+  expectTensor (NNS_TENSOR_MEMORY_MAX, NNS_TENSOR_MEMORY_MAX);
+  expectTensor (NNS_TENSOR_MEMORY_MAX + 1, NNS_TENSOR_MEMORY_MAX + 1);
+  expectTensor (NNS_TENSOR_MEMORY_MAX + 2, 0x72);
+  gst_tensor_info_free (&info);
+}
+
+/** @brief Refuse an invalid magic without first doing an unaligned load. */
+TEST_P (ExtraHeaderAlignment, invalidMagic_n)
+{
+  setWord (G_STRUCT_OFFSET (TestTensorExtraInfo, magic), 0);
+  EXPECT_EQ (gst_tensor_buffer_get_count (buffer), (guint) NNS_TENSOR_MEMORY_MAX);
+  EXPECT_EQ (gst_tensor_buffer_get_nth_memory (buffer, NNS_TENSOR_MEMORY_MAX), nullptr);
+}
+
+/** @brief Refuse a forged extra count before indexing the entry array. */
+TEST_P (ExtraHeaderAlignment, invalidCount_n)
+{
+  setWord (G_STRUCT_OFFSET (TestTensorExtraInfo, num_extra_tensors),
+      NNS_TENSOR_SIZE_EXTRA_LIMIT + 1);
+  EXPECT_EQ (gst_tensor_buffer_get_count (buffer), (guint) NNS_TENSOR_MEMORY_MAX);
+  EXPECT_EQ (gst_tensor_buffer_get_nth_memory (buffer, NNS_TENSOR_MEMORY_MAX), nullptr);
+}
+
+/** @brief Keep the reserved range bounded even when its size is forged. */
+TEST_P (ExtraHeaderAlignment, invalidReserved_n)
+{
+  guint64 size = G_MAXUINT64;
+  memcpy (header + G_STRUCT_OFFSET (TestTensorExtraInfo, reserved), &size, sizeof (size));
+  EXPECT_EQ (gst_tensor_buffer_get_count (buffer), NNS_TENSOR_MEMORY_MAX + 2U);
+  EXPECT_EQ (gst_tensor_buffer_get_nth_memory (buffer, NNS_TENSOR_MEMORY_MAX - 1), nullptr);
+  EXPECT_EQ (gst_tensor_buffer_get_nth_memory (buffer, NNS_TENSOR_MEMORY_MAX), nullptr);
+}
+
+/** @brief Keep a forged tensor entry from sharing memory beyond the payload. */
+TEST_P (ExtraHeaderAlignment, invalidTensorSize_n)
+{
+  setWord (G_STRUCT_OFFSET (TestTensorExtraInfo, infos)
+               + G_STRUCT_OFFSET (GstTensorInfo, dimension),
+      G_MAXUINT32);
+  EXPECT_EQ (gst_tensor_buffer_get_nth_memory (buffer, NNS_TENSOR_MEMORY_MAX), nullptr);
+  EXPECT_EQ (gst_tensor_buffer_get_nth_memory (buffer, NNS_TENSOR_MEMORY_MAX + 1), nullptr);
+}
+
+INSTANTIATE_TEST_SUITE_P (Offsets, ExtraHeaderAlignment, ::testing::Range (0U, 8U));
+
+/**
  * @brief Test tensor buffer util (build and read back the maximum number of tensors)
  */
 TEST (commonUtil, tensorBufferExtraTensors)

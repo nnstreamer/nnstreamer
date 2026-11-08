@@ -97,6 +97,29 @@ jobs:
       if: env.rebuild == '1'
     - run: meson test -C build/ -v
       if: env.rebuild == '1'
+    - name: Check extra header alignment with nonrecovering UBSan
+      if: env.rebuild == '1'
+      env:
+        CC: clang
+        CXX: clang++
+        UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        GST_REGISTRY_FORK: 'no'
+      run: |
+        meson setup build-alignment --wrap-mode=nodownload --buildtype=debug \
+          -Dauto_features=disabled -Dorcc-support=disabled -Db_lundef=false \
+          "-Dc_args=['-fsanitize=alignment', '-fno-sanitize-recover=alignment']" \
+          "-Dcpp_args=['-fsanitize=alignment', '-fno-sanitize-recover=alignment']" \
+          -Dc_link_args=-fsanitize=alignment -Dcpp_link_args=-fsanitize=alignment
+        meson compile -C build-alignment -j2
+        meson test -C build-alignment --no-rebuild -v unittest_common \
+          --test-args='--gtest_filter=Offsets/ExtraHeaderAlignment.*:commonUtil.createStaticExtraTensorBuffer* --gtest_output=json:extra-alignment-results.json'
+        python3 - <<'PY'
+        import json
+        from pathlib import Path
+        result = json.loads(Path('build-alignment/extra-alignment-results.json').read_text())
+        assert result['tests'] == 60, result
+        assert all(result.get(key, 0) == 0 for key in ('failures', 'errors', 'disabled')), result
+        PY
     - name: build with orcc-support disabled
       if: env.rebuild == '1'
       run: |
@@ -112,3 +135,6 @@ jobs:
         path: |
           build/meson-logs/testlog.txt
           build-noorc/meson-logs/meson-log.txt
+          build-alignment/meson-logs/
+          build-alignment/extra-alignment-results.json
+          build-alignment/compile_commands.json
