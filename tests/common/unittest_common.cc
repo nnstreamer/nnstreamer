@@ -4233,7 +4233,7 @@ TEST_P (ExtraHeaderAlignment, invalidCount_n)
 /** @brief Keep the reserved range bounded even when its size is forged. */
 TEST_P (ExtraHeaderAlignment, invalidReserved_n)
 {
-  guint64 size = G_MAXUINT64;
+  guint64 size = (G_GUINT64_CONSTANT (1) << 32) + 7;
   memcpy (header + G_STRUCT_OFFSET (TestTensorExtraInfo, reserved), &size, sizeof (size));
   EXPECT_EQ (gst_tensor_buffer_get_count (buffer), NNS_TENSOR_MEMORY_MAX + 2U);
   EXPECT_EQ (gst_tensor_buffer_get_nth_memory (buffer, NNS_TENSOR_MEMORY_MAX - 1), nullptr);
