@@ -60,9 +60,40 @@ jobs:
           build-tsan/meson-logs/
           build-ownership/meson-logs/
 
+  extra-header-32bit:
+    name: Extra tensor header bounds on i386
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run the reserved-size regression on a 32-bit ABI
+      run: |
+        docker run --rm --platform linux/386 -v "$PWD:/src" -w /src i386/debian:bookworm-slim sh -euxc '
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential meson ninja-build pkg-config \
+            libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libunwind-dev libgtest-dev
+          test "$(getconf LONG_BIT)" = 32
+          meson setup build-i386 --wrap-mode=nodownload --buildtype=debug \
+            -Dauto_features=disabled -Dorcc-support=disabled -Db_lundef=false
+          meson compile -C build-i386 -j2
+          meson test -C build-i386 --no-rebuild -v unittest_common \
+            --test-args="--gtest_filter=Offsets/ExtraHeaderAlignment.invalidReserved_n/* --gtest_output=json:reserved-i386-results.json"
+          python3 -c "import json; from pathlib import Path; r=json.loads(Path(\"build-i386/reserved-i386-results.json\").read_text()); cases=[c for s in r[\"testsuites\"] for c in s[\"testsuite\"]]; assert r[\"tests\"] == len(cases) == 8; assert all(c[\"status\"] == \"RUN\" and c[\"result\"] == \"COMPLETED\" for c in cases); assert all(r.get(k,0) == 0 for k in (\"failures\",\"errors\",\"disabled\"))"
+        '
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: Extra_Header_i386_Testlog
+        path: |
+          build-i386/meson-logs/
+          build-i386/reserved-i386-results.json
+
   build:
     name: Build on Ubuntu with LLVM/Clang
-    needs: async-race
+    needs: [async-race, extra-header-32bit]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -118,6 +149,9 @@ jobs:
         from pathlib import Path
         result = json.loads(Path('build-alignment/extra-alignment-results.json').read_text())
         assert result['tests'] == 60, result
+        cases = [case for suite in result['testsuites'] for case in suite['testsuite']]
+        assert len(cases) == 60, result
+        assert all(case['status'] == 'RUN' and case['result'] == 'COMPLETED' for case in cases), result
         assert all(result.get(key, 0) == 0 for key in ('failures', 'errors', 'disabled')), result
         PY
     - name: build with orcc-support disabled
