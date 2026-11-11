@@ -508,6 +508,8 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
 
   UNUSED (offset);
   UNUSED (size);
+
+next_data:
   gst_tensors_config_init (&config);
 
   while (self->playing && !data_h) {
@@ -543,7 +545,8 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
   }
 
   if (is_tensor && !gst_tensor_query_validate_edge_data (data_h, &config)) {
-    nns_loge ("The edge data from the publisher does not match the caps.");
+    nns_logw ("Dropped the edge data from the publisher that does not match "
+        "the caps.");
     goto done;
   }
 
@@ -576,9 +579,10 @@ done:
 
   gst_tensors_config_free (&config);
 
+  /* Drop the data that cannot be pushed and wait for the next one. */
   if (buffer == NULL) {
-    nns_loge ("Failed to get buffer to push to the edgesrc.");
-    return GST_FLOW_ERROR;
+    data_h = NULL;
+    goto next_data;
   }
 
   *out_buf = buffer;

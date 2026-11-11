@@ -240,7 +240,7 @@ int
 PYConverterCore::init ()
 {
   /** Find nnstreamer_api module */
-  PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
+  PyObject *api_module = importApiModule ();
   if (api_module == NULL)
     return -EINVAL;
 

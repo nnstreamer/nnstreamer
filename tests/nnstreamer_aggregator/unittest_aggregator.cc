@@ -847,6 +847,148 @@ TEST (testTensorAggregatorCaps, refusedRenegotiation_n)
 }
 
 /**
+ * @brief Push two buffers of the first @a num test elements, pull the
+ * aggregated buffer and check its size against the negotiated source caps.
+ */
+static void
+_aggr_test_output_follows_caps (GstHarness *h, guint num)
+{
+  GstBuffer *out;
+  GstCaps *caps;
+  GstTensorsConfig config;
+  GstMapInfo map;
+  gboolean mapped;
+  guint received;
+
+  received = gst_harness_buffers_received (h);
+  EXPECT_EQ (gst_harness_push (h, _aggr_buffer_new (h, num)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_push (h, _aggr_buffer_new (h, num)), GST_FLOW_OK);
+  ASSERT_EQ (gst_harness_buffers_received (h), received + 1);
+
+  caps = gst_pad_get_current_caps (h->sinkpad);
+  ASSERT_TRUE (caps != NULL);
+  EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, TRUE));
+  gst_caps_unref (caps);
+
+  out = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_get_size (out), gst_tensors_info_get_size (&config.info, 0));
+  EXPECT_EQ (gst_buffer_get_size (out), 2 * sizeof (gint) * num);
+
+  mapped = gst_buffer_map (out, &map, GST_MAP_READ);
+  EXPECT_TRUE (mapped);
+  if (mapped) {
+    if (map.size == 2 * sizeof (gint) * num) {
+      EXPECT_EQ (memcmp (map.data, aggr_input, sizeof (gint) * num), 0);
+      EXPECT_EQ (memcmp (map.data + sizeof (gint) * num, aggr_input, sizeof (gint) * num), 0);
+    }
+    gst_buffer_unmap (out, &map);
+  }
+
+  gst_buffer_unref (out);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief The default frames-dim stacks frames on the outermost dimension of
+ * the input, so the output buffer matches the source caps (#5183 A2).
+ */
+TEST (testTensorAggregatorCaps, defaultFramesDim)
+{
+  GstHarness *h;
+
+  h = gst_harness_new ("tensor_aggregator");
+  g_object_set (h->element, "frames-out", 2, NULL);
+  gst_harness_set_src_caps (h, _aggr_caps_new ("3:4:2:1"));
+
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:2:2"));
+  _aggr_test_output_follows_caps (h, 24U);
+
+  /* The outermost dimension follows the rank of renegotiated input. */
+  EXPECT_TRUE (_aggr_send_caps (h, "3:4:2"));
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:4"));
+  _aggr_test_output_follows_caps (h, 24U);
+
+  EXPECT_TRUE (_aggr_send_caps (h, "24"));
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "48"));
+  _aggr_test_output_follows_caps (h, 24U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief The default frames-dim splits the outermost dimension of the input
+ * into frames-in frames, with and without the adapter.
+ */
+TEST (testTensorAggregatorCaps, defaultFramesDimMultiFrames)
+{
+  GstHarness *h;
+  GstBuffer *out;
+
+  h = gst_harness_new ("tensor_aggregator");
+  g_object_set (h->element, "frames-in", 2, "frames-out", 4, NULL);
+  gst_harness_set_src_caps (h, _aggr_caps_new ("3:4:2:2"));
+
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:2:4"));
+  _aggr_test_output_follows_caps (h, AGGR_NUM_ELEMENTS);
+
+  /* frames-in == frames-out pushes the input as is. */
+  g_object_set (h->element, "frames-out", 2, NULL);
+  EXPECT_TRUE (_aggr_send_caps (h, "3:4:2:2"));
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:2:2"));
+
+  EXPECT_EQ (gst_harness_push (h, _aggr_buffer_new (h, AGGR_NUM_ELEMENTS)), GST_FLOW_OK);
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (out != NULL);
+  _aggr_check_data (out, aggr_input);
+  gst_buffer_unref (out);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A frames-dim beyond the input rank stacks frames on the outermost
+ * dimension, and applies as set once the input rank reaches it.
+ */
+TEST (testTensorAggregatorCaps, framesDimBeyondRank)
+{
+  GstHarness *h;
+
+  h = gst_harness_new ("tensor_aggregator");
+  g_object_set (h->element, "frames-out", 2, "frames-dim", 3, NULL);
+  gst_harness_set_src_caps (h, _aggr_caps_new ("3:4:2"));
+
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:4"));
+  _aggr_test_output_follows_caps (h, 24U);
+
+  EXPECT_TRUE (_aggr_send_caps (h, "3:4:2:1"));
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:2:2"));
+  _aggr_test_output_follows_caps (h, 24U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief With the default frames-dim, frames-in must divide the outermost
+ * dimension of the input, not an unused dimension beyond its rank.
+ */
+TEST (testTensorAggregatorCaps, defaultFramesDimIndivisible_n)
+{
+  GstHarness *h;
+
+  h = gst_harness_new ("tensor_aggregator");
+  g_object_set (h->element, "frames-in", 2, "frames-out", 4, NULL);
+
+  /* dimension[3] = 1 does not divide by frames-in 2. */
+  EXPECT_FALSE (_aggr_send_caps (h, "3:4:2:1"));
+  _aggr_test_refused_buffer (h);
+
+  EXPECT_TRUE (_aggr_send_caps (h, "3:4:2:2"));
+  EXPECT_TRUE (_aggr_pad_caps_match (h->sinkpad, "3:4:2:4"));
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Main GTest
  */
 int

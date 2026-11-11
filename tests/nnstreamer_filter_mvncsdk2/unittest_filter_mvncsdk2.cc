@@ -9,15 +9,21 @@
 
 #include <gtest/gtest.h>
 #include <glib/gstdio.h>
+#include <gmodule.h>
 #include <gst/check/gstcheck.h>
 #include <gst/check/gstharness.h>
 #include <gst/check/gsttestclock.h>
 #include <gst/gst.h>
+#include <nnstreamer_conf.h>
 #include <nnstreamer_plugin_api_filter.h>
+#include <nnstreamer_subplugin.h>
 #include <string.h>
 #include <tensor_common.h>
 
+#include "../gst/nnstreamer/tensor_filter/tensor_filter_common.h"
 #include "NCSDKTensorFilterTestHelper.hh"
+
+static const gchar MVNCSDK2_FW_NAME[] = "movidius-ncsdk2";
 
 /**
  * @brief Testing valid pipeline launching and its state changing
@@ -195,10 +201,12 @@ TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (11, fail_stage_t::FAIL_FIFO_ALLOC_OUTPUT);
 
 /**
  * @brief Build a harness around a tensor_filter bound to the mocked device.
+ * @param props : Extra tensor_filter properties to set
+ * @param caps : The caps of the input
  * @return The harness, or NULL if the description cannot be parsed.
  */
 static GstHarness *
-_mvncsdk2_harness_new (void)
+_mvncsdk2_harness_new (const gchar *props = "", const gchar *caps = MVNCSDK2_IN_CAPS_STR)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstHarness *h;
@@ -211,13 +219,14 @@ _mvncsdk2_harness_new (void)
 
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "google_lenet_ncsdk_caffe_1.graph", NULL);
-  desc = g_strdup_printf ("tensor_filter framework=movidius-ncsdk2 model=\"%s\"", test_model);
+  desc = g_strdup_printf ("tensor_filter framework=movidius-ncsdk2 model=\"%s\" %s",
+      test_model, props);
   h = gst_harness_new_parse (desc);
   g_free (desc);
   g_free (test_model);
 
   if (h != NULL) {
-    gst_harness_set_src_caps_str (h, MVNCSDK2_IN_CAPS_STR);
+    gst_harness_set_src_caps_str (h, caps);
   }
 
   return h;
@@ -365,6 +374,409 @@ TEST (pipelineMvncsdk2Filter, invokeFailure1_n)
 TEST (pipelineMvncsdk2Filter, invokeFailure2_n)
 {
   _mvncsdk2_run_invoke_failure (fail_stage_t::FAIL_FIFO_RD_ELEM);
+}
+
+/**
+ * @brief Get the tensor_filter a harness made by _mvncsdk2_harness_new () holds.
+ * @param h : The harness made by _mvncsdk2_harness_new ()
+ * @return The tensor_filter named "tfilter"; unref it after use.
+ */
+static GstElement *
+_mvncsdk2_harness_get_filter (GstHarness *h)
+{
+  if (GST_IS_BIN (h->element))
+    return gst_bin_get_by_name (GST_BIN (h->element), "tfilter");
+
+  return GST_ELEMENT (gst_object_ref (h->element));
+}
+
+/**
+ * @brief Testing that a requested accelerator does not get in the way
+ * @details The sub-plugin ignores the accelerator, and tensor_filter maps a
+ *          request onto the list the sub-plugin reports. The property reads
+ *          back the string as set, as it did with the v0 sub-plugin.
+ */
+TEST (pipelineMvncsdk2Filter, invokeAccelerator)
+{
+  const gchar *accls[] = { "true:npu.movidius", "true:npu", "true:gpu",
+    "true:auto", "true:default", "false" };
+  GstHarness *h;
+  GstElement *filter;
+  gchar *props, *accl;
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (accls); i++) {
+    NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+    props = g_strdup_printf ("name=tfilter accelerator=%s", accls[i]);
+    h = _mvncsdk2_harness_new (props);
+    g_free (props);
+    if (h == NULL) {
+      ADD_FAILURE ()
+          << "Failed to parse the tensor_filter description with " << accls[i];
+      NCSDKTensorFilterTestHelper::getInstance ().release ();
+      continue;
+    }
+
+    EXPECT_EQ (_mvncsdk2_push (h, i + 1), GST_FLOW_OK) << accls[i];
+    EXPECT_EQ (_mvncsdk2_pull (h), i + 1) << accls[i];
+
+    filter = _mvncsdk2_harness_get_filter (h);
+    accl = NULL;
+    g_object_get (filter, "accelerator", &accl, NULL);
+    EXPECT_STREQ (accl, accls[i]);
+    g_free (accl);
+    gst_object_unref (filter);
+
+    gst_harness_teardown (h);
+
+    NCSDKTensorFilterTestHelper::getInstance ().release ();
+  }
+}
+
+/**
+ * @brief Testing that an input the model does not take is refused
+ * @details tensor_filter takes the input information getModelInfo () reports
+ *          when it opens the model, and refuses caps that do not match it.
+ */
+TEST (pipelineMvncsdk2Filter, invokeDimensionMismatch_n)
+{
+  GstHarness *h;
+  GstElement *filter;
+  gchar *dims = NULL;
+
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  h = _mvncsdk2_harness_new ("name=tfilter",
+      "other/tensors,format=static,num_tensors=1,framerate=(fraction)0/1,"
+      "dimensions=(string)3:112:112:1,types=(string)float32");
+  if (h == NULL) {
+    ADD_FAILURE () << "Failed to parse the tensor_filter description";
+    NCSDKTensorFilterTestHelper::getInstance ().release ();
+    return;
+  }
+
+  EXPECT_EQ (_mvncsdk2_push (h, 1), GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_EQ (gst_harness_buffers_in_queue (h), 0U);
+
+  /* The model was opened, and its input is what the caps were checked against. */
+  filter = _mvncsdk2_harness_get_filter (h);
+  if (filter != NULL) {
+    g_object_get (filter, "input", &dims, NULL);
+    EXPECT_STREQ (dims, "3:224:224:1");
+    g_free (dims);
+    gst_object_unref (filter);
+  } else {
+    ADD_FAILURE () << "Failed to get the tensor_filter";
+  }
+
+  gst_harness_teardown (h);
+
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
+}
+
+/**
+ * @brief Testing that is-updatable is turned off for an opened model
+ * @details The sub-plugin cannot reload a model, so a model change while it
+ *          runs must not be taken as a reload.
+ */
+TEST (pipelineMvncsdk2Filter, isUpdatable_n)
+{
+  GstHarness *h;
+  GstElement *filter;
+  gboolean updatable = TRUE;
+
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  h = _mvncsdk2_harness_new ("name=tfilter is-updatable=true");
+  if (h == NULL) {
+    ADD_FAILURE () << "Failed to parse the tensor_filter description";
+    NCSDKTensorFilterTestHelper::getInstance ().release ();
+    return;
+  }
+
+  EXPECT_EQ (_mvncsdk2_push (h, 1), GST_FLOW_OK);
+  EXPECT_EQ (_mvncsdk2_pull (h), 1U);
+
+  filter = _mvncsdk2_harness_get_filter (h);
+  if (filter != NULL) {
+    g_object_set (filter, "is-updatable", TRUE, NULL);
+    g_object_get (filter, "is-updatable", &updatable, NULL);
+    EXPECT_FALSE (updatable);
+    gst_object_unref (filter);
+  } else {
+    ADD_FAILURE () << "Failed to get the tensor_filter";
+  }
+
+  gst_harness_teardown (h);
+
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
+}
+
+/**
+ * @brief Open the sub-plugin directly on the mocked device.
+ * @param fw : The movidius-ncsdk2 sub-plugin to open
+ * @param[out] prop : The properties to open with; free model_files with g_strfreev ()
+ * @return The private data of the opened instance, or NULL on failure.
+ */
+static void *
+_mvncsdk2_open (const GstTensorFilterFramework *fw, GstTensorFilterProperties *prop)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar **models = g_new0 (gchar *, 2);
+  void *private_data = NULL;
+
+  if (root_path == NULL) {
+    root_path = "..";
+  }
+
+  models[0] = g_build_filename (root_path, "tests", "test_models", "models",
+      "google_lenet_ncsdk_caffe_1.graph", NULL);
+
+  memset (prop, 0, sizeof (*prop));
+  prop->fwname = MVNCSDK2_FW_NAME;
+  prop->model_files = (const char **) models;
+  prop->num_models = 1;
+
+  if (fw->open (prop, &private_data) != 0) {
+    ADD_FAILURE () << "Failed to open " << MVNCSDK2_FW_NAME;
+    return NULL;
+  }
+
+  EXPECT_NE (private_data, nullptr);
+
+  return private_data;
+}
+
+/**
+ * @brief Testing that unloading the sub-plugin unregisters it
+ * @details The v0 name member aliases invoke in the v1 layout, so reading the
+ *          name from the framework struct would unregister nothing.
+ */
+TEST (filterMvncsdk2, finiUnregister)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (MVNCSDK2_FW_NAME);
+  const gchar *path;
+  GModule *module;
+  gpointer init_sym = NULL;
+  gpointer fini_sym = NULL;
+
+  ASSERT_NE (fw, nullptr);
+  path = nnsconf_get_fullpath (MVNCSDK2_FW_NAME, NNSCONF_PATH_FILTERS);
+  ASSERT_NE (path, nullptr);
+  module = g_module_open (path, G_MODULE_BIND_LOCAL);
+  ASSERT_NE (module, nullptr);
+
+  if (g_module_symbol (module, "init_filter_mvncsdk2", &init_sym)
+      && g_module_symbol (module, "fini_filter_mvncsdk2", &fini_sym)) {
+    ((void (*) (void)) fini_sym) ();
+    /* Nothing is left to remove once fini () has unregistered it. */
+    EXPECT_FALSE (unregister_subplugin (NNS_SUBPLUGIN_FILTER, MVNCSDK2_FW_NAME));
+
+    /* Register it again for the other cases. */
+    ((void (*) (void)) init_sym) ();
+    EXPECT_EQ (nnstreamer_filter_find (MVNCSDK2_FW_NAME), fw);
+  } else {
+    ADD_FAILURE () << "Failed to find the init/fini functions in " << path;
+  }
+
+  g_module_close (module);
+}
+
+/**
+ * @brief Testing the information the v1 sub-plugin reports without a model
+ */
+TEST (filterMvncsdk2, frameworkInfo)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (MVNCSDK2_FW_NAME);
+  GstTensorFilterProperties prop;
+  GstTensorFilterFrameworkInfo info;
+
+  ASSERT_NE (fw, nullptr);
+  ASSERT_EQ (fw->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+  ASSERT_NE (fw->getFrameworkInfo, nullptr);
+  EXPECT_NE (fw->getModelInfo, nullptr);
+  EXPECT_NE (fw->eventHandler, nullptr);
+
+  memset (&prop, 0, sizeof (prop));
+  memset (&info, 0, sizeof (info));
+  EXPECT_EQ (fw->getFrameworkInfo (fw, &prop, NULL, &info), 0);
+
+  EXPECT_STREQ (info.name, MVNCSDK2_FW_NAME);
+  EXPECT_FALSE (info.allow_in_place);
+  EXPECT_FALSE (info.allocate_in_invoke);
+  EXPECT_FALSE (info.run_without_model);
+  EXPECT_FALSE (info.verify_model_path);
+  ASSERT_EQ (info.num_hw, 2);
+  ASSERT_NE (info.hw_list, nullptr);
+  EXPECT_EQ (info.hw_list[0], ACCL_NPU);
+  EXPECT_EQ (info.hw_list[1], ACCL_NPU_MOVIDIUS);
+  EXPECT_EQ (info.accl_auto, ACCL_NPU_MOVIDIUS);
+  EXPECT_EQ (info.accl_default, ACCL_NPU_MOVIDIUS);
+}
+
+/**
+ * @brief Testing the accelerators the sub-plugin accepts
+ */
+TEST (filterMvncsdk2, checkHwAvailability)
+{
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (MVNCSDK2_FW_NAME, ACCL_NPU, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (
+      MVNCSDK2_FW_NAME, ACCL_NPU_MOVIDIUS, NULL));
+}
+
+/**
+ * @brief Testing the accelerators the sub-plugin refuses
+ */
+TEST (filterMvncsdk2, checkHwAvailability_n)
+{
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (MVNCSDK2_FW_NAME, ACCL_CPU, NULL));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (MVNCSDK2_FW_NAME, ACCL_GPU, NULL));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (
+      MVNCSDK2_FW_NAME, ACCL_NPU_VIVANTE, NULL));
+}
+
+/**
+ * @brief Testing the tensor information of an opened model
+ */
+TEST (filterMvncsdk2, getModelInfo)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (MVNCSDK2_FW_NAME);
+  GstTensorFilterProperties prop;
+  GstTensorsInfo in_info, out_info;
+  GstTensorInfo *info;
+  void *private_data;
+
+  ASSERT_NE (fw, nullptr);
+  ASSERT_EQ (fw->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  private_data = _mvncsdk2_open (fw, &prop);
+  if (private_data != NULL) {
+    gst_tensors_info_init (&in_info);
+    gst_tensors_info_init (&out_info);
+
+    EXPECT_EQ (fw->getModelInfo (fw, &prop, private_data, GET_IN_OUT_INFO, &in_info, &out_info),
+        0);
+
+    EXPECT_EQ (in_info.num_tensors, 1U);
+    info = gst_tensors_info_get_nth_info (&in_info, 0);
+    EXPECT_EQ (info->type, _NNS_FLOAT32);
+    EXPECT_EQ (info->dimension[0], (guint) GOOGLE_LENET_IN_DIM_C);
+    EXPECT_EQ (info->dimension[1], (guint) GOOGLE_LENET_IN_DIM_W);
+    EXPECT_EQ (info->dimension[2], (guint) GOOGLE_LENET_IN_DIM_H);
+    EXPECT_EQ (info->dimension[3], (guint) GOOGLE_LENET_IN_DIM_N);
+
+    EXPECT_EQ (out_info.num_tensors, 1U);
+    info = gst_tensors_info_get_nth_info (&out_info, 0);
+    EXPECT_EQ (info->type, _NNS_FLOAT32);
+    EXPECT_EQ (info->dimension[0], (guint) GOOGLE_LENET_OUT_DIM_C);
+    EXPECT_EQ (info->dimension[1], (guint) GOOGLE_LENET_OUT_DIM_W);
+    EXPECT_EQ (info->dimension[2], (guint) GOOGLE_LENET_OUT_DIM_H);
+    EXPECT_EQ (info->dimension[3], (guint) GOOGLE_LENET_OUT_DIM_N);
+
+    gst_tensors_info_free (&in_info);
+    gst_tensors_info_free (&out_info);
+
+    fw->close (&prop, &private_data);
+    EXPECT_EQ (private_data, nullptr);
+  }
+
+  g_strfreev ((gchar **) prop.model_files);
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
+}
+
+/**
+ * @brief Testing that the sub-plugin refuses to set the input information
+ */
+TEST (filterMvncsdk2, getModelInfoSetInput_n)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (MVNCSDK2_FW_NAME);
+  GstTensorFilterProperties prop;
+  GstTensorsInfo in_info, out_info;
+  void *private_data;
+
+  ASSERT_NE (fw, nullptr);
+  ASSERT_EQ (fw->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  private_data = _mvncsdk2_open (fw, &prop);
+  if (private_data != NULL) {
+    gst_tensors_info_init (&in_info);
+    gst_tensors_info_init (&out_info);
+
+    EXPECT_EQ (fw->getModelInfo (fw, &prop, private_data, SET_INPUT_INFO, &in_info, &out_info),
+        -ENOENT);
+
+    gst_tensors_info_free (&in_info);
+    gst_tensors_info_free (&out_info);
+
+    fw->close (&prop, &private_data);
+  }
+
+  g_strfreev ((gchar **) prop.model_files);
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
+}
+
+/**
+ * @brief Testing that the sub-plugin refuses the tensor information without a model
+ */
+TEST (filterMvncsdk2, getModelInfoNotOpened_n)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (MVNCSDK2_FW_NAME);
+  GstTensorFilterProperties prop;
+  GstTensorsInfo in_info, out_info;
+
+  ASSERT_NE (fw, nullptr);
+  ASSERT_EQ (fw->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+
+  memset (&prop, 0, sizeof (prop));
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+
+  EXPECT_EQ (fw->getModelInfo (fw, &prop, NULL, GET_IN_OUT_INFO, &in_info, &out_info), -EINVAL);
+  EXPECT_EQ (in_info.num_tensors, 0U);
+  EXPECT_EQ (out_info.num_tensors, 0U);
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief Testing that the sub-plugin handles no event
+ * @details A RELOAD_MODEL answer other than -ENOENT would make tensor_filter
+ *          keep is-updatable set on an opened instance and then reload into a
+ *          sub-plugin that cannot do so.
+ */
+TEST (filterMvncsdk2, eventHandler_n)
+{
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (MVNCSDK2_FW_NAME);
+  const event_ops ops[] = { DESTROY_NOTIFY, RELOAD_MODEL, CUSTOM_PROP, SET_INPUT_PROP,
+    SET_OUTPUT_PROP, SET_ACCELERATOR, CHECK_HW_AVAILABILITY, SUSPEND, RESUME };
+  GstTensorFilterFrameworkEventData data;
+  GstTensorFilterProperties prop;
+  void *private_data;
+  guint i;
+
+  ASSERT_NE (fw, nullptr);
+  ASSERT_EQ (fw->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+  NCSDKTensorFilterTestHelper::getInstance ().init (GOOGLE_LENET);
+
+  private_data = _mvncsdk2_open (fw, &prop);
+  if (private_data != NULL) {
+    for (i = 0; i < G_N_ELEMENTS (ops); i++) {
+      memset (&data, 0, sizeof (data));
+      EXPECT_EQ (fw->eventHandler (fw, &prop, private_data, ops[i], &data), -ENOENT)
+          << "event " << ops[i];
+      EXPECT_EQ (fw->eventHandler (fw, &prop, NULL, ops[i], &data), -ENOENT)
+          << "event " << ops[i] << " without a model";
+    }
+
+    fw->close (&prop, &private_data);
+  }
+
+  g_strfreev ((gchar **) prop.model_files);
+  NCSDKTensorFilterTestHelper::getInstance ().release ();
 }
 
 /**

@@ -216,20 +216,20 @@ init_bb (void)
 
     nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_bounding_box,
         "option1", custom_prop_desc, "option2",
-        "Location of the label file. Set option1 first: the labels are given to the box properties of its mode.",
+        "Location of the label file. Set option1 first: the labels are given to the box properties of its mode. Optional for mp-palm-detection, which draws every box with the first label.",
         "option3",
         "Sub-option values that depend on option1;\n"
         "\tfor yolov5 and yolov8 mode:\n"
         "\t\tThe option3 requires up to 3 numbers, which tell\n"
         "\t\t- whether the output values are scaled or not\n"
-        "\t\t   0: not scaled (default), 1: scaled (e.g., 0.0 ~ 1.0)\n"
+        "\t\t   0: normalized to 0.0 ~ 1.0 of option5 (default), 1: in pixels of option5\n"
         "\t\t- the threshold of confidence (optional, default set to 0.25)\n"
         "\t\t- the threshold of IOU (optional, default set to 0.45)\n"
         "\t\tAn example of option3 is option3 = 0: 0.65:0.6 \n"
         "\tfor yolov8 obb mode:\n"
         "\t\tThe option3 requires up to 4 numbers, which tell\n"
         "\t\t- whether the output values are scaled or not\n"
-        "\t\t   0: not scaled (default), 1: scaled (e.g., 0.0 ~ 1.0)\n"
+        "\t\t   0: normalized to 0.0 ~ 1.0 of option5 (default), 1: in pixels of option5\n"
         "\t\t- the threshold of confidence (optional, default set to 0.25)\n"
         "\t\t- the threshold of IOU (optional, default set to 0.45)\n"
         "\t\t- whether to output oriented bounding boxes\n"
@@ -942,9 +942,8 @@ BoundingBox::setBoxDecodingMode (const char *param)
     g_hash_table_insert (properties, g_strdup (mode_name), new_bdata);
   }
 
-  if (g_strcmp0 (mode_name, "yolov8-obb") == 0) {
-    mode = YOLOV8_ORIENTED_BOUNDING_BOX;
-  }
+  int mode_index = find_key_strv (bb_modes, mode_name);
+  mode = (mode_index < 0) ? BOUNDING_BOX_UNKNOWN : (bounding_box_modes) mode_index;
   bdata = new_bdata;
 
   return TRUE;
@@ -960,11 +959,6 @@ BoundingBox::setLabelPath (const char *param)
     nns_logw ("option2 of boundingbox (\"%s\") is not applied because option1, which selects the box decoding mode, is not set yet. Set option1 before option2.",
         GST_STR_NULL (param));
     return FALSE;
-  }
-
-  if (mode == MP_PALM_DETECTION_BOUNDING_BOX) {
-    /* palm detection does not need label information */
-    return TRUE;
   }
 
   if (NULL != label_path)

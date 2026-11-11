@@ -21,6 +21,10 @@ if nnfw_runtime_support_is_available
 endif
 
 if armnn_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for ARMNN.')
+  endif
+
   filter_sub_armnn_sources = [
     'tensor_filter_armnn.cc'
   ]
@@ -96,6 +100,10 @@ endif
 
 tflite_ver_dep = disabler()
 if tflite_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for TensorFlow Lite 1.')
+  endif
+
   tflite_ver = tflite_support_deps[0].version()
   tflite_ver_major = tflite_ver.split('.')[0]
   tflite_ver_minor = tflite_ver.split('.')[1]
@@ -168,6 +176,10 @@ endif
 
 tflite2_ver_dep = disabler()
 if tflite2_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for TensorFlow Lite 2.')
+  endif
+
   tflite2_ver = tflite2_support_deps[0].version()
   tflite2_ver_major = tflite2_ver.split('.')[0]
   tflite2_ver_minor = tflite2_ver.split('.')[1]
@@ -268,6 +280,10 @@ if tflite2_support_is_available
 endif
 
 if pytorch_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for PyTorch.')
+  endif
+
   if cxx.get_id() != 'gcc'
     error('Pytorch headers (Array.h and reverse_iterator.h) require GCC for license issues. Use GCC or disable pytorch with -Dpytorch-support=disabled.')
   endif
@@ -342,6 +358,7 @@ if have_python3
     filter_sub_python3_sources,
     dependencies: nnstreamer_python3_helper_dep,
     install: true,
+    install_rpath: nnstreamer_python3_install_rpath,
     install_dir: filter_subplugin_install_dir
   )
 
@@ -606,6 +623,32 @@ if qnn_support_is_available
     install: true,
     install_dir: nnstreamer_libdir
   )
+endif
+
+if hailort_support_is_available and not tizen_hal_support_is_available
+  if not get_option('enable-filter-cpp-class')
+    error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for HailoRT.')
+  endif
+
+  filter_sub_hailort_sources = ['tensor_filter_hailort.cc']
+
+  nnstreamer_filter_hailort_deps = [glib_dep, nnstreamer_single_dep, hailort_support_deps]
+
+  shared_library('nnstreamer_filter_hailort',
+    filter_sub_hailort_sources,
+    dependencies: nnstreamer_filter_hailort_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_hailort',
+    filter_sub_hailort_sources,
+    dependencies: nnstreamer_filter_hailort_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+elif hailort_support_is_available
+  message('hailort: not built with tizen-hal-support, which needs a Hailo HAL backend instead (not available yet)')
 endif
 
 if tensorrt_support_is_available

@@ -432,5 +432,5 @@ init_filter_custom_easy (void)
 void
 fini_filter_custom_easy (void)
 {
-  nnstreamer_filter_exit (NNS_support_custom_easy.name);
+  nnstreamer_filter_exit (fw_name_custom_easy);
 }

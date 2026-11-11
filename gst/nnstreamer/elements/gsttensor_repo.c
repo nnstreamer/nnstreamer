@@ -299,6 +299,29 @@ gst_tensor_repo_set_eos (guint nth)
 }
 
 /**
+ * @brief Reset slot for a new stream, clearing EOS and the buffer left unpulled.
+ */
+gboolean
+gst_tensor_repo_reset_stream (guint nth)
+{
+  GstTensorRepoData *data;
+
+  data = gst_tensor_repo_ref_repodata (nth);
+  if (!data)
+    return FALSE;
+
+  g_mutex_lock (&data->lock);
+  data->eos = FALSE;
+  if (data->buffer) {
+    gst_buffer_unref (data->buffer);
+    data->buffer = NULL;
+  }
+  g_mutex_unlock (&data->lock);
+  gst_tensor_repo_unref_repodata (data);
+  return TRUE;
+}
+
+/**
  * @brief Get GstTensorRepoData from repo.
  */
 GstBuffer *

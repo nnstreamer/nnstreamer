@@ -91,6 +91,7 @@ struct _GstTensorMerge
   GstClockTime current_time;
   gboolean need_set_time;
   GstTensorsConfig tensors_config; /**< output tensors info */
+  guint notation_rank; /**< highest sink pad rank, set by each collect */
 };
 
 /**

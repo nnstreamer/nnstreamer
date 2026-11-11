@@ -87,6 +87,8 @@ def compare_video_frame(file1, file2, colorspace, width, height):
         channel = 3
     elif colorspace == "BGRx":
         channel = 4
+    elif colorspace in ("GRAY16_LE", "GRAY16_BE"):
+        channel = 2
     else:
         print("Please check format. Your format: " + colorspace)
         return 2

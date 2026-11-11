@@ -63,6 +63,8 @@ extern "C" {
 extern tensor_type getTensorType (NPY_TYPES npyType);
 /** @brief Get the numpy type matching the given NNStreamer tensor type */
 extern NPY_TYPES getNumpyType (tensor_type tType);
+/** @brief Import nnstreamer_python, creating it from this library when no nnstreamer_python.so is on sys.path */
+extern PyObject *importApiModule (void);
 /** @brief Import the python module and instantiate its class into core_obj */
 extern int loadScript (PyObject **core_obj, const gchar *module_name, const gchar *class_name);
 /** @brief dlopen the libpython shared object with RTLD_GLOBAL */

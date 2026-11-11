@@ -760,6 +760,255 @@ TEST_F (NNSConfDump, subpluginDumpTruncated_n)
 }
 
 /**
+ * @brief Fixture with two ini files, A (enable_envvar=true) and B
+ *        (enable_envvar=false), each with its own filter directory and custom
+ *        values, and a third filter directory given by NNSTREAMER_FILTERS.
+ *        The custom value group is new in every case because the custom value
+ *        cache outlives a forced reload.
+ */
+class NNSConfLookup : public ::testing::Test
+{
+  protected:
+  gchar *dir = NULL;
+  gchar *dirs[3] = { NULL };
+  gchar *filters[3] = { NULL };
+  gchar *ini_a = NULL;
+  gchar *ini_b = NULL;
+  gchar *group = NULL;
+  gchar *envkey = NULL;
+  gchar *saved_conf = NULL;
+  gchar *saved_filters = NULL;
+
+  /**
+   * @brief Write both ini files and the filters, then load ini A.
+   */
+  void SetUp () override
+  {
+    static guint setup_serial = 0;
+    static const gchar *names[3] = { "j6a", "j6b", "j6env" };
+    gchar *content;
+    guint i;
+
+    group = g_strdup_printf ("j6grp%u", setup_serial++);
+    envkey = g_strdup_printf ("NNSTREAMER_%s_key", group);
+    dir = g_dir_make_tmp ("nns-conf-XXXXXX", NULL);
+    ASSERT_TRUE (dir != NULL);
+
+    for (i = 0; i < 3; i++) {
+      gchar *file = g_strdup_printf (
+          "libnnstreamer_filter_%s" NNSTREAMER_SO_FILE_EXTENSION, names[i]);
+
+      dirs[i] = g_build_filename (dir, names[i], NULL);
+      filters[i] = g_build_filename (dirs[i], file, NULL);
+      g_free (file);
+      ASSERT_EQ (g_mkdir (dirs[i], 0755), 0);
+      ASSERT_TRUE (g_file_set_contents (filters[i], "", 0, NULL));
+    }
+
+    ini_a = g_build_filename (dir, "a.ini", NULL);
+    content = g_strdup_printf ("[common]\nenable_envvar=True\n"
+                               "[filter]\nfilters=%s\n"
+                               "[%s]\nkey=ini-a\nother=ini-a\n",
+        dirs[0], group);
+    ASSERT_TRUE (g_file_set_contents (ini_a, content, -1, NULL));
+    g_free (content);
+
+    ini_b = g_build_filename (dir, "b.ini", NULL);
+    content = g_strdup_printf ("[common]\nenable_envvar=False\n"
+                               "[filter]\nfilters=%s\n"
+                               "[%s]\nkey=ini-b\n",
+        dirs[1], group);
+    ASSERT_TRUE (g_file_set_contents (ini_b, content, -1, NULL));
+    g_free (content);
+
+    saved_conf = g_strdup (g_getenv ("NNSTREAMER_CONF"));
+    saved_filters = g_strdup (g_getenv ("NNSTREAMER_FILTERS"));
+    g_setenv ("NNSTREAMER_FILTERS", dirs[2], TRUE);
+
+    ASSERT_NO_FATAL_FAILURE (UseConf (ini_a));
+#ifdef __TIZEN__
+    /* Tizen reads NNSTREAMER_CONF only when no system ini exists. */
+    if (g_strcmp0 (nnsconf_get_fullpath ("j6a", NNSCONF_PATH_FILTERS), filters[0]) != 0)
+      GTEST_SKIP () << "The ini given by NNSTREAMER_CONF is not used.";
+#endif
+  }
+
+  /**
+   * @brief Restore the environment, reload and remove the files.
+   */
+  void TearDown () override
+  {
+    guint i;
+
+    if (envkey)
+      g_unsetenv (envkey);
+    if (saved_filters)
+      g_setenv ("NNSTREAMER_FILTERS", saved_filters, TRUE);
+    else
+      g_unsetenv ("NNSTREAMER_FILTERS");
+    if (saved_conf)
+      g_setenv ("NNSTREAMER_CONF", saved_conf, TRUE);
+    else
+      g_unsetenv ("NNSTREAMER_CONF");
+    nnsconf_loadconf (TRUE);
+
+    if (ini_a)
+      g_remove (ini_a);
+    if (ini_b)
+      g_remove (ini_b);
+    for (i = 0; i < 3; i++) {
+      if (filters[i])
+        g_remove (filters[i]);
+      if (dirs[i])
+        g_rmdir (dirs[i]);
+      g_free (filters[i]);
+      g_free (dirs[i]);
+    }
+    if (dir)
+      g_rmdir (dir);
+    g_free (ini_a);
+    g_free (ini_b);
+    g_free (group);
+    g_free (envkey);
+    g_free (saved_conf);
+    g_free (saved_filters);
+    g_free (dir);
+  }
+
+  /**
+   * @brief Point NNSTREAMER_CONF at path and reload.
+   */
+  void UseConf (const gchar *path)
+  {
+    g_setenv ("NNSTREAMER_CONF", path, TRUE);
+    ASSERT_TRUE (nnsconf_loadconf (TRUE));
+  }
+
+  /**
+   * @brief Get the rest of the first line of nnsconf_dump() containing label.
+   */
+  std::string DumpValue (const gchar *label)
+  {
+    gchar dump[8192] = { 0 };
+    const gchar *start, *end;
+
+    nnsconf_dump (dump, sizeof (dump));
+    start = strstr (dump, label);
+    if (!start)
+      return std::string ("<missing>");
+    start += strlen (label);
+    end = strchr (start, '\n');
+    return end ? std::string (start, end - start) : std::string (start);
+  }
+};
+
+/**
+ * @brief NNSTREAMER_CONF selects the ini file over the build-time one, and a
+ *        reload follows a new NNSTREAMER_CONF.
+ */
+TEST_F (NNSConfLookup, envConfSelectsFile)
+{
+  EXPECT_EQ (DumpValue ("Configuration file path: "), std::string (ini_a));
+  EXPECT_STREQ (nnsconf_get_fullpath ("j6a", NNSCONF_PATH_FILTERS), filters[0]);
+  EXPECT_TRUE (nnsconf_get_fullpath ("j6b", NNSCONF_PATH_FILTERS) == NULL);
+
+  ASSERT_NO_FATAL_FAILURE (UseConf (ini_b));
+  EXPECT_EQ (DumpValue ("Configuration file path: "), std::string (ini_b));
+  EXPECT_STREQ (nnsconf_get_fullpath ("j6b", NNSCONF_PATH_FILTERS), filters[1]);
+  EXPECT_TRUE (nnsconf_get_fullpath ("j6a", NNSCONF_PATH_FILTERS) == NULL);
+}
+
+/**
+ * @brief NNSTREAMER_FILTERS adds its directory only when the ini enables
+ *        environment variables.
+ */
+TEST_F (NNSConfLookup, envvarDisabledIgnoresPathEnv_n)
+{
+  EXPECT_EQ (DumpValue ("Enable envvar: "), std::string ("TRUE"));
+  EXPECT_EQ (DumpValue ("from envvar: "), std::string (dirs[2]));
+  EXPECT_STREQ (nnsconf_get_fullpath ("j6env", NNSCONF_PATH_FILTERS), filters[2]);
+
+  ASSERT_NO_FATAL_FAILURE (UseConf (ini_b));
+  EXPECT_EQ (DumpValue ("Enable envvar: "), std::string ("FALSE"));
+  EXPECT_EQ (DumpValue ("from envvar: "), std::string ("<disabled>"));
+  EXPECT_TRUE (nnsconf_get_fullpath ("j6env", NNSCONF_PATH_FILTERS) == NULL);
+  EXPECT_STREQ (nnsconf_get_fullpath ("j6b", NNSCONF_PATH_FILTERS), filters[1]);
+}
+
+/**
+ * @brief A custom value from the environment beats the ini value, and the
+ *        value read first stays cached after the variable is unset.
+ */
+TEST_F (NNSConfLookup, customEnvBeatsIni)
+{
+  gchar *value;
+
+  g_setenv (envkey, "env", TRUE);
+  value = nnsconf_get_custom_value_string (group, "key");
+  EXPECT_STREQ (value, "env");
+  g_free (value);
+
+  value = nnsconf_get_custom_value_string (group, "other");
+  EXPECT_STREQ (value, "ini-a");
+  g_free (value);
+
+  g_unsetenv (envkey);
+  value = nnsconf_get_custom_value_string (group, "key");
+  EXPECT_STREQ (value, "env");
+  g_free (value);
+}
+
+/**
+ * @brief A custom value from the environment is ignored when the ini does not
+ *        enable environment variables.
+ */
+TEST_F (NNSConfLookup, customEnvDisabled_n)
+{
+  gchar *envonly = g_strdup_printf ("NNSTREAMER_%s_envonly", group);
+  gchar *value;
+
+  ASSERT_NO_FATAL_FAILURE (UseConf (ini_b));
+  g_setenv (envkey, "env", TRUE);
+  g_setenv (envonly, "env", TRUE);
+
+  value = nnsconf_get_custom_value_string (group, "key");
+  EXPECT_STREQ (value, "ini-b");
+  g_free (value);
+  EXPECT_TRUE (nnsconf_get_custom_value_string (group, "envonly") == NULL);
+  EXPECT_FALSE (nnsconf_get_custom_value_bool (group, "envonly", FALSE));
+
+  g_unsetenv (envonly);
+  g_free (envonly);
+}
+
+/**
+ * @brief An NNSTREAMER_CONF naming no file falls back to the build-time ini,
+ *        then to the default one, and nothing of the previous ini remains.
+ */
+TEST_F (NNSConfLookup, missingEnvConfFallsBack_n)
+{
+  gchar *absent = g_build_filename (dir, "absent.ini", NULL);
+  std::string build_conf = DumpValue ("build-config: ");
+  /* The first "hard-coded: " is the default ini, not the filter path. */
+  std::string default_conf = DumpValue ("hard-coded: ");
+  std::string path;
+
+  ASSERT_NO_FATAL_FAILURE (UseConf (absent));
+  path = DumpValue ("Configuration file path: ");
+
+  EXPECT_NE (path, std::string (ini_a));
+  if (g_file_test (build_conf.c_str (), G_FILE_TEST_IS_REGULAR)) {
+    EXPECT_EQ (path, build_conf);
+  } else if (g_file_test (default_conf.c_str (), G_FILE_TEST_IS_REGULAR)) {
+    EXPECT_EQ (path, default_conf);
+  }
+
+  EXPECT_TRUE (nnsconf_get_fullpath ("j6a", NNSCONF_PATH_FILTERS) == NULL);
+  EXPECT_TRUE (nnsconf_get_custom_value_string (group, "key") == NULL);
+  g_free (absent);
+}
+
+/**
  * @brief Main GTest
  */
 int

@@ -1877,6 +1877,7 @@ _out_combi_run (const gchar *combi, gboolean flexible, out_combi_mode mode,
   GstMapInfo map;
   gsize hsize;
   guint i, handler, critical = 0;
+  GLogLevelFlags fatal_mask;
 
   if (mode != OUT_COMBI_STATIC) {
     flexible = TRUE;
@@ -1887,7 +1888,7 @@ _out_combi_run (const gchar *combi, gboolean flexible, out_combi_mode mode,
   }
 
   handler = g_log_set_handler ("GStreamer",
-      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _out_combi_count_critical, &critical);
 
   in_buf = gst_harness_create_buffer (h, 4);
@@ -1945,7 +1946,9 @@ _out_combi_run (const gchar *combi, gboolean flexible, out_combi_mode mode,
 
   EXPECT_EQ (critical, 0U);
   /* The handler is live: a critical of the domain is counted */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "self-check of the counter");
+  g_log_set_always_fatal (fatal_mask);
   EXPECT_EQ (critical, 1U);
   g_log_remove_handler ("GStreamer", handler);
 }
@@ -3328,6 +3331,607 @@ TEST (tensorFilterQos, latencyBelowGap_n)
   EXPECT_EQ (_qos_latency_run ("qos_latency_fast", 0, 500 * GST_MSECOND, &latency, &overflow), 3U);
   EXPECT_LT (latency, 500000);
   EXPECT_FALSE (overflow);
+}
+
+/**
+ * @brief Harness a tensor_filter on the custom library 'nnscustom_invoke_result', with a bus to catch its messages.
+ * @param custom The custom property, which sets what invoke returns.
+ */
+static GstHarness *
+_invoke_result_harness (const gchar *custom)
+{
+  g_autofree gchar *lib_name
+      = g_strconcat ("libnnscustom_invoke_result", NNSTREAMER_SO_FILE_EXTENSION, NULL);
+  g_autofree gchar *path = _b3_build_path ("nnstreamer_example", lib_name);
+  g_autofree gchar *desc = g_strdup_printf (
+      "tensor_filter framework=custom model=%s custom=%s", path, custom);
+  GstHarness *h;
+  GstBus *bus;
+
+  if (!g_file_test (path, G_FILE_TEST_EXISTS))
+    return NULL;
+
+  h = gst_harness_new_parse (desc);
+  bus = gst_bus_new ();
+  gst_element_set_bus (h->element, bus);
+  gst_object_unref (bus);
+
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,num_tensors=1,types=uint8,dimensions=4:1:1:1,format=static,framerate=(fraction)0/1");
+  return h;
+}
+
+/**
+ * @brief Pop the 'invoke-failure' messages tensor_filter has posted so far.
+ * @param[out] text The message text of the last one, if not NULL.
+ * @return The number of messages.
+ */
+static guint
+_invoke_result_failures (GstHarness *h, gchar **text)
+{
+  GstBus *bus = gst_element_get_bus (h->element);
+  GstMessage *msg;
+  guint count = 0;
+
+  while ((msg = gst_bus_pop_filtered (bus, GST_MESSAGE_APPLICATION)) != NULL) {
+    const GstStructure *s = gst_message_get_structure (msg);
+
+    if (gst_structure_has_name (s, "nnstreamer-message")
+        && g_strcmp0 (gst_structure_get_string (s, "type"), "invoke-failure") == 0) {
+      EXPECT_STREQ (gst_structure_get_string (s, "element"), "tensor-filter");
+      EXPECT_STREQ (G_OBJECT_TYPE_NAME (GST_MESSAGE_SRC (msg)), "GstTensorFilter");
+      if (text) {
+        g_free (*text);
+        *text = g_strdup (gst_structure_get_string (s, "message"));
+      }
+      count++;
+    }
+    gst_message_unref (msg);
+  }
+
+  gst_object_unref (bus);
+  return count;
+}
+
+/**
+ * @brief An invoke returning a negative value posts 'invoke-failure' on the bus and stops the flow.
+ */
+TEST (tensorFilterCustomInvokeResult, failurePostsMessage_n)
+{
+  GstHarness *h = _invoke_result_harness ("-5");
+  gchar *text = NULL;
+
+  ASSERT_TRUE (h != nullptr);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (_invoke_result_failures (h, &text), 1U);
+  EXPECT_TRUE (text != nullptr && strstr (text, "error code (-5)") != nullptr)
+      << "message: " << GST_STR_NULL (text);
+  g_free (text);
+
+  /* Each failed invoke posts its own message. */
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_ERROR);
+  EXPECT_EQ (_invoke_result_failures (h, NULL), 1U);
+
+  _flex_in_teardown (h);
+}
+
+/**
+ * @brief An invoke returning a positive value drops the buffer without a message.
+ */
+TEST (tensorFilterCustomInvokeResult, positiveDropsBuffer)
+{
+  GstHarness *h = _invoke_result_harness ("1");
+
+  ASSERT_TRUE (h != nullptr);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_EQ (_invoke_result_failures (h, NULL), 0U);
+
+  _flex_in_teardown (h);
+}
+
+/**
+ * @brief An invoke returning 0 passes the output on without a message.
+ */
+TEST (tensorFilterCustomInvokeResult, zeroPassesBuffer)
+{
+  GstHarness *h = _invoke_result_harness ("0");
+  GstBuffer *in, *out;
+  GstMapInfo map;
+  const guint8 bytes[] = { 1, 2, 3, 4 };
+
+  ASSERT_TRUE (h != nullptr);
+
+  in = gst_harness_create_buffer (h, sizeof (bytes));
+  gst_buffer_fill (in, 0, bytes, sizeof (bytes));
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+  EXPECT_EQ (_invoke_result_failures (h, NULL), 0U);
+
+  out = gst_harness_try_pull (h);
+  ASSERT_TRUE (out != nullptr);
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, sizeof (bytes));
+  EXPECT_EQ (memcmp (map.data, bytes, sizeof (bytes)), 0);
+  gst_buffer_unmap (out, &map);
+  gst_buffer_unref (out);
+
+  _flex_in_teardown (h);
+}
+
+/** @brief Suspend timeout (ms) of the allocate_invoke tests: long enough to release an output before the library is closed */
+#define SUSPEND_ALLOC_MS 2000U
+
+/**
+ * @brief Copy 'libnnscustom_destroy_notify' into a new directory, so that a test case can delete it.
+ * @return The path of the copy, or NULL on failure.
+ */
+static gchar *
+_suspend_alloc_copy (void)
+{
+  g_autofree gchar *lib_name = g_strconcat (
+      "libnnscustom_destroy_notify", NNSTREAMER_SO_FILE_EXTENSION, NULL);
+  g_autofree gchar *src = _b3_build_path ("nnstreamer_example", lib_name);
+  g_autofree gchar *dir = g_dir_make_tmp ("nns_suspend_alloc_XXXXXX", NULL);
+  g_autofree gchar *contents = NULL;
+  gchar *path;
+  gsize len;
+
+  if (dir == NULL || !g_file_get_contents (src, &contents, &len, NULL))
+    return NULL;
+
+  path = g_build_filename (dir, lib_name, NULL);
+  if (!g_file_set_contents (path, contents, len, NULL) || g_chmod (path, 0755) != 0) {
+    g_free (path);
+    return NULL;
+  }
+
+  return path;
+}
+
+/**
+ * @brief Delete the copy made by _suspend_alloc_copy() and its directory.
+ */
+static void
+_suspend_alloc_remove (const gchar *path)
+{
+  g_autofree gchar *dir = g_path_get_dirname (path);
+
+  g_remove (path);
+  g_rmdir (dir);
+}
+
+/**
+ * @brief Read 'nnscustom_destroy_notify_count' of the library at @a path, without loading it.
+ * @return The count, or -1 if the library is not loaded.
+ */
+static gint
+_suspend_alloc_notified (const gchar *path)
+{
+  void *handle = dlopen (path, RTLD_LAZY | RTLD_NOLOAD);
+  gint *count;
+  gint ret = -1;
+
+  if (handle == NULL)
+    return -1;
+
+  count = (gint *) dlsym (handle, "nnscustom_destroy_notify_count");
+  if (count)
+    ret = g_atomic_int_get (count);
+  dlclose (handle);
+  return ret;
+}
+
+/**
+ * @brief Wait until the suspend watchdog has closed the library at @a path.
+ */
+static gboolean
+_suspend_alloc_wait_closed (const gchar *path)
+{
+  guint waited_ms = 0;
+
+  while (_b3_is_loaded (path)) {
+    if (waited_ms >= 10 * SUSPEND_ALLOC_MS)
+      return FALSE;
+    g_usleep (10000);
+    waited_ms += 10;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Push 4 bytes and check that the output is a copy that the library releases with destroy_notify.
+ */
+static void
+_suspend_alloc_push_check (GstHarness *h, const gchar *path, guint8 seed)
+{
+  const guint8 bytes[]
+      = { seed, (guint8) (seed + 1), (guint8) (seed + 2), (guint8) (seed + 3) };
+  GstBuffer *in, *out;
+  GstMapInfo map;
+  gint notified;
+
+  in = gst_harness_create_buffer (h, sizeof (bytes));
+  gst_buffer_fill (in, 0, bytes, sizeof (bytes));
+  ASSERT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+
+  out = gst_harness_try_pull (h);
+  ASSERT_TRUE (out != nullptr);
+  ASSERT_TRUE (gst_buffer_map (out, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, sizeof (bytes));
+  EXPECT_EQ (memcmp (map.data, bytes, sizeof (bytes)), 0);
+  gst_buffer_unmap (out, &map);
+
+  notified = _suspend_alloc_notified (path);
+  EXPECT_GE (notified, 0) << "the library is not loaded while its output is alive";
+  gst_buffer_unref (out);
+  EXPECT_EQ (_suspend_alloc_notified (path), notified + 1)
+      << "the output was not allocated by allocate_invoke, or not handed back to destroy_notify";
+}
+
+/**
+ * @brief Harness a tensor_filter with the suspend watchdog on the custom library at @a path.
+ */
+static GstHarness *
+_suspend_alloc_harness (const gchar *path)
+{
+  g_autofree gchar *desc = g_strdup_printf (
+      "tensor_filter framework=custom model=%s suspend=%u", path, SUSPEND_ALLOC_MS);
+  GstHarness *h = gst_harness_new_parse (desc);
+
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,num_tensors=1,types=uint8,dimensions=4:1:1:1,format=static,framerate=(fraction)0/1");
+  return h;
+}
+
+/**
+ * @brief A model with allocate_invoke, set while the suspend watchdog has
+ * closed one without it, is invoked with allocate_invoke at the reopen.
+ * @details The custom sub-plugin refuses SUSPEND, so the watchdog closes the
+ * library. allocate_in_invoke is read from the opened library, so tensor_filter
+ * has to take the framework info again at every open (1e15d695, ca64c579): with
+ * the info of the first library, the output of the second one would be neither
+ * filled nor handed to destroy_notify.
+ */
+TEST (tensorFilterCustomSuspend, allocateInvokeAfterReopen)
+{
+  g_autofree gchar *lib_name
+      = g_strconcat ("libnnscustom_invoke_result", NNSTREAMER_SO_FILE_EXTENSION, NULL);
+  g_autofree gchar *first = _b3_build_path ("nnstreamer_example", lib_name);
+  g_autofree gchar *path = _suspend_alloc_copy ();
+  GstElement *filter;
+  GstBuffer *out;
+  GstHarness *h;
+
+  ASSERT_TRUE (path != nullptr);
+  ASSERT_TRUE (g_file_test (first, G_FILE_TEST_EXISTS));
+  h = _suspend_alloc_harness (first);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  out = gst_harness_try_pull (h);
+  EXPECT_TRUE (out != nullptr);
+  if (out)
+    gst_buffer_unref (out);
+  EXPECT_TRUE (_suspend_alloc_wait_closed (first))
+      << "the suspend watchdog did not close the library";
+
+  filter = gst_harness_find_element (h, "tensor_filter");
+  g_object_set (filter, "model", path, NULL);
+  gst_object_unref (filter);
+
+  _suspend_alloc_push_check (h, path, 11);
+
+  gst_harness_teardown (h);
+  EXPECT_FALSE (_b3_is_loaded (path));
+  _suspend_alloc_remove (path);
+}
+
+/**
+ * @brief A reopen after the suspend watchdog that fails stops the buffer, and a later buffer reopens the library.
+ */
+TEST (tensorFilterCustomSuspend, reopenFailure_n)
+{
+  g_autofree gchar *path = _suspend_alloc_copy ();
+  g_autofree gchar *contents = NULL;
+  gsize len;
+  GstHarness *h;
+
+  ASSERT_TRUE (path != nullptr);
+  ASSERT_TRUE (g_file_get_contents (path, &contents, &len, NULL));
+  h = _suspend_alloc_harness (path);
+
+  _suspend_alloc_push_check (h, path, 1);
+  EXPECT_TRUE (_suspend_alloc_wait_closed (path))
+      << "the suspend watchdog did not close the library";
+
+  EXPECT_EQ (g_remove (path), 0);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  ASSERT_TRUE (g_file_set_contents (path, contents, len, NULL));
+  EXPECT_EQ (g_chmod (path, 0755), 0);
+  _suspend_alloc_push_check (h, path, 21);
+
+  gst_harness_teardown (h);
+  _suspend_alloc_remove (path);
+}
+
+/** @brief Caps of a static stream of one uint8 tensor of 3:width:height:1 */
+#define EXAMPLE_RGB_CAPS \
+  "other/tensors,num_tensors=1,types=uint8,dimensions=3:%u:%u:1,format=static,framerate=(fraction)0/1"
+
+/**
+ * @brief Make a uint8 tensor of @a size bytes filled with a pattern that does not repeat along a row.
+ * @param seed Tensors of different seeds (0 to 250) differ at every byte.
+ */
+static GstMemory *
+_example_memory (gsize size, guint seed = 0)
+{
+  GstMemory *mem = gst_allocator_alloc (NULL, size, NULL);
+  GstMapInfo map;
+  gsize i;
+
+  if (gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+    for (i = 0; i < size; i++)
+      map.data[i] = (guint8) ((i * 31 + 7 + seed) % 251);
+    gst_memory_unmap (mem, &map);
+  }
+
+  return mem;
+}
+
+/**
+ * @brief Push @a in through an example custom filter in
+ * tests/nnstreamer_example, as tests/nnstreamer_filter_custom/runTest.sh does.
+ * @param lib The library name without 'lib' and the file extension.
+ * @param props The other properties of tensor_filter.
+ * @param caps The caps of @a in.
+ * @param[out] out The output buffer, or NULL if tensor_filter has not pushed one.
+ * @param expected The flow the push has to return.
+ * @return The harness. Release @a out before tearing it down: an output
+ * allocated in invoke refers to the tensor_filter element.
+ */
+static GstHarness *
+_example_run (const gchar *lib, const gchar *props, const gchar *caps,
+    GstBuffer *in, GstBuffer **out, GstFlowReturn expected = GST_FLOW_OK)
+{
+  g_autofree gchar *lib_name
+      = g_strconcat ("lib", lib, NNSTREAMER_SO_FILE_EXTENSION, NULL);
+  g_autofree gchar *path = _b3_build_path ("nnstreamer_example", lib_name);
+  g_autofree gchar *desc
+      = g_strdup_printf ("tensor_filter framework=custom model=%s %s", path, props);
+  GstHarness *h;
+
+  EXPECT_TRUE (g_file_test (path, G_FILE_TEST_EXISTS)) << path;
+
+  h = gst_harness_new_parse (desc);
+  gst_harness_set_src_caps_str (h, caps);
+  EXPECT_EQ (gst_harness_push (h, in), expected);
+  *out = gst_harness_try_pull (h);
+
+  return h;
+}
+
+/**
+ * @brief Run a 3:@a w:@a h:1 uint8 tensor through an example custom filter, and check that the output is the input scaled to @a ow x @a oh.
+ * @details The output pixel (x, y) is the input pixel (x * w / ow, y * h / oh), as
+ *          compare_scaled_tensor () of tests/test_utils.py checks; a pass-through is a scale to the same size.
+ */
+static void
+_example_scale (const gchar *lib, const gchar *props, guint w, guint h, guint ow, guint oh)
+{
+  g_autofree gchar *caps = g_strdup_printf (EXAMPLE_RGB_CAPS, w, h);
+  GstMemory *mem = _example_memory ((gsize) 3 * w * h);
+  GstBuffer *in = gst_buffer_new ();
+  GstBuffer *out;
+  GstHarness *harness;
+  GstMapInfo a, b;
+  guint x, y, c, ix, iy, mismatch = 0;
+
+  gst_buffer_append_memory (in, gst_memory_ref (mem));
+  harness = _example_run (lib, props, caps, in, &out);
+  EXPECT_TRUE (out != nullptr);
+
+  if (out && gst_memory_map (mem, &a, GST_MAP_READ)) {
+    if (gst_buffer_map (out, &b, GST_MAP_READ)) {
+      EXPECT_EQ (b.size, (gsize) 3 * ow * oh);
+
+      for (y = 0; y < oh && b.size == (gsize) 3 * ow * oh; y++) {
+        for (x = 0; x < ow; x++) {
+          ix = x * w / ow;
+          iy = y * h / oh;
+          for (c = 0; c < 3; c++) {
+            if (b.data[c + 3 * x + 3 * ow * y] != a.data[c + 3 * ix + 3 * w * iy])
+              mismatch++;
+          }
+        }
+      }
+      gst_buffer_unmap (out, &b);
+    } else {
+      ADD_FAILURE () << "cannot map the output";
+    }
+    gst_memory_unmap (mem, &a);
+  }
+
+  EXPECT_EQ (mismatch, 0U);
+  if (out)
+    gst_buffer_unref (out);
+  gst_harness_teardown (harness);
+  gst_memory_unref (mem);
+}
+
+/**
+ * @brief The constant pass-through example with its dimensions given as properties (runTest.sh case 1).
+ */
+TEST (tensorFilterCustomExample, passthroughGivenDimensions)
+{
+  _example_scale ("nnstreamer_customfilter_passthrough",
+      "input=3:280:40:1 inputtype=uint8 output=3:280:40:1 outputtype=uint8",
+      280, 40, 280, 40);
+}
+
+/**
+ * @brief The constant pass-through example (runTest.sh case 2).
+ */
+TEST (tensorFilterCustomExample, passthrough)
+{
+  _example_scale ("nnstreamer_customfilter_passthrough", "", 280, 40, 280, 40);
+}
+
+/**
+ * @brief The constant pass-through example refuses a stream of other dimensions.
+ */
+TEST (tensorFilterCustomExample, passthroughOtherDimensions_n)
+{
+  g_autofree gchar *caps = g_strdup_printf (EXAMPLE_RGB_CAPS, 640U, 480U);
+  GstBuffer *in = gst_buffer_new ();
+  GstBuffer *out;
+  GstHarness *h;
+
+  gst_buffer_append_memory (in, _example_memory (3 * 640 * 480));
+  h = _example_run ("nnstreamer_customfilter_passthrough", "", caps, in, &out,
+      GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_TRUE (out == nullptr);
+  if (out)
+    gst_buffer_unref (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief The variable-dimension pass-through example with its dimensions given as properties (runTest.sh case 3).
+ */
+TEST (tensorFilterCustomExample, passthroughVariableGivenDimensions)
+{
+  _example_scale ("nnstreamer_customfilter_passthrough_variable",
+      "input=3:640:480:1 inputtype=uint8 output=3:640:480:1 outputtype=uint8",
+      640, 480, 640, 480);
+}
+
+/**
+ * @brief The variable-dimension pass-through example (runTest.sh case 4-1).
+ */
+TEST (tensorFilterCustomExample, passthroughVariable)
+{
+  _example_scale ("nnstreamer_customfilter_passthrough_variable", "", 640, 480, 640, 480);
+}
+
+/**
+ * @brief The variable-dimension pass-through example on three tensors (runTest.sh case 4-3).
+ */
+TEST (tensorFilterCustomExample, passthroughVariableTensors)
+{
+  const gsize sizes[] = { 3 * 160 * 120, 3 * 120 * 80, 3 * 64 * 48 };
+  GstBuffer *in = gst_buffer_new ();
+  GstBuffer *out;
+  GstHarness *h;
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (sizes); i++)
+    gst_buffer_append_memory (in, _example_memory (sizes[i], i));
+  gst_buffer_ref (in);
+
+  h = _example_run ("nnstreamer_customfilter_passthrough_variable", "",
+      "other/tensors,num_tensors=3,types=uint8.uint8.uint8,"
+      "dimensions=3:160:120:1.3:120:80:1.3:64:48:1,format=static,framerate=(fraction)0/1",
+      in, &out);
+  ASSERT_TRUE (out != nullptr);
+  ASSERT_EQ (gst_buffer_n_memory (out), G_N_ELEMENTS (sizes));
+
+  for (i = 0; i < G_N_ELEMENTS (sizes); i++) {
+    GstMemory *a = gst_buffer_peek_memory (in, i);
+    GstMemory *b = gst_buffer_peek_memory (out, i);
+    GstMapInfo ma, mb;
+
+    ASSERT_TRUE (gst_memory_map (a, &ma, GST_MAP_READ));
+    ASSERT_TRUE (gst_memory_map (b, &mb, GST_MAP_READ));
+    EXPECT_EQ (mb.size, sizes[i]);
+    EXPECT_EQ (memcmp (ma.data, mb.data, MIN (ma.size, mb.size)), 0) << "tensor " << i;
+    gst_memory_unmap (b, &mb);
+    gst_memory_unmap (a, &ma);
+  }
+
+  gst_buffer_unref (out);
+  gst_harness_teardown (h);
+  gst_buffer_unref (in);
+}
+
+/**
+ * @brief The scaler example without a size keeps the input (runTest.sh case 5).
+ */
+TEST (tensorFilterCustomExample, scalerSameSize)
+{
+  _example_scale ("nnstreamer_customfilter_scaler", "", 640, 480, 640, 480);
+}
+
+/**
+ * @brief The scaler example scales down (runTest.sh case 6).
+ */
+TEST (tensorFilterCustomExample, scalerDown)
+{
+  _example_scale ("nnstreamer_customfilter_scaler", "custom=320x240", 640, 480, 320, 240);
+}
+
+/**
+ * @brief The scaler example scales up, with an upper-case separator (runTest.sh case 7).
+ */
+TEST (tensorFilterCustomExample, scalerUp)
+{
+  _example_scale ("nnstreamer_customfilter_scaler", "custom=1280X960", 640, 480, 1280, 960);
+}
+
+/**
+ * @brief The scaler example scales to a tiny size (runTest.sh case 10).
+ */
+TEST (tensorFilterCustomExample, scalerTiny)
+{
+  _example_scale ("nnstreamer_customfilter_scaler", "custom=8x8", 640, 480, 8, 8);
+}
+
+/**
+ * @brief The scaler example that allocates its output in invoke (runTest.sh case 11).
+ */
+TEST (tensorFilterCustomExample, scalerAllocator)
+{
+  _example_scale ("nnstreamer_customfilter_scaler_allocator", "custom=320x240",
+      640, 480, 320, 240);
+}
+
+/**
+ * @brief The average example gives the average of each channel (runTest.sh cases 8 and 9).
+ */
+TEST (tensorFilterCustomExample, average)
+{
+  g_autofree gchar *caps = g_strdup_printf (EXAMPLE_RGB_CAPS, 640U, 480U);
+  GstMemory *mem = _example_memory (3 * 640 * 480);
+  GstBuffer *in = gst_buffer_new ();
+  GstBuffer *out;
+  GstHarness *h;
+  GstMapInfo a, b;
+  guint64 sum[3] = { 0, 0, 0 };
+  gsize i;
+
+  gst_buffer_append_memory (in, gst_memory_ref (mem));
+  h = _example_run ("nnstreamer_customfilter_average", "", caps, in, &out);
+  ASSERT_TRUE (out != nullptr);
+
+  ASSERT_TRUE (gst_memory_map (mem, &a, GST_MAP_READ));
+  for (i = 0; i < a.size; i++)
+    sum[i % 3] += a.data[i];
+  gst_memory_unmap (mem, &a);
+
+  ASSERT_TRUE (gst_buffer_map (out, &b, GST_MAP_READ));
+  ASSERT_EQ (b.size, 3U);
+  for (i = 0; i < 3; i++)
+    EXPECT_EQ (b.data[i], (guint8) (sum[i] / (640 * 480))) << "channel " << i;
+  gst_buffer_unmap (out, &b);
+
+  gst_buffer_unref (out);
+  gst_harness_teardown (h);
+  gst_memory_unref (mem);
 }
 
 /**

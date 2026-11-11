@@ -1086,10 +1086,15 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   guint frames_in, frames_out;
   UNUSED (pad);
 
-  buf_size = gst_buffer_get_size (buf);
-  g_return_val_if_fail (buf_size > 0, GST_FLOW_ERROR);
-
   self = GST_TENSOR_CONVERTER (parent);
+
+  buf_size = gst_buffer_get_size (buf);
+  if (buf_size == 0) {
+    GST_WARNING_OBJECT (self,
+        "Dropping an empty buffer, it has no data to convert.");
+    gst_buffer_unref (buf);
+    return GST_FLOW_OK;
+  }
 
   /** This is an internal logic error. */
   g_assert (self->tensors_configured);

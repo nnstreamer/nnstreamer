@@ -249,4 +249,32 @@ callCompareTest mobilenetssd_golden.0 mobilenetssd_output.0 19-1 "mobilenet-ssd 
 callCompareTest mobilenetssd_golden.1 mobilenetssd_output.1 19-2 "mobilenet-ssd Decode 2 with option3 replayed" 0
 rm mobilenetssd_output.*
 
+# mobilenet-ssd option3: an empty value keeps its default, and values past the seventh are ignored.
+SSD_OPTION3_DEC="tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option1=mobilenet-ssd option2=coco_labels_list.txt option4=160:120 option5=300:300"
+SSD_OPTION3_SINK="video/x-raw,format=RGBA ! multifilesink"
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SSD_OPTION3_DEC} option3=box_priors.txt:0.65:::::0.6 ! ${SSD_OPTION3_SINK} location=ssd_option3_partial.%d ${MODELSIZE_SRC}" 20-1 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SSD_OPTION3_DEC} option3=box_priors.txt:0.65:10.0:10.0:5.0:5.0:0.6 ! ${SSD_OPTION3_SINK} location=ssd_option3_full.%d ${MODELSIZE_SRC}" 20-2 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SSD_OPTION3_DEC} option3=box_priors.txt ! ${SSD_OPTION3_SINK} location=ssd_option3_default.%d ${MODELSIZE_SRC}" 20-3 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SSD_OPTION3_DEC} option3=box_priors.txt:0.65:10.0:10.0:5.0:5.0:0.6:0.99 ! ${SSD_OPTION3_SINK} location=ssd_option3_extra.%d ${MODELSIZE_SRC}" 20-4 0 0 $PERFORMANCE
+
+callCompareTest ssd_option3_full.0 ssd_option3_partial.0 20-5 "mobilenet-ssd option3 with empty values 1" 0
+callCompareTest ssd_option3_full.1 ssd_option3_partial.1 20-6 "mobilenet-ssd option3 with empty values 2" 0
+callCompareTest ssd_option3_full.0 ssd_option3_extra.0 20-7 "mobilenet-ssd option3 with an eighth value 1" 0
+callCompareTest ssd_option3_full.1 ssd_option3_extra.1 20-8 "mobilenet-ssd option3 with an eighth value 2" 0
+cat ssd_option3_default.0 ssd_option3_default.1 > ssd_option3_default.all
+cat ssd_option3_partial.0 ssd_option3_partial.1 > ssd_option3_partial.all
+! cmp -s ssd_option3_default.all ssd_option3_partial.all
+testResult $? 20-9 "mobilenet-ssd option3 thresholds change the boxes" 0 1
+rm ssd_option3_*
+
+# A config file is applied line by line, so option1 has to come before the options it takes.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder config-file=config_file.3 ! videoconvert ! video/x-raw,format=BGRx ! multifilesink location=mobilenetssd_output.%d ${MODELSIZE_SRC}" 21 0 0 $PERFORMANCE
+
+callCompareTest mobilenetssd_golden.0 mobilenetssd_output.0 21-1 "mobilenet-ssd Decode 1 with config_file.3 alone" 0
+callCompareTest mobilenetssd_golden.1 mobilenetssd_output.1 21-2 "mobilenet-ssd Decode 2 with config_file.3 alone" 0
+rm mobilenetssd_output.*
+
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder config-file=config_file.4 ! fakesink ${MODELSIZE_SRC}" 22_n
+
 report

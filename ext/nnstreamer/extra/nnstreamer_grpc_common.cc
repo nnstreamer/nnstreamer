@@ -165,7 +165,7 @@ NNStreamerRPC::stop ()
     worker_.join ();
 }
 
-/** @brief register the context of a blocking client call */
+/** @brief register the context of a client call */
 void
 NNStreamerRPC::_set_client_context (ClientContext *context)
 {
@@ -179,7 +179,17 @@ NNStreamerRPC::_set_client_context (ClientContext *context)
     client_cond_.notify_all ();
 }
 
-/** @brief cancel the call of a blocking client that does not end in time */
+/** @brief pop a buffer to send, one caller at a time */
+gboolean
+NNStreamerRPC::_pop_item (GstDataQueueItem **item)
+{
+  /* flushing wakes a single waiting pop, so the calls of a sync server must not wait in it together */
+  std::lock_guard<std::mutex> lock (pop_lock_);
+
+  return gst_data_queue_pop (queue_, item);
+}
+
+/** @brief cancel the call of a client that does not end in time */
 void
 NNStreamerRPC::_cancel_client (gint64 grace_usec)
 {

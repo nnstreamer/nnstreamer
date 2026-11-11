@@ -118,7 +118,7 @@ deepCopyQnnTensor (Qnn_Tensor_t *dst, const Qnn_Tensor_t *src)
           srcQParams.axisScaleOffsetEncoding.numScaleOffsets * sizeof (Qnn_ScaleOffset_t));
       if (qParams.axisScaleOffsetEncoding.scaleOffset) {
         for (size_t idx = 0;
-             idx < srcQParams.axisScaleOffsetEncoding.numScaleOffsets; idx++) {
+            idx < srcQParams.axisScaleOffsetEncoding.numScaleOffsets; idx++) {
           qParams.axisScaleOffsetEncoding.scaleOffset[idx].scale
               = srcQParams.axisScaleOffsetEncoding.scaleOffset[idx].scale;
           qParams.axisScaleOffsetEncoding.scaleOffset[idx].offset

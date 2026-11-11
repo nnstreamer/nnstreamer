@@ -63,7 +63,7 @@ namespace nnstreamer
  *         For getInput/Output and setInput, return -EINVAL if you don't
  *        support it.
  *
- *         We support tensor_filter_subplugin V1 only. (NNStreamer 1.5.1 or higher)
+ *         V1 requires NNStreamer 1.5.1 or higher.
  **/
 class tensor_filter_subplugin
 {
@@ -230,6 +230,11 @@ class tensor_filter_subplugin
   virtual int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
   /**< Optional. If not implemented, no event is handled
    * data is zero-filled when the event carries none (e.g., SUSPEND, RESUME).
+   * RELOAD_MODEL with zero-filled data may come to the empty object (the one
+   * registered, with no model) to ask whether the class reloads models
+   * (e.g., is-updatable set before open); answer it without the model and
+   * without changing the object, which every element shares:
+   * -ENOENT if not supported, another value (e.g., -EINVAL) if supported.
    * An object that has accepted SUSPEND may be deleted without RESUME, so
    * the destructor has to release a suspended model as well.
    * Return -ENOENT if the ops is not to be handled by this object

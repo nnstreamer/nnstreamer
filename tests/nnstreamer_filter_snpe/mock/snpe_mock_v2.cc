@@ -159,10 +159,10 @@ default_encoding (const snpe_mock_model &model)
 std::vector<size_t>
 model_dims (const snpe_mock_model &model)
 {
-  std::vector<size_t> dims (1, 1U);
+  std::vector<size_t> dims (model.rank, 1U);
 
-  if (model.resizable)
-    dims.push_back (0U);
+  if (model.resizable && !dims.empty ())
+    dims.back () = 0U;
 
   return dims;
 }
@@ -854,7 +854,7 @@ Snpe_SNPE_ExecuteUserBuffers (Snpe_SNPE_Handle_t handle,
 {
   MockSNPE *snpe = static_cast<MockSNPE *> (handle);
 
-  if (!snpe || !input || !output)
+  if (!snpe || !input || !output || snpe_mock_get_failure () == SNPE_MOCK_FAIL_EXECUTE)
     return SNPE_ERRORCODE_INTERNAL_ERROR;
 
   const MockUserBuffer *in = static_cast<const MockUserBuffer *> (

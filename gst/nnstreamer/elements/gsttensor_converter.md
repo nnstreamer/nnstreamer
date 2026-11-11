@@ -61,6 +61,8 @@ One "Always" sink pad exists. The capability of sink pad is ```video/x-raw```, `
 
 If you require another pad caps to convert media stream to tensor(s), you can implement new sub-plugin or register custom converter.
 
+An incoming buffer without data (0 bytes) is dropped with a warning in any mode, including custom converters, and the stream goes on with the next buffer.
+
 ## Source Pads
 
 One "Always" source pad exists. The capability of source pad is ```other/tensor```, ```other/tensors```, and ```other/tensors-flexible```.

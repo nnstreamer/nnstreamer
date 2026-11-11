@@ -87,7 +87,7 @@ class TensorFilterOpenvino
   /** @brief Get the dimensions of the output tensors of the given model */
   int getOutputTensorDim (GstTensorsInfo *info);
   /** @brief Do inference using Inference Engine of the OpenVino framework */
-  int invoke (const GstTensorFilterProperties *prop,
+  int invoke (const GstTensorsInfo *inInfo, const GstTensorsInfo *outInfo,
       const GstTensorMemory *input, GstTensorMemory *output);
   /** @brief Get the path where the model file in XML format is located */
   std::string getPathModelXml ();

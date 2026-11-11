@@ -61,6 +61,7 @@ static void gst_tensor_reposrc_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void gst_tensor_reposrc_dispose (GObject * object);
 static GstCaps *gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter);
+static gboolean gst_tensor_reposrc_start (GstBaseSrc * src);
 static GstFlowReturn gst_tensor_reposrc_create (GstPushSrc * src,
     GstBuffer ** buffer);
 
@@ -102,6 +103,7 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   basesrc_class->get_caps = gst_tensor_reposrc_getcaps;
+  basesrc_class->start = gst_tensor_reposrc_start;
   pushsrc_class->create = gst_tensor_reposrc_create;
 
   gst_element_class_set_static_metadata (element_class,
@@ -202,6 +204,20 @@ gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter)
 }
 
 /**
+ * @brief start func of tensor_reposrc, to begin each stream as the first one
+ */
+static gboolean
+gst_tensor_reposrc_start (GstBaseSrc * src)
+{
+  GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (src);
+
+  self->ini = FALSE;
+  self->negotiation = FALSE;
+
+  return TRUE;
+}
+
+/**
  * @brief set property of tensor_reposrc
  */
 static void
@@ -215,11 +231,15 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
       self->silent = g_value_get_boolean (value);
       break;
     case PROP_SLOT_ID:
-      self->o_myid = self->myid;
-      self->myid = g_value_get_uint (value);
-      self->negotiation = FALSE;
+    {
+      guint myid = g_value_get_uint (value);
 
-      gst_tensor_repo_add_repodata (self->myid, FALSE);
+      /* the streaming thread may pull from the new slot once it is set */
+      gst_tensor_repo_add_repodata (myid, FALSE);
+
+      self->o_myid = self->myid;
+      self->myid = myid;
+      self->negotiation = FALSE;
 
       if (!self->set_startid) {
         self->o_myid = self->myid;
@@ -229,6 +249,7 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
       if (self->o_myid != self->myid)
         gst_tensor_repo_set_changed (self->o_myid, self->myid, FALSE);
       break;
+    }
     case PROP_CAPS:
     {
       GstStructure *st = NULL;
@@ -355,7 +376,15 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
     self->ini = TRUE;
   } else {
     while (!buf && !eos) {
+      newid = INVALID_INDEX;
       buf = gst_tensor_repo_get_buffer (self->myid, &eos, &newid, &caps);
+
+      /* nothing but a missing slot leaves all three unset */
+      if (!buf && !eos && newid == INVALID_INDEX) {
+        GST_ELEMENT_ERROR (self, RESOURCE, READ,
+            ("Cannot find [key: %d] in repo", self->myid), NULL);
+        return GST_FLOW_ERROR;
+      }
     }
 
     if (eos)

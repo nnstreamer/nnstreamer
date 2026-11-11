@@ -854,6 +854,159 @@ _alloc_flex_mem (guint dim0, gint extra)
   return gst_memory_new_wrapped ((GstMemoryFlags) 0, data, size, 0, size, data, g_free);
 }
 
+/**
+ * @brief The messages the default log domain receives while edgesrc drops data.
+ */
+typedef struct {
+  gint critical; /**< number of critical messages */
+  gint dropped; /**< number of warnings reporting dropped data */
+} DropLog;
+
+/**
+ * @brief Log handler counting the critical messages and the "Dropped ..." warnings of the default domain.
+ */
+static void
+_count_drop_log (const gchar *domain, GLogLevelFlags level, const gchar *message, gpointer user_data)
+{
+  DropLog *log = (DropLog *) user_data;
+
+  if (level & G_LOG_LEVEL_CRITICAL)
+    g_atomic_int_inc (&log->critical);
+  else if ((level & G_LOG_LEVEL_WARNING) && g_str_has_prefix (message, "Dropped "))
+    g_atomic_int_inc (&log->dropped);
+}
+
+/**
+ * @brief Event callback of a raw nnstreamer-edge publisher; counts the subscribers that connected.
+ */
+static int
+_raw_pub_event_cb (nns_edge_event_h event_h, void *user_data)
+{
+  nns_edge_event_e type;
+
+  if (nns_edge_event_get_type (event_h, &type) == NNS_EDGE_ERROR_NONE
+      && type == NNS_EDGE_EVENT_CONNECTION_COMPLETED)
+    g_atomic_int_inc ((gint *) user_data);
+
+  return NNS_EDGE_ERROR_NONE;
+}
+
+/**
+ * @brief Publish the memories as one edge data from a raw nnstreamer-edge publisher.
+ */
+static void
+_raw_publish (nns_edge_h pub_h, GstMemory **mems, guint num_mems)
+{
+  nns_edge_data_h data_h = NULL;
+  GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
+  guint i;
+
+  if (nns_edge_data_create (&data_h) != NNS_EDGE_ERROR_NONE)
+    return;
+
+  for (i = 0; i < num_mems; i++) {
+    gst_memory_map (mems[i], &map[i], GST_MAP_READ);
+    nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
+  }
+
+  nns_edge_send (pub_h, data_h);
+  nns_edge_data_destroy (data_h);
+
+  for (i = 0; i < num_mems; i++)
+    gst_memory_unmap (mems[i], &map[i]);
+}
+
+/**
+ * @brief Publish data that does not match the caps of edgesrc, then data that does, from a raw nnstreamer-edge publisher.
+ * @param src_caps The caps edgesrc negotiates with downstream.
+ * @param wrong The memories of the data that does not match @a src_caps (transfer full).
+ * @param match The memories of the data that matches @a src_caps (transfer full).
+ * @param[out] log The messages logged after edgesrc connected.
+ * @param[out] received The number of buffers the sink after edgesrc received.
+ * @return TRUE if the edgesrc pipeline posted an error.
+ */
+static gboolean
+_publish_wrong_then_matching (const gchar *src_caps, GstMemory **wrong,
+    guint num_wrong, GstMemory **match, guint num_match, DropLog *log, guint *received)
+{
+  GstElement *gstpipe, *sink;
+  GstMessage *msg = nullptr;
+  GstBus *bus;
+  GstState state = GST_STATE_NULL;
+  GLogLevelFlags fatal_mask;
+  nns_edge_h pub_h = NULL;
+  gchar *pipeline, *port_str;
+  guint i, handler, port, waited, count = 0;
+  gint connected = 0;
+
+  log->critical = log->dropped = 0;
+  handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING | G_LOG_FLAG_FATAL),
+      _count_drop_log, log);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log (NULL, G_LOG_LEVEL_CRITICAL, "[probe] edgesrc test handler self-check");
+  g_log (NULL, G_LOG_LEVEL_WARNING, "Dropped [probe] edgesrc test handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (g_atomic_int_get (&log->critical), 1);
+  EXPECT_EQ (g_atomic_int_get (&log->dropped), 1);
+
+  port = get_available_port ();
+  EXPECT_EQ (nns_edge_create_handle ("rawpub", NNS_EDGE_CONNECT_TYPE_TCP,
+                 NNS_EDGE_NODE_TYPE_PUB, &pub_h),
+      NNS_EDGE_ERROR_NONE);
+  nns_edge_set_event_callback (pub_h, _raw_pub_event_cb, &connected);
+  nns_edge_set_info (pub_h, "HOST", "127.0.0.1");
+  port_str = g_strdup_printf ("%u", port);
+  nns_edge_set_info (pub_h, "PORT", port_str);
+  g_free (port_str);
+  EXPECT_EQ (nns_edge_start (pub_h), NNS_EDGE_ERROR_NONE);
+
+  pipeline = g_strdup_printf ("edgesrc dest-host=127.0.0.1 dest-port=%u ! capsfilter caps=\"%s\" ! "
+                              "fakesink name=sinkx signal-handoffs=true sync=false async=false",
+      port, src_caps);
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  g_free (pipeline);
+  EXPECT_NE (gstpipe, nullptr);
+
+  sink = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  g_signal_connect (sink, "handoff", (GCallback) _count_handoff, &count);
+  gst_object_unref (sink);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  for (waited = 0; waited < 5000 && g_atomic_int_get (&connected) == 0; waited += 10)
+    g_usleep (10000);
+  EXPECT_GT (g_atomic_int_get (&connected), 0);
+  g_atomic_int_set (&log->critical, 0);
+  g_atomic_int_set (&log->dropped, 0);
+
+  _raw_publish (pub_h, wrong, num_wrong);
+  _raw_publish (pub_h, match, num_match);
+  for (waited = 0; waited < 3000 && g_atomic_int_get ((gint *) &count) == 0; waited += 10)
+    g_usleep (10000);
+  g_usleep (200000);
+  *received = (guint) g_atomic_int_get ((gint *) &count);
+
+  bus = gst_element_get_bus (gstpipe);
+  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  gst_object_unref (bus);
+  if (msg)
+    gst_message_unref (msg);
+  gst_element_get_state (gstpipe, &state, nullptr, 0);
+  EXPECT_EQ (state, GST_STATE_PLAYING);
+  g_log_remove_handler (NULL, handler);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (gstpipe);
+  nns_edge_release_handle (pub_h);
+
+  for (i = 0; i < num_wrong; i++)
+    gst_memory_unref (wrong[i]);
+  for (i = 0; i < num_match; i++)
+    gst_memory_unref (match[i]);
+
+  return (msg != nullptr);
+}
+
 #define EDGE_TEST_CAPS_192 \
   "other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1"
 #define EDGE_TEST_CAPS_96 \
@@ -879,28 +1032,58 @@ TEST (edgeSinkSrc, acceptsMatchingData)
 }
 
 /**
- * @brief edgesrc refuses published data whose memory size does not match its caps.
+ * @brief edgesrc keeps running after published data that does not match its caps, and pushes the next data.
  */
-TEST (edgeSinkSrc, refusesWrongSize_n)
+TEST (edgeSinkSrc, keepsReceivingAfterWrongData)
 {
-  GstMemory *mems[1] = { _alloc_mem (192) };
+  GstMemory *wrong[1] = { _alloc_mem (192) };
+  GstMemory *match[1] = { _alloc_mem (96) };
+  DropLog log;
   guint received = 0;
 
-  EXPECT_TRUE (_publish_to_edgesrc (EDGE_TEST_CAPS_192, mems, 1, EDGE_TEST_CAPS_96, &received));
-  EXPECT_EQ (received, 0U);
+  EXPECT_FALSE (_publish_wrong_then_matching (
+      EDGE_TEST_CAPS_96, wrong, 1, match, 1, &log, &received));
+  EXPECT_EQ (received, 1U);
 }
 
 /**
- * @brief edgesrc refuses published data whose memory count does not match its caps, even if the total size does.
+ * @brief edgesrc drops published data whose memory size does not match its caps, and logs it once.
+ */
+TEST (edgeSinkSrc, refusesWrongSize_n)
+{
+  GstMemory *wrong[1] = { _alloc_mem (192) };
+  GstMemory *match[1] = { _alloc_mem (96) };
+  DropLog log;
+  guint received = 0;
+
+  EXPECT_FALSE (_publish_wrong_then_matching (
+      EDGE_TEST_CAPS_96, wrong, 1, match, 1, &log, &received));
+  EXPECT_EQ (received, 1U);
+  /* the element logs reach a GLib log handler unless the platform has a log of its own */
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  EXPECT_EQ (g_atomic_int_get (&log.critical), 1);
+  EXPECT_EQ (g_atomic_int_get (&log.dropped), 1);
+#endif
+}
+
+/**
+ * @brief edgesrc drops published data whose memory count does not match its caps, even if the total size does.
  */
 TEST (edgeSinkSrc, refusesWrongCount_n)
 {
-  GstMemory *mems[2] = { _alloc_mem (96), _alloc_mem (96) };
+  GstMemory *wrong[2] = { _alloc_mem (96), _alloc_mem (96) };
+  GstMemory *match[1] = { _alloc_mem (192) };
+  DropLog log;
   guint received = 0;
 
-  EXPECT_TRUE (_publish_to_edgesrc (
-      EDGE_TEST_CAPS_96X2, mems, 2, EDGE_TEST_CAPS_192, &received));
-  EXPECT_EQ (received, 0U);
+  EXPECT_FALSE (_publish_wrong_then_matching (
+      EDGE_TEST_CAPS_192, wrong, 2, match, 1, &log, &received));
+  EXPECT_EQ (received, 1U);
+  /* the element logs reach a GLib log handler unless the platform has a log of its own */
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  EXPECT_EQ (g_atomic_int_get (&log.critical), 1);
+  EXPECT_EQ (g_atomic_int_get (&log.dropped), 1);
+#endif
 }
 
 /**
@@ -917,16 +1100,22 @@ TEST (edgeSinkSrc, acceptsMatchingDataWithoutFramerate)
 }
 
 /**
- * @brief edgesrc refuses wrong-size data also when its tensor caps have no framerate.
+ * @brief edgesrc drops wrong-size data also when its tensor caps have no framerate.
  */
 TEST (edgeSinkSrc, refusesWrongSizeWithoutFramerate_n)
 {
-  GstMemory *mems[1] = { _alloc_mem (192) };
+  GstMemory *wrong[1] = { _alloc_mem (192) };
+  GstMemory *match[1] = { _alloc_mem (96) };
+  DropLog log;
   guint received = 0;
 
-  EXPECT_TRUE (_publish_to_edgesrc (
-      EDGE_TEST_CAPS_192, mems, 1, EDGE_TEST_CAPS_96_NO_RATE, &received));
-  EXPECT_EQ (received, 0U);
+  EXPECT_FALSE (_publish_wrong_then_matching (
+      EDGE_TEST_CAPS_96_NO_RATE, wrong, 1, match, 1, &log, &received));
+  EXPECT_EQ (received, 1U);
+  /* the element logs reach a GLib log handler unless the platform has a log of its own */
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  EXPECT_EQ (g_atomic_int_get (&log.dropped), 1);
+#endif
 }
 
 /**
@@ -943,16 +1132,44 @@ TEST (edgeSinkSrc, acceptsFlexibleData)
 }
 
 /**
- * @brief edgesrc refuses flexible tensors shorter than the data their header describes.
+ * @brief edgesrc drops flexible tensors shorter than the data their header describes.
  */
 TEST (edgeSinkSrc, refusesTruncatedFlexibleData_n)
 {
-  GstMemory *mems[2] = { _alloc_flex_mem (4, 0), _alloc_flex_mem (10, -1) };
+  GstMemory *wrong[2] = { _alloc_flex_mem (4, 0), _alloc_flex_mem (10, -1) };
+  GstMemory *match[2] = { _alloc_flex_mem (4, 0), _alloc_flex_mem (10, 0) };
+  DropLog log;
   guint received = 0;
 
-  EXPECT_TRUE (_publish_to_edgesrc (
-      EDGE_TEST_CAPS_FLEX, mems, 2, EDGE_TEST_CAPS_FLEX, &received));
-  EXPECT_EQ (received, 0U);
+  EXPECT_FALSE (_publish_wrong_then_matching (
+      EDGE_TEST_CAPS_FLEX, wrong, 2, match, 2, &log, &received));
+  EXPECT_EQ (received, 1U);
+  /* the element logs reach a GLib log handler unless the platform has a log of its own */
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  EXPECT_EQ (g_atomic_int_get (&log.dropped), 1);
+#endif
+}
+
+/**
+ * @brief edgesrc with non-tensor caps drops data with more memories than a buffer can hold, and pushes the next data.
+ */
+TEST (edgeSinkSrc, dropsTooManyMemories_n)
+{
+  GstMemory *wrong[17];
+  GstMemory *match[1] = { _alloc_mem (4) };
+  DropLog log;
+  guint i, received = 0;
+
+  for (i = 0; i < 17; i++)
+    wrong[i] = _alloc_mem (4);
+
+  EXPECT_FALSE (_publish_wrong_then_matching (
+      "application/octet-stream", wrong, 17, match, 1, &log, &received));
+  EXPECT_EQ (received, 1U);
+  /* the element logs reach a GLib log handler unless the platform has a log of its own */
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  EXPECT_EQ (g_atomic_int_get (&log.critical), 1);
+#endif
 }
 
 /**
@@ -1042,21 +1259,6 @@ _count_dropped (GstDebugCategory *category, GstDebugLevel level,
 }
 
 /**
- * @brief Event callback of a raw nnstreamer-edge publisher; counts the subscribers that connected.
- */
-static int
-_raw_pub_event_cb (nns_edge_event_h event_h, void *user_data)
-{
-  nns_edge_event_e type;
-
-  if (nns_edge_event_get_type (event_h, &type) == NNS_EDGE_ERROR_NONE
-      && type == NNS_EDGE_EVENT_CONNECTION_COMPLETED)
-    g_atomic_int_inc ((gint *) user_data);
-
-  return NNS_EDGE_ERROR_NONE;
-}
-
-/**
  * @brief Pad probe callback that keeps buffers blocked until the probe is removed.
  */
 static GstPadProbeReturn
@@ -1120,6 +1322,20 @@ _flood_edgesrc (guint max_buffers, IdLog *log, guint expected)
     gst_debug_unset_threshold_for_name ("edgesrc");
     return 0;
   }
+
+#ifndef GST_DISABLE_GST_DEBUG
+  {
+    GstDebugCategory *cat;
+
+    /* a count of zero says nothing unless the log function sees the category */
+    GST_DEBUG_CATEGORY_GET (cat, "edgesrc");
+    EXPECT_NE (cat, nullptr);
+    if (cat)
+      GST_CAT_DEBUG (cat, "Dropped 1 [probe] log function self-check");
+    EXPECT_EQ (g_atomic_int_get (&edgesrc_dropped), 1);
+    g_atomic_int_set (&edgesrc_dropped, 0);
+  }
+#endif
 
   element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   g_signal_connect (element, "handoff", (GCallback) _log_id, log);

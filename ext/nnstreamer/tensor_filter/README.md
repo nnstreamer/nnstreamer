@@ -25,7 +25,19 @@ You can insert model files and their frameworks in a nnstreamer pipeline with th
 
 ### Armnn
 ### Caffe2
+- subplugin name: 'caffe2'
+
+This subplugin is deprecated (#4425). Caffe2 is merged into PyTorch upstream, and current PyTorch releases no longer ship it; use the ```pytorch``` or ```onnxruntime``` subplugin instead. Opening a model with it logs a deprecation warning. If you still depend on it, please comment on #4425.
+
 ### Pytorch
+- subplugin name: 'pytorch'
+
+This subplugin runs TorchScript models (```.pt```) through LibTorch, the C++ distribution of PyTorch.
+
+A model output that is a 0-dim tensor (a scalar) must be declared as an output of the same type and exactly one element, e.g., ```output=1```.
+
+LibTorch ships no pkg-config file. Unpack a LibTorch release, write a ```torch.pc``` for it, point ```PKG_CONFIG_PATH``` at it and use the ```pytorch-support``` meson option. ```.github/workflows/out_of_distro_filters.yml``` is a working example; it builds the subplugin against a real LibTorch every weekday and on the pull requests that change the subplugin, its tests or the tensor_filter core. Every pull request builds and tests the subplugin against the LibTorch mock in ```tests/nnstreamer_filter_pytorch/mock```.
+
 ### Tensorflow
 ### Tensorflow-lite
 - subplugin name: 'tensorflow1-lite'
@@ -52,7 +64,7 @@ To build, provide the LiteRT SDK via pkg-config (```litert.pc```) or the ```LITE
 
 This subplugin runs PyTorch models exported to the ExecuTorch ```.pte``` format, through the ExecuTorch ```Module``` API.
 
-ExecuTorch has no distro package and publishes no prebuilt binaries for desktop Linux or macOS; its pip wheel carries headers but no runtime library. Build and install the runtime with ```tools/executorch-install.sh [install-prefix] [git-tag]``` first, then point ```PKG_CONFIG_PATH``` at ```<install-prefix>/lib/pkgconfig``` and use the ```executorch-support``` meson option. ```.github/workflows/executorch.yml``` is a working example.
+ExecuTorch has no distro package and publishes no prebuilt binaries for desktop Linux or macOS; its pip wheel carries headers but no runtime library. Build and install the runtime with ```tools/executorch-install.sh [install-prefix] [git-tag]``` first, then point ```PKG_CONFIG_PATH``` at ```<install-prefix>/lib/pkgconfig``` and use the ```executorch-support``` meson option. ```.github/workflows/out_of_distro_filters.yml``` is a working example.
 
 That script exists because the pkg-config file ExecuTorch generates links the runtime alone, without the operator kernels; a subplugin built against the stock file links cleanly and then fails on the first invoke with an unregistered operator.
 
@@ -76,7 +88,24 @@ A model with any other type at its boundary (```BFloat16```, ```UInt16``` and wi
 ### ExecuTorch Llama
 - subplugin name: 'executorch-llama'
 
-This subplugin generates text with a language model exported to ExecuTorch, through the ExecuTorch LLM runner (```TextLLMRunner```). Give exactly the model and its tokenizer (tiktoken, sentencepiece, Hugging Face ```tokenizer.json``` or llama2.c) as ```model=model.pte,tokenizer.model``` and set ```invoke-dynamic=true```. Each input buffer is a prompt, generated from the beginning; the output is a flexible uint8 tensor holding the prompt followed by the generated text, which ends with the text of the end-of-sequence token (e.g., ```<|end_of_text|>```) when that token stopped the generation. Tokens are sampled at temperature 0.8 until an end-of-sequence token, or until the prompt and the text reach 128 tokens; for a model whose ```get_max_seq_len``` is below its ```get_max_context_len```, the runner applies the 128 to the generated text alone. A prompt that leaves no room to generate is an error. The runner also prints the text it generates and a statistics report for each buffer on the standard output.
+This subplugin generates text with a language model exported to ExecuTorch, through the ExecuTorch LLM runner (```TextLLMRunner```). Give exactly the model and its tokenizer (tiktoken, sentencepiece, Hugging Face ```tokenizer.json``` or llama2.c) as ```model=model.pte,tokenizer.model``` and set ```invoke-dynamic=true```. Each input buffer is a prompt, generated from the beginning; the output is a flexible uint8 tensor holding the prompt followed by the generated text. The text of the end-of-sequence tokens (e.g., ```<|end_of_text|>```, or those the model's ```get_eos_ids``` lists) is left out of the generated text unless ```keep_eos``` is set. By default, tokens are sampled at temperature 0.8 until an end-of-sequence token, or until the prompt and the text reach 128 tokens; for a model whose ```get_max_seq_len``` is below its ```get_max_context_len```, the runner applies the 128 to the generated text alone. A prompt that leaves no room to generate is an error, and so is a buffer with no text left to output (possible only with ```echo:false```). The runner also prints the text it generates and a statistics report for each buffer on the standard output.
+
+The generation is configured with ```custom=key:value,key:value,...```, using the names of the runner's ```GenerationConfig```. Keys are case-insensitive. An unknown key or an invalid value fails to open the filter.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| ```max_new_tokens``` | -1 | The most tokens to generate; -1 for no limit of its own. |
+| ```seq_len``` | 128 | The most tokens of the prompt and the generated text together; -1 for the model's ```get_max_context_len```. |
+| ```temperature``` | 0.8 | Sampling temperature, from 0 to 1; 0 always picks the most likely token. |
+| ```echo``` | true | Output the prompt in front of the generated text. |
+| ```ignore_eos``` | false | Go on generating past an end-of-sequence token, up to the limits above. |
+| ```keep_eos``` | false | Keep the text of the end-of-sequence tokens in the output. |
+| ```num_bos``` | 0 | Beginning-of-sequence tokens to put in front of the prompt, up to 127. |
+| ```num_eos``` | 0 | End-of-sequence tokens to put after the prompt, up to 127. |
+
+Both limits apply when both are given, and the model's context always does.
+
+With ```invoke-async=true```, the text is streamed instead: the prompt (when echoed) and the text of each generated token go out as output buffers of their own, as they are generated; the prompt goes out together with the first generated text, i.e., only once the prompt has been processed. A token's text is what the tokenizer decodes for it, so a character of several UTF-8 bytes may be split across buffers. The prompts are queued and generated in order by a thread of the filter; the queue has no bound, so prompts that come faster than they are generated pile up in memory. A prompt that the runner refuses, e.g. one that leaves no room to generate, is logged and outputs nothing; a failure later on keeps what has been output. Closing the filter stops the generation in progress after its current token and drops the prompts still queued.
 
 It needs ExecuTorch built with the LLM runner, which ```tools/executorch-install.sh``` does, and the ```executorch-llama-support``` meson option.
 
@@ -101,6 +130,14 @@ Note: due to API disruptions, there are two versions.
 ### Tensorrt (NVIDIA)
 
 Note: due to API disruptions, there are two versions.
+
+### HailoRT (Hailo NPU)
+- subplugin name: 'hailort'
+- model: one compiled ```.hef``` file with one network group. HailoRT 4.18 or later.
+- custom properties: ```input_format``` and ```output_format``` (```auto```, ```uint8```, ```uint16```, ```float32```; ```float32``` makes HailoRT (de)quantize on the host), ```group_id``` (filters with the same id share the device through the HailoRT scheduler).
+- Each virtual stream is a tensor, in the order HailoRT reports them: an NHWC frame is ```C:W:H:1```, any other layout (NCHW, NMS results, ...) a flat tensor of the frame size.
+- After a failed transfer, invoke is refused until the model is opened again.
+- Not built with ```tizen-hal-support```. There, Hailo NPUs need a Hailo backend of the ```tizen-hal``` subplugin, which does not exist yet (#4680).
 
 ### TRIx-engine (Samsung TV/CE)
 

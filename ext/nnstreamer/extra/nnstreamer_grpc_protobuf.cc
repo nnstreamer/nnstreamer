@@ -60,7 +60,7 @@ ServiceImplProtobuf::fill_tensors (Tensors &tensors)
 {
   GstDataQueueItem *item;
 
-  if (!gst_data_queue_pop (queue_, &item))
+  if (!_pop_item (&item))
     return FALSE;
 
   _get_tensors_from_buffer (GST_BUFFER (item->object), tensors);
@@ -100,7 +100,11 @@ ServiceImplProtobuf::_write_tensors (T writer)
     if (!fill_tensors (tensors))
       break;
 
-    writer->Write (tensors);
+    /* a server call whose client is gone would go on taking the buffers of the other calls */
+    if (!writer->Write (tensors) && is_server_) {
+      ml_logw ("A gRPC client is gone; its call ends and drops the buffer it was sent.");
+      break;
+    }
   }
 
   return Status::OK;
@@ -469,6 +473,12 @@ class AsyncCallDataClient : public AsyncCallDataProtobuf
     ctx_.TryCancel ();
   }
 
+  /** @brief get the context of the call, for stop () to cancel it */
+  ClientContext *context ()
+  {
+    return &ctx_;
+  }
+
   /** @brief implemented RunState () of AsyncCallDataClient */
   void RunState (bool ok = true) override
   {
@@ -574,8 +584,10 @@ AsyncServiceImplProtobuf::_client_thread ()
   /* spawn a new instance to serve new clients */
   AsyncCallDataClient *call = new AsyncCallDataClient (this, client_stub_.get (), &cq);
 
-  /* until the stop is called */
-  while (!stop_ && !call->isDone ()) {
+  /* stop () cancels a reader at once, and a writer only after it has drained the queue through the call */
+  _set_client_context (call->context ());
+
+  while (!call->isDone ()) {
     /* 10 msec deadline to wait the next event */
     gpr_timespec deadline = gpr_time_add (
         gpr_now (GPR_CLOCK_MONOTONIC), gpr_time_from_millis (10, GPR_TIMESPAN));
@@ -583,6 +595,8 @@ AsyncServiceImplProtobuf::_client_thread ()
     if (cq.AsyncNext (&tag, &ok, deadline) == CompletionQueue::GOT_EVENT)
       static_cast<AsyncCallDataClient *> (tag)->RunState (ok);
   }
+
+  _set_client_context (nullptr);
 
   /* the queue and the call data outlive every batch they are given to */
   call->cancel ();

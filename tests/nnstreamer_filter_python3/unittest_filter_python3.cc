@@ -979,6 +979,124 @@ TEST (nnstreamerFilterPython3, openInvalidScriptKeepsSysPath_n)
 }
 
 /**
+ * @brief With nnstreamer_python.so on sys.path, the filter uses the module loaded from it.
+ */
+TEST (nnstreamerFilterPython3, openUsesApiModuleOnSysPath)
+{
+  void *data = NULL;
+  gchar *model_file = _python3_model_path ("passthrough.py");
+  const gchar *model_files[] = { model_file, NULL };
+  GstTensorFilterProperties prop;
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+
+  ASSERT_NE (sp, nullptr);
+  if (!py_test_api_module_on_sys_path ())
+    GTEST_SKIP () << "No nnstreamer_python.so on sys.path (PYTHONPATH)";
+  _SetFilterProp (&prop, "python3", model_files);
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_FALSE (py_test_api_module_in_process ());
+  sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
+ * @brief Without nnstreamer_python.so on sys.path, the filter and its script still import nnstreamer_python.
+ */
+TEST (nnstreamerFilterPython3, openWithoutApiModuleOnSysPath)
+{
+  void *data = NULL;
+  gchar *model_file = _python3_model_path ("passthrough.py");
+  const gchar *model_files[] = { model_file, NULL };
+  GstTensorFilterProperties prop;
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+
+  ASSERT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "python3", model_files);
+  ASSERT_TRUE (py_test_hide_api_module ("passthrough"));
+  EXPECT_EQ (sp->open (&prop, &data), 0);
+  EXPECT_TRUE (py_test_api_module_in_process ());
+  if (data)
+    sp->close (&prop, &data);
+  EXPECT_TRUE (py_test_restore_api_module ());
+  g_free (model_file);
+}
+
+/**
+ * @brief Without nnstreamer_python.so on sys.path, a script that cannot be loaded still fails to open.
+ */
+TEST (nnstreamerFilterPython3, openInvalidScriptWithoutApiModuleOnSysPath_n)
+{
+  void *data = NULL;
+  gchar *model_file = _python3_model_path ("NOT_EXIST_filter.py");
+  const gchar *model_files[] = { model_file, NULL };
+  GstTensorFilterProperties prop;
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+
+  ASSERT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "python3", model_files);
+  ASSERT_TRUE (py_test_hide_api_module (NULL));
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_EQ (data, nullptr);
+  EXPECT_TRUE (py_test_api_module_in_process ());
+  EXPECT_TRUE (py_test_restore_api_module ());
+  g_free (model_file);
+}
+
+/**
+ * @brief A nnstreamer_python on sys.path that fails to import is reported, not replaced by the in-process module.
+ */
+TEST (nnstreamerFilterPython3, openBrokenApiModule_n)
+{
+  void *data = NULL;
+  gchar *model_file = _python3_model_path ("passthrough.py");
+  const gchar *model_files[] = { model_file, NULL };
+  GstTensorFilterProperties prop;
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+  gchar *dir;
+
+  ASSERT_NE (sp, nullptr);
+  dir = py_test_put_broken_api_module (NULL);
+  ASSERT_NE (dir, nullptr);
+
+  _SetFilterProp (&prop, "python3", model_files);
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_EQ (data, nullptr);
+  EXPECT_FALSE (py_test_api_module_in_process ());
+  if (data)
+    sp->close (&prop, &data);
+
+  EXPECT_TRUE (py_test_remove_broken_api_module (dir));
+  g_free (model_file);
+}
+
+/**
+ * @brief A nnstreamer_python on sys.path whose own import is missing is reported, not replaced by the in-process module.
+ */
+TEST (nnstreamerFilterPython3, openApiModuleMissingDependency_n)
+{
+  void *data = NULL;
+  gchar *model_file = _python3_model_path ("passthrough.py");
+  const gchar *model_files[] = { model_file, NULL };
+  GstTensorFilterProperties prop;
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+  gchar *dir;
+
+  ASSERT_NE (sp, nullptr);
+  dir = py_test_put_broken_api_module ("import nns_test_no_such_module\n");
+  ASSERT_NE (dir, nullptr);
+
+  _SetFilterProp (&prop, "python3", model_files);
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_EQ (data, nullptr);
+  EXPECT_FALSE (py_test_api_module_in_process ());
+  if (data)
+    sp->close (&prop, &data);
+
+  EXPECT_TRUE (py_test_remove_broken_api_module (dir));
+  g_free (model_file);
+}
+
+/**
  * @brief Main gtest
  */
 int

@@ -1,0 +1,70 @@
+name: Update the ExecuTorch install tree cache
+
+# The jobs that use ExecuTorch on a pull request, out_of_distro_filters.yml and
+# the arm leg of ubuntu_clean_meson_build.yml, can only restore a cache saved on
+# the main branch. This workflow is what saves it there, and it has no
+# pull_request trigger because it is not a check of a pull request. Restoring
+# the cache each day also keeps it from being evicted for inactivity.
+#
+# On a miss, a job above still builds ExecuTorch itself: a pull request that
+# changes tools/executorch-install.sh has to, because that changes the key.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/update_executorch_cache.yml'
+      - 'tools/executorch-install.sh'
+  schedule:
+    # 04:00 AM (KST) Mon-Fri
+    - cron: "00 19 * * 0-4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Keep these and the steps below the same as in the two workflows above: a
+# different version, prefix or key is a different cache.
+env:
+  EXECUTORCH_VERSION: v1.4.1
+  EXECUTORCH_PREFIX: /home/runner/executorch-install
+
+jobs:
+  update:
+    name: Update the ExecuTorch cache (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-22.04, ubuntu-22.04-arm ]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: restore the ExecuTorch install tree
+      id: cache-executorch
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ env.EXECUTORCH_PREFIX }}
+        key: executorch-${{ runner.os }}-${{ runner.arch }}-${{ env.EXECUTORCH_VERSION }}-${{ hashFiles('tools/executorch-install.sh') }}
+
+    - name: build and install ExecuTorch
+      id: build-executorch
+      if: steps.cache-executorch.outputs.cache-hit != 'true'
+      run: |
+        # See out_of_distro_filters.yml for these pins.
+        python3 -m venv "${RUNNER_TEMP}/executorch-venv"
+        source "${RUNNER_TEMP}/executorch-venv/bin/activate"
+        pip install pyyaml numpy 'cmake>=3.24,<4'
+        pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+        bash tools/executorch-install.sh "${EXECUTORCH_PREFIX}" "${EXECUTORCH_VERSION}"
+
+    - name: save the ExecuTorch install tree
+      if: steps.build-executorch.outcome == 'success'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.EXECUTORCH_PREFIX }}
+        key: ${{ steps.cache-executorch.outputs.cache-primary-key }}

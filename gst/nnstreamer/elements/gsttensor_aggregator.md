@@ -78,7 +78,10 @@ It does not support ```other/tensors``` because each frame (or a set of frames c
   If ```frames-in``` and ```frames-out``` are different, GstTensorAggregator has to change the dimension of tensor.
   With this property, GstTensorAggregator changes the out-caps.
 
-  If set this value in 0 ~ (NNS_TENSOR_RANK_LIMIT - 2) and ```concat``` is true, GstTensorAggregator will concatenate the output buffer.
+  If this value is not less than the rank of the input tensor (e.g., the default value), GstTensorAggregator uses the outermost dimension of the input (rank - 1).
+  For example, with an input of dimension 3:640:480:1 and ```frames-out=10```, the default value gives the out-dimension 3:640:480:10.
+
+  If ```concat``` is true and a dimension after this one is larger than 1, GstTensorAggregator will concatenate the output buffer. (This never happens on the outermost dimension of the input.)
 
 - concat: The flag to concatenate output buffer. (Default true)
 

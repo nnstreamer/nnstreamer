@@ -42,6 +42,11 @@ unittest_util_dep = declare_dependency(link_with: unittest_util_shared,
 # ssat repo_dynamic
 subdir('nnstreamer_repo_dynamicity')
 
+# HailoRT sub-plugin on a mock of HailoRT. It is a C++ class sub-plugin.
+if get_option('enable-filter-cpp-class')
+  subdir('nnstreamer_filter_hailort')
+endif
+
 # filter_reload (Currently, the reload test for tensor filter requires tflite)
 if tflite2_support_is_available
   subdir('nnstreamer_filter_reload')
@@ -159,6 +164,15 @@ if gtest_dep.found()
     )
     test('unittest_decoder_image_segment', unittest_decoder_image_segment, env: testenv)
 
+    # RUN unittest_decoder_image_labeling
+    unittest_decoder_image_labeling = executable('unittest_decoder_image_labeling',
+      join_paths('nnstreamer_decoder_image_labeling', 'unittest_decoder_image_labeling.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+    test('unittest_decoder_image_labeling', unittest_decoder_image_labeling, env: testenv)
+
     # RUN unittest_decoder_plugin_data
     unittest_decoder_plugin_data = executable('unittest_decoder_plugin_data',
       join_paths('nnstreamer_decoder', 'unittest_decoder_plugin_data.cc'),
@@ -187,10 +201,14 @@ if gtest_dep.found()
 
     test('unittest_plugins', unittest_plugins, timeout: 120, env: testenv)
 
+    # Executable symbol interposition observes GLib allocations on Linux only.
+    sparse_allocation_observer = host_machine.system() == 'linux'
     # Run unittest_sparse
     unittest_sparse = executable('unittest_sparse',
       join_paths('nnstreamer_sparse', 'unittest_sparse.cc'),
-      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps, libdl_dep],
+      cpp_args: sparse_allocation_observer ? ['-DNNSTREAMER_TEST_ALLOC_OBSERVER'] : [],
+      export_dynamic: sparse_allocation_observer,
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -386,6 +404,7 @@ if gtest_dep.found()
         join_paths('nnstreamer_converter', 'unittest_converter.cc'),
         dependencies: [nnstreamer_unittest_deps, flatbuf_dep, nnstreamer_python3_helper_dep],
         install: get_option('install-test'),
+        install_rpath: nnstreamer_python3_install_rpath,
         install_dir: unittest_install_dir
       )
 
@@ -512,6 +531,36 @@ if gtest_dep.found()
 
   test('unittest_filter_snpe_mock_v1', unittest_filter_snpe_mock_v1, env: testenv)
 
+  # HailoRT sub-plugin unit tests on the mock of tests/nnstreamer_filter_hailort.
+  # Declared here so that the binary lands in build/tests, where the GBS and
+  # valgrind jobs run every unit test.
+  if get_option('enable-filter-cpp-class')
+    unittest_filter_hailort = executable('unittest_filter_hailort',
+      [join_paths('nnstreamer_filter_hailort', 'unittest_filter_hailort.cc'), hailort_subplugin_src],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_single_dep, hailort_mock_dep],
+      install: false
+    )
+
+    test('unittest_filter_hailort', unittest_filter_hailort, env: testenv)
+  endif
+
+  # Tizen HAL sub-plugins on a mock of the HAL ML API. They build only with
+  # tizen-hal-support, so the sources are compiled here against the mock.
+  if get_option('enable-filter-cpp-class')
+    tizen_hal_subplugin_dir = join_paths('..', 'ext', 'nnstreamer', 'tensor_filter')
+    unittest_filter_tizen_hal = executable('unittest_filter_tizen_hal',
+      [join_paths('nnstreamer_filter_tizen_hal', 'unittest_filter_tizen_hal.cc'),
+        join_paths(tizen_hal_subplugin_dir, 'tensor_filter_tizen_hal.cc'),
+        join_paths(tizen_hal_subplugin_dir, 'tensor_filter_tizen_hal_snpe.cc'),
+        join_paths(tizen_hal_subplugin_dir, 'tensor_filter_tizen_hal_vivante.cc')],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_single_dep],
+      include_directories: include_directories(join_paths('nnstreamer_filter_tizen_hal', 'mock')),
+      install: false
+    )
+
+    test('unittest_filter_tizen_hal', unittest_filter_tizen_hal, env: testenv)
+  endif
+
   # tensorflow2-lite unittest
   if tflite2_support_is_available
     shared_library('nnstreamer_unittest_tflite_lifetime_delegate',
@@ -625,6 +674,11 @@ if gtest_dep.found()
   # Vivante sub-plugin, built against a mock of its proprietary SDK
   subdir('nnstreamer_filter_vivante')
 
+  # PyTorch sub-plugin, built against a mock of LibTorch where LibTorch is absent
+  if not pytorch_support_is_available and get_option('enable-filter-cpp-class')
+    subdir('nnstreamer_filter_pytorch')
+  endif
+
   # Tizen NNFW runtime
   if nnfw_runtime_support_is_available
     subdir('tizen_nnfw_runtime')
@@ -703,6 +757,18 @@ if gtest_dep.found()
     )
 
     test('unittest_filter_onnxruntime', unittest_filter_onnxruntime, timeout: 120, env: testenv)
+  endif
+
+  # ncnn unittest
+  if ncnn_support_is_available
+    unittest_filter_ncnn = executable('unittest_filter_ncnn',
+      join_paths('nnstreamer_filter_ncnn', 'unittest_filter_ncnn.cc'),
+      dependencies: [nnstreamer_unittest_deps, ncnn_support_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_ncnn', unittest_filter_ncnn, timeout: 60, env: testenv)
   endif
 
   # LiteRT unittest
@@ -821,7 +887,9 @@ if get_option('install-test')
     install_subdir('nnstreamer_filter_tensorflow', install_dir: unittest_install_dir)
   endif
   if pytorch_support_is_available
-    install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_install_dir)
+    install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_install_dir,
+      exclude_directories: ['mock'],
+      exclude_files: ['meson.build', 'unittest_filter_pytorch_mock.cc'])
   endif
   if caffe2_support_is_available
     install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_install_dir)

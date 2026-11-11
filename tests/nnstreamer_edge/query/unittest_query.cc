@@ -833,8 +833,8 @@ _wait_data_or_error (GstElement *pipeline, guint *count, guint timeout_ms)
   GstMessage *msg = nullptr;
   guint waited;
 
-  for (waited = 0; waited < timeout_ms && !msg && g_atomic_int_get ((gint *) count) == 0;
-       waited += 10)
+  for (waited = 0;
+      waited < timeout_ms && !msg && g_atomic_int_get ((gint *) count) == 0; waited += 10)
     msg = gst_bus_timed_pop_filtered (bus, 10 * GST_MSECOND, GST_MESSAGE_ERROR);
 
   if (msg)
@@ -898,10 +898,11 @@ _make_serversrc_pipeline (const gchar *caps, guint port, guint *count)
 /**
  * @brief Connect a raw nnstreamer-edge query client to tensor_query_serversrc and send the edge data in order.
  * @param data The edge data to send (transfer full).
+ * @param peer Records the answers the client receives (nullable).
  * @return The client handle, to be released after the server handled the data.
  */
 static nns_edge_h
-_raw_client_send (guint port, nns_edge_data_h *data, guint num)
+_raw_client_send (guint port, nns_edge_data_h *data, guint num, RawPeer *peer = nullptr)
 {
   nns_edge_h client_h = nullptr;
   char *client_id = nullptr;
@@ -911,7 +912,7 @@ _raw_client_send (guint port, nns_edge_data_h *data, guint num)
   EXPECT_EQ (nns_edge_create_handle ("rawclient", NNS_EDGE_CONNECT_TYPE_TCP,
                  NNS_EDGE_NODE_TYPE_QUERY_CLIENT, &client_h),
       NNS_EDGE_ERROR_NONE);
-  nns_edge_set_event_callback (client_h, _raw_peer_event_cb, nullptr);
+  nns_edge_set_event_callback (client_h, _raw_peer_event_cb, peer);
   nns_edge_set_info (client_h, "HOST", "127.0.0.1");
   port_str = g_strdup_printf ("%u", get_available_port ());
   nns_edge_set_info (client_h, "PORT", port_str);
@@ -934,11 +935,13 @@ _raw_client_send (guint port, nns_edge_data_h *data, guint num)
  * @brief Send requests from a raw nnstreamer-edge client to tensor_query_serversrc.
  * @param caps The caps of the serversrc.
  * @param data The requests to send in order (transfer full).
+ * @param expected The number of buffers to wait for.
  * @param[out] received The number of buffers the serversrc pushed downstream.
  * @return TRUE if the server pipeline posted an error.
  */
 static gboolean
-_send_to_serversrc (const gchar *caps, nns_edge_data_h *data, guint num, guint *received)
+_send_to_serversrc (const gchar *caps, nns_edge_data_h *data, guint num,
+    guint expected, guint *received)
 {
   GstElement *gstpipe;
   nns_edge_h client_h;
@@ -956,7 +959,7 @@ _send_to_serversrc (const gchar *caps, nns_edge_data_h *data, guint num, guint *
 
   error = _wait_data_or_error (gstpipe, &count, 3000);
   if (!error)
-    wait_pipeline_process_buffers (&count, num, 3000);
+    wait_pipeline_process_buffers (&count, expected, 3000);
   *received = (guint) g_atomic_int_get (&count);
 
   nns_edge_release_handle (client_h);
@@ -978,34 +981,40 @@ TEST (tensorQuery, serverSrcAcceptsMatchingData)
   data[0] = _make_edge_data (sizes, 1);
   data[1] = _make_edge_data (sizes, 1);
   data[2] = _make_edge_data (sizes, 1);
-  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS, data, 3, &received));
+  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS, data, 3, 3, &received));
   EXPECT_EQ (received, 3U);
 }
 
 /**
- * @brief tensor_query_serversrc refuses a request whose memory size does not match its caps.
+ * @brief tensor_query_serversrc drops a request whose memory size does not match its caps, and pushes the next one.
  */
 TEST (tensorQuery, serverSrcRefusesWrongSize_n)
 {
-  const gsize sizes[] = { 8 };
-  nns_edge_data_h data = _make_edge_data (sizes, 1);
+  const gsize wrong[] = { 8 };
+  const gsize sizes[] = { 4 };
+  nns_edge_data_h data[2];
   guint received = 0;
 
-  EXPECT_TRUE (_send_to_serversrc (QUERY_TEST_CAPS, &data, 1, &received));
-  EXPECT_EQ (received, 0U);
+  data[0] = _make_edge_data (wrong, 1);
+  data[1] = _make_edge_data (sizes, 1);
+  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS, data, 2, 1, &received));
+  EXPECT_EQ (received, 1U);
 }
 
 /**
- * @brief tensor_query_serversrc refuses a request whose memory count does not match its caps.
+ * @brief tensor_query_serversrc drops a request whose memory count does not match its caps, and pushes the next one.
  */
 TEST (tensorQuery, serverSrcRefusesWrongCount_n)
 {
-  const gsize sizes[] = { 2, 2 };
-  nns_edge_data_h data = _make_edge_data (sizes, 2);
+  const gsize wrong[] = { 2, 2 };
+  const gsize sizes[] = { 4 };
+  nns_edge_data_h data[2];
   guint received = 0;
 
-  EXPECT_TRUE (_send_to_serversrc (QUERY_TEST_CAPS, &data, 1, &received));
-  EXPECT_EQ (received, 0U);
+  data[0] = _make_edge_data (wrong, 2);
+  data[1] = _make_edge_data (sizes, 1);
+  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS, data, 2, 1, &received));
+  EXPECT_EQ (received, 1U);
 }
 
 /**
@@ -1017,21 +1026,24 @@ TEST (tensorQuery, serverSrcAcceptsMatchingDataWithoutFramerate)
   nns_edge_data_h data = _make_edge_data (sizes, 1);
   guint received = 0;
 
-  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS_NO_RATE, &data, 1, &received));
+  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS_NO_RATE, &data, 1, 1, &received));
   EXPECT_EQ (received, 1U);
 }
 
 /**
- * @brief tensor_query_serversrc refuses a wrong-size request also when its tensor caps have no framerate.
+ * @brief tensor_query_serversrc drops a wrong-size request also when its tensor caps have no framerate.
  */
 TEST (tensorQuery, serverSrcRefusesWrongSizeWithoutFramerate_n)
 {
-  const gsize sizes[] = { 8 };
-  nns_edge_data_h data = _make_edge_data (sizes, 1);
+  const gsize wrong[] = { 8 };
+  const gsize sizes[] = { 4 };
+  nns_edge_data_h data[2];
   guint received = 0;
 
-  EXPECT_TRUE (_send_to_serversrc (QUERY_TEST_CAPS_NO_RATE, &data, 1, &received));
-  EXPECT_EQ (received, 0U);
+  data[0] = _make_edge_data (wrong, 1);
+  data[1] = _make_edge_data (sizes, 1);
+  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS_NO_RATE, data, 2, 1, &received));
+  EXPECT_EQ (received, 1U);
 }
 
 /**
@@ -1042,20 +1054,22 @@ TEST (tensorQuery, serverSrcAcceptsFlexibleData)
   nns_edge_data_h data = _make_flex_edge_data (10, 0);
   guint received = 0;
 
-  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS_FLEX, &data, 1, &received));
+  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS_FLEX, &data, 1, 1, &received));
   EXPECT_EQ (received, 1U);
 }
 
 /**
- * @brief tensor_query_serversrc refuses a flexible request shorter than the data its header describes.
+ * @brief tensor_query_serversrc drops a flexible request shorter than the data its header describes.
  */
 TEST (tensorQuery, serverSrcRefusesTruncatedFlexibleData_n)
 {
-  nns_edge_data_h data = _make_flex_edge_data (10, -1);
+  nns_edge_data_h data[2];
   guint received = 0;
 
-  EXPECT_TRUE (_send_to_serversrc (QUERY_TEST_CAPS_FLEX, &data, 1, &received));
-  EXPECT_EQ (received, 0U);
+  data[0] = _make_flex_edge_data (10, -1);
+  data[1] = _make_flex_edge_data (10, 0);
+  EXPECT_FALSE (_send_to_serversrc (QUERY_TEST_CAPS_FLEX, data, 2, 1, &received));
+  EXPECT_EQ (received, 1U);
 }
 
 /**
@@ -1100,6 +1114,143 @@ TEST (tensorQuery, serverSrcFollowsNewCaps)
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (gstpipe);
+}
+
+/**
+ * @brief The messages the default log domain receives while tensor_query_serversrc drops a request.
+ */
+typedef struct {
+  gint critical; /**< number of critical messages */
+  gint dropped; /**< number of warnings reporting dropped data */
+} DropLog;
+
+/**
+ * @brief Log handler counting the critical messages and the "Dropped ..." warnings of the default domain.
+ */
+static void
+_count_drop_log (const gchar *domain, GLogLevelFlags level, const gchar *message, gpointer user_data)
+{
+  DropLog *log = (DropLog *) user_data;
+
+  if (level & G_LOG_LEVEL_CRITICAL)
+    g_atomic_int_inc (&log->critical);
+  else if ((level & G_LOG_LEVEL_WARNING) && g_str_has_prefix (message, "Dropped "))
+    g_atomic_int_inc (&log->dropped);
+}
+
+/**
+ * @brief Client A sends a wrong-size request to tensor_query_serversrc, then client B sends a matching one.
+ * @param[out] log The messages logged until client B is answered.
+ * @param[out] received The number of buffers the serversrc pushed downstream.
+ * @param[out] answered The number of answers client B received.
+ * @return TRUE if the server pipeline posted an error.
+ */
+static gboolean
+_serve_after_wrong_request (DropLog *log, guint *received, guint *answered)
+{
+  const gsize wrong[] = { 8 };
+  const gsize sizes[] = { 4 };
+  GstElement *gstpipe;
+  GstMessage *msg;
+  GstBus *bus;
+  GstState state = GST_STATE_NULL;
+  GLogLevelFlags fatal_mask;
+  nns_edge_data_h data;
+  nns_edge_h client_a, client_b;
+  RawPeer peer = {};
+  guint handler, port, waited, count = 0;
+
+  log->critical = log->dropped = 0;
+  handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING | G_LOG_FLAG_FATAL),
+      _count_drop_log, log);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log (NULL, G_LOG_LEVEL_CRITICAL, "[probe] tensor_query test handler self-check");
+  g_log (NULL, G_LOG_LEVEL_WARNING, "Dropped [probe] tensor_query test handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (g_atomic_int_get (&log->critical), 1);
+  EXPECT_EQ (g_atomic_int_get (&log->dropped), 1);
+  g_atomic_int_set (&log->critical, 0);
+  g_atomic_int_set (&log->dropped, 0);
+
+  port = get_available_port ();
+  gstpipe = _make_serversrc_pipeline (QUERY_TEST_CAPS, port, &count);
+  EXPECT_NE (gstpipe, nullptr);
+  if (!gstpipe) {
+    g_log_remove_handler (NULL, handler);
+    return FALSE;
+  }
+  g_mutex_init (&peer.lock);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  data = _make_edge_data (wrong, 1);
+  client_a = _raw_client_send (port, &data, 1);
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  for (waited = 0; waited < 3000 && g_atomic_int_get (&log->dropped) == 0; waited += 10)
+    g_usleep (10000);
+#else
+  g_usleep (200000);
+#endif
+
+  data = _make_edge_data (sizes, 1);
+  client_b = _raw_client_send (port, &data, 1, &peer);
+  for (waited = 0; waited < 3000; waited += 10) {
+    g_mutex_lock (&peer.lock);
+    *answered = peer.requests;
+    g_mutex_unlock (&peer.lock);
+    if (*answered > 0)
+      break;
+    g_usleep (10000);
+  }
+  g_usleep (200000);
+  *received = (guint) g_atomic_int_get ((gint *) &count);
+
+  bus = gst_element_get_bus (gstpipe);
+  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  gst_object_unref (bus);
+  if (msg)
+    gst_message_unref (msg);
+  gst_element_get_state (gstpipe, &state, nullptr, 0);
+  EXPECT_EQ (state, GST_STATE_PLAYING);
+  g_log_remove_handler (NULL, handler);
+
+  nns_edge_release_handle (client_a);
+  nns_edge_release_handle (client_b);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (gstpipe);
+  g_free (peer.client_id);
+  g_mutex_clear (&peer.lock);
+
+  return (msg != nullptr);
+}
+
+/**
+ * @brief A wrong-size request of one client does not stop tensor_query_serversrc; the next client is answered.
+ */
+TEST (tensorQuery, serverSrcServesOtherClientsAfterWrongRequest)
+{
+  DropLog log;
+  guint received = 0, answered = 0;
+
+  EXPECT_FALSE (_serve_after_wrong_request (&log, &received, &answered));
+  EXPECT_EQ (answered, 1U);
+}
+
+/**
+ * @brief tensor_query_serversrc pushes no buffer for a wrong-size request and logs it once.
+ */
+TEST (tensorQuery, serverSrcDropsWrongRequestWithOneLog_n)
+{
+  DropLog log;
+  guint received = 0, answered = 0;
+
+  EXPECT_FALSE (_serve_after_wrong_request (&log, &received, &answered));
+  EXPECT_EQ (received, 1U);
+  /* the element logs reach a GLib log handler unless the platform has a log of its own */
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  EXPECT_EQ (g_atomic_int_get (&log.critical), 1);
+  EXPECT_EQ (g_atomic_int_get (&log.dropped), 1);
+#endif
 }
 
 /**
@@ -1340,10 +1491,16 @@ _client_with_server_caps (const gchar *caps_info, guint timeout_ms,
 {
   const gsize sizes[] = { 4 };
   guint handler, critical = 0;
+  GLogLevelFlags fatal_mask;
 
   handler = g_log_set_handler ("GStreamer",
-      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _count_gst_critical, &critical);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "[probe] tensor_query test handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ ((guint) g_atomic_int_get ((gint *) &critical), 1U);
+  g_atomic_int_set ((gint *) &critical, 0);
 
   _run_client (QUERY_TEST_CAPS, caps_info, timeout_ms, _static_input (),
       _make_edge_data (sizes, 1), received, requested);
@@ -1768,6 +1925,25 @@ _drop_counter_stop (DropCounter *counter)
 }
 
 /**
+ * @brief Prove that the log function counts the category being counted, then reset the count.
+ * Call it once the element registering the category exists: a count of zero says nothing otherwise.
+ */
+static void
+_drop_counter_probe (DropCounter *counter)
+{
+#ifndef GST_DISABLE_GST_DEBUG
+  GstDebugCategory *cat;
+
+  GST_DEBUG_CATEGORY_GET (cat, counter->category);
+  EXPECT_NE (cat, nullptr);
+  if (cat)
+    GST_CAT_DEBUG (cat, "Dropped 1 [probe] log function self-check");
+  EXPECT_EQ (g_atomic_int_get (&counter->dropped), 1);
+  g_atomic_int_set (&counter->dropped, 0);
+#endif
+}
+
+/**
  * @brief Wait until the counter reaches @a num, then a little longer to catch extra drops.
  * @return The number of dropped data.
  */
@@ -1829,6 +2005,7 @@ _flood_serversrc (guint max_buffers, IdLog *log, guint expected)
     _drop_counter_stop (&counter);
     return 0;
   }
+  _drop_counter_probe (&counter);
 
   element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   g_signal_connect (element, "handoff", (GCallback) _log_id, log);
@@ -1988,6 +2165,8 @@ _answer_client_twice (guint max_buffers, IdLog *log, guint *dropped)
   EXPECT_NE (gstpipe, nullptr);
   if (!gstpipe)
     goto done;
+
+  _drop_counter_probe (&counter);
 
   element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   g_signal_connect (element, "handoff", (GCallback) _log_id, log);

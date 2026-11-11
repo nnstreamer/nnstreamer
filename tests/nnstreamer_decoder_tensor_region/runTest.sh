@@ -22,7 +22,6 @@ PATH_TO_PLUGIN="../../build"
 PATH_TO_IMAGE="../test_models/data/orange.png"
 PATH_TO_LABELS="../nnstreamer_decoder_boundingbox/coco_labels_list.txt"
 PATH_TO_BOX_PRIORS="../nnstreamer_decoder_boundingbox/box_priors.txt"
-PATH_TO_MODEL="../test_models/models/ssd_mobilenet_v2_coco.tflite"
 CASESTART=0
 CASEEND=1
 

@@ -2191,6 +2191,7 @@ TEST (testTensorSrcIio, channelsCustomInvalid_n)
   gchar *ret_channels;
   guint critical_count = 0;
   guint log_id;
+  GLogLevelFlags fatal_mask;
   const gchar *invalid[] = { "abc", "-1", "2,abc", "99999999999999999999",
     "4294967297", "1x", "2,", ",2", "2;;3", "+1", "0x1", "1 2", "2147483648",
     "allx", "all,1", "automatic", "auto1", "" };
@@ -2203,7 +2204,14 @@ TEST (testTensorSrcIio, channelsCustomInvalid_n)
   src_iio = gst_harness_find_element (hrnss, ELEMENT_NAME);
   ASSERT_TRUE (src_iio != NULL);
 
-  log_id = g_log_set_handler ("GLib", G_LOG_LEVEL_CRITICAL, count_glib_critical, &critical_count);
+  log_id = g_log_set_handler ("GLib",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      count_glib_critical, &critical_count);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GLib", G_LOG_LEVEL_CRITICAL, "[probe] tensor_src_iio test GLib handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (critical_count, 1U);
+  critical_count = 0;
 
   g_object_set (src_iio, "channels", "7", NULL);
 

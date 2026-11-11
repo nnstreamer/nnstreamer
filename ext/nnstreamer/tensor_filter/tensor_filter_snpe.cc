@@ -269,6 +269,12 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     /* parse tensor dimension */
     auto shapeHandle = Snpe_IBufferAttributes_GetDims (bufferAttributesOpt);
     auto rank = Snpe_TensorShape_Rank (shapeHandle);
+    if (rank == 0 || rank > NNS_TENSOR_RANK_LIMIT) {
+      Snpe_TensorShape_Delete (shapeHandle);
+      Snpe_IBufferAttributes_Delete (bufferAttributesOpt);
+      throw std::invalid_argument ("Unsupported rank " + std::to_string (rank)
+                                   + " of tensor " + std::string (tensorName));
+    }
     const size_t *sdims = Snpe_TensorShape_GetDimensions (shapeHandle);
     for (size_t j = 0; j < rank; j++) {
       info->dimension[rank - 1 - j] = sdims[j];
@@ -543,7 +549,10 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     Snpe_IUserBuffer_SetBufferAddress (iub, output[i].data);
   }
 
-  Snpe_SNPE_ExecuteUserBuffers (snpe_h, inputMap_h, outputMap_h);
+  auto err = Snpe_SNPE_ExecuteUserBuffers (snpe_h, inputMap_h, outputMap_h);
+  if (err != SNPE_SUCCESS)
+    throw std::runtime_error ("Failed to execute the SNPE model, error code "
+                              + std::to_string (static_cast<int> (err)));
 }
 
 /**

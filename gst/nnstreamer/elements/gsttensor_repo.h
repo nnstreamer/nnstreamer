@@ -90,6 +90,12 @@ gboolean
 gst_tensor_repo_set_eos (guint nth);
 
 /**
+ * @brief Reset slot for a new stream, clearing EOS and the buffer left unpulled.
+ */
+gboolean
+gst_tensor_repo_reset_stream (guint nth);
+
+/**
  * @brief Set the changing status of repo.
  */
 gboolean

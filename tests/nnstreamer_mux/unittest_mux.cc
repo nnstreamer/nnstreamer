@@ -14,6 +14,7 @@
 #include <nnstreamer_plugin_api.h>
 #include <tensor_common.h>
 #include <unittest_util.h>
+#include <vector>
 
 /**
  * @brief Caps of a static stream of two 4-byte uint8 tensors.
@@ -564,6 +565,218 @@ TEST (tensorMuxCollect, flexibleSingleMemoryTruncated_n)
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
 
   _mux_harness_teardown (h);
+}
+
+/**
+ * @brief Caps of a static stream of one uint8 tensor of one byte.
+ */
+#define MUX_ONE_BYTE_CAPS \
+  "other/tensors,format=static,num_tensors=1,types=uint8,dimensions=1:1:1:1,framerate=0/1"
+
+/**
+ * @brief Push a one-byte tensor holding @a value at @a pts.
+ */
+static void
+_push_byte (GstElement *src, guint8 value, GstClockTime pts)
+{
+  GstBuffer *buf = gst_buffer_new_allocate (NULL, 1, NULL);
+  GstFlowReturn ret;
+
+  gst_buffer_memset (buf, 0, value, 1);
+  GST_BUFFER_PTS (buf) = pts;
+  g_signal_emit_by_name (src, "push-buffer", buf, &ret);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  gst_buffer_unref (buf);
+}
+
+/**
+ * @brief Run tensor_mux with basepad sync and check every output.
+ * @param base_pad the index of the base pad, sink_0 or sink_1
+ * @param duration the duration of sync-option, or NULL for the default
+ * @param base_pts the timestamps of the base pad, whose buffer i holds i
+ * @param other_pts the timestamps of the other pad, whose buffer i holds 100 + i
+ * @param expected the value taken from the other pad by each output; output i
+ *        takes base buffer i, and the stream ends after the last base buffer
+ */
+static void
+_run_basepad (guint base_pad, const gchar *duration,
+    const std::vector<GstClockTime> &base_pts,
+    const std::vector<GstClockTime> &other_pts, const std::vector<guint8> &expected)
+{
+  g_autoptr (GstElement) pipeline = NULL;
+  g_autoptr (GstElement) src_base = NULL;
+  g_autoptr (GstElement) src_other = NULL;
+  g_autoptr (GstElement) sink = NULL;
+  GstSample *sample;
+  GstFlowReturn ret;
+  gboolean eos = FALSE;
+  gchar *desc, *name;
+  guint i, received = 0;
+
+  desc = g_strdup_printf ("appsrc name=src0 format=time caps=" MUX_ONE_BYTE_CAPS " ! mux.sink_0 "
+                          "appsrc name=src1 format=time caps=" MUX_ONE_BYTE_CAPS " ! mux.sink_1 "
+                          "tensor_mux name=mux sync-mode=basepad sync-option=%u%s%s ! "
+                          "appsink name=sink sync=false",
+      base_pad, duration ? ":" : "", duration ? duration : "");
+  pipeline = gst_parse_launch (desc, NULL);
+  g_free (desc);
+  ASSERT_NE (pipeline, nullptr);
+
+  name = g_strdup_printf ("src%u", base_pad);
+  src_base = gst_bin_get_by_name (GST_BIN (pipeline), name);
+  g_free (name);
+  name = g_strdup_printf ("src%u", 1 - base_pad);
+  src_other = gst_bin_get_by_name (GST_BIN (pipeline), name);
+  g_free (name);
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  ASSERT_NE (src_base, nullptr);
+  ASSERT_NE (src_other, nullptr);
+  ASSERT_NE (sink, nullptr);
+
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+
+  for (i = 0; i < base_pts.size (); i++)
+    _push_byte (src_base, (guint8) i, base_pts[i]);
+  g_signal_emit_by_name (src_base, "end-of-stream", &ret);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+  for (i = 0; i < other_pts.size (); i++)
+    _push_byte (src_other, (guint8) (100 + i), other_pts[i]);
+  g_signal_emit_by_name (src_other, "end-of-stream", &ret);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+
+  while (TRUE) {
+    GstBuffer *buf;
+    guint8 value[2] = { 0xff, 0xff };
+
+    sample = NULL;
+    g_signal_emit_by_name (sink, "try-pull-sample", MUX_TIMEOUT_MS * GST_MSECOND, &sample);
+    if (sample == NULL)
+      break;
+
+    buf = gst_sample_get_buffer (sample);
+    if (buf == NULL || gst_buffer_n_memory (buf) != 2) {
+      ADD_FAILURE () << "output " << received << " does not hold two tensors";
+      gst_sample_unref (sample);
+      break;
+    }
+
+    gst_buffer_extract (buf, 0, value, 2);
+    if (received < expected.size ()) {
+      EXPECT_EQ (GST_BUFFER_PTS (buf), base_pts[received]) << "output " << received;
+      EXPECT_EQ ((guint) value[base_pad], received) << "output " << received;
+      EXPECT_EQ ((guint) value[1 - base_pad], (guint) expected[received])
+          << "output " << received;
+    }
+    gst_sample_unref (sample);
+    received++;
+  }
+
+  EXPECT_EQ (received, expected.size ());
+  g_object_get (sink, "eos", &eos, NULL);
+  EXPECT_TRUE (eos);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+}
+
+/**
+ * @brief While the base pad repeats its timestamp, the other pad keeps its
+ *        last buffer instead of following its own clock, and the stream still
+ *        ends when the base pad does.
+ */
+TEST (tensorMuxBasepad, stuckBaseTimestamp)
+{
+  _run_basepad (0, "50000000", { 0, 0, 0 },
+      { 0, 33 * GST_MSECOND, 66 * GST_MSECOND }, { 100, 100, 100 });
+}
+
+/**
+ * @brief Once the base pad advances after a run of equal timestamps, the
+ *        other pad drops the buffers it passed and pairs the one at the new
+ *        base timestamp.
+ * @details Dropping the 33 ms buffer yields no output; the next round keeps
+ *          the 66 ms base timestamp although the base pad has ended by then.
+ */
+TEST (tensorMuxBasepad, stuckBaseTimestampAdvances)
+{
+  _run_basepad (0, "50000000", { 0, 0, 0, 66 * GST_MSECOND },
+      { 0, 33 * GST_MSECOND, 66 * GST_MSECOND }, { 100, 100, 100, 102 });
+}
+
+/**
+ * @brief The tolerance is the gap to the previous base timestamp less one:
+ *        a buffer at that distance from the base timestamp is taken.
+ */
+TEST (tensorMuxBasepad, toleranceInside)
+{
+  _run_basepad (0, "1000000000", { 0, 100 * GST_MSECOND },
+      { 0, 200 * GST_MSECOND - 1 }, { 100, 101 });
+}
+
+/**
+ * @brief A buffer one step beyond the tolerance is not taken; the other pad
+ *        keeps its last buffer.
+ */
+TEST (tensorMuxBasepad, toleranceOutside_n)
+{
+  _run_basepad (0, "1000000000", { 0, 100 * GST_MSECOND },
+      { 0, 200 * GST_MSECOND }, { 100, 100 });
+}
+
+/**
+ * @brief The duration of sync-option caps the tolerance below the base gap.
+ */
+TEST (tensorMuxBasepad, toleranceDurationCap)
+{
+  _run_basepad (0, "10000000", { 0, 100 * GST_MSECOND },
+      { 0, 110 * GST_MSECOND }, { 100, 101 });
+}
+
+/**
+ * @brief Beyond the duration of sync-option the other pad keeps its last
+ *        buffer even though the base gap is wider.
+ */
+TEST (tensorMuxBasepad, toleranceDurationCap_n)
+{
+  _run_basepad (0, "10000000", { 0, 100 * GST_MSECOND },
+      { 0, 110 * GST_MSECOND + 1 }, { 100, 100 });
+}
+
+/**
+ * @brief With two equal base timestamps the tolerance is zero: a buffer at
+ *        the same timestamp is taken.
+ */
+TEST (tensorMuxBasepad, equalBaseTimestampSame)
+{
+  _run_basepad (0, "1000000000", { 0, 0 }, { 0, 0 }, { 100, 101 });
+}
+
+/**
+ * @brief With two equal base timestamps a buffer at any other timestamp is
+ *        not taken; the tolerance does not wrap around to accept it.
+ */
+TEST (tensorMuxBasepad, equalBaseTimestampOther_n)
+{
+  _run_basepad (0, "1000000000", { 0, 0 }, { 0, 1 }, { 100, 100 });
+}
+
+/**
+ * @brief The base pad may be sink_1 and start at a non-zero timestamp; with
+ *        the default duration the tolerance is still the base gap less one.
+ */
+TEST (tensorMuxBasepad, secondPadInside)
+{
+  _run_basepad (1, NULL, { GST_SECOND, GST_SECOND + 100 * GST_MSECOND },
+      { GST_SECOND, GST_SECOND + 200 * GST_MSECOND - 1 }, { 100, 101 });
+}
+
+/**
+ * @brief With sink_1 as the base pad, a buffer beyond the base gap is not
+ *        taken.
+ */
+TEST (tensorMuxBasepad, secondPadOutside_n)
+{
+  _run_basepad (1, NULL, { GST_SECOND, GST_SECOND + 100 * GST_MSECOND },
+      { GST_SECOND, GST_SECOND + 200 * GST_MSECOND }, { 100, 100 });
 }
 
 /**

@@ -14,6 +14,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/app/gstappsrc.h>
+#include <gst/check/gstharness.h>
 #include <nnstreamer_conf.h>
 #include <nnstreamer_plugin_api.h>
 #include <tensor_common.h>
@@ -861,6 +862,52 @@ TEST (commonTensorsInfo, totalSizeTensorOverflow_n)
   info.info[1].dimension[4] = info.info[1].dimension[5] = 0U;
   info.info[1].dimension[6] = 0U;
   EXPECT_EQ (gst_tensors_info_get_size (&info, -1), (gsize) (16 + 3 * 64 * 64));
+  gst_tensors_info_free (&info);
+}
+
+/**
+ * @brief Test for the total size of the maximum number of tensors.
+ */
+TEST (commonTensorsInfo, totalSizeMaxTensors)
+{
+  GstTensorsInfo info;
+  GstTensorInfo *_info;
+  guint i;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
+  for (i = 0; i < info.num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info (&info, i);
+    _info->type = _NNS_UINT8;
+    _info->dimension[0] = 1U;
+  }
+
+  EXPECT_EQ (gst_tensors_info_get_size (&info, -1), (gsize) NNS_TENSOR_SIZE_LIMIT);
+  EXPECT_EQ (gst_tensors_info_get_size (&info, NNS_TENSOR_SIZE_LIMIT - 1), 1U);
+  gst_tensors_info_free (&info);
+}
+
+/**
+ * @brief Test for the total size of more tensors than the limit.
+ * @details The tensor past the limit has no info, which used to be dereferenced.
+ */
+TEST (commonTensorsInfo, totalSizeOverLimit_n)
+{
+  GstTensorsInfo info;
+  GstTensorInfo *_info;
+  guint i;
+
+  gst_tensors_info_init (&info);
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    _info = gst_tensors_info_get_nth_info (&info, i);
+    _info->type = _NNS_UINT8;
+    _info->dimension[0] = 1U;
+  }
+
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+  EXPECT_EQ (gst_tensors_info_get_size (&info, -1), 0U);
+
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
   gst_tensors_info_free (&info);
 }
 
@@ -2450,10 +2497,102 @@ TEST (commonMetaInfo, dataSizeTypeOverflow_n)
   meta.type = _NNS_FLOAT64;
   EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
   EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+}
 
-  /* a sparse tensor carries a few elements of a dense tensor that cannot exist */
+/**
+ * @brief Test for tensor meta info (a sparse tensor whose dense byte size overflows).
+ * @details A sparse tensor is sized by its elements, not by its dense form.
+ */
+TEST (commonMetaInfo, dataSizeSparseOverflowingDense)
+{
+  GstTensorMetaInfo meta;
+
+  if (sizeof (gulong) < 8 || sizeof (gsize) < 8)
+    GTEST_SKIP () << "needs a 64-bit gulong and gsize";
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_FLOAT64;
+  meta.dimension[0] = 0x80000000U;
+  meta.dimension[1] = 0x80000000U;
+  meta.dimension[2] = 2U;
   meta.format = _NNS_TENSOR_FORMAT_SPARSE;
   meta.sparse_info.nnz = 1U;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), (gsize) 12);
+
+  meta.sparse_info.nnz = G_MAXUINT32;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ ((guint64) gst_tensor_meta_info_get_data_size (&meta),
+      G_GUINT64_CONSTANT (12) * G_MAXUINT32);
+}
+
+/**
+ * @brief Test for tensor meta info (a sparse tensor whose dense form exceeds 4 GiB).
+ * @details The dense size used to bound a sparse tensor, which refused it on 32-bit.
+ */
+TEST (commonMetaInfo, dataSizeSparseLargeDense)
+{
+  GstTensorMetaInfo meta;
+  uint32_t *header;
+  gsize hsize;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_FLOAT32;
+  meta.dimension[0] = 4096U;
+  meta.dimension[1] = 4096U;
+  meta.dimension[2] = 64U;
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.sparse_info.nnz = 100U;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), (gsize) 800);
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  header = (uint32_t *) g_malloc0 (hsize);
+  ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
+  EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, header));
+  EXPECT_EQ (meta.sparse_info.nnz, 100U);
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), (gsize) 800);
+  g_free (header);
+
+  /* the dense form of 2^32 bytes fits a 64-bit gsize only */
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  EXPECT_EQ (gst_tensor_meta_info_validate (&meta), sizeof (gsize) > 4);
+}
+
+/**
+ * @brief Test for tensor meta info (a sparse tensor without data or with an overflowing size).
+ */
+TEST (commonMetaInfo, dataSizeSparse_n)
+{
+  GstTensorMetaInfo meta;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_FLOAT64;
+  meta.dimension[0] = 10U;
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+
+  /* 12 bytes for each of 2^32 - 1 elements overflow a 32-bit gsize */
+  if (sizeof (gsize) == 4) {
+    meta.sparse_info.nnz = G_MAXUINT32;
+    EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+    EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+  }
+
+  /* a sparse tensor still needs a dimension and a type */
+  meta.sparse_info.nnz = 1U;
+  meta.dimension[0] = 0U;
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+
+  meta.dimension[0] = 10U;
+  meta.type = _NNS_END;
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+
+  /* the element count of the dense form must still be countable */
+  meta.type = _NNS_FLOAT64;
+  meta.dimension[0] = meta.dimension[1] = meta.dimension[2] = 65536U;
+  meta.dimension[3] = meta.dimension[4] = 65536U;
   EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
   EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
 }
@@ -2479,6 +2618,68 @@ TEST (commonMetaInfo, parseHeaderUnknownVersion_n)
 
   header[1] = 0xDE002000U;
   EXPECT_FALSE (gst_tensor_meta_info_parse_header (&meta, header));
+
+  g_free (header);
+}
+
+/**
+ * @brief Test for tensor meta info (a header of an odd major version other than 1 is refused).
+ * @details The major version used to be tested with a bitwise and, which took
+ *          every odd major version for version 1.
+ */
+TEST (commonMetaInfo, parseHeaderOddMajorVersion_n)
+{
+  const uint32_t versions[] = { 0xDE003000U, 0xDE005000U, 0xDE005001U, 0xDEFFF000U };
+  GstTensorMetaInfo meta;
+  uint32_t *header;
+  guint i, major, minor;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 16;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  header = (uint32_t *) g_malloc0 (gst_tensor_meta_info_get_header_size (&meta));
+  ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
+
+  for (i = 0; i < G_N_ELEMENTS (versions); i++) {
+    SCOPED_TRACE (versions[i]);
+    header[1] = versions[i];
+    EXPECT_FALSE (gst_tensor_meta_info_parse_header (&meta, header));
+    EXPECT_TRUE (gst_tensor_meta_info_get_version (&meta, &major, &minor));
+    EXPECT_EQ (major, (versions[i] >> 12) & 0xFFFU);
+    EXPECT_EQ (minor, versions[i] & 0xFFFU);
+    EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 0U);
+    EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+  }
+
+  g_free (header);
+}
+
+/**
+ * @brief Test for tensor meta info (a header of another minor version of 1 is accepted).
+ */
+TEST (commonMetaInfo, parseHeaderMinorVersion)
+{
+  GstTensorMetaInfo meta;
+  uint32_t *header;
+  guint major, minor;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 16;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  header = (uint32_t *) g_malloc0 (gst_tensor_meta_info_get_header_size (&meta));
+  ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
+
+  header[1] = 0xDE001001U;
+  EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, header));
+  EXPECT_TRUE (gst_tensor_meta_info_get_version (&meta, &major, &minor));
+  EXPECT_EQ (major, 1U);
+  EXPECT_EQ (minor, 1U);
+  EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 128U);
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), (gsize) 16);
 
   g_free (header);
 }
@@ -2854,12 +3055,16 @@ TEST (commonAggregationUtil, evictBound)
   GHashTable *table;
   guint log_count = 0;
   guint handler;
+  GLogLevelFlags fatal_mask;
 
   handler = g_log_set_handler (NULL,
-      (GLogLevelFlags) (G_LOG_LEVEL_WARNING | G_LOG_LEVEL_INFO),
+      (GLogLevelFlags) (G_LOG_LEVEL_WARNING | G_LOG_LEVEL_INFO | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
       _aggregation_count_log, &log_count);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   g_log (NULL, G_LOG_LEVEL_WARNING, "probe of the log handler");
-  EXPECT_EQ (log_count, 1U);
+  g_log (NULL, G_LOG_LEVEL_INFO, "probe of the log handler");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (log_count, 2U);
   log_count = 0;
 
   table = gst_tensor_aggregation_init ();
@@ -3619,6 +3824,64 @@ TEST (commonUtil, createFlexTensorBufferUnknownVersionHeader_n)
 }
 
 /**
+ * @brief Test tensor buffer util (flexible tensors whose header has an odd major version)
+ * @details The split stops at the first header that is not of version 1 and
+ *          leaves the rest of the buffer in the last memory.
+ */
+TEST (commonUtil, createFlexTensorBufferOddMajorVersion_n)
+{
+  const uint32_t versions[] = { 0xDE003000U, 0xDE005000U };
+  GstBuffer *out;
+  guint8 *data;
+  gsize total, each;
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (versions); i++) {
+    SCOPED_TRACE (versions[i]);
+
+    data = build_flex_tensor_data (3U, 16U, &total, &each);
+    ((uint32_t *) data)[1] = versions[i];
+    out = flex_buffer_from_config (data, total);
+    ASSERT_TRUE (out != NULL);
+    EXPECT_EQ (gst_buffer_n_memory (out), 1U);
+    EXPECT_EQ (gst_buffer_get_size (out), total);
+    gst_buffer_unref (out);
+
+    data = build_flex_tensor_data (3U, 16U, &total, &each);
+    ((uint32_t *) (data + each))[1] = versions[i];
+    out = flex_buffer_from_config (data, total);
+    ASSERT_TRUE (out != NULL);
+    EXPECT_EQ (gst_buffer_n_memory (out), 2U);
+    EXPECT_EQ (peek_memory_size (out, 0), each);
+    EXPECT_EQ (peek_memory_size (out, 1), each * 2);
+    gst_buffer_unref (out);
+  }
+}
+
+/**
+ * @brief Test tensor buffer util (flexible tensors whose header has another minor version of 1)
+ */
+TEST (commonUtil, createFlexTensorBufferMinorVersion)
+{
+  GstBuffer *out;
+  guint8 *data;
+  gsize total, each;
+  guint i;
+
+  data = build_flex_tensor_data (3U, 16U, &total, &each);
+  for (i = 0; i < 3U; i++)
+    ((uint32_t *) (data + each * i))[1] = 0xDE001001U;
+
+  out = flex_buffer_from_config (data, total);
+  ASSERT_TRUE (out != NULL);
+  EXPECT_EQ (gst_buffer_n_memory (out), 3U);
+  for (i = 0; i < 3U; i++)
+    EXPECT_EQ (peek_memory_size (out, i), each);
+
+  gst_buffer_unref (out);
+}
+
+/**
  * @brief Callback for the new-data signal, keeping the size of the buffer.
  */
 static void
@@ -4274,6 +4537,292 @@ TEST (commonUtil, tensorBufferForgedExtraCountPipeline_n)
   gst_object_unref (appsrc);
   gst_object_unref (sinkx);
   gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Internal util function to get the type of the i-th tensor of the
+ *        static streams built by set_static_extra_config ().
+ */
+static tensor_type
+static_extra_tensor_type (guint i)
+{
+  return (i % 2U) ? _NNS_FLOAT32 : _NNS_UINT8;
+}
+
+/**
+ * @brief Internal util function to get the size of the i-th tensor of the
+ *        static streams built by set_static_extra_config ().
+ */
+static gsize
+static_extra_tensor_size (guint i)
+{
+  return (gsize) (i % 7U + 1U)
+         * gst_tensor_get_element_size (static_extra_tensor_type (i));
+}
+
+/**
+ * @brief Internal util function to set @a config to a static stream of
+ *        @a num_tensors uint8 and float32 tensors of 1 to 7 elements.
+ */
+static void
+set_static_extra_config (GstTensorsConfig *config, guint num_tensors)
+{
+  guint i;
+
+  gst_tensors_config_init (config);
+  config->info.format = _NNS_TENSOR_FORMAT_STATIC;
+  config->info.num_tensors = num_tensors;
+  config->rate_n = 0;
+  config->rate_d = 1;
+
+  for (i = 0; i < num_tensors; i++) {
+    GstTensorInfo *info = gst_tensors_info_get_nth_info (&config->info, i);
+
+    info->type = static_extra_tensor_type (i);
+    info->dimension[0] = i % 7U + 1U;
+  }
+}
+
+/**
+ * @brief Internal util function to build a buffer of the tensors of
+ *        @a config, appended one by one via gst_tensor_buffer_append_memory ().
+ *        Every byte of the i-th tensor is (i % 256).
+ */
+static GstBuffer *
+build_static_extra_buffer (GstTensorsConfig *config)
+{
+  GstBuffer *buf = gst_buffer_new ();
+  guint i;
+
+  for (i = 0; i < config->info.num_tensors; i++) {
+    GstTensorInfo *info = gst_tensors_info_get_nth_info (&config->info, i);
+    gsize size = static_extra_tensor_size (i);
+    GstMemory *mem = gst_allocator_alloc (NULL, size, NULL);
+    GstMapInfo map;
+
+    if (!gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+      gst_memory_unref (mem);
+      gst_buffer_unref (buf);
+      return NULL;
+    }
+    memset (map.data, (int) (i % 256U), map.size);
+    gst_memory_unmap (mem, &map);
+
+    if (!gst_tensor_buffer_append_memory (buf, mem, info)) {
+      gst_buffer_unref (buf);
+      return NULL;
+    }
+  }
+
+  GST_BUFFER_PTS (buf) = 0;
+  return buf;
+}
+
+/**
+ * @brief Internal util function to check that @a buf holds the tensors of
+ *        @a config with the bytes build_static_extra_buffer () wrote.
+ */
+static void
+check_static_extra_buffer (GstBuffer *buf, GstTensorsConfig *config)
+{
+  guint i;
+  gsize j;
+
+  ASSERT_EQ (gst_tensor_buffer_get_count (buf), config->info.num_tensors);
+
+  for (i = 0; i < config->info.num_tensors; i++) {
+    GstMemory *mem = gst_tensor_buffer_get_nth_memory (buf, i);
+    GstMapInfo map;
+
+    ASSERT_TRUE (mem != NULL) << "tensor " << i;
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    EXPECT_EQ (map.size, static_extra_tensor_size (i)) << "tensor " << i;
+    for (j = 0; j < map.size; j++)
+      EXPECT_EQ (map.data[j], (guint8) (i % 256U)) << "tensor " << i;
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
+  }
+}
+
+/**
+ * @brief Test tensor buffer util (static config of more tensors than memories)
+ * @details A buffer of 16 memories whose last one carries the extra tensors,
+ *          and the same bytes merged into a single memory, are both split
+ *          back into the tensors of the config.
+ */
+TEST (commonUtil, createStaticExtraTensorBuffer)
+{
+  const guint counts[] = { NNS_TENSOR_MEMORY_MAX + 1, NNS_TENSOR_MEMORY_MAX + 4,
+    NNS_TENSOR_SIZE_LIMIT };
+  GstTensorsConfig config;
+  GstBuffer *in, *merged, *out;
+  gsize size;
+  guint c;
+
+  for (c = 0; c < G_N_ELEMENTS (counts); c++) {
+    SCOPED_TRACE (counts[c]);
+    set_static_extra_config (&config, counts[c]);
+
+    in = build_static_extra_buffer (&config);
+    ASSERT_TRUE (in != NULL);
+    ASSERT_EQ (gst_buffer_n_memory (in), (guint) NNS_TENSOR_MEMORY_MAX);
+    size = gst_buffer_get_size (in);
+
+    merged = gst_buffer_new ();
+    gst_buffer_append_memory (merged, gst_buffer_get_all_memory (in));
+
+    out = gst_tensor_buffer_from_config (in, &config);
+    ASSERT_TRUE (out != NULL);
+    EXPECT_EQ (gst_buffer_n_memory (out), (guint) NNS_TENSOR_MEMORY_MAX);
+    EXPECT_EQ (gst_buffer_get_size (out), size);
+    ASSERT_NO_FATAL_FAILURE (check_static_extra_buffer (out, &config));
+    gst_buffer_unref (out);
+
+    out = gst_tensor_buffer_from_config (merged, &config);
+    ASSERT_TRUE (out != NULL);
+    EXPECT_EQ (gst_buffer_n_memory (out), (guint) NNS_TENSOR_MEMORY_MAX);
+    EXPECT_EQ (gst_buffer_get_size (out), size);
+    ASSERT_NO_FATAL_FAILURE (check_static_extra_buffer (out, &config));
+    gst_buffer_unref (out);
+
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief Test tensor buffer util (static extra tensors without the extra header)
+ * @details A single memory of the bytes of the tensors alone is too short for
+ *          the config. Padded by the size of the header but without it, the
+ *          split leaves the extra tensors in the last memory, unreadable.
+ */
+TEST (commonUtil, createStaticExtraTensorBufferNoHeader_n)
+{
+  GstTensorsConfig config;
+  GstBuffer *out;
+  gsize size;
+
+  set_static_extra_config (&config, NNS_TENSOR_MEMORY_MAX + 4);
+  size = gst_tensors_info_get_size (&config.info, -1);
+
+  out = gst_tensor_buffer_from_config (gst_buffer_new_allocate (NULL, size, NULL), &config);
+  EXPECT_TRUE (out == NULL);
+
+  out = gst_tensor_buffer_from_config (
+      gst_buffer_new_wrapped (g_malloc0 (size + sizeof (TestTensorExtraInfo)),
+          size + sizeof (TestTensorExtraInfo)),
+      &config);
+  ASSERT_TRUE (out != NULL);
+  EXPECT_EQ (gst_buffer_n_memory (out), (guint) NNS_TENSOR_MEMORY_MAX);
+  EXPECT_EQ (gst_tensor_buffer_get_count (out), (guint) NNS_TENSOR_MEMORY_MAX);
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (out, NNS_TENSOR_MEMORY_MAX) == NULL);
+  gst_buffer_unref (out);
+
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Internal util function to create a harness of tensor_mux whose
+ *        first sink pad has the caps of @a config.
+ */
+static GstHarness *
+static_extra_mux_harness_new (GstTensorsConfig *config)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_mux", "sink_0", "src");
+  GstBus *bus = gst_bus_new ();
+
+  /* GST_ELEMENT_ERROR needs a bus to reach the application. */
+  gst_element_set_bus (h->element, bus);
+  gst_object_unref (bus);
+
+  g_object_set (h->element, "sync-mode", "nosync", NULL);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (config));
+  return h;
+}
+
+/**
+ * @brief Internal util function to free a harness made by
+ *        static_extra_mux_harness_new () and tell whether the element posted
+ *        an error. The bus goes first, as its messages hold the element.
+ */
+static gboolean
+static_extra_mux_harness_teardown (GstHarness *h)
+{
+  GstBus *bus = gst_element_get_bus (h->element);
+  GstMessage *msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  gboolean posted = (msg != NULL);
+
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  gst_element_set_bus (h->element, NULL);
+  gst_harness_teardown (h);
+  return posted;
+}
+
+/**
+ * @brief Test tensor buffer util (tensor_mux collects static extra tensors)
+ */
+TEST (commonUtil, createStaticExtraTensorBufferMux)
+{
+  const guint counts[] = { NNS_TENSOR_MEMORY_MAX + 4, NNS_TENSOR_SIZE_LIMIT };
+  GstTensorsConfig config;
+  GstHarness *h;
+  GstBuffer *in, *out;
+  guint c;
+
+  for (c = 0; c < G_N_ELEMENTS (counts); c++) {
+    SCOPED_TRACE (counts[c]);
+    set_static_extra_config (&config, counts[c]);
+    in = build_static_extra_buffer (&config);
+    ASSERT_TRUE (in != NULL);
+
+    h = static_extra_mux_harness_new (&config);
+    EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+
+    out = gst_harness_try_pull (h);
+    EXPECT_TRUE (out != NULL);
+    if (out != NULL) {
+      EXPECT_NO_FATAL_FAILURE (check_static_extra_buffer (out, &config));
+      gst_buffer_unref (out);
+    }
+
+    EXPECT_FALSE (static_extra_mux_harness_teardown (h));
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief Test tensor buffer util (tensor_mux refuses static extra tensors without the extra header)
+ */
+TEST (commonUtil, createStaticExtraTensorBufferMuxNoHeader_n)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+  GstBuffer *in;
+  gsize size;
+
+  set_static_extra_config (&config, NNS_TENSOR_MEMORY_MAX + 4);
+  size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* too short for the config */
+  h = static_extra_mux_harness_new (&config);
+  in = gst_buffer_new_allocate (NULL, size, NULL);
+  GST_BUFFER_PTS (in) = 0;
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_TRUE (static_extra_mux_harness_teardown (h));
+
+  /* split into NNS_TENSOR_MEMORY_MAX tensors, fewer than the config */
+  h = static_extra_mux_harness_new (&config);
+  in = gst_buffer_new_wrapped (g_malloc0 (size + sizeof (TestTensorExtraInfo)),
+      size + sizeof (TestTensorExtraInfo));
+  GST_BUFFER_PTS (in) = 0;
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  EXPECT_TRUE (static_extra_mux_harness_teardown (h));
+
+  gst_tensors_config_free (&config);
 }
 
 /**

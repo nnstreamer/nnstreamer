@@ -512,10 +512,12 @@ gst_tensor_trainer_dummy_data_generation_func (GstTensorTrainer * trainer)
         trainer->privateData, dummy_data);
 
     if (ret < 0) {
-      GST_ERROR_OBJECT (trainer, "Failed to push dummy data");
-    } else {
-      trainer->cur_epoch_data_cnt++;
+      GST_ERROR_OBJECT (trainer,
+          "Failed to push dummy data, stopped at %u of %u samples",
+          trainer->cur_epoch_data_cnt, trainer->required_sample);
+      break;
     }
+    trainer->cur_epoch_data_cnt++;
   } while (trainer->required_sample > trainer->cur_epoch_data_cnt);
 
   g_mutex_unlock (&trainer->push_lock);

@@ -41,6 +41,22 @@ library('nnstreamer_customfilter_scaler_allocator',
   install_dir: customfilter_install_dir
 )
 
+# Used in unittest_sink to check that tensor_filter hands the output back to destroy_notify.
+library('nnscustom_destroy_notify',
+  join_paths('custom_example_destroy_notify', 'nnscustom_destroy_notify.c'),
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+  install: get_option('install-test'),
+  install_dir: customfilter_install_dir
+)
+
+# Used in unittest_sink to make the model info getters of a custom filter fail.
+library('nnscustom_model_info',
+  join_paths('custom_example_model_info', 'nnscustom_model_info.c'),
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+  install: get_option('install-test'),
+  install_dir: customfilter_install_dir
+)
+
 # custom_example_opencv
 opencv_dep = dependency('opencv', required: false)
 if opencv_dep.found()
@@ -95,6 +111,14 @@ library('nnscustom_drop_buffer',
 # This custom filter is used in unittest_sink.
 library('nnscustom_framecounter',
   join_paths('custom_example_framecounter', 'nnscustom_framecounter.c'),
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+  install: get_option('install-test'),
+  install_dir: customfilter_install_dir
+)
+
+# Used in unittest_filter_custom to make invoke fail or drop the buffer.
+library('nnscustom_invoke_result',
+  join_paths('custom_example_invoke_result', 'nnscustom_invoke_result.c'),
   dependencies: [glib_dep, gst_dep, nnstreamer_dep],
   install: get_option('install-test'),
   install_dir: customfilter_install_dir

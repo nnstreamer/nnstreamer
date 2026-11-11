@@ -12,7 +12,11 @@ runs:
   steps:
     - run: |
         tmpfile=$(mktemp)
-        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
+        # PR changes since the merge base, deletions and both rename sides included; unpiped so git errors fail.
+        # Non-PR events (e.g., the scheduled Yocto build) have no PR range and keep an empty list.
+        if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+          git diff --name-only --no-renames ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} > ${tmpfile}
+        fi
         echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
         # get_rebuild_flag.sh prints 0 or 1 and exits nonzero on checker
         # failure, which fails this "sh -e" step instead of silently

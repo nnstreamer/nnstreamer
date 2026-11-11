@@ -522,6 +522,22 @@ TEST (testTensorFilterSingle, invokeUnknownFW_n)
 static int pdata_model;
 static void *pdata_received;
 static guint pdata_set_input_calls;
+static const accl_hw pdata_hw_support[] = { ACCL_CPU, ACCL_GPU };
+static gboolean pdata_accl_refuse;
+static guint pdata_accl_events;
+static accl_hw pdata_event_hw;
+static accl_hw pdata_event_prev_hw;
+static accl_hw pdata_open_hw;
+static accl_hw pdata_model_info_hw;
+
+/**
+ * @brief The accelerator in a list of exactly one, ACCL_NONE for any other list.
+ */
+static accl_hw
+_pdata_single_hw (int num_hw, const accl_hw *hw_list)
+{
+  return (num_hw == 1 && hw_list) ? hw_list[0] : ACCL_NONE;
+}
 
 /**
  * @brief Open callback of the plain-C V1 sub-plugin, stores its own private data.
@@ -529,7 +545,7 @@ static guint pdata_set_input_calls;
 static int
 _pdata_open (const GstTensorFilterProperties *prop, void **private_data)
 {
-  UNUSED (prop);
+  pdata_open_hw = _pdata_single_hw (prop->num_hw, prop->hw_list);
   *private_data = &pdata_model;
   return 0;
 }
@@ -571,6 +587,8 @@ _pdata_fw_info (const GstTensorFilterFramework *self, const GstTensorFilterPrope
   UNUSED (private_data);
   fw_info->name = PDATA_FW_NAME;
   fw_info->run_without_model = 1;
+  fw_info->hw_list = pdata_hw_support;
+  fw_info->num_hw = G_N_ELEMENTS (pdata_hw_support);
   return 0;
 }
 
@@ -578,6 +596,7 @@ _pdata_fw_info (const GstTensorFilterFramework *self, const GstTensorFilterPrope
  * @brief Model info callback of the plain-C V1 sub-plugin.
  * @details SET_INPUT_INFO records the private data it is given, refuses any
  *          other than the one open() stored, and accepts a uint8 tensor only.
+ *          It also records the accelerator it is given in the properties.
  */
 static int
 _pdata_model_info (const GstTensorFilterFramework *self,
@@ -585,12 +604,12 @@ _pdata_model_info (const GstTensorFilterFramework *self,
     model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
   UNUSED (self);
-  UNUSED (prop);
 
   if (ops != SET_INPUT_INFO)
     return -ENOENT;
 
   pdata_set_input_calls++;
+  pdata_model_info_hw = _pdata_single_hw (prop->num_hw, prop->hw_list);
   pdata_received = private_data;
 
   if (private_data != &pdata_model)
@@ -605,17 +624,24 @@ _pdata_model_info (const GstTensorFilterFramework *self,
 
 /**
  * @brief Event callback of the plain-C V1 sub-plugin.
+ * @details SET_ACCELERATOR records the current accelerator in the properties
+ *          and the new one in the event data, and is refused if
+ *          pdata_accl_refuse is set. Other events are not supported.
  */
 static int
 _pdata_event (const GstTensorFilterFramework *self, const GstTensorFilterProperties *prop,
     void *private_data, event_ops ops, GstTensorFilterFrameworkEventData *data)
 {
   UNUSED (self);
-  UNUSED (prop);
   UNUSED (private_data);
-  UNUSED (ops);
-  UNUSED (data);
-  return -ENOENT;
+
+  if (ops != SET_ACCELERATOR)
+    return -ENOENT;
+
+  pdata_accl_events++;
+  pdata_event_prev_hw = _pdata_single_hw (prop->num_hw, prop->hw_list);
+  pdata_event_hw = _pdata_single_hw (data->num_hw, data->hw_list);
+  return pdata_accl_refuse ? -EPERM : 0;
 }
 
 /**
@@ -646,6 +672,10 @@ class NNSFilterSingleTestPrivateData : public ::testing::Test
   {
     pdata_received = nullptr;
     pdata_set_input_calls = 0U;
+    pdata_accl_refuse = FALSE;
+    pdata_accl_events = 0U;
+    pdata_event_hw = pdata_event_prev_hw = ACCL_NONE;
+    pdata_open_hw = pdata_model_info_hw = ACCL_NONE;
 
     fw = g_new0 (GstTensorFilterFramework, 1);
     fw->version = GST_TENSOR_FILTER_FRAMEWORK_V1;
@@ -726,9 +756,12 @@ _single_count_critical (const gchar *log_domain, GLogLevelFlags log_level,
  */
 TEST_F (NNSFilterSingleTestPrivateData, unknownFrameworkAfterStart_n)
 {
+  /* the default domain of nnstreamer and the GLib domains start () may hit */
+  const gchar *domains[] = { NULL, "GLib", "GLib-GObject" };
   guint critical_count = 0;
   GLogLevelFlags old_fatal;
   GLogFunc old_handler;
+  guint i;
 
   ASSERT_TRUE (klass->start (single));
 
@@ -737,6 +770,13 @@ TEST_F (NNSFilterSingleTestPrivateData, unknownFrameworkAfterStart_n)
 
   old_fatal = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
   old_handler = g_log_set_default_handler (_single_count_critical, &critical_count);
+  for (i = 0; i < G_N_ELEMENTS (domains); i++) {
+    g_log (domains[i], G_LOG_LEVEL_CRITICAL,
+        "[probe] tensor_filter_single test log handler self-check");
+    EXPECT_EQ (critical_count, 1U) << "the default handler misses the domain "
+                                   << (domains[i] ? domains[i] : "(default)");
+    critical_count = 0;
+  }
   EXPECT_FALSE (klass->start (single));
   g_log_set_default_handler (old_handler, NULL);
   g_log_set_always_fatal (old_fatal);
@@ -782,6 +822,71 @@ TEST_F (NNSFilterSingleTestPrivateData, setInputInfoNotOpened_n)
   EXPECT_EQ (klass->set_input_info (single, &in_info, &out_info), -EINVAL);
   EXPECT_EQ (pdata_set_input_calls, 0U);
   EXPECT_TRUE (pdata_received == nullptr);
+}
+
+/**
+ * @brief An opened V1 sub-plugin taking a new accelerator through tensor_filter_single
+ *        gets the new list, and the property reads back the new string.
+ */
+TEST_F (NNSFilterSingleTestPrivateData, acceleratorChangeAccepted)
+{
+  gchar *accl = NULL;
+
+  g_object_set (G_OBJECT (single), "accelerator", "true:cpu", NULL);
+  ASSERT_TRUE (klass->start (single));
+  EXPECT_EQ (pdata_open_hw, ACCL_CPU);
+
+  g_object_set (G_OBJECT (single), "accelerator", "true:gpu", NULL);
+  EXPECT_EQ (pdata_accl_events, 1U);
+  EXPECT_EQ (pdata_event_prev_hw, ACCL_CPU);
+  EXPECT_EQ (pdata_event_hw, ACCL_GPU);
+
+  g_object_get (G_OBJECT (single), "accelerator", &accl, NULL);
+  EXPECT_STREQ (accl, "true:gpu");
+  g_free (accl);
+
+  EXPECT_EQ (klass->set_input_info (single, &in_info, &out_info), 0);
+  EXPECT_EQ (pdata_model_info_hw, ACCL_GPU);
+
+  EXPECT_TRUE (klass->stop (single));
+  pdata_open_hw = ACCL_NONE;
+  ASSERT_TRUE (klass->start (single));
+  EXPECT_EQ (pdata_open_hw, ACCL_GPU);
+  EXPECT_EQ (pdata_accl_events, 1U);
+  EXPECT_TRUE (klass->stop (single));
+}
+
+/**
+ * @brief An opened V1 sub-plugin refusing a new accelerator keeps the previous
+ *        list, and the property reads back the previous string.
+ */
+TEST_F (NNSFilterSingleTestPrivateData, acceleratorChangeRefused_n)
+{
+  gchar *accl = NULL;
+
+  g_object_set (G_OBJECT (single), "accelerator", "true:cpu", NULL);
+  ASSERT_TRUE (klass->start (single));
+  EXPECT_EQ (pdata_open_hw, ACCL_CPU);
+
+  pdata_accl_refuse = TRUE;
+  g_object_set (G_OBJECT (single), "accelerator", "true:gpu", NULL);
+  EXPECT_EQ (pdata_accl_events, 1U);
+  EXPECT_EQ (pdata_event_prev_hw, ACCL_CPU);
+  EXPECT_EQ (pdata_event_hw, ACCL_GPU);
+
+  g_object_get (G_OBJECT (single), "accelerator", &accl, NULL);
+  EXPECT_STREQ (accl, "true:cpu");
+  g_free (accl);
+
+  EXPECT_EQ (klass->set_input_info (single, &in_info, &out_info), 0);
+  EXPECT_EQ (pdata_model_info_hw, ACCL_CPU);
+
+  EXPECT_TRUE (klass->stop (single));
+  pdata_open_hw = ACCL_NONE;
+  ASSERT_TRUE (klass->start (single));
+  EXPECT_EQ (pdata_open_hw, ACCL_CPU);
+  EXPECT_EQ (pdata_accl_events, 1U);
+  EXPECT_TRUE (klass->stop (single));
 }
 
 /**

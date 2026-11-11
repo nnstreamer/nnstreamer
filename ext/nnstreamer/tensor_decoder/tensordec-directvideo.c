@@ -22,9 +22,7 @@
  *
  * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
- * @bug		If the element size is 2 or larger, padding won't work.
- *              GRAY16 types has size of 2 and if you have padding, it won't work.
- *              To correct this, dv_decode() should be fixed.
+ * @bug		No known bugs
  */
 
 #include <string.h>
@@ -300,14 +298,14 @@ _get_video_xraw_bufsize (const tensor_dim dim, gsize data_size, gsize * size)
 {
   gsize row;
 
-  /* The size of a row is kept within 32 bits, as dv_decode () computes it. */
-  if (!g_size_checked_mul (&row, dim[0], dim[1]) || row > G_MAXINT32)
+  /* The padded row is kept within 32 bits, as the stride of GStreamer is. */
+  if (!g_size_checked_mul (&row, dim[0], dim[1]) ||
+      !g_size_checked_mul (&row, row, data_size) || row > G_MAXINT32 - 3)
     return FALSE;
 
-  /* dim[0] is bpp and there is zeropadding only when dim[0]%4 > 0 */
-  row = (row + 3) / 4 * 4;
-  return g_size_checked_mul (size, row, dim[2]) &&
-      g_size_checked_mul (size, *size, data_size) && *size > 0;
+  /* Each row is padded to a multiple of 4 bytes */
+  row = GST_ROUND_UP_4 (row);
+  return g_size_checked_mul (size, row, dim[2]) && *size > 0;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -342,7 +340,7 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   const uint32_t *dim = &(config->info.info[0].dimension[0]);
   gsize data_size = gst_tensor_get_element_size (config->info.info[0].type);
 
-  gsize size;
+  gsize size, row;
   UNUSED (pdata);
 
   g_assert (outbuf);
@@ -375,7 +373,8 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
     return GST_FLOW_ERROR;
   }
 
-  if (0 == ((dim[0] * dim[1]) % 4)) {
+  row = (gsize) dim[0] * dim[1] * data_size;
+  if (0 == (row % 4)) {
     /* No Padding Required */
     memcpy (out_info.data, input->data, input->size);
   } else {
@@ -386,9 +385,10 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
     ptr = (uint8_t *) out_info.data;
     inp = (uint8_t *) input->data;
     for (h = 0; h < dim[2]; h++) {
-      memcpy (ptr, inp, (size_t) dim[0] * dim[1]);
-      inp += (dim[0] * dim[1]);
-      ptr += ((dim[0] * dim[1] - 1) / 4 + 1) * 4;
+      memcpy (ptr, inp, row);
+      memset (ptr + row, 0, GST_ROUND_UP_4 (row) - row);
+      inp += row;
+      ptr += GST_ROUND_UP_4 (row);
     }
   }
   gst_memory_unmap (out_mem, &out_info);

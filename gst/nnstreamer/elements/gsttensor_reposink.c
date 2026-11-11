@@ -255,7 +255,10 @@ gst_tensor_reposink_dispose (GObject * object)
 static gboolean
 gst_tensor_reposink_start (GstBaseSink * sink)
 {
-  UNUSED (sink);
+  GstTensorRepoSink *self = GST_TENSOR_REPOSINK (sink);
+
+  /* drop what the previous stream left, render() reports a missing slot */
+  gst_tensor_repo_reset_stream (self->myid);
   return TRUE;
 }
 

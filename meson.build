@@ -277,6 +277,12 @@ if not get_option('snpe-support').disabled()
   endif
 endif
 
+# hailort (Hailo NPU runtime). It ships CMake files only, so probe the library and header.
+hailort_dep = dependency('', required: false)
+if not get_option('hailort-support').disabled()
+  hailort_dep = cxx.find_library('hailort', has_headers: ['hailo/hailort.h'], required: false)
+endif
+
 # litert (LiteRT 2.x CompiledModel C API)
 litert_dep = dependency('', required: false)
 if not get_option('litert-support').disabled()
@@ -440,9 +446,23 @@ if not get_option('grpc-support').disabled()
 endif
 
 # mqtt (paho.mqtt.c)
+if get_option('mqtt-tls') and get_option('mqtt-support').disabled()
+  error('mqtt-tls requires MQTT support')
+endif
 pahomqttc_dep = dependency('', required: false)
 if not get_option('mqtt-support').disabled()
   pahomqttc_dep = dependency('paho-mqtt-c', required: false)
+  if get_option('mqtt-tls')
+    pahomqttc_ssl = cxx.find_library('paho-mqtt3as', required: true)
+    pahomqttc_openssl = dependency('openssl', required: true)
+    if pahomqttc_dep.found()
+      pahomqttc_dep = declare_dependency(dependencies: [pahomqttc_ssl, pahomqttc_openssl,
+        pahomqttc_dep.partial_dependency(compile_args: true, includes: true)])
+    else
+      pahomqttc_dep = declare_dependency(dependencies: [pahomqttc_ssl, pahomqttc_openssl])
+    endif
+    add_project_arguments('-DENABLE_MQTT_TLS', language: ['c', 'cpp'])
+  endif
   if (not pahomqttc_dep.found() and get_option('mqtt-support').enabled())
     message('mqtt-support is enabled while its pkgconfig is not found. Hardcoded build configuration is used.')
     pahomqttc_lib1 = cxx.find_library('paho-mqtt3a', required: true)
@@ -712,6 +732,9 @@ features = {
     # Assume that qnn.pc file is given.
     'target': 'qnn',
     'project_args': { 'ENABLE_QNN' : 1 },
+  },
+  'hailort-support': {
+    'extra_deps': [ hailort_dep ],
   },
   'litert-support': {
     'extra_deps': [ litert_dep ],

@@ -18,6 +18,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_set>
+#include <vector>
 #include "../gst/nnstreamer/nnstreamer_watchdog.h"
 
 /**
@@ -39,9 +40,15 @@ static std::atomic<int> hook_loop_run_calls{ 0 };
 static std::atomic<int> hook_thread_new_calls{ 0 };
 static std::atomic<int> hook_cond_signal_calls{ 0 };
 static std::atomic<int> hook_mutex_calls{ 0 };
+static std::atomic<int> hook_lock_timeouts{ 0 };
+static thread_local bool hook_lock_bounded = false;
+static thread_local GMutex *hook_lock_skipped = NULL;
+static std::atomic<bool> hook_track_attach{ false };
 static std::thread::id hook_test_thread;
 static std::mutex hook_cleared_lock;
 static std::unordered_set<void *> hook_cleared;
+static std::mutex hook_attached_lock;
+static std::vector<GSource *> hook_attached;
 
 /**
  * @brief Look up the next definition of a symbol, i.e., the one in libglib.
@@ -161,12 +168,15 @@ g_mutex_clear (GMutex *mutex)
 }
 
 /**
- * @brief Interposed g_mutex_lock(): counts locking a cleared mutex.
+ * @brief Interposed g_mutex_lock(): counts locking a cleared mutex. While the
+ *        calling thread sets hook_lock_bounded, gives up after 500 ms instead
+ *        of blocking, and leaves the mutex unlocked.
  */
 extern "C" void
 g_mutex_lock (GMutex *mutex)
 {
   static auto real = (void (*) (GMutex *)) _hook_next ("g_mutex_lock");
+  int i;
 
   _hook_check_mutex (mutex);
   if (hook_dispatch_lock_delay.load () && std::this_thread::get_id () != hook_test_thread
@@ -174,11 +184,22 @@ g_mutex_lock (GMutex *mutex)
     hook_dispatch_lock_paused = true;
     g_usleep (300000);
   }
+  if (hook_lock_bounded) {
+    for (i = 0; i < 500; i++) {
+      if (g_mutex_trylock (mutex))
+        return;
+      g_usleep (1000);
+    }
+    hook_lock_timeouts++;
+    hook_lock_skipped = mutex;
+    return;
+  }
   real (mutex);
 }
 
 /**
- * @brief Interposed g_mutex_unlock(): counts unlocking a cleared mutex.
+ * @brief Interposed g_mutex_unlock(): counts unlocking a cleared mutex, and
+ *        skips the unlock matching a lock given up by g_mutex_lock().
  */
 extern "C" void
 g_mutex_unlock (GMutex *mutex)
@@ -186,7 +207,40 @@ g_mutex_unlock (GMutex *mutex)
   static auto real = (void (*) (GMutex *)) _hook_next ("g_mutex_unlock");
 
   _hook_check_mutex (mutex);
+  if (hook_lock_skipped == mutex) {
+    hook_lock_skipped = NULL;
+    return;
+  }
   real (mutex);
+}
+
+/**
+ * @brief Interposed g_source_attach(): optionally keeps a reference to each
+ *        attached source.
+ */
+extern "C" guint
+g_source_attach (GSource *source, GMainContext *context)
+{
+  static auto real = (guint (*) (GSource *, GMainContext *)) _hook_next ("g_source_attach");
+
+  if (hook_track_attach.load ()) {
+    std::lock_guard<std::mutex> guard (hook_attached_lock);
+    hook_attached.push_back (g_source_ref (source));
+  }
+  return real (source, context);
+}
+
+/**
+ * @brief Stop keeping attached sources and drop the references kept.
+ */
+static void
+_hook_attach_clear (void)
+{
+  hook_track_attach = false;
+  std::lock_guard<std::mutex> guard (hook_attached_lock);
+  for (GSource *source : hook_attached)
+    g_source_unref (source);
+  hook_attached.clear ();
 }
 
 /**
@@ -476,11 +530,19 @@ TEST (NnstWatchdog, createThreadFail_n)
   guint critical_count = 0;
   guint handler;
   gboolean ret;
+  GLogLevelFlags fatal_mask;
+
+  handler = g_log_set_handler ("GLib",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _count_critical_logs, &critical_count);
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GLib", G_LOG_LEVEL_CRITICAL, "[probe] watchdog test GLib handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (1U, critical_count);
+  critical_count = 0;
 
   hook_thread_new_calls = 0;
   hook_thread_new_fail = true;
-  handler = g_log_set_handler (
-      "GLib", G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
 
   ret = nnstreamer_watchdog_create (&watchdog_h);
 
@@ -628,6 +690,126 @@ TEST (NnstWatchdog, feedTwice)
 
   EXPECT_EQ (9U, first);
   EXPECT_EQ (10U, second);
+}
+
+/**
+ * @brief Called when watchdog is triggered; returns after 300 ms and asks to run again.
+ */
+static gboolean
+_watchdog_slow_repeat_trigger (gpointer ptr)
+{
+  _watchdog_slow_trigger (ptr);
+
+  return TRUE;
+}
+
+/**
+ * @brief Test that feeding from another thread waits for the running callback
+ *        and leaves only the new source. The old source is checked through the
+ *        interposed g_source_attach(): the watchdog skips the callback of a
+ *        source it no longer holds, so a source left armed does not run it.
+ */
+TEST (NnstWatchdog, feedWaitsRunningCallback)
+{
+  nns_watchdog_h watchdog_h = nullptr;
+  slow_callback_s state;
+  guint received = 0;
+  size_t attached;
+  bool old_alive = true, new_alive = false;
+
+  state.entered = 0;
+  state.finished = 0;
+
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_create (&watchdog_h));
+  hook_track_attach = true;
+  /* The interval outlasts the callback, so the lock is free between runs. */
+  EXPECT_EQ (TRUE, nnstreamer_watchdog_feed (
+                       watchdog_h, _watchdog_slow_repeat_trigger, 1000, &state));
+  EXPECT_TRUE (_wait_nonzero (state.entered, 5000));
+
+  EXPECT_EQ (TRUE, nnstreamer_watchdog_feed (watchdog_h, _watchdog_trigger, 10, &received));
+  EXPECT_EQ (1, state.finished.load ());
+
+  hook_track_attach = false;
+  {
+    std::lock_guard<std::mutex> guard (hook_attached_lock);
+    attached = hook_attached.size ();
+    if (attached == 2) {
+      old_alive = !g_source_is_destroyed (hook_attached[0]);
+      new_alive = !g_source_is_destroyed (hook_attached[1]);
+    }
+  }
+
+  g_usleep (1000000);
+  nnstreamer_watchdog_destroy (watchdog_h);
+  _hook_attach_clear ();
+  EXPECT_EQ (1, state.entered.load ());
+  EXPECT_EQ (10U, received);
+
+  if (attached == 0) {
+    GTEST_SKIP () << "GLib calls from libnnstreamer are not interposable here.";
+  }
+
+  EXPECT_EQ (2U, attached);
+  EXPECT_FALSE (old_alive);
+  EXPECT_TRUE (new_alive);
+}
+
+/**
+ * @brief State shared with a watchdog callback that releases its own handle.
+ */
+typedef struct {
+  nns_watchdog_h handle;
+  std::atomic<int> returned;
+} release_callback_s;
+
+/**
+ * @brief Called when watchdog is triggered; releases the watchdog that runs it.
+ */
+static gboolean
+_watchdog_release_trigger (gpointer ptr)
+{
+  release_callback_s *state = (release_callback_s *) ptr;
+
+  hook_lock_bounded = true;
+  nnstreamer_watchdog_release (state->handle);
+  hook_lock_bounded = false;
+  state->returned++;
+
+  return FALSE;
+}
+
+/**
+ * @brief Test that release from inside the callback, which the header forbids,
+ *        blocks on the lock the callback runs under. The lock is bounded by the
+ *        interposed g_mutex_lock(), so the test does not hang.
+ */
+TEST (NnstWatchdog, releaseInCallback_n)
+{
+  nns_watchdog_h watchdog_h = nullptr;
+  release_callback_s state;
+  gboolean returned;
+
+  state.returned = 0;
+  hook_lock_timeouts = 0;
+
+  _hook_track_start ();
+  ASSERT_EQ (TRUE, nnstreamer_watchdog_create (&watchdog_h));
+  _hook_track_stop ();
+  if (hook_mutex_calls.load () == 0) {
+    nnstreamer_watchdog_destroy (watchdog_h);
+    GTEST_SKIP () << "GLib calls from libnnstreamer are not interposable here.";
+  }
+
+  state.handle = watchdog_h;
+  ASSERT_EQ (TRUE,
+      nnstreamer_watchdog_feed (watchdog_h, _watchdog_release_trigger, 10, &state));
+  returned = _wait_nonzero (state.returned, 5000);
+  ASSERT_TRUE (returned) << "release() inside the callback was not bounded.";
+
+  nnstreamer_watchdog_destroy (watchdog_h);
+  EXPECT_EQ (1, state.returned.load ());
+  EXPECT_EQ (1, hook_lock_timeouts.load ());
 }
 
 /**

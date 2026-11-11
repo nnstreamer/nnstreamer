@@ -212,7 +212,7 @@ PYCore::init (const GstTensorFilterProperties *prop)
   int ret = -EINVAL;
   /** Find nnstreamer_api module */
   Py_LOCK ();
-  PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
+  PyObject *api_module = importApiModule ();
   if (api_module == NULL) {
     Py_ERRMSG ("Cannot find `nnstreamer_python` module");
     goto exit;

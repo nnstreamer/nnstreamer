@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <gst/base/gstbasesrc.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
@@ -32,10 +33,34 @@
 #include "GstMqttTestHelper.hh"
 #include "mqttcommon.h"
 #include "mqttsink.h"
+#include "mqttsrc.h"
 #include "ntputil.h"
 
 std::unique_ptr<GstMqttTestHelper> GstMqttTestHelper::mInstance;
 std::once_flag GstMqttTestHelper::mOnceFlag;
+
+/** TLS settings copied synchronously when the mocked client connects. */
+static bool last_connect_tls;
+static int last_connect_verify;
+static int last_connect_auth;
+static std::string last_connect_ca;
+static std::string last_connect_cert;
+static std::string last_connect_key;
+static std::string last_connect_key_password;
+
+/** @brief Record options while they are valid, without borrowing their storage. */
+static void
+_record_tls_options (const MQTTAsync_connectOptions *options)
+{
+  const MQTTAsync_SSLOptions *ssl = options->ssl;
+  last_connect_tls = ssl != nullptr;
+  last_connect_verify = ssl ? ssl->verify : 0;
+  last_connect_auth = ssl ? ssl->enableServerCertAuth : 0;
+  last_connect_ca = ssl && ssl->trustStore ? ssl->trustStore : "";
+  last_connect_cert = ssl && ssl->keyStore ? ssl->keyStore : "";
+  last_connect_key = ssl && ssl->privateKey ? ssl->privateKey : "";
+  last_connect_key_password = ssl && ssl->privateKeyPassword ? ssl->privateKeyPassword : "";
+}
 
 /** The calls a test can hold open on another thread while it changes a property */
 enum call_hold_site { HOLD_NONE, HOLD_CREATE, HOLD_EPOCH, HOLD_SEND };
@@ -129,6 +154,7 @@ MQTTAsync_create (MQTTAsync *handle, const char *serverURI,
 int
 MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
 {
+  _record_tls_options (options);
   MQTTAsync_successData data;
   void *ctx = GstMqttTestHelper::getInstance ().getContext ();
 
@@ -207,6 +233,7 @@ MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *optio
     return MQTTASYNC_SUCCESS;
 
   ctx = options->context;
+  GstMqttTestHelper::getInstance ().recordDisconnect (options->timeout);
   GstMqttTestHelper::getInstance ().setIsConnected (false);
   if (GstMqttTestHelper::getInstance ().getFailDisconnect ()) {
     fdata.code = -1;
@@ -264,6 +291,7 @@ MQTTAsync_unsubscribe (MQTTAsync handle, const char *topic, MQTTAsync_responseOp
   void *ctx = response->context;
   std::future<void> ret;
 
+  GstMqttTestHelper::getInstance ().recordUnsubscribe (topic);
   if (GstMqttTestHelper::getInstance ().getFailUnsubscribe ()) {
     fdata.code = -1;
     fdata.message = "";
@@ -273,6 +301,33 @@ MQTTAsync_unsubscribe (MQTTAsync handle, const char *topic, MQTTAsync_responseOp
 
   ret = std::async (std::launch::async, response->onSuccess, ctx, &data);
   return MQTTASYNC_SUCCESS;
+}
+
+/** The messages and topic names mqttsrc has released through the mocks below */
+static std::atomic<int> released_message_count (0);
+static std::atomic<int> released_topic_count (0);
+
+/**
+ * @brief A mock function for MQTTAsync_free() in paho-mqtt-c
+ * @note The tests own the topic names they hand to the message callback and free them
+ *       themselves, whichever Paho build is in use, so this only counts the release.
+ */
+void
+MQTTAsync_free (void *ptr)
+{
+  if (ptr)
+    released_topic_count++;
+}
+
+/**
+ * @brief A mock function for MQTTAsync_freeMessage() in paho-mqtt-c
+ * @note The tests own the messages they hand to the message callback, as above.
+ */
+void
+MQTTAsync_freeMessage (MQTTAsync_message **msg)
+{
+  released_message_count++;
+  *msg = NULL;
 }
 
 /**
@@ -714,6 +769,29 @@ TEST (testMqttSinkWithHelper, stopReturnsWhenDisconnected)
   EXPECT_EQ (state_ret, GST_STATE_CHANGE_SUCCESS);
   EXPECT_LT (elapsed_ms, 2500) << "stop () waited " << elapsed_ms
                                << " ms for a disconnect it had already been told about";
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test stop () giving MQTTAsync_disconnect () its drain timeout in milliseconds
+ */
+TEST (testMqttSinkWithHelper, stopDisconnectTimeoutInMilliseconds)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  int timeout;
+
+  ASSERT_TRUE (h != NULL);
+  helper.initFailFlags ();
+  helper.resetSendRecord ();
+  helper.resetDisconnectRecord ();
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+
+  timeout = helper.getLastDisconnectTimeout ();
+  EXPECT_EQ (timeout, 3000) << "paho takes the disconnect timeout in milliseconds";
 
   gst_harness_teardown (h);
 }
@@ -1492,6 +1570,51 @@ TEST (testMqttSinkWithHelper, defaultClientIdRandom)
 }
 
 /**
+ * @brief Test that client-id reads back its declared default before start, and that the default generates an id
+ */
+TEST (testMqttSinkWithHelper, clientIdPspecDefault)
+{
+  const gchar *elements[] = { "mqttsink", "mqttsrc" };
+  GstElement *sink;
+  GParamSpec *pspec;
+  const GValue *def;
+  gchar *prop = NULL;
+
+  for (const gchar *name : elements) {
+    GstElement *elem = gst_element_factory_make (name, NULL);
+
+    ASSERT_TRUE (elem != NULL) << name;
+    gst_object_ref_sink (elem);
+    pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (elem), "client-id");
+    ASSERT_TRUE (pspec != NULL) << name;
+    def = g_param_spec_get_default_value (pspec);
+    ASSERT_TRUE (G_VALUE_HOLDS_STRING (def)) << name;
+    g_object_get (elem, "client-id", &prop, NULL);
+    EXPECT_STREQ (prop, g_value_get_string (def)) << name;
+    g_free (prop);
+    gst_object_unref (elem);
+  }
+
+  /* Restoring the declared default after an explicit id makes start () generate one again */
+  sink = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_TRUE (sink != NULL);
+  gst_object_ref_sink (sink);
+  pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (sink), "client-id");
+  ASSERT_TRUE (pspec != NULL);
+  g_object_set (sink, "client-id", "an-explicit-client-id", NULL);
+  def = g_param_spec_get_default_value (pspec);
+  g_object_set_property (G_OBJECT (sink), "client-id", def);
+
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstMqttTestHelper::getInstance ().resetCreateRecord ();
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  _expect_generated_client_id (GstMqttTestHelper::getInstance ().getLastClientId (), "nnssink");
+
+  EXPECT_EQ (gst_element_set_state (sink, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (sink);
+}
+
+/**
  * @brief Test that the generated client id does not come from a GLib generator
  */
 TEST (testMqttSinkWithHelper, generatedClientIdIgnoresGlobalSeed)
@@ -2112,6 +2235,71 @@ TEST (testMqttSink, userPubTopicKept)
 }
 
 /**
+ * @brief Start a harness on a new mqttsink with the given client-id and pub-topic (NULL: not set), and push a buffer
+ */
+static GstHarness *
+_harness_sink_with_ids (const gchar *client_id, const gchar *pub_topic)
+{
+  GstElement *sink = gst_element_factory_make ("mqttsink", NULL);
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  GstHarness *h;
+
+  if (sink == NULL)
+    return NULL;
+  gst_object_ref_sink (sink);
+  g_object_set (sink, "client-id", client_id, NULL);
+  if (pub_topic)
+    g_object_set (sink, "pub-topic", pub_topic, NULL);
+
+  helper.initFailFlags ();
+  helper.resetCreateRecord ();
+  helper.resetSendRecord ();
+  h = gst_harness_new_with_element (sink, "sink", NULL);
+  gst_object_unref (sink);
+  if (h == NULL)
+    return NULL;
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  return h;
+}
+
+/**
+ * @brief Test a fixed client-id reaching MQTTAsync_create () and making the default pub-topic
+ */
+TEST (testMqttSinkWithHelper, fixedClientIdDefaultPubTopic)
+{
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  GstHarness *h = _harness_sink_with_ids ("fixed", NULL);
+  gchar *topic = NULL;
+
+  ASSERT_TRUE (h != NULL);
+  EXPECT_STREQ (helper.getLastClientId ().c_str (), "fixed");
+  EXPECT_EQ (helper.getSendCount (), 1);
+  EXPECT_STREQ (helper.getLastTopic ().c_str (), "fixed/topic");
+  g_object_get (h->element, "pub-topic", &topic, NULL);
+  EXPECT_STREQ (topic, "fixed/topic");
+  g_free (topic);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test an explicit pub-topic not being derived from a fixed client-id
+ */
+TEST (testMqttSinkWithHelper, fixedClientIdUserPubTopic)
+{
+  GstMqttTestHelper &helper = GstMqttTestHelper::getInstance ();
+  GstHarness *h = _harness_sink_with_ids ("fixed", "mytopic");
+
+  ASSERT_TRUE (h != NULL);
+  EXPECT_STREQ (helper.getLastClientId ().c_str (), "fixed");
+  EXPECT_EQ (helper.getSendCount (), 1);
+  EXPECT_STREQ (helper.getLastTopic ().c_str (), "mytopic");
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief A helper function for the generation of a dummy MQTT message
  */
 static void
@@ -2529,7 +2717,7 @@ free_strs:
 }
 
 /**
- * @brief Fail test case for mqttsrc #2 (MQTTAsync_unsubscribe failure case)
+ * @brief Test mqttsrc shutting down when MQTTAsync_unsubscribe () fails
  */
 TEST (testMqttSrcWithHelper, srcNormalLaunch2)
 {
@@ -2561,6 +2749,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
 
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstMqttTestHelper::getInstance ().setFailUnsubscribe (TRUE);
+  GstMqttTestHelper::getInstance ().resetUnsubscribeRecord ();
 
   msg = (MQTTAsync_message *) g_try_malloc0 (sizeof (*msg));
   if (!msg) {
@@ -2601,16 +2790,17 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   EXPECT_TRUE (ma_ret.get ());
 
   ret = gst_element_get_state (pipeline, &cur_state, NULL, GST_CLOCK_TIME_NONE);
-  EXPECT_EQ (ret, GST_STATE_CHANGE_FAILURE);
-  EXPECT_EQ (cur_state, GST_STATE_PAUSED);
+  EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (cur_state, GST_STATE_PLAYING);
 
-  GstMqttTestHelper::getInstance ().setFailUnsubscribe (FALSE);
-
+  /* PLAYING_TO_PAUSED fails to unsubscribe; the shutdown still completes */
   ret = gst_element_set_state (pipeline, GST_STATE_NULL);
   EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
 
   ret = gst_element_get_state (pipeline, &cur_state, NULL, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
+  EXPECT_STREQ (GstMqttTestHelper::getInstance ().getLastUnsubscribeTopic ().c_str (), topic_name);
+  GstMqttTestHelper::getInstance ().setFailUnsubscribe (FALSE);
   gst_object_unref (pipeline);
 
   g_free (msg->payload);
@@ -2622,6 +2812,375 @@ free_strs:
 
   if (err_flag)
     FAIL () << err_msg;
+}
+
+/** The memory sizes of the buffer sent from mqttsink to mqttsrc */
+static const gsize round_trip_sizes[] = { 24, 40 };
+
+/** The timestamps of the buffer sent from mqttsink to mqttsrc */
+static const GstClockTime round_trip_pts = 100 * GST_MSECOND;
+static const GstClockTime round_trip_dts = 50 * GST_MSECOND;
+static const GstClockTime round_trip_duration = 33 * GST_MSECOND;
+
+/**
+ * @brief A mqttsrc pipeline receiving what mqttsink sent, and the buffers its fakesink got
+ */
+struct round_trip_src {
+  GstElement *pipeline;
+  GstElement *src;
+  MQTTAsync_messageArrived *ma;
+  void *ctx;
+  GMutex lock;
+  std::vector<GstBuffer *> received;
+};
+
+/**
+ * @brief A fakesink handoff callback keeping a reference to each buffer it renders
+ */
+static void
+_round_trip_handoff (GstElement *, GstBuffer *buf, GstPad *, gpointer user_data)
+{
+  round_trip_src *rt = static_cast<round_trip_src *> (user_data);
+
+  g_mutex_lock (&rt->lock);
+  rt->received.push_back (gst_buffer_ref (buf));
+  g_mutex_unlock (&rt->lock);
+}
+
+/**
+ * @brief Start a mqttsrc pipeline that ends after one buffer, and keep its message callback
+ * @note A live mqttsrc syncs on its buffer times, so GstBaseSrc offsets its first buffer to the
+ *       running time and hides the epoch mapping: mqttsrc is not live here. The capsfilter is
+ *       there because mqttsrc leaves its pad without caps when the peer accepts any caps
+ *       (#5228): drop it once that is fixed.
+ */
+static bool
+_start_round_trip_src (round_trip_src *rt, const gchar *topic)
+{
+  gchar *str_pipeline = g_strdup_printf (
+      "mqttsrc name=src sub-topic=%s is-live=false num-buffers=1 "
+      "sub-timeout=%" G_GINT64_FORMAT " ! capsfilter caps=application/octet-stream ! "
+      "fakesink name=sink sync=false signal-handoffs=true",
+      topic, G_TIME_SPAN_MINUTE);
+  GstElement *sink;
+  GstState state;
+
+  g_mutex_init (&rt->lock);
+  rt->pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  if (!rt->pipeline)
+    return false;
+
+  rt->src = gst_bin_get_by_name (GST_BIN (rt->pipeline), "src");
+  sink = gst_bin_get_by_name (GST_BIN (rt->pipeline), "sink");
+  g_signal_connect (sink, "handoff", G_CALLBACK (_round_trip_handoff), rt);
+  gst_object_unref (sink);
+
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  if (gst_element_set_state (rt->pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE)
+    return false;
+  if (gst_element_get_state (rt->src, &state, NULL, 10 * GST_SECOND) != GST_STATE_CHANGE_SUCCESS
+      || state != GST_STATE_PLAYING)
+    return false;
+
+  /** mqttsink replaces the callbacks registered in the helper when it starts */
+  rt->ma = GstMqttTestHelper::getInstance ().getCbMessageArrived ();
+  rt->ctx = GstMqttTestHelper::getInstance ().getContext ();
+
+  return rt->ma != nullptr && rt->ctx == rt->src;
+}
+
+/**
+ * @brief Wait for the end of the stream of a round-trip mqttsrc pipeline
+ */
+static bool
+_wait_round_trip_eos (round_trip_src *rt)
+{
+  GstBus *bus = gst_element_get_bus (rt->pipeline);
+  GstMessage *msg = gst_bus_timed_pop_filtered (bus, 30 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  bool eos = msg && GST_MESSAGE_TYPE (msg) == GST_MESSAGE_EOS;
+
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  return eos;
+}
+
+/**
+ * @brief Stop a round-trip mqttsrc pipeline and drop the buffers it received
+ */
+static void
+_stop_round_trip_src (round_trip_src *rt)
+{
+  if (rt->pipeline) {
+    gst_element_set_state (rt->pipeline, GST_STATE_NULL);
+    gst_element_get_state (rt->pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
+  }
+  for (GstBuffer *buf : rt->received)
+    gst_buffer_unref (buf);
+  rt->received.clear ();
+  if (rt->src)
+    gst_object_unref (rt->src);
+  if (rt->pipeline)
+    gst_object_unref (rt->pipeline);
+  g_mutex_clear (&rt->lock);
+}
+
+/**
+ * @brief Make caps whose string takes the whole caps field of the message header but its terminator
+ */
+static GstCaps *
+_new_longest_header_caps (void)
+{
+  GstCaps *caps = gst_caps_new_simple (
+      "application/octet-stream", "pad", G_TYPE_STRING, "a", NULL);
+  gchar *str = gst_caps_to_string (caps);
+  std::string pad (GST_MQTT_MAX_LEN_GST_CAPS_STR - strlen (str), 'a');
+
+  g_free (str);
+  gst_caps_unref (caps);
+
+  return gst_caps_new_simple (
+      "application/octet-stream", "pad", G_TYPE_STRING, pad.c_str (), NULL);
+}
+
+/**
+ * @brief Publish one two-memory buffer with mqttsink and return the payload it gave MQTTAsync_send ()
+ */
+static std::vector<guint8>
+_publish_round_trip_buffer (GstCaps *caps)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  std::vector<guint8> payload;
+  GstBuffer *in_buf;
+  guint i;
+
+  GstMqttTestHelper::getInstance ().resetSendRecord ();
+  gst_harness_set_src_caps (h, gst_caps_ref (caps));
+
+  in_buf = gst_buffer_new ();
+  for (i = 0; i < G_N_ELEMENTS (round_trip_sizes); ++i) {
+    GstMemory *mem = gst_allocator_alloc (NULL, round_trip_sizes[i], NULL);
+    GstMapInfo map;
+
+    gst_memory_map (mem, &map, GST_MAP_WRITE);
+    memset (map.data, 0xA0 + i, map.size);
+    gst_memory_unmap (mem, &map);
+    gst_buffer_append_memory (in_buf, mem);
+  }
+  GST_BUFFER_PTS (in_buf) = round_trip_pts;
+  GST_BUFFER_DTS (in_buf) = round_trip_dts;
+  GST_BUFFER_DURATION (in_buf) = round_trip_duration;
+
+  if (gst_harness_push (h, in_buf) == GST_FLOW_OK
+      && GstMqttTestHelper::getInstance ().getSendCount () == 1)
+    payload = GstMqttTestHelper::getInstance ().getLastPayload ();
+
+  gst_harness_teardown (h);
+
+  return payload;
+}
+
+/**
+ * @brief Hand a copy of @a payload to mqttsrc as a message arriving on @a topic
+ * @return The message, to be freed by the caller after the pipeline is gone
+ */
+static MQTTAsync_message *
+_deliver_round_trip_payload (
+    round_trip_src *rt, gchar *topic, const std::vector<guint8> &payload)
+{
+  MQTTAsync_message init = MQTTAsync_message_initializer;
+  MQTTAsync_message *msg = g_new (MQTTAsync_message, 1);
+
+  *msg = init;
+  msg->payloadlen = (int) payload.size ();
+  msg->payload = g_malloc (payload.size ());
+  memcpy (msg->payload, payload.data (), payload.size ());
+
+  EXPECT_TRUE (rt->ma (rt->ctx, topic, 0, msg));
+
+  return msg;
+}
+
+/**
+ * @brief Free the messages of a round trip after its pipeline is gone
+ */
+static void
+_free_round_trip_messages (std::vector<MQTTAsync_message *> &msgs)
+{
+  for (MQTTAsync_message *msg : msgs) {
+    g_free (msg->payload);
+    g_free (msg);
+  }
+  msgs.clear ();
+}
+
+/**
+ * @brief Check that @a buf carries the memories mqttsink was given in _publish_round_trip_buffer ()
+ */
+static void
+_expect_round_trip_memories (GstBuffer *buf)
+{
+  guint i;
+
+  ASSERT_EQ (gst_buffer_n_memory (buf), G_N_ELEMENTS (round_trip_sizes));
+  for (i = 0; i < G_N_ELEMENTS (round_trip_sizes); ++i) {
+    GstMemory *mem = gst_buffer_peek_memory (buf, i);
+    gsize mismatches = 0;
+    GstMapInfo map;
+    gsize j;
+
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    EXPECT_EQ (map.size, round_trip_sizes[i]);
+    for (j = 0; j < map.size; ++j) {
+      if (map.data[j] != (guint8) (0xA0 + i))
+        mismatches++;
+    }
+    EXPECT_EQ (mismatches, 0U) << "memory " << i;
+    gst_memory_unmap (mem, &map);
+  }
+}
+
+/**
+ * @brief Check that the srcpad of a round-trip mqttsrc took @a caps
+ */
+static void
+_expect_round_trip_src_caps (round_trip_src *rt, GstCaps *caps)
+{
+  GstPad *srcpad = gst_element_get_static_pad (rt->src, "src");
+  GstCaps *src_caps = gst_pad_get_current_caps (srcpad);
+
+  gst_object_unref (srcpad);
+  EXPECT_TRUE (src_caps != NULL && gst_caps_is_equal (src_caps, caps));
+  if (src_caps)
+    gst_caps_unref (src_caps);
+}
+
+/**
+ * @brief Test mqttsrc decoding what mqttsink encoded: memories, caps and timestamps on the subscriber's clock
+ */
+TEST (testMqttSrcWithHelper, sinkToSrcRoundTrip)
+{
+  const gsize len_payload
+      = GST_MQTT_LEN_MSG_HDR + round_trip_sizes[0] + round_trip_sizes[1];
+  gchar *topic = g_strdup ("round_trip_topic");
+  std::vector<MQTTAsync_message *> msgs;
+  int released_messages = released_message_count;
+  int released_topics = released_topic_count;
+  GstCaps *caps = _new_longest_header_caps ();
+  gchar *caps_str = gst_caps_to_string (caps);
+  round_trip_src rt = {};
+  std::vector<guint8> payload;
+  GstBuffer *buf = NULL;
+  GstMQTTMessageHdr hdr;
+  GstClockTimeDiff epoch_gap;
+
+  EXPECT_EQ (strlen (caps_str), (size_t) (GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
+  g_free (caps_str);
+
+  if (!_start_round_trip_src (&rt, topic)) {
+    ADD_FAILURE () << "Failed to start the mqttsrc pipeline";
+    goto stop;
+  }
+
+  payload = _publish_round_trip_buffer (caps);
+  if (payload.size () != len_payload) {
+    ADD_FAILURE () << "mqttsink sent " << payload.size () << " bytes";
+    goto stop;
+  }
+  memcpy (&hdr, payload.data (), GST_MQTT_LEN_MSG_HDR);
+
+  msgs.push_back (_deliver_round_trip_payload (&rt, topic, payload));
+  EXPECT_TRUE (_wait_round_trip_eos (&rt));
+
+  g_mutex_lock (&rt.lock);
+  EXPECT_EQ (rt.received.size (), 1U);
+  if (!rt.received.empty ())
+    buf = rt.received[0];
+  g_mutex_unlock (&rt.lock);
+  if (!buf)
+    goto stop;
+
+  _expect_round_trip_memories (buf);
+
+  _expect_round_trip_src_caps (&rt, caps);
+
+  /** The publisher started after the subscriber, so its timestamps move forward */
+  epoch_gap = hdr.base_time_epoch - GST_MQTT_SRC_CAST (rt.src)->base_time_epoch;
+  EXPECT_GT (epoch_gap, 0);
+  EXPECT_EQ (GST_BUFFER_PTS (buf), round_trip_pts + epoch_gap);
+  EXPECT_EQ (GST_BUFFER_PTS (buf) - GST_BUFFER_DTS (buf), round_trip_pts - round_trip_dts);
+  EXPECT_EQ (GST_BUFFER_DURATION (buf), round_trip_duration);
+
+stop:
+  _stop_round_trip_src (&rt);
+  /** mqttsrc releases each message and topic name it was handed exactly once */
+  EXPECT_EQ (released_message_count - released_messages, (int) msgs.size ());
+  EXPECT_EQ (released_topic_count - released_topics, (int) msgs.size ());
+  _free_round_trip_messages (msgs);
+  gst_caps_unref (caps);
+  g_free (topic);
+}
+
+/**
+ * @brief Test mqttsrc dropping a message from mqttsink patched to declare too many memories, then taking the next one
+ */
+TEST (testMqttSrcWithHelper, sinkToSrcRoundTripTooManyMemories_n)
+{
+  const gsize len_payload
+      = GST_MQTT_LEN_MSG_HDR + round_trip_sizes[0] + round_trip_sizes[1];
+  gchar *topic = g_strdup ("round_trip_topic");
+  std::vector<MQTTAsync_message *> msgs;
+  int released_messages = released_message_count;
+  int released_topics = released_topic_count;
+  GstCaps *caps = gst_caps_from_string ("application/octet-stream");
+  round_trip_src rt = {};
+  std::vector<guint8> payload;
+  std::vector<guint8> patched;
+  GstMQTTMessageHdr hdr;
+  guint i;
+
+  if (!_start_round_trip_src (&rt, topic)) {
+    ADD_FAILURE () << "Failed to start the mqttsrc pipeline";
+    goto stop;
+  }
+
+  payload = _publish_round_trip_buffer (caps);
+  if (payload.size () != len_payload) {
+    ADD_FAILURE () << "mqttsink sent " << payload.size () << " bytes";
+    goto stop;
+  }
+  patched = payload;
+  memcpy (&hdr, patched.data (), GST_MQTT_LEN_MSG_HDR);
+  hdr.num_mems = GST_MQTT_MAX_NUM_MEMS + 1;
+  for (i = G_N_ELEMENTS (round_trip_sizes); i < GST_MQTT_MAX_NUM_MEMS; ++i)
+    hdr.size_mems[i] = 0;
+  /** The 17th size would be read from base_time_epoch: make it fit, so only the count refuses */
+  hdr.base_time_epoch = 0;
+  hdr.pts = GST_MQTT_SRC_CAST (rt.src)->base_time_epoch + round_trip_pts;
+  memcpy (patched.data (), &hdr, GST_MQTT_LEN_MSG_HDR);
+
+  msgs.push_back (_deliver_round_trip_payload (&rt, topic, patched));
+  msgs.push_back (_deliver_round_trip_payload (&rt, topic, payload));
+  EXPECT_TRUE (_wait_round_trip_eos (&rt));
+
+  g_mutex_lock (&rt.lock);
+  EXPECT_EQ (rt.received.size (), 1U);
+  if (!rt.received.empty ())
+    _expect_round_trip_memories (rt.received[0]);
+  g_mutex_unlock (&rt.lock);
+  _expect_round_trip_src_caps (&rt, caps);
+
+stop:
+  _stop_round_trip_src (&rt);
+  /** mqttsrc releases each message and topic name it was handed exactly once */
+  EXPECT_EQ (released_message_count - released_messages, (int) msgs.size ());
+  EXPECT_EQ (released_topic_count - released_topics, (int) msgs.size ());
+  _free_round_trip_messages (msgs);
+  gst_caps_unref (caps);
+  g_free (topic);
 }
 
 /** How a local NTP server stub answers each request */
@@ -3015,6 +3574,189 @@ TEST (testMqttSinkWithHelper, sinkNtpEpochRecoversAfterFailure)
   EXPECT_GE (hdr.sent_time_epoch, (before + FAKE_NTP_OFFSET_US) * GST_US_TO_NS_MULTIPLIER);
   EXPECT_LE (hdr.sent_time_epoch, (after + FAKE_NTP_OFFSET_US) * GST_US_TO_NS_MULTIPLIER);
 }
+
+
+/** @brief A TLS URI cannot bypass the verified, explicit TLS settings. */
+TEST (testMqttSinkWithHelper, tlsSchemeWithoutSwitch_n)
+{
+  for (const char *host : { "ssl://localhost", "mqtts://localhost", "wss://localhost" }) {
+    GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+    ASSERT_NE (element, nullptr);
+    gst_object_ref_sink (element);
+    GstMqttTestHelper::getInstance ().initFailFlags ();
+    GstElement *pipeline = element;
+    g_object_set (element, "host", host, NULL);
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+    gst_element_set_state (element, GST_STATE_NULL);
+    gst_object_unref (element);
+  }
+}
+
+/** @brief TLS defaults to off, and a key password is write-only. */
+TEST (testMqttSinkWithHelper, tlsProperties)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstElement *pipeline = element;
+  gboolean enabled = TRUE;
+  gchar *ca = nullptr;
+  g_object_get (element, "tls", &enabled, "tls-ca-file", &ca, NULL);
+  EXPECT_FALSE (enabled);
+  EXPECT_EQ (ca, nullptr);
+  GParamSpec *pspec = g_object_class_find_property (
+      G_OBJECT_GET_CLASS (element), "tls-key-password");
+  ASSERT_NE (pspec, nullptr);
+  EXPECT_FALSE (pspec->flags & G_PARAM_READABLE);
+  EXPECT_TRUE (pspec->flags & G_PARAM_WRITABLE);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (last_connect_tls);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+}
+
+/** @brief Each TLS property has its own ID and its own storage. */
+TEST (testMqttSinkWithHelper, tlsPropertyMapping)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GObjectClass *klass = G_OBJECT_GET_CLASS (element);
+  const char *names[]
+      = { "tls", "tls-ca-file", "tls-cert-file", "tls-key-file", "tls-key-password" };
+  guint ids[G_N_ELEMENTS (names)];
+  for (gsize i = 0; i < G_N_ELEMENTS (names); i++) {
+    GParamSpec *pspec = g_object_class_find_property (klass, names[i]);
+    ASSERT_NE (pspec, nullptr) << names[i];
+    ids[i] = pspec->param_id;
+    for (gsize j = 0; j < i; j++)
+      EXPECT_NE (ids[i], ids[j]) << names[i] << " and " << names[j];
+  }
+  EXPECT_FALSE (g_object_class_find_property (klass, "tls-key-password")->flags & G_PARAM_READABLE);
+  /* Replacing a value must free the old one; the Valgrind job checks it. */
+  g_object_set (element, "tls-ca-file", "old-ca.pem", "tls-cert-file", "old-cert.pem",
+      "tls-key-file", "old-key.pem", "tls-key-password", "old-secret", NULL);
+  g_object_set (element, "tls", TRUE, "tls-ca-file", "ca.pem", "tls-cert-file",
+      "cert.pem", "tls-key-file", "key.pem", "tls-key-password", "secret", NULL);
+  gboolean enabled = FALSE;
+  gchar *ca = nullptr, *cert = nullptr, *key = nullptr;
+  g_object_get (element, "tls", &enabled, "tls-ca-file", &ca, "tls-cert-file",
+      &cert, "tls-key-file", &key, NULL);
+  EXPECT_TRUE (enabled);
+  EXPECT_STREQ (ca, "ca.pem");
+  EXPECT_STREQ (cert, "cert.pem");
+  EXPECT_STREQ (key, "key.pem");
+  EXPECT_STREQ (GST_MQTT_SINK (element)->mqtt_tls.key_password, "secret");
+  g_free (ca);
+  g_free (cert);
+  g_free (key);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+}
+
+/** @brief Unsupported TLS or invalid files fail before connecting. */
+TEST (testMqttSinkWithHelper, tlsInvalidSettings_n)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstElement *pipeline = element;
+  g_object_set (element, "tls", TRUE, "tls-ca-file", "/nonexistent/mqtt-ca.pem", NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+}
+
+#ifdef ENABLE_MQTT_TLS
+/** @brief Pass verified TLS and copied client credentials to the Paho client. */
+TEST (testMqttSinkWithHelper, tlsOptionsPassedToConnect)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstElement *pipeline = element;
+  gchar *files[3] = { nullptr, nullptr, nullptr };
+  for (gchar *&file : files) {
+    int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
+    ASSERT_GE (fd, 0);
+    close (fd);
+  }
+  g_object_set (element, "tls", TRUE, "tls-ca-file", files[0], "tls-cert-file",
+      files[1], "tls-key-file", files[2], "tls-key-password", "test-key-password", NULL);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_TRUE (last_connect_tls);
+  EXPECT_EQ (last_connect_verify, 1);
+  EXPECT_EQ (last_connect_auth, 1);
+  EXPECT_STREQ (last_connect_ca.c_str (), files[0]);
+  EXPECT_STREQ (last_connect_cert.c_str (), files[1]);
+  EXPECT_STREQ (last_connect_key.c_str (), files[2]);
+  EXPECT_STREQ (last_connect_key_password.c_str (), "test-key-password");
+  EXPECT_EQ (GstMqttTestHelper::getInstance ().getLastServerUri ().find ("ssl://"), 0U);
+  /* Changing a property must not invalidate Paho's reconnect options. */
+  g_object_set (element, "tls-ca-file", NULL, "tls-key-password", NULL, NULL);
+  GstMqttSink *self = GST_MQTT_SINK (element);
+  ASSERT_NE (self->mqtt_conn_opts.ssl, nullptr);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->trustStore, files[0]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->keyStore, files[1]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->privateKey, files[2]);
+  EXPECT_STREQ (self->mqtt_conn_opts.ssl->privateKeyPassword, "test-key-password");
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_FAILURE);
+  g_object_set (element, "tls", FALSE, NULL);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (last_connect_tls);
+  EXPECT_EQ (self->mqtt_conn_opts.ssl, nullptr);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+  for (gchar *file : files) {
+    g_unlink (file);
+    g_free (file);
+  }
+}
+
+/** @brief Refuse a client private key without a client certificate. */
+TEST (testMqttSinkWithHelper, tlsKeyWithoutCertificate_n)
+{
+  GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+  ASSERT_NE (element, nullptr);
+  gst_object_ref_sink (element);
+  GstMqttTestHelper::getInstance ().initFailFlags ();
+  GstElement *pipeline = element;
+  g_object_set (element, "tls", TRUE, "tls-key-file", "/nonexistent/key.pem", NULL);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+  gst_element_set_state (element, GST_STATE_NULL);
+  gst_object_unref (element);
+}
+
+/** @brief Refuse a CA, certificate or key path that is not a regular file. */
+TEST (testMqttSinkWithHelper, tlsCredentialNotRegularFile_n)
+{
+  gchar *file = nullptr;
+  int fd = g_file_open_tmp ("nnstreamer-mqtt-tls-XXXXXX", &file, NULL);
+  ASSERT_GE (fd, 0);
+  close (fd);
+  const gchar *dir = g_get_tmp_dir ();
+  const gchar *cases[][3]
+      = { { dir, NULL, NULL }, { NULL, dir, NULL }, { NULL, file, dir } };
+  for (const auto &paths : cases) {
+    GstElement *element = gst_element_factory_make ("mqttsink", NULL);
+    ASSERT_NE (element, nullptr);
+    gst_object_ref_sink (element);
+    GstMqttTestHelper::getInstance ().initFailFlags ();
+    GstElement *pipeline = element;
+    g_object_set (element, "tls", TRUE, "tls-ca-file", paths[0],
+        "tls-cert-file", paths[1], "tls-key-file", paths[2], NULL);
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_READY), GST_STATE_CHANGE_FAILURE);
+    gst_element_set_state (element, GST_STATE_NULL);
+    gst_object_unref (element);
+  }
+  g_unlink (file);
+  g_free (file);
+}
+#endif
 
 /**
  * @brief Main GTest

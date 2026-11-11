@@ -65,6 +65,7 @@ if have_python3
     converter_sub_python3_sources,
     dependencies: [converter_util_shared_dep, nnstreamer_python3_helper_dep],
     install: true,
+    install_rpath: nnstreamer_python3_install_rpath,
     install_dir: converter_subplugin_install_dir
   )
 

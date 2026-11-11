@@ -57,6 +57,7 @@ case $(uname -m) in
     *) MODEL_ARCH="unsupported" ;;
 esac
 
+# ssat-fixture: variants MODEL_ARCH=arm,aarch64,x86_64 - prebuilt supported targets
 PATH_TO_MODEL="../test_models/models/tvm_add_one_${MODEL_ARCH}.so_"
 PATH_TO_INVALID_MODEL="../test_models/labels/labels.txt"
 

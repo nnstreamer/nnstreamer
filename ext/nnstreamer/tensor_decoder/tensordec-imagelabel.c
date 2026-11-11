@@ -205,7 +205,11 @@ il_decode (void **pdata, const GstTensorsConfig * config,
       return GST_FLOW_NOT_SUPPORTED;
   }
 
-  g_assert (max_index < data->labels.total_labels);
+  if (max_index >= data->labels.total_labels) {
+    ml_loge ("The best score is at index %u, but the label file has %u labels.",
+        max_index, data->labels.total_labels);
+    return GST_FLOW_ERROR;
+  }
 
   /** @todo With option-2, allow to change output format */
   str = data->labels.labels[max_index];

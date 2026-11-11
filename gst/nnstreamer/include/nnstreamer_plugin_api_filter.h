@@ -148,9 +148,9 @@ typedef struct _GstTensorFilterProperties
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];  /**< the rank list of output tensors, it is calculated based on the dimension string. */
 
   const char *custom_properties; /**< sub-plugin specific custom property values in string */
-  accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only */
+  accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only. NEON (ACCL_CPU_NEON) is left out on a device without it; ACCL_NONE if nothing is left. */
   int num_hw;       /**< number of hardware accelerators in the hw_list supported by the framework */
-  const char *accl_str; /**< accelerator configuration passed in as parameter, use in GstTensorFilterFramework V0 only */
+  const char *accl_str; /**< accelerator configuration passed in as parameter, as given to the "accelerator" property. GstTensorFilterFramework V1 gets hw_list parsed from it as well. The "accelerator" property reads this string back for V0 and V1. Valid until the accelerator or framework property is set again; copy it to keep it longer. */
   char *shared_tensor_filter_key; /**< the shared instance key to use same model representation */
 
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
@@ -159,7 +159,22 @@ typedef struct _GstTensorFilterProperties
 
   uint32_t suspend; /**< Timeout (ms) for suspend. (Unload the framework) */
 
-  int invoke_async; /**< The sub-plugin must support asynchronous output to use this option. If set to TRUE, the sub-plugin can generate multiple outputs asynchronously per single input. Otherwise, only synchronous single-output is expected and async callback is ignored. */
+  /**
+   * @brief Enable asynchronous output from a supporting sub-plugin.
+   *
+   * If TRUE, a successful invoke only acknowledges the input. The sub-plugin
+   * must deliver every output through async_callback and must not allocate or
+   * return synchronous output, including when allocate_in_invoke is enabled.
+   * Synchronous output is ignored and its ownership is not transferred to
+   * tensor-filter. Multiple callback outputs per input are supported.
+   *
+   * In a GStreamer pipeline, preroll waits for the first callback output or EOS.
+   * Waiting for the state transition with gst_element_get_state() can therefore
+   * block if the sub-plugin produces neither output nor EOS.
+   * If FALSE, only a synchronous single output is expected and async callbacks
+   * are ignored.
+   */
+  int invoke_async;
   GstTensorDataCallback async_callback; /**< The callback function pointer to be called every time the sub-plugin generates a new output tensor asynchronously. Note that this is internal data for tensor-filter and DO NOT change this value. */
   void *async_user_data; /**< The private data to be passed to tensor data callback of asynchronous invoke. Note that this is internal data for tensor-filter and DO NOT change this value. */
 } GstTensorFilterProperties;
@@ -185,7 +200,7 @@ typedef struct _GstTensorFilterFrameworkInfo
   const char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property. Subplugin is supposed to allocate/deallocate. */
   int allow_in_place; /**< TRUE(nonzero) if in-place transfer of input-to-output is allowed. Not supported in main, yet. */
   int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate output ptr by itself and return the address via output ptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
-  int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. When this is FALSE, tensor-filter refuses to call open() unless the model property holds at least one entry, whatever verify_model_path says; a sub-plugin that defines no open callback is started without that check. */
+  int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. When this is FALSE, tensor-filter refuses to call open() unless the model property holds at least one entry, whatever verify_model_path says; a sub-plugin that defines no open callback is started without that check, and tensor-filter then refuses to invoke it without a model. */
   int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. Consulted only when run_without_model is FALSE, and only to choose who tests that each given entry is a regular file. Declare FALSE if a model entry is not a path, or is a path the sub-plugin derives other paths from. */
   const accl_hw *hw_list; /**< List of supported hardware accelerators by the framework. Positive response of this check does not guarantee successful running of model with this accelerator. Subplugin is supposed to allocate/deallocate. */
   int num_hw; /**< number of hardware accelerators in the hw_list supported by the framework. */
@@ -321,7 +336,7 @@ struct _GstTensorFilterFramework
       char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
       int allow_in_place; /**< TRUE(nonzero) if in-place transfer of input-to-output is allowed. Not supported in main, yet */
       int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate output ptr by itself and return the address via output ptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
-      int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. When this is FALSE, tensor-filter refuses to call open() unless the model property holds at least one entry, whatever verify_model_path says; a sub-plugin that defines no open callback is started without that check. */
+      int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. When this is FALSE, tensor-filter refuses to call open() unless the model property holds at least one entry, whatever verify_model_path says; a sub-plugin that defines no open callback is started without that check, and tensor-filter then refuses to invoke it without a model. */
       int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. Consulted only when run_without_model is FALSE, and only to choose who tests that each given entry is a regular file. Declare FALSE if a model entry is not a path, or is a path the sub-plugin derives other paths from. */
 
       const GstTensorFilterFrameworkStatistics *statistics;  /**< usage statistics by the framework. This is shared across all opened instances of this framework. */
@@ -688,11 +703,33 @@ nnstreamer_filter_shared_model_replace_checked (void *instance, const char *key,
  * Before calling this function, you must enable asynchronous invocation by setting the property 'invoke-async' as true.
  * Failure to do so will result in undefined behavior, as no callback and handle will be registered.
  *
+ * @note For variable-size worker results, prefer the explicit-info dispatch
+ * function below instead of modifying shared prop->output_meta.
  * @param[in] prop GstTensorFilterProperties object.
  * @param[in] output The GstTensorMemory array holding the asynchronously generated output, one entry for each tensor prop->output_meta describes. Note that this function takes the ownership of each tensor data. When no callback is registered, e.g., once tensor-filter has stopped, the data is released with g_free().
  */
 extern void
 nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties * prop, GstTensorMemory * output);
+
+/**
+ * @brief Dispatch asynchronous output with metadata for this result.
+ *
+ * Prefer this function when a worker produces variable-size output: it does
+ * not read or modify prop->output_meta. Keep info and its tensor descriptions
+ * valid until this function returns. Dispatches from one instance must be
+ * serialized, and its worker must stop before the instance is destroyed.
+ *
+ * @param[in] prop Live filter properties with invoke-async enabled.
+ * @param[in] output One memory entry per tensor described by info. Ownership
+ * of each data pointer passes to the callback, or to g_free() if no callback
+ * is registered. The array itself stays with the caller.
+ * @param[in] info Borrowed output metadata; ownership stays with the caller.
+ * num_tensors must be between 1 and NNS_TENSOR_SIZE_LIMIT. Invalid arguments
+ * are rejected before ownership transfers.
+ */
+extern void
+nnstreamer_filter_dispatch_output_async_with_info (GstTensorFilterProperties * prop,
+    GstTensorMemory * output, GstTensorsInfo * info);
 
 #ifdef __cplusplus
 }

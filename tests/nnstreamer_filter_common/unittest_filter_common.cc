@@ -9,18 +9,28 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <errno.h>
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <gst/app/gstappsink.h>
+#include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <mutex>
 #include <string.h>
+#include <thread>
 #include <unistd.h>
+#include <vector>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
 
 #include "../gst/nnstreamer/tensor_filter/tensor_filter_common.h"
+#include "../gst/nnstreamer/tensor_filter/tensor_filter_single.h"
 
 #define TEST_SHARED_KEY "unittest_filter_common_key"
 
@@ -1126,6 +1136,1597 @@ TEST (testFilterProperties, combinationInvalidIndex_n)
 }
 
 /**
+ * @brief V1 C++ sub-plugin recording the accelerator it is opened with.
+ */
+class accl_mock_subplugin : public nnstreamer::tensor_filter_subplugin
+{
+  public:
+  static const char *mock_name;
+  static accl_mock_subplugin *registered;
+  static const accl_hw hw_list[];
+  static gchar *seen_accl_str;
+  static gint seen_num_hw;
+  static accl_hw seen_hw;
+  static int event_ret;
+  static accl_hw basic_hw;
+
+  /** @brief mandatory method */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new accl_mock_subplugin ());
+  }
+
+  /** @brief record the accelerator given on open */
+  void configure_instance (const GstTensorFilterProperties *prop) override
+  {
+    g_free (seen_accl_str);
+    seen_accl_str = g_strdup (prop->accl_str);
+    seen_num_hw = prop->num_hw;
+    seen_hw = (prop->num_hw > 0) ? prop->hw_list[0] : ACCL_NONE;
+  }
+
+  /** @brief mandatory method */
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output) override
+  {
+    UNUSED (input);
+    UNUSED (output);
+  }
+
+  /** @brief mandatory method */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    info.name = mock_name;
+    info.allow_in_place = FALSE;
+    info.allocate_in_invoke = FALSE;
+    info.run_without_model = TRUE;
+    info.verify_model_path = FALSE;
+    info.hw_list = hw_list;
+    info.num_hw = 3;
+    info.accl_auto = basic_hw;
+    info.accl_default = basic_hw;
+  }
+
+  /** @brief mandatory method */
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info) override
+  {
+    UNUSED (ops);
+    UNUSED (in_info);
+    UNUSED (out_info);
+    return -ENOENT;
+  }
+
+  /** @brief report what the test asks for */
+  int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data) override
+  {
+    UNUSED (ops);
+    UNUSED (data);
+    return event_ret;
+  }
+
+  /** @brief register this mock subplugin */
+  static void init ()
+  {
+    registered = register_subplugin<accl_mock_subplugin> ();
+  }
+
+  /** @brief unregister this mock subplugin */
+  static void fini ()
+  {
+    unregister_subplugin<accl_mock_subplugin> (registered);
+    registered = nullptr;
+  }
+};
+
+const char *accl_mock_subplugin::mock_name = "accl_mock_subplugin";
+accl_mock_subplugin *accl_mock_subplugin::registered = nullptr;
+const accl_hw accl_mock_subplugin::hw_list[] = { ACCL_CPU, ACCL_GPU, ACCL_NPU_EDGE_TPU };
+gchar *accl_mock_subplugin::seen_accl_str = nullptr;
+gint accl_mock_subplugin::seen_num_hw = 0;
+accl_hw accl_mock_subplugin::seen_hw = ACCL_NONE;
+int accl_mock_subplugin::event_ret = 0;
+accl_hw accl_mock_subplugin::basic_hw = ACCL_CPU;
+
+/**
+ * @brief V1 C++ sub-plugin supporting the CPU only.
+ */
+class accl_cpu_mock_subplugin : public accl_mock_subplugin
+{
+  public:
+  static const char *cpu_mock_name;
+  static accl_cpu_mock_subplugin *cpu_registered;
+  static const accl_hw cpu_hw_list[];
+
+  /** @brief mandatory method */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new accl_cpu_mock_subplugin ());
+  }
+
+  /** @brief list the CPU only */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    accl_mock_subplugin::getFrameworkInfo (info);
+    info.name = cpu_mock_name;
+    info.hw_list = cpu_hw_list;
+    info.num_hw = 1;
+  }
+
+  /** @brief register this mock subplugin */
+  static void init ()
+  {
+    cpu_registered = register_subplugin<accl_cpu_mock_subplugin> ();
+  }
+
+  /** @brief unregister this mock subplugin */
+  static void fini ()
+  {
+    unregister_subplugin<accl_cpu_mock_subplugin> (cpu_registered);
+    cpu_registered = nullptr;
+  }
+};
+
+const char *accl_cpu_mock_subplugin::cpu_mock_name = "accl_cpu_mock_subplugin";
+accl_cpu_mock_subplugin *accl_cpu_mock_subplugin::cpu_registered = nullptr;
+const accl_hw accl_cpu_mock_subplugin::cpu_hw_list[] = { ACCL_CPU };
+
+/**
+ * @brief V1 C++ sub-plugin preferring NEON, then the GPU.
+ */
+class accl_neon_mock_subplugin : public accl_mock_subplugin
+{
+  public:
+  static const char *neon_mock_name;
+  static accl_neon_mock_subplugin *neon_registered;
+  static const accl_hw neon_hw_list[];
+  static int neon_num_hw;
+
+  /** @brief mandatory method */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new accl_neon_mock_subplugin ());
+  }
+
+  /** @brief list NEON first, and use it for auto and default */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    accl_mock_subplugin::getFrameworkInfo (info);
+    info.name = neon_mock_name;
+    info.hw_list = neon_hw_list;
+    info.num_hw = neon_num_hw;
+    info.accl_auto = ACCL_CPU_NEON;
+    info.accl_default = ACCL_CPU_NEON;
+  }
+
+  /** @brief register this mock subplugin */
+  static void init ()
+  {
+    neon_registered = register_subplugin<accl_neon_mock_subplugin> ();
+  }
+
+  /** @brief unregister this mock subplugin */
+  static void fini ()
+  {
+    unregister_subplugin<accl_neon_mock_subplugin> (neon_registered);
+    neon_registered = nullptr;
+  }
+};
+
+const char *accl_neon_mock_subplugin::neon_mock_name = "accl_neon_mock_subplugin";
+accl_neon_mock_subplugin *accl_neon_mock_subplugin::neon_registered = nullptr;
+const accl_hw accl_neon_mock_subplugin::neon_hw_list[] = { ACCL_CPU_NEON, ACCL_GPU };
+int accl_neon_mock_subplugin::neon_num_hw = 2;
+
+static gint fake_neon_ret = 0;
+static guint fake_neon_calls = 0;
+
+/**
+ * @brief Replace the NEON check of libnnstreamer to test a device without NEON.
+ * @return fake_neon_ret, 0 (NEON available) unless a test changes it.
+ */
+extern "C" gint
+cpu_neon_accel_available (void)
+{
+  fake_neon_calls++;
+  return fake_neon_ret;
+}
+
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+static gchar *last_accl_critical = NULL;
+
+/**
+ * @brief Count the critical messages of the default log domain, and keep the last one.
+ */
+static void
+_count_accl_critical (const gchar *log_domain, GLogLevelFlags log_level,
+    const gchar *message, gpointer user_data)
+{
+  UNUSED (log_domain);
+  UNUSED (log_level);
+  g_free (last_accl_critical);
+  last_accl_critical = g_strdup (message);
+  (*(guint *) user_data)++;
+}
+
+/**
+ * @brief Start counting the critical messages of the default log domain, after checking the handler gets them.
+ * @param count the counter, reset to 0 once the handler is checked
+ * @return The handler id, to be removed with g_log_remove_handler ().
+ */
+static guint
+_start_accl_critical_count (guint *count)
+{
+  guint handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      _count_accl_critical, count);
+  GLogLevelFlags fatal_mask;
+
+  *count = 0;
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log (NULL, G_LOG_LEVEL_CRITICAL, "[probe] accelerator log handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (*count, 1U) << "no live handler for critical messages";
+  *count = 0;
+
+  return handler;
+}
+#endif
+
+/**
+ * @brief The name of the V0 sub-plugin of testFilterAccelerator.
+ */
+static char accl_v0_mock_name[] = "accl_v0_mock_subplugin";
+
+/**
+ * @brief The invoke callback of the V0 sub-plugin of testFilterAccelerator.
+ */
+static int
+accl_v0_mock_invoke (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  UNUSED (prop);
+  UNUSED (private_data);
+  UNUSED (input);
+  UNUSED (output);
+  return 0;
+}
+
+/**
+ * @brief The set-input-dim callback of the V0 sub-plugin of testFilterAccelerator.
+ */
+static int
+accl_v0_mock_setdim (const GstTensorFilterProperties *prop, void **private_data,
+    const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
+{
+  UNUSED (prop);
+  UNUSED (private_data);
+  gst_tensors_info_copy (out_info, in_info);
+  return 0;
+}
+
+/**
+ * @brief The checkAvailability callback of the V0 sub-plugin of testFilterAccelerator, supporting cpu only.
+ */
+static int
+accl_v0_mock_checkAvailability (accl_hw hw)
+{
+  return (hw == ACCL_CPU) ? 0 : -ENOENT;
+}
+
+/**
+ * @brief The handleEvent callback of the V0 sub-plugin of testFilterAccelerator.
+ * @details CHECK_HW_AVAILABILITY accepts the custom option "avail-hw" only.
+ */
+static int
+accl_v0_mock_handleEvent (event_ops ops, GstTensorFilterFrameworkEventData *data)
+{
+  if (ops != CHECK_HW_AVAILABILITY)
+    return -ENOENT;
+
+  if (data && data->custom && g_str_equal (data->custom, "avail-hw"))
+    return 0;
+
+  return -EINVAL;
+}
+
+/**
+ * @brief Get the V0 sub-plugin of testFilterAccelerator.
+ * @note It stays V0 until tensor_filter stops loading V0 sub-plugins (#4425).
+ */
+static GstTensorFilterFramework *
+accl_v0_mock (void)
+{
+  static GstTensorFilterFramework fw;
+
+  memset (&fw, 0, sizeof (fw));
+  fw.version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  fw.name = accl_v0_mock_name;
+  fw.run_without_model = TRUE;
+  fw.invoke_NN = accl_v0_mock_invoke;
+  fw.setInputDimension = accl_v0_mock_setdim;
+  fw.checkAvailability = accl_v0_mock_checkAvailability;
+  fw.handleEvent = accl_v0_mock_handleEvent;
+  return &fw;
+}
+
+/**
+ * @brief Test fixture setting the accelerator property of a filter the way a pipeline description does.
+ */
+class testFilterAccelerator : public ::testing::Test
+{
+  protected:
+  GstTensorFilterPrivate priv;
+
+  /** @brief register the V1 mocks and the V0 one */
+  void SetUp () override
+  {
+    accl_mock_subplugin::seen_accl_str = nullptr;
+    accl_mock_subplugin::seen_num_hw = 0;
+    accl_mock_subplugin::seen_hw = ACCL_NONE;
+    accl_mock_subplugin::event_ret = 0;
+    accl_mock_subplugin::basic_hw = ACCL_CPU;
+    accl_mock_subplugin::init ();
+    accl_cpu_mock_subplugin::init ();
+    accl_neon_mock_subplugin::neon_num_hw = 2;
+    accl_neon_mock_subplugin::init ();
+    fake_neon_ret = 0;
+    fake_neon_calls = 0;
+
+    gst_tensor_filter_common_init_property (&priv);
+    ASSERT_TRUE (nnstreamer_filter_probe (accl_v0_mock ()));
+  }
+
+  /** @brief close the filter and unregister the mocks */
+  void TearDown () override
+  {
+    gst_tensor_filter_common_close_fw (&priv);
+    gst_tensor_filter_common_free_property (&priv);
+    nnstreamer_filter_exit (accl_v0_mock_name);
+    accl_neon_mock_subplugin::fini ();
+    accl_cpu_mock_subplugin::fini ();
+    accl_mock_subplugin::fini ();
+    fake_neon_ret = 0;
+
+    g_free (accl_mock_subplugin::seen_accl_str);
+    accl_mock_subplugin::seen_accl_str = nullptr;
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+    g_free (last_accl_critical);
+    last_accl_critical = NULL;
+#endif
+  }
+
+  /**
+   * @brief Set a string property of the filter.
+   * @param prop_id the property to set
+   * @param str the value of the property
+   */
+  void setString (guint prop_id, const gchar *str)
+  {
+    GValue value = G_VALUE_INIT;
+
+    g_value_init (&value, G_TYPE_STRING);
+    g_value_set_string (&value, str);
+    EXPECT_TRUE (gst_tensor_filter_common_set_property (&priv, prop_id, &value, NULL));
+    g_value_unset (&value);
+  }
+
+  /**
+   * @brief Check that the NEON check of libnnstreamer is replaced in this build.
+   * @return true if cpu_neon_accel_available () of this test is called.
+   */
+  bool neonReplaced ()
+  {
+    const gchar *probe_list[] = { ACCL_CPU_NEON_STR, NULL };
+
+    fake_neon_calls = 0;
+    parse_accl_hw ("true", probe_list, NULL, NULL);
+    return fake_neon_calls > 0;
+  }
+
+  /**
+   * @brief Read the accelerator property of the filter back.
+   * @return the value of the property. Free it with g_free().
+   */
+  gchar *getAccelerator ()
+  {
+    GValue value = G_VALUE_INIT;
+    gchar *str;
+
+    g_value_init (&value, G_TYPE_STRING);
+    EXPECT_TRUE (gst_tensor_filter_common_get_property (&priv, PROP_ACCELERATOR, &value, NULL));
+    str = g_value_dup_string (&value);
+    g_value_unset (&value);
+
+    return str;
+  }
+};
+
+/**
+ * @brief A V1 sub-plugin opened after "framework=... accelerator=..." gets the
+ *        string the pipeline set, as a V0 sub-plugin does, and the parsed list.
+ *        The string is read back as it was set.
+ */
+TEST_F (testFilterAccelerator, afterFramework)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu,gpu");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:npu.edgetpu,gpu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 2);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_NPU_EDGE_TPU);
+  ASSERT_EQ (priv.prop.num_hw, 2);
+  EXPECT_EQ (priv.prop.hw_list[1], ACCL_GPU);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:npu.edgetpu,gpu");
+}
+
+/**
+ * @brief A V1 sub-plugin gets the same accelerator when the pipeline sets it before the framework.
+ */
+TEST_F (testFilterAccelerator, beforeFramework)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu,gpu");
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:npu.edgetpu,gpu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 2);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_NPU_EDGE_TPU);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:npu.edgetpu,gpu");
+}
+
+/**
+ * @brief The string set after a V0 framework is kept and read back as it was set.
+ */
+TEST_F (testFilterAccelerator, afterFrameworkV0)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_v0_mock_name);
+  ASSERT_TRUE (priv.fw != NULL && GST_TF_FW_V0 (priv.fw));
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu,gpu");
+
+  EXPECT_STREQ (priv.prop.accl_str, "true:npu.edgetpu,gpu");
+  EXPECT_EQ (priv.prop.num_hw, 0);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:npu.edgetpu,gpu");
+}
+
+/**
+ * @brief A V0 sub-plugin answers the hw availability with checkAvailability and the custom option with handleEvent.
+ */
+TEST_F (testFilterAccelerator, checkHwAvailabilityV0)
+{
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (accl_v0_mock_name, ACCL_AUTO, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (accl_v0_mock_name, ACCL_CPU, NULL));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (accl_v0_mock_name, ACCL_CPU, "avail-hw"));
+}
+
+/**
+ * @brief A V0 sub-plugin refuses the hw its checkAvailability rejects, and the custom option its handleEvent rejects.
+ */
+TEST_F (testFilterAccelerator, checkHwAvailabilityV0_n)
+{
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (accl_v0_mock_name, ACCL_GPU, NULL));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (
+      accl_v0_mock_name, ACCL_CPU, "invalid-hw"));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (
+      accl_v0_mock_name, ACCL_GPU, "avail-hw"));
+}
+
+/**
+ * @brief Replacing a V0 framework with a V1 one keeps the accelerator set after the V0 one.
+ */
+TEST_F (testFilterAccelerator, frameworkV0ToV1)
+{
+  setString (PROP_FRAMEWORK, accl_v0_mock_name);
+  ASSERT_TRUE (priv.fw != NULL && GST_TF_FW_V0 (priv.fw));
+  setString (PROP_ACCELERATOR, "true:gpu");
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:gpu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 1);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_GPU);
+}
+
+/**
+ * @brief Replacing a V1 framework with a V0 one keeps the accelerator set after the V1 one.
+ */
+TEST_F (testFilterAccelerator, frameworkV1ToV0)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:gpu");
+  setString (PROP_FRAMEWORK, accl_v0_mock_name);
+  ASSERT_TRUE (priv.fw != NULL && GST_TF_FW_V0 (priv.fw));
+
+  EXPECT_STREQ (priv.prop.accl_str, "true:gpu");
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:gpu");
+}
+
+/**
+ * @brief "false" set after a V1 framework disables the acceleration and is read back as it was set.
+ */
+TEST_F (testFilterAccelerator, disabledAfterFramework)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "false");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "false");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 1);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_NONE);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "false");
+}
+
+/**
+ * @brief An accelerator the V1 framework does not support falls back on its auto accelerator.
+ */
+TEST_F (testFilterAccelerator, unsupportedAfterFramework_n)
+{
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:npu");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:npu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 1);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_CPU);
+}
+
+/**
+ * @brief An opened V1 framework refusing a new accelerator keeps the one it
+ *        was opened with, and the refusal is logged as V0 logs it.
+ */
+TEST_F (testFilterAccelerator, changeRefusedWhileOpened_n)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:gpu");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  accl_mock_subplugin::event_ret = -ENOENT;
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  guint critical_count;
+  guint handler = _start_accl_critical_count (&critical_count);
+#endif
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu");
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (critical_count, 1U);
+#endif
+
+  EXPECT_STREQ (priv.prop.accl_str, "true:gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:gpu");
+}
+
+/**
+ * @brief An opened V1 framework taking a new accelerator keeps the string it was parsed from.
+ */
+TEST_F (testFilterAccelerator, changeWhileOpened)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:gpu");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  guint critical_count;
+  guint handler = _start_accl_critical_count (&critical_count);
+#endif
+  setString (PROP_ACCELERATOR, "true:npu.edgetpu");
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (critical_count, 0U);
+#endif
+
+  EXPECT_STREQ (priv.prop.accl_str, "true:npu.edgetpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_NPU_EDGE_TPU);
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:npu.edgetpu");
+}
+
+/**
+ * @brief Test fixture setting the custom property of a filter opened with the V1 mock.
+ */
+class testFilterCustomProp : public testFilterAccelerator
+{
+  protected:
+  /**
+   * @brief Read the custom property of the filter back.
+   * @return the value of the property. Free it with g_free().
+   */
+  gchar *getCustom ()
+  {
+    GValue value = G_VALUE_INIT;
+    gchar *str;
+
+    g_value_init (&value, G_TYPE_STRING);
+    EXPECT_TRUE (gst_tensor_filter_common_get_property (&priv, PROP_CUSTOM, &value, NULL));
+    str = g_value_dup_string (&value);
+    g_value_unset (&value);
+
+    return str;
+  }
+};
+
+/**
+ * @brief An opened V1 framework refusing new custom properties keeps the old
+ *        ones, and the refusal is logged with the value and the error, as a
+ *        refused accelerator is.
+ */
+TEST_F (testFilterCustomProp, changeRefusedWhileOpened_n)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_CUSTOM, "NumThreads:1");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+  accl_mock_subplugin::event_ret = -ENOENT;
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  guint critical_count;
+  guint handler = _start_accl_critical_count (&critical_count);
+#endif
+  setString (PROP_CUSTOM, "NumThreads:2");
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (critical_count, 1U);
+  EXPECT_STREQ (last_accl_critical,
+      "Cannot change custom-prop to NumThreads:2; the framework refused it (-2).");
+#endif
+
+  read = getCustom ();
+  EXPECT_STREQ (read, "NumThreads:1");
+}
+
+/**
+ * @brief An opened V1 framework taking new custom properties keeps them, with nothing logged.
+ */
+TEST_F (testFilterCustomProp, changeWhileOpened)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_CUSTOM, "NumThreads:1");
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  guint critical_count;
+  guint handler = _start_accl_critical_count (&critical_count);
+#endif
+  setString (PROP_CUSTOM, "NumThreads:2");
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+  g_log_remove_handler (NULL, handler);
+  EXPECT_EQ (critical_count, 0U);
+#endif
+
+  read = getCustom ();
+  EXPECT_STREQ (read, "NumThreads:2");
+}
+
+/**
+ * @brief Replacing a V1 framework with another V1 one parses the accelerator again for the new one.
+ */
+TEST_F (testFilterAccelerator, frameworkV1ToV1)
+{
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+
+  setString (PROP_FRAMEWORK, accl_cpu_mock_subplugin::cpu_mock_name);
+  EXPECT_STREQ (priv.prop.accl_str, "true:gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU);
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+  EXPECT_STREQ (accl_mock_subplugin::seen_accl_str, "true:gpu");
+  EXPECT_EQ (accl_mock_subplugin::seen_num_hw, 1);
+  EXPECT_EQ (accl_mock_subplugin::seen_hw, ACCL_GPU);
+}
+
+/**
+ * @brief A V1 framework leaving auto and default at -1 gets the first accelerator it lists for them.
+ */
+TEST_F (testFilterAccelerator, basicUnsetFirstHw)
+{
+  accl_mock_subplugin::basic_hw = (accl_hw) -1;
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+
+  setString (PROP_ACCELERATOR, "true:auto");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU);
+
+  setString (PROP_ACCELERATOR, "true:default");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU);
+}
+
+/**
+ * @brief The value read back from a V1 framework can be set again and gives the same accelerators.
+ */
+TEST_F (testFilterAccelerator, readBackSetAgain)
+{
+  g_autofree gchar *read = NULL;
+  g_autofree gchar *read_again = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  setString (PROP_ACCELERATOR, "true:!npu.edgetpu,gpu,cpu");
+  ASSERT_EQ (priv.prop.num_hw, 2);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+  EXPECT_EQ (priv.prop.hw_list[1], ACCL_CPU);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "true:!npu.edgetpu,gpu,cpu");
+  setString (PROP_ACCELERATOR, read);
+  ASSERT_EQ (priv.prop.num_hw, 2);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+  EXPECT_EQ (priv.prop.hw_list[1], ACCL_CPU);
+
+  read_again = getAccelerator ();
+  EXPECT_STREQ (read_again, read);
+}
+
+/**
+ * @brief A V1 framework with no accelerator set reads back an empty string, as a V0 one does.
+ */
+TEST_F (testFilterAccelerator, notSetV1)
+{
+  g_autofree gchar *read = NULL;
+
+  setString (PROP_FRAMEWORK, accl_mock_subplugin::mock_name);
+  ASSERT_TRUE (gst_tensor_filter_common_open_fw (&priv));
+  EXPECT_EQ (priv.prop.num_hw, 0);
+
+  read = getAccelerator ();
+  EXPECT_STREQ (read, "");
+}
+
+/**
+ * @brief A V1 framework keeps NEON for auto and default on a device with NEON.
+ */
+TEST_F (testFilterAccelerator, neonAvailable)
+{
+  g_autofree gchar *neon_gpu
+      = g_strdup_printf ("true:%s,gpu", get_accl_hw_str (ACCL_CPU_NEON));
+
+  if (!neonReplaced ())
+    GTEST_SKIP () << "cpu_neon_accel_available () cannot be replaced in this build.";
+
+  setString (PROP_FRAMEWORK, accl_neon_mock_subplugin::neon_mock_name);
+  setString (PROP_ACCELERATOR, "true:auto");
+
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU_NEON);
+
+  setString (PROP_ACCELERATOR, "true:default");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU_NEON);
+
+  setString (PROP_ACCELERATOR, neon_gpu);
+  ASSERT_EQ (priv.prop.num_hw, 2);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_CPU_NEON);
+  EXPECT_EQ (priv.prop.hw_list[1], ACCL_GPU);
+}
+
+/**
+ * @brief A V1 framework drops NEON on a device without NEON, so auto and
+ *        default fall back on its next accelerator.
+ */
+TEST_F (testFilterAccelerator, neonUnavailable_n)
+{
+  g_autofree gchar *neon_gpu
+      = g_strdup_printf ("true:%s,gpu", get_accl_hw_str (ACCL_CPU_NEON));
+
+  if (!neonReplaced ())
+    GTEST_SKIP () << "cpu_neon_accel_available () cannot be replaced in this build.";
+
+  fake_neon_ret = -EINVAL;
+  setString (PROP_FRAMEWORK, accl_neon_mock_subplugin::neon_mock_name);
+  setString (PROP_ACCELERATOR, "true:auto");
+
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  setString (PROP_ACCELERATOR, "true:default");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  setString (PROP_ACCELERATOR, "true:gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  setString (PROP_ACCELERATOR, "true:cpu.neon,gpu");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  setString (PROP_ACCELERATOR, "true:cpu.neon");
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+
+  /* NEON by the name of this architecture (cpu.simd on non-ARM) */
+  setString (PROP_ACCELERATOR, neon_gpu);
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_GPU);
+}
+
+/**
+ * @brief A V1 framework supporting NEON only gets no acceleration on a device without NEON.
+ */
+TEST_F (testFilterAccelerator, neonOnlyUnavailable_n)
+{
+  if (!neonReplaced ())
+    GTEST_SKIP () << "cpu_neon_accel_available () cannot be replaced in this build.";
+
+  fake_neon_ret = -EINVAL;
+  accl_neon_mock_subplugin::neon_num_hw = 1;
+  setString (PROP_FRAMEWORK, accl_neon_mock_subplugin::neon_mock_name);
+  setString (PROP_ACCELERATOR, "true:auto");
+
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], ACCL_NONE);
+}
+
+/**
+ * @brief V0 and V1 frameworks listing the same accelerators resolve "auto" to
+ *        the same one on a device without NEON.
+ */
+TEST_F (testFilterAccelerator, neonUnavailableSameAsV0_n)
+{
+  const gchar *v0_hw_list[] = { ACCL_CPU_NEON_STR, ACCL_GPU_STR, NULL };
+  accl_hw v0_hw;
+
+  if (!neonReplaced ())
+    GTEST_SKIP () << "cpu_neon_accel_available () cannot be replaced in this build.";
+
+  fake_neon_ret = -EINVAL;
+  v0_hw = parse_accl_hw ("true:auto", v0_hw_list, ACCL_CPU_NEON_STR, ACCL_CPU_NEON_STR);
+  setString (PROP_FRAMEWORK, accl_neon_mock_subplugin::neon_mock_name);
+  setString (PROP_ACCELERATOR, "true:auto");
+
+  EXPECT_EQ (v0_hw, ACCL_GPU);
+  ASSERT_EQ (priv.prop.num_hw, 1);
+  EXPECT_EQ (priv.prop.hw_list[0], v0_hw);
+}
+
+/**
+ * @brief C++ sub-plugin whose asynchronous output is released by the test.
+ */
+class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
+{
+  public:
+  static async_output_subplugin *registered; /**< registered factory */
+  static std::mutex lock; /**< protects the invocation handoff */
+  static std::condition_variable cond; /**< signals an input or model close */
+  static bool closed; /**< records suspend closing the active instance */
+  static guint invocations; /**< number of inputs accepted by the mock */
+  static std::atomic<guint> released; /**< output allocations released by the framework */
+  bool configured = false; /**< distinguishes an instance from the factory */
+  GstTensorFilterProperties *properties = nullptr; /**< configured instance properties */
+  static GstTensorFilterProperties *pending; /**< live properties until teardown */
+
+  /** @brief record when a configured instance is suspended or stopped */
+  ~async_output_subplugin () override
+  {
+    if (configured) {
+      std::lock_guard<std::mutex> guard (lock);
+      closed = true;
+      cond.notify_all ();
+    }
+  }
+
+  /** @brief create an independent instance */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new async_output_subplugin ());
+  }
+
+  /** @brief accept the fixture's temporary model file */
+  void configure_instance (const GstTensorFilterProperties *prop) override
+  {
+    properties = const_cast<GstTensorFilterProperties *> (prop);
+    configured = true;
+  }
+
+  /** @brief queue an input through the non-dynamic entry point */
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output) override
+  {
+    invoke_dynamic (properties, input, output);
+  }
+
+  /** @brief queue async inputs, or return an allocated synchronous result */
+  void invoke_dynamic (GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output) override
+  {
+    if (!prop->invoke_async)
+      gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
+    {
+      std::lock_guard<std::mutex> guard (lock);
+      pending = prop;
+      invocations++;
+      cond.notify_all ();
+    }
+
+    if (g_strcmp0 (prop->custom_properties, "fail") == 0)
+      throw std::invalid_argument ("Requested invocation failure");
+
+    if (!prop->invoke_async) {
+      output[0].data = _g_memdup (input[0].data, input[0].size);
+      output[0].size = input[0].size;
+    }
+  }
+
+  /** @brief describe an allocating, model-backed V1 framework */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    info.name = "async_output_mock";
+    info.allow_in_place = FALSE;
+    info.allocate_in_invoke = TRUE;
+    info.run_without_model = FALSE;
+    info.verify_model_path = TRUE;
+    info.hw_list = nullptr;
+    info.num_hw = 0;
+  }
+
+  /** @brief report one uint8 tensor in each direction */
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info) override
+  {
+    if (ops != GET_IN_OUT_INFO)
+      return -ENOENT;
+
+    gst_tensors_info_init (&in_info);
+    in_info.num_tensors = 1;
+    in_info.info[0].type = _NNS_UINT8;
+    for (guint i = 0; i < 4; i++)
+      in_info.info[0].dimension[i] = 1;
+    gst_tensors_info_copy (&out_info, &in_info);
+    return 0;
+  }
+
+  /** @brief provide the framework's optional event hook */
+  int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data) override
+  {
+    if (ops == DESTROY_NOTIFY) {
+      if (data.data) {
+        released.fetch_add (1);
+        g_free (data.data);
+      }
+      return 0;
+    }
+    return -ENOENT;
+  }
+
+  /** @brief register the mock factory */
+  static void init ()
+  {
+    registered = register_subplugin<async_output_subplugin> ();
+  }
+
+  /** @brief unregister the mock factory */
+  static void fini ()
+  {
+    if (registered)
+      unregister_subplugin<async_output_subplugin> (registered);
+    registered = nullptr;
+  }
+
+  /** @brief wait for the streaming thread to queue its input */
+  static bool waitForInput (guint count = 1)
+  {
+    std::unique_lock<std::mutex> guard (lock);
+    return cond.wait_for (guard, std::chrono::seconds (5),
+        [count] { return invocations >= count; });
+  }
+
+  /** @brief wait for the suspend watchdog to close the model */
+  static bool waitForClose ()
+  {
+    std::unique_lock<std::mutex> guard (lock);
+    return cond.wait_for (guard, std::chrono::seconds (2), [] { return closed; });
+  }
+
+  /** @brief dispatch one result independently of the input's streaming thread */
+  static void dispatch (guint8 value)
+  {
+    GstTensorMemory output = { _g_memdup (&value, sizeof (value)), sizeof (value) };
+    GstTensorFilterProperties *prop;
+
+    {
+      std::lock_guard<std::mutex> guard (lock);
+      prop = pending;
+    }
+    gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
+    nnstreamer_filter_dispatch_output_async (prop, &output);
+  }
+};
+
+async_output_subplugin *async_output_subplugin::registered = nullptr;
+std::mutex async_output_subplugin::lock;
+std::condition_variable async_output_subplugin::cond;
+bool async_output_subplugin::closed = false;
+guint async_output_subplugin::invocations = 0;
+std::atomic<guint> async_output_subplugin::released{ 0 };
+GstTensorFilterProperties *async_output_subplugin::pending = nullptr;
+
+/** @brief Exercise queued inputs and callback outputs without an ML runtime. */
+class testFilterAsyncOutput : public ::testing::Test
+{
+  protected:
+  GstElement *pipeline; /**< pipeline owned by the fixture */
+  GstElement *sink; /**< retained appsink reference */
+  gchar *model; /**< dummy file used to open the mock */
+
+  /** @brief register the mock and create its model placeholder */
+  void SetUp () override
+  {
+    pipeline = sink = nullptr;
+    model = nullptr;
+    async_output_subplugin::pending = nullptr;
+    async_output_subplugin::closed = false;
+    async_output_subplugin::invocations = 0;
+    async_output_subplugin::released.store (0);
+    async_output_subplugin::init ();
+    ASSERT_NE (async_output_subplugin::registered, nullptr);
+    int fd = g_file_open_tmp ("nnstreamer-async-XXXXXX", &model, nullptr);
+    ASSERT_GE (fd, 0);
+    close (fd);
+  }
+
+  /** @brief stop streaming before unregistering the mock */
+  void TearDown () override
+  {
+    if (pipeline) {
+      gst_element_set_state (pipeline, GST_STATE_NULL);
+      gst_object_unref (pipeline);
+    }
+    if (sink)
+      gst_object_unref (sink);
+    async_output_subplugin::fini ();
+    async_output_subplugin::pending = nullptr;
+    if (model)
+      g_unlink (model);
+    g_free (model);
+  }
+
+  /** @brief submit one byte to a dynamic or non-dynamic C++ filter */
+  void start (bool asynchronous, bool fail = false, guint suspend = 0, bool dynamic = true)
+  {
+    g_autofree gchar *description = g_strdup_printf (
+        "appsrc name=source caps=\"other/tensors,num_tensors=1,types=uint8,"
+        "dimensions=1:1:1:1,format=static,framerate=0/1\" ! "
+        "tensor_filter name=filter framework=async_output_mock model=%s invoke-dynamic=%s "
+        "invoke-async=%s custom=%s suspend=%u ! other/tensors,format=flexible ! "
+        "appsink name=sink sync=false async=false",
+        model, dynamic ? "true" : "false", asynchronous ? "true" : "false",
+        fail ? "fail" : "ok", suspend);
+    GError *error = nullptr;
+    pipeline = gst_parse_launch (description, &error);
+    ASSERT_EQ (error, nullptr);
+    ASSERT_NE (pipeline, nullptr);
+    sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+    GstElement *source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+    ASSERT_NE (sink, nullptr);
+    ASSERT_NE (source, nullptr);
+    ASSERT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+    guint8 value = 0x2a;
+    GstBuffer *input = gst_buffer_new_allocate (nullptr, sizeof (value), nullptr);
+    gst_buffer_fill (input, 0, &value, sizeof (value));
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+    gst_object_unref (source);
+    ASSERT_TRUE (async_output_subplugin::waitForInput ());
+  }
+
+  /** @brief Select after flexible caps negotiation, before the worker returns. */
+  void selectOutputs (const gchar *combination)
+  {
+    GstElement *filter = gst_bin_get_by_name (GST_BIN (pipeline), "filter");
+    ASSERT_NE (filter, nullptr);
+    g_object_set (filter, "output-combination", combination, nullptr);
+    gst_object_unref (filter);
+    ASSERT_NE (async_output_subplugin::pending, nullptr);
+    EXPECT_EQ (async_output_subplugin::pending->output_meta.num_tensors, 0U);
+  }
+
+  /** @brief Send distinct result payloads and inspect their selected headers. */
+  void dispatchSelected (guint count, const std::vector<guint> &selected, int invalid = -1)
+  {
+    GstTensorsInfo info;
+    gst_tensors_info_init (&info);
+    info.num_tensors = count;
+    info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    std::vector<GstTensorMemory> output (count);
+    for (guint i = 0; i < count; i++) {
+      GstTensorInfo *tensor = gst_tensors_info_get_nth_info (&info, i);
+      tensor->type = (int) i == invalid ? _NNS_END : _NNS_UINT8;
+      tensor->dimension[0] = i + 1;
+      for (guint j = 1; j < NNS_TENSOR_RANK_LIMIT; j++)
+        tensor->dimension[j] = 1;
+      output[i].size = i + 1;
+      output[i].data = g_malloc (output[i].size);
+      memset (output[i].data, 0x30 + i, output[i].size);
+    }
+    nnstreamer_filter_dispatch_output_async_with_info (
+        async_output_subplugin::pending, output.data (), &info);
+    gst_tensors_info_free (&info);
+    GstSample *sample = gst_app_sink_try_pull_sample (
+        GST_APP_SINK (sink), selected.empty () ? 50 * GST_MSECOND : GST_SECOND);
+    if (selected.empty ()) {
+      EXPECT_EQ (sample, nullptr);
+      if (sample)
+        gst_sample_unref (sample);
+      return;
+    }
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *buffer = gst_sample_get_buffer (sample);
+    const guint tensors = gst_tensor_buffer_get_count (buffer);
+    EXPECT_EQ (tensors, selected.size ());
+    const guint inspected = tensors < selected.size () ? tensors : selected.size ();
+    for (guint i = 0; i < inspected; i++) {
+      GstMemory *memory = gst_tensor_buffer_get_nth_memory (buffer, i);
+      GstMapInfo map;
+      if (gst_memory_map (memory, &map, GST_MAP_READ)) {
+        GstTensorMetaInfo meta;
+        gst_tensor_meta_info_init (&meta);
+        EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+        const gsize header = gst_tensor_meta_info_get_header_size (&meta);
+        EXPECT_EQ (meta.type, _NNS_UINT8);
+        EXPECT_EQ (meta.dimension[0], selected[i] + 1);
+        EXPECT_EQ (map.size, header + selected[i] + 1);
+        if (map.size >= header) {
+          for (gsize j = header; j < map.size; j++) {
+            EXPECT_EQ (map.data[j], 0x30 + selected[i]);
+          }
+        }
+        gst_memory_unmap (memory, &map);
+      } else {
+        ADD_FAILURE () << "Cannot map a selected result";
+      }
+      gst_memory_unref (memory);
+    }
+    gst_sample_unref (sample);
+    EXPECT_EQ (async_output_subplugin::pending->output_meta.num_tensors, 0U);
+  }
+
+  /** @brief check the scalar payload after its flexible tensor header */
+  void expectValue (GstSample *sample, guint8 value)
+  {
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *buffer = gst_sample_get_buffer (sample);
+    ASSERT_EQ (gst_buffer_n_memory (buffer), 1U);
+    GstMapInfo map;
+    ASSERT_TRUE (gst_buffer_map (buffer, &map, GST_MAP_READ));
+    EXPECT_GT (map.size, 1U);
+    if (map.size > 0) {
+      EXPECT_EQ (map.data[map.size - 1], value);
+    }
+    gst_buffer_unmap (buffer, &map);
+  }
+};
+
+/** @brief Queued inputs produce nothing until a callback supplies real data. */
+TEST_F (testFilterAsyncOutput, noPlaceholderBuffer)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 100 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+
+  async_output_subplugin::dispatch (0x5a);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
+  if (sample)
+    gst_sample_unref (sample);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 100 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief One queued input may generate several ordered callback outputs. */
+TEST_F (testFilterAsyncOutput, multipleCallbacksFromOneInput)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+
+  for (guint8 value = 1; value <= 8; value++) {
+    async_output_subplugin::dispatch (value);
+    sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+    EXPECT_NO_FATAL_FAILURE (expectValue (sample, value));
+    if (sample)
+      gst_sample_unref (sample);
+  }
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Dropping several inputs must not add a sample for any of them. */
+TEST_F (testFilterAsyncOutput, inputBurstWithoutPlaceholders)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstElement *source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  ASSERT_NE (source, nullptr);
+  for (guint8 value = 1; value < 16; value++) {
+    GstBuffer *input = gst_buffer_new_allocate (nullptr, sizeof (value), nullptr);
+    gst_buffer_fill (input, 0, &value, sizeof (value));
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+  }
+  gst_object_unref (source);
+  ASSERT_TRUE (async_output_subplugin::waitForInput (16));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+
+  async_output_subplugin::dispatch (0x7f);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x7f));
+  if (sample)
+    gst_sample_unref (sample);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief An accepted input with no generated output can finish with EOS. */
+TEST_F (testFilterAsyncOutput, eosWithoutGeneratedOutput)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstElement *source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  ASSERT_NE (source, nullptr);
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (source)), GST_FLOW_OK);
+  gst_object_unref (source);
+
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessage *message = gst_bus_timed_pop_filtered (
+      bus, GST_SECOND, (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  EXPECT_NE (message, nullptr);
+  if (message) {
+    EXPECT_EQ (GST_MESSAGE_TYPE (message), GST_MESSAGE_EOS);
+    gst_message_unref (message);
+  }
+  EXPECT_TRUE (gst_app_sink_is_eos (GST_APP_SINK (sink)));
+  gst_object_unref (bus);
+}
+
+/** @brief A synchronous invoke still forwards its allocated result. */
+TEST_F (testFilterAsyncOutput, synchronousOutput)
+{
+  ASSERT_NO_FATAL_FAILURE (start (false));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x2a));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Async mode does not turn a failed invocation into a dropped buffer. */
+TEST_F (testFilterAsyncOutput, invokeError_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, true));
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessage *error = gst_bus_timed_pop_filtered (bus, GST_SECOND, GST_MESSAGE_ERROR);
+  EXPECT_NE (error, nullptr);
+  if (error)
+    gst_message_unref (error);
+  gst_object_unref (bus);
+}
+
+/** @brief Count a single-shot callback while checking its scalar result. */
+static int
+_record_single_async_output (GstTensorMemory *data, GstTensorsInfo *info, void *user_data)
+{
+  guint *count = (guint *) user_data;
+  EXPECT_EQ (info->num_tensors, 1U);
+  EXPECT_EQ (data[0].size, 1U);
+  EXPECT_EQ (*(guint8 *) data[0].data, 0x5a);
+  (*count)++;
+  return 0;
+}
+
+/** @brief The single-shot API still accepts a successfully queued async input. */
+TEST_F (testFilterAsyncOutput, singleShotAsyncSuccess)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-dynamic", TRUE,
+      "invoke-async", TRUE, nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint8 value = 0x2a;
+  guint count = 0;
+  GstTensorMemory input = { &value, sizeof (value) };
+  GstTensorMemory output = {};
+
+  ASSERT_TRUE (klass->set_invoke_async_callback (single, _record_single_async_output, &count));
+  EXPECT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  EXPECT_EQ (output.data, nullptr);
+  EXPECT_EQ (count, 0U);
+  async_output_subplugin::dispatch (0x5a);
+  EXPECT_EQ (count, 1U);
+}
+
+/** @brief Accepting an async input still arms the idle suspend watchdog. */
+TEST_F (testFilterAsyncOutput, asyncSuspend)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 50));
+  EXPECT_TRUE (async_output_subplugin::waitForClose ());
+}
+
+/** @brief Build metadata for independently owned variable-size results. */
+static void
+_async_result_info (GstTensorsInfo *info, guint count, guint size)
+{
+  gst_tensors_info_init (info);
+  info->num_tensors = count;
+  info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  for (guint i = 0; i < count; i++) {
+    GstTensorInfo *tensor = gst_tensors_info_get_nth_info (info, i);
+    tensor->type = _NNS_UINT8;
+    tensor->dimension[0] = size;
+    for (guint j = 1; j < 4; j++)
+      tensor->dimension[j] = 1;
+  }
+}
+
+/** @brief Per-result count and dimensions must override negotiated metadata. */
+TEST_F (testFilterAsyncOutput, independentOutputMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  for (guint count = 2; count <= 3; count++) {
+    GstTensorsInfo info;
+    GstTensorMemory output[3] = {};
+    _async_result_info (&info, count, count + 5);
+    for (guint i = 0; i < count; i++) {
+      output[i].size = count + 5;
+      output[i].data = g_malloc0 (output[i].size);
+    }
+    nnstreamer_filter_dispatch_output_async_with_info (
+        async_output_subplugin::pending, output, &info);
+    // The callback consumes the description synchronously, not its ownership.
+    gst_tensors_info_free (&info);
+    GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *buffer = gst_sample_get_buffer (sample);
+    EXPECT_EQ (gst_tensor_buffer_get_count (buffer), count);
+    for (guint i = 0; i < gst_tensor_buffer_get_count (buffer); i++) {
+      GstMemory *memory = gst_tensor_buffer_get_nth_memory (buffer, i);
+      GstMapInfo map;
+      if (gst_memory_map (memory, &map, GST_MAP_READ)) {
+        GstTensorMetaInfo meta;
+        gst_tensor_meta_info_init (&meta);
+        EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+        EXPECT_EQ (meta.dimension[0], count + 5);
+        EXPECT_EQ (meta.type, _NNS_UINT8);
+        EXPECT_EQ (map.size, gst_tensor_meta_info_get_header_size (&meta) + count + 5);
+        gst_memory_unmap (memory, &map);
+      } else {
+        ADD_FAILURE () << "Cannot map the async result";
+      }
+      gst_memory_unref (memory);
+    }
+    gst_sample_unref (sample);
+    EXPECT_EQ (async_output_subplugin::pending->output_meta.num_tensors, 0U);
+  }
+}
+
+/** @brief Selection keeps result-specific order, headers, and ownership. */
+TEST_F (testFilterAsyncOutput, selectedResultMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs ("o2,o0,o2"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, { 2, 0, 2 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 3U);
+}
+
+/** @brief Output packing also uses independent descriptions beyond memory 16. */
+TEST_F (testFilterAsyncOutput, selectedPackedResultMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs (
+      "o17,o0,o17,o1,o2,o3,o4,o5,o6,o7,o8,o9,o10,o11,o12,o13,o14,o15"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (
+      18, { 17, 0, 17, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 18U);
+}
+
+/** @brief Indices absent from a shorter result are skipped without stale data. */
+TEST_F (testFilterAsyncOutput, selectedShorterResultMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs ("o2,o0,o2"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (1, { 0 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 1U);
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, { 2, 0, 2 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 4U);
+}
+
+/** @brief An invalid selected tensor releases earlier and skipped allocations. */
+TEST_F (testFilterAsyncOutput, selectedInvalidResultCleanup_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs ("o0,o2"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, {}, 2));
+  EXPECT_EQ (async_output_subplugin::released.load (), 3U);
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, { 0, 2 }));
+  EXPECT_EQ (async_output_subplugin::released.load (), 6U);
+}
+
+/** @brief Unselected metadata need not describe a delivered tensor. */
+TEST_F (testFilterAsyncOutput, unselectedInvalidResultCleanup)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  ASSERT_NO_FATAL_FAILURE (selectOutputs ("o0"));
+  ASSERT_NO_FATAL_FAILURE (dispatchSelected (3, { 0 }, 1));
+  EXPECT_EQ (async_output_subplugin::released.load (), 3U);
+}
+
+/** @brief A legacy worker may resize metadata while more inputs are queued. */
+TEST_F (testFilterAsyncOutput, concurrentLegacyMetadata)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstElement *source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  ASSERT_NE (source, nullptr);
+  std::atomic<bool> go{ false };
+  GstTensorFilterProperties *prop;
+  {
+    std::lock_guard<std::mutex> guard (async_output_subplugin::lock);
+    prop = async_output_subplugin::pending;
+  }
+  std::thread worker ([prop, &go] {
+    while (!go.load ())
+      std::this_thread::yield ();
+    gst_tensors_info_copy (&prop->output_meta, &prop->input_meta);
+    for (guint i = 0; i < 128; i++) {
+      guint size = 1 + i % 8;
+      prop->output_meta.info[0].dimension[0] = size;
+      GstTensorMemory output = { g_malloc0 (size), size };
+      nnstreamer_filter_dispatch_output_async (prop, &output);
+    }
+  });
+  go.store (true);
+  for (guint i = 0; i < 256; i++) {
+    GstBuffer *input = gst_buffer_new_allocate (nullptr, 1, nullptr);
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+  }
+  worker.join ();
+  gst_object_unref (source);
+  EXPECT_TRUE (async_output_subplugin::waitForInput (257));
+  for (guint i = 0; i < 128; i++) {
+    GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *buffer = gst_sample_get_buffer (sample);
+    GstMapInfo map;
+    ASSERT_TRUE (gst_buffer_map (buffer, &map, GST_MAP_READ));
+    GstTensorMetaInfo meta;
+    gst_tensor_meta_info_init (&meta);
+    EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+    EXPECT_EQ (meta.dimension[0], 1 + i % 8);
+    EXPECT_EQ (map.size, gst_tensor_meta_info_get_header_size (&meta) + 1 + i % 8);
+    gst_buffer_unmap (buffer, &map);
+    gst_sample_unref (sample);
+  }
+}
+
+/** @brief Count the tensors delivered by a single-shot per-result callback. */
+static int
+_count_single_result (GstTensorMemory *data, GstTensorsInfo *info, void *user_data)
+{
+  UNUSED (data);
+  *(guint *) user_data += info->num_tensors;
+  return 0;
+}
+
+/** @brief Single-shot cleanup follows the callback count, not the model count. */
+TEST_F (testFilterAsyncOutput, singleShotIndependentMetadata)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-dynamic", TRUE,
+      "invoke-async", TRUE, nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint8 value = 0x2a;
+  guint count = 0;
+  GstTensorMemory input = { &value, sizeof (value) };
+  GstTensorMemory unused = {};
+  ASSERT_TRUE (klass->set_invoke_async_callback (single, _count_single_result, &count));
+  ASSERT_TRUE (klass->invoke (single, &input, &unused, FALSE));
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 4);
+  GstTensorMemory output[2] = { { g_malloc0 (4), 4 }, { g_malloc0 (4), 4 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  EXPECT_EQ (count, 2U);
+  EXPECT_EQ (output[0].data, nullptr);
+  EXPECT_EQ (output[1].data, nullptr);
+  EXPECT_EQ (unused.data, nullptr);
+  gst_tensors_info_free (&info);
+}
+
+/** @brief Bad tensor descriptions produce no sample and do not poison recovery. */
+TEST_F (testFilterAsyncOutput, invalidResultMetadata_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  info.info[0].type = _NNS_END;
+  GstTensorMemory output[2] = { { g_malloc0 (1), 1 }, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+  async_output_subplugin::dispatch (0x5a);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Missing result memory frees every other entry using the supplied count. */
+TEST_F (testFilterAsyncOutput, missingResultData_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  GstTensorMemory output[2] = { {}, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  EXPECT_EQ (output[0].data, nullptr);
+  EXPECT_EQ (output[1].data, nullptr);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief With no consumer, the supplied count controls ownership release. */
+TEST_F (testFilterAsyncOutput, noCallbackResult_n)
+{
+  GstTensorFilterProperties prop = {};
+  prop.output_meta.num_tensors = 1;
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  GstTensorMemory output[2] = { { g_malloc0 (1), 1 }, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (&prop, output, &info);
+  EXPECT_EQ (output[0].data, nullptr);
+  EXPECT_EQ (output[1].data, nullptr);
+  gst_tensors_info_free (&info);
+}
+
+/**
  * @brief Main gtest
  */
 int
@@ -1148,4 +2749,68 @@ main (int argc, char **argv)
   }
 
   return result;
+}
+
+/** @brief Flexible non-dynamic output uses its own tensor description. */
+TEST_F (testFilterAsyncOutput, nonDynamicFlexibleOutput)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 0, false));
+  ASSERT_FALSE (async_output_subplugin::pending->invoke_dynamic);
+  GstTensorsInfo info;
+  _async_result_info (&info, 1, 1);
+  guint8 value = 0x68;
+  GstTensorMemory output = { _g_memdup (&value, 1), 1 };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, &output, &info);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, value));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Reject invalid first metadata, free every result and recover. */
+TEST_F (testFilterAsyncOutput, nonDynamicFlexibleInvalidMetadata_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 0, false));
+  ASSERT_FALSE (async_output_subplugin::pending->invoke_dynamic);
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  info.info[0].type = _NNS_END;
+  GstTensorMemory output[2] = { { g_malloc0 (1), 1 }, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+  async_output_subplugin::dispatch (0x5a);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Reject later invalid metadata after an earlier tensor was prepared. */
+TEST_F (testFilterAsyncOutput, nonDynamicFlexibleInvalidLaterMetadata_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 0, false));
+  ASSERT_FALSE (async_output_subplugin::pending->invoke_dynamic);
+  GstTensorsInfo info;
+  _async_result_info (&info, 2, 1);
+  info.info[1].type = _NNS_END;
+  GstTensorMemory output[2] = { { g_malloc0 (1), 1 }, { g_malloc0 (1), 1 } };
+  nnstreamer_filter_dispatch_output_async_with_info (
+      async_output_subplugin::pending, output, &info);
+  gst_tensors_info_free (&info);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), 50 * GST_MSECOND);
+  EXPECT_EQ (sample, nullptr);
+  if (sample)
+    gst_sample_unref (sample);
+  async_output_subplugin::dispatch (0x5a);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
+  if (sample)
+    gst_sample_unref (sample);
 }

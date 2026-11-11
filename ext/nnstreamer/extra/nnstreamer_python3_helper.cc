@@ -230,6 +230,69 @@ PyInit_nnstreamer_python (void)
 }
 
 /**
+ * @brief Whether the pending python error says that nnstreamer_python itself was not found.
+ * @return TRUE for a ModuleNotFoundError whose name is nnstreamer_python. The error stays pending.
+ */
+static gboolean
+isApiModuleNotFound (void)
+{
+  PyObject *name;
+  gboolean found;
+#if PY_VERSION_HEX >= 0x030C0000
+  PyObject *exc;
+#else
+  PyObject *type, *exc, *tb;
+#endif
+
+  if (!PyErr_ExceptionMatches (PyExc_ModuleNotFoundError))
+    return FALSE;
+
+#if PY_VERSION_HEX >= 0x030C0000
+  exc = PyErr_GetRaisedException ();
+#else
+  PyErr_Fetch (&type, &exc, &tb);
+  PyErr_NormalizeException (&type, &exc, &tb);
+#endif
+  name = exc ? PyObject_GetAttrString (exc, "name") : NULL;
+  found = name && PyUnicode_Check (name)
+          && PyUnicode_CompareWithASCIIString (name, "nnstreamer_python") == 0;
+  Py_XDECREF (name);
+  PyErr_Clear ();
+#if PY_VERSION_HEX >= 0x030C0000
+  PyErr_SetRaisedException (exc);
+#else
+  PyErr_Restore (type, exc, tb);
+#endif
+
+  return found;
+}
+
+/**
+ * @brief Import the nnstreamer_python module for the python sub-plugins and their scripts.
+ * @return New reference to the module, or NULL with a python error set.
+ * @note The caller holds the GIL. Only packages put nnstreamer_python.so on sys.path; where it
+ *       is missing, as in a tree installed by meson, the module is created from this library
+ *       and stored in sys.modules, so that the scripts can import it as well. That module has
+ *       no __file__ or __spec__, so importlib.reload() and find_spec() do not work on it.
+ */
+PyObject *
+importApiModule (void)
+{
+  PyObject *module = PyImport_ImportModule ("nnstreamer_python");
+
+  if (module != NULL || !isApiModuleNotFound ())
+    return module;
+
+  PyErr_Clear ();
+  module = PyInit_nnstreamer_python ();
+  if (module != NULL
+      && PyDict_SetItemString (PyImport_GetModuleDict (), "nnstreamer_python", module) != 0)
+    Py_CLEAR (module);
+
+  return module;
+}
+
+/**
  * @brief	return the data type of the tensor
  * @param npyType	: the defined type of Python numpy
  * @return the enum of defined _NNS_TYPE

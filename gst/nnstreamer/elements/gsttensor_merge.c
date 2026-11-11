@@ -430,6 +430,11 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
         }
       }
 
+      /* Keep the rank notation of the inputs unless the direction is above it. */
+      for (j = MAX (tensor_merge->notation_rank, (guint) targetIdx + 1);
+          j < NNS_TENSOR_RANK_LIMIT; j++)
+        dim[j] = 0;
+
       out_config->info.num_tensors = 1;
       out_config->rate_d = in_config->rate_d;
       out_config->rate_n = in_config->rate_n;
@@ -463,7 +468,7 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
 {
   GstFlowReturn ret;
   GstTensorInfo *info;
-  guint i, j;
+  guint i, j, rank;
 
   if (tensor_merge->need_set_time) {
     if (gst_tensor_time_sync_get_current_time (tensor_merge->collect,
@@ -481,10 +486,13 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
 
   if (ret == GST_FLOW_OK) {
     /* Expand implicit unit dimensions before negotiation and copying. */
+    tensor_merge->notation_rank = 0;
     for (i = 0; i < tensor_merge->tensors_config.info.num_tensors; i++) {
       info =
           gst_tensors_info_get_nth_info (&tensor_merge->tensors_config.info, i);
-      for (j = gst_tensor_info_get_rank (info); j <= LINEAR_FOURTH; j++)
+      rank = gst_tensor_info_get_rank (info);
+      tensor_merge->notation_rank = MAX (tensor_merge->notation_rank, rank);
+      for (j = rank; j <= LINEAR_FOURTH; j++)
         info->dimension[j] = 1;
     }
   }

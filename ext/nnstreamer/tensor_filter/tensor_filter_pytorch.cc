@@ -26,15 +26,15 @@
  *
  */
 
+#include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
-#define NO_ANONYMOUS_NESTED_STRUCT
-#include <nnstreamer_plugin_api_filter.h>
-#undef NO_ANONYMOUS_NESTED_STRUCT
 
 #include <nnstreamer_conf.h>
 #include <nnstreamer_util.h>
 
+#include <memory>
+#include <stdexcept>
 #include <torch/script.h>
 /**
  * Array.h and reverse_iterator.h of PyTorch is GPL-3.0 w/ GCC runtime
@@ -67,11 +67,9 @@ class TorchCore
 
   int init (const GstTensorFilterProperties *prop);
   int loadModel ();
-  const char *getModelPath ();
   int getInputTensorDim (GstTensorsInfo *info);
   int getOutputTensorDim (GstTensorsInfo *info);
-  int invoke (const GstTensorFilterProperties *prop,
-      const GstTensorMemory *input, GstTensorMemory *output);
+  int invoke (const GstTensorMemory *input, GstTensorMemory *output);
 
   private:
   char *model_path;
@@ -80,8 +78,7 @@ class TorchCore
 
   GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
-  unsigned int configured;
-  bool first_run; /**< must be reset after setting input info */
+  unsigned int inputRanks[NNS_TENSOR_SIZE_LIMIT]; /**< The ranks of input tensors */
 
   std::shared_ptr<torch::jit::script::Module> model;
 
@@ -89,7 +86,6 @@ class TorchCore
   tensor_type getTensorTypeFromTorch (torch::Dtype torchType);
   bool getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType);
   int validateOutputTensor (at::Tensor output, unsigned int idx);
-  int fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim);
   int processIValue (const torch::jit::IValue &value, GstTensorMemory *output,
       unsigned int idx);
   int serializeOutput (const torch::jit::IValue &value, GstTensorMemory *output,
@@ -111,9 +107,7 @@ TorchCore::TorchCore (const char *_model_path)
 {
   g_assert (_model_path != NULL);
   model_path = g_strdup (_model_path);
-  configured = 0;
   use_gpu = false;
-  first_run = true;
   accelerator = ACCL_NONE;
 
   gst_tensors_info_init (&inputTensorMeta);
@@ -168,24 +162,14 @@ TorchCore::init (const GstTensorFilterProperties *prop)
 
   gst_tensors_info_copy (&inputTensorMeta, &prop->input_meta);
   gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
+  std::memcpy (inputRanks, prop->input_ranks, sizeof (inputRanks));
 
   if (loadModel ()) {
     ml_loge ("Failed to load model\n");
     return -1;
   }
 
-  first_run = true;
   return 0;
-}
-
-/**
- * @brief	get the model path
- * @return the model path.
- */
-const char *
-TorchCore::getModelPath ()
-{
-  return model_path;
 }
 
 /**
@@ -296,10 +280,11 @@ TorchCore::getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType
     case _NNS_FLOAT16:
 #ifdef FLOAT16_SUPPORT
       *torchType = torch::kF16;
+      break;
 #else
       ml_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      return false;
 #endif
-      break;
     case _NNS_FLOAT32:
       *torchType = torch::kF32;
       break;
@@ -326,8 +311,8 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   auto tensor_shape = output.sizes ();
   tensor_type otype;
   gsize num_gst_tensor, num_torch_tensor;
-  at::Tensor sliced_output = output.slice (0);
-  c10::IntArrayRef sliced_output_sizes = sliced_output.sizes ();
+  at::Tensor sliced_output;
+  c10::IntArrayRef sliced_output_sizes;
   GstTensorInfo *_info;
 
   /** if idx is in bounds */
@@ -339,17 +324,24 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
 
   _info = gst_tensors_info_get_nth_info (&outputTensorMeta, idx);
 
-  /** when output is a scalar */
-  if (tensor_shape[0] == 0) {
+  /** when output is a scalar or has no element */
+  if (output.ndimension () == 0 || tensor_shape[0] == 0) {
     otype = getTensorTypeFromTorch (output.scalar_type ());
     if (_info->type != otype) {
       ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
           idx, idx, otype);
       return -2;
     }
-    goto done;
+    if (output.ndimension () == 0 && gst_tensor_get_element_count (_info->dimension) != 1) {
+      ml_loge ("Invalid output meta: the output at index %u is a scalar. Update the tensor shape to 1.",
+          idx);
+      return -3;
+    }
+    return 0;
   }
 
+  sliced_output = output.slice (0);
+  sliced_output_sizes = sliced_output.sizes ();
   otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
   if (_info->type != otype) {
     ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
@@ -371,8 +363,6 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
     return -3;
   }
 
-done:
-  configured++;
   return 0;
 }
 
@@ -422,9 +412,7 @@ TorchCore::processIValue (
   /** make the memory contiguous for direct access */
   output_tensor = output_tensor.contiguous ();
 
-  /* validate output tensor once */
-  if (configured < outputTensorMeta.num_tensors
-      && validateOutputTensor (output_tensor, idx)) {
+  if (validateOutputTensor (output_tensor, idx)) {
     ml_loge ("Output Tensor Information at index %d is not valid", idx);
     return -1;
   }
@@ -498,8 +486,7 @@ TorchCore::serializeOutput (const torch::jit::IValue &value,
  *         -4 if running the model failed.
  */
 int
-TorchCore::invoke (const GstTensorFilterProperties *prop,
-    const GstTensorMemory *input, GstTensorMemory *output)
+TorchCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
 #if (DBG)
   gint64 start_time = g_get_real_time ();
@@ -523,7 +510,7 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
       return -1;
     }
     at::TensorOptions options = torch::TensorOptions ().dtype (type);
-    input_shape.resize (prop->input_ranks[i]);
+    input_shape.resize (inputRanks[i]);
     std::reverse (input_shape.begin (), input_shape.end ());
     tensor = torch::from_blob (input[i].data, input_shape, options);
 
@@ -534,27 +521,7 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
     input_feeds.emplace_back (tensor);
   }
 
-  /**
-   * As the input information has not been verified, the first run for the model
-   * is encapsulated in a try-catch block
-   */
-  if (first_run) {
-    try {
-      output_value = model->forward (input_feeds);
-      first_run = false;
-    } catch (const std::runtime_error &re) {
-      ml_loge ("Runtime error while running the model: %s", re.what ());
-      return -4;
-    } catch (const std::exception &ex) {
-      ml_loge ("Exception while running the model : %s", ex.what ());
-      return -4;
-    } catch (...) {
-      ml_loge ("Unknown exception while running the model");
-      return -4;
-    }
-  } else {
-    output_value = model->forward (input_feeds);
-  }
+  output_value = model->forward (input_feeds);
 
   unsigned int idx = 0;
   int retval = serializeOutput (output_value, output, &idx, outputTensorMeta.num_tensors);
@@ -572,203 +539,172 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
   return 0;
 }
 
-/**
- * @brief	fill tensor dimension
- * @param tensor_meta	pytorch tensor variable
- * @param[out] dim the array of the tensor dimension
- * @return 0 if OK. non-zero if error.
- */
-int
-TorchCore::fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim)
+namespace nnstreamer
 {
-  int num_dim = tensor_meta.ndimension ();
-  g_assert (num_dim <= NNS_TENSOR_RANK_LIMIT);
-  /** the order of dimension is reversed at CAPS negotiation */
-  std::reverse_copy (tensor_meta.sizes ().begin (), tensor_meta.sizes ().end (), dim);
+namespace tensorfilter_pytorch
+{
+/**
+ * @brief Class for the pytorch tensor_filter subplugin.
+ */
+class pytorch_subplugin final : public tensor_filter_subplugin
+{
+  private:
+  std::unique_ptr<TorchCore> core; /**< The opened model; empty in an empty instance */
 
-  /** fill the remnants with 0 */
-  for (int idx = num_dim; idx < NNS_TENSOR_RANK_LIMIT; ++idx) {
-    dim[idx] = 0;
-  }
+  static const char *name;
+  static const accl_hw hw_list[];
+  static const int num_hw;
+  static pytorch_subplugin *registeredRepresentation;
 
-  return 0;
+  public:
+  static void init_filter_torch ();
+  static void fini_filter_torch ();
+
+  pytorch_subplugin ();
+
+  tensor_filter_subplugin &getEmptyInstance ();
+  void configure_instance (const GstTensorFilterProperties *prop);
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  void invoke_dynamic (GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output);
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
+};
+
+const char *pytorch_subplugin::name = "pytorch";
+const accl_hw pytorch_subplugin::hw_list[] = { ACCL_CPU, ACCL_GPU };
+const int pytorch_subplugin::num_hw = G_N_ELEMENTS (pytorch_subplugin::hw_list);
+pytorch_subplugin *pytorch_subplugin::registeredRepresentation = nullptr;
+
+/**
+ * @brief Construct an empty pytorch subplugin instance
+ */
+pytorch_subplugin::pytorch_subplugin ()
+    : tensor_filter_subplugin (), core (nullptr)
+{
 }
 
 /**
- * @brief Free privateData and move on.
+ * @brief Return a newly created empty instance
  */
-static void
-torch_close (const GstTensorFilterProperties *prop, void **private_data)
+tensor_filter_subplugin &
+pytorch_subplugin::getEmptyInstance ()
 {
-  TorchCore *core = static_cast<TorchCore *> (*private_data);
-  UNUSED (prop);
-
-  if (!core)
-    return;
-
-  delete core;
-
-  *private_data = NULL;
+  return *(new pytorch_subplugin ());
 }
 
 /**
- * @brief Load pytorch modelfile
- * @param prop property of tensor_filter instance
- * @param private_data : pytorch plugin's private data
- * @return 0 if successfully loaded. 1 if skipped (already loaded).
- *        -1 if the object construction is failed.
- *        -2 if the object initialization if failed
+ * @brief Load the model given in the tensor_filter properties
  */
-static gint
-torch_loadModelFile (const GstTensorFilterProperties *prop, void **private_data)
+void
+pytorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
-  TorchCore *core;
-  const gchar *model_path;
+  if (prop->num_models != 1 || prop->model_files == NULL || prop->model_files[0] == NULL)
+    throw std::invalid_argument ("pytorch takes exactly one model file.");
 
-  if (prop->num_models != 1)
-    return -1;
+  std::unique_ptr<TorchCore> new_core (new TorchCore (prop->model_files[0]));
 
-  core = static_cast<TorchCore *> (*private_data);
-  model_path = prop->model_files[0];
+  if (new_core->init (prop) != 0)
+    throw std::invalid_argument ("Failed to initialize the object for pytorch.");
 
-  if (core != NULL) {
-    if (g_strcmp0 (model_path, core->getModelPath ()) == 0)
-      return 1; /* skipped */
-
-    torch_close (prop, private_data);
-  }
-
-  core = new TorchCore (model_path);
-  if (core == NULL) {
-    g_printerr ("Failed to allocate memory for filter subplugin: PyTorch\n");
-    return -1;
-  }
-
-  if (core->init (prop) != 0) {
-    *private_data = NULL;
-    delete core;
-
-    g_printerr ("failed to initialize the object: PyTorch\n");
-    return -2;
-  }
-
-  *private_data = core;
-
-  return 0;
+  core = std::move (new_core);
 }
 
 /**
- * @brief The open callback for GstTensorFilterFramework. Called before anything else
- * @param prop property of tensor_filter instance
- * @param private_data : pytorch plugin's private data
+ * @brief Run the model with the input
  */
-static gint
-torch_open (const GstTensorFilterProperties *prop, void **private_data)
+void
+pytorch_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  gint status = torch_loadModelFile (prop, private_data);
+  if (input == NULL || output == NULL)
+    throw std::invalid_argument ("Input or output tensors are not given.");
 
-  return status;
+  if (core->invoke (input, output) != 0)
+    throw std::invalid_argument ("Failed to invoke the pytorch model.");
 }
 
 /**
- * @brief The mandatory callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : pytorch plugin's private data
- * @param[in] input The array of input tensors
- * @param[out] output The array of output tensors
- * @return 0 if OK. non-zero if error.
+ * @brief Refuse a dynamic invoke, which the base class would abort on
  */
-static gint
-torch_invoke (const GstTensorFilterProperties *prop, void **private_data,
+void
+pytorch_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
-  TorchCore *core = static_cast<TorchCore *> (*private_data);
-  g_return_val_if_fail (core && input && output, -EINVAL);
-
-  return core->invoke (prop, input, output);
-}
-
-/**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : pytorch plugin's private data
- * @param[out] info The dimensions and types of input tensors
- */
-static gint
-torch_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
-    GstTensorsInfo *info)
-{
-  TorchCore *core = static_cast<TorchCore *> (*private_data);
-  g_return_val_if_fail (core && info, -EINVAL);
   UNUSED (prop);
-
-  return core->getInputTensorDim (info);
+  UNUSED (input);
+  UNUSED (output);
+  throw std::invalid_argument ("pytorch does not support invoke-dynamic.");
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param prop property of tensor_filter instance
- * @param private_data : pytorch plugin's private data
- * @param[out] info The dimensions and types of output tensors
+ * @brief Get the pytorch framework info
  */
-static gint
-torch_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
-    GstTensorsInfo *info)
+void
+pytorch_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
-  TorchCore *core = static_cast<TorchCore *> (*private_data);
-  g_return_val_if_fail (core && info, -EINVAL);
-  UNUSED (prop);
-
-  return core->getOutputTensorDim (info);
+  info.name = name;
+  info.allow_in_place = FALSE; /** @todo: support this to optimize performance later. */
+  info.allocate_in_invoke = FALSE;
+  info.run_without_model = FALSE;
+  info.verify_model_path = TRUE; /* check that the given .pt files are valid */
+  info.hw_list = hw_list;
+  info.num_hw = num_hw;
+  info.accl_auto = hw_list[0];
+  info.accl_default = hw_list[0];
+  info.statistics = nullptr;
 }
 
 /**
- * @brief The optional callback for GstTensorFilterFramework
- * @param[in] hw backend accelerator hardware
- * @return 0 if supported. -errno if not supported.
+ * @brief Get the input and output tensor info given at open
  */
-static int
-torch_checkAvailability (accl_hw hw)
+int
+pytorch_subplugin::getModelInfo (
+    model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
-  if (g_strv_contains (torch_accl_support, get_accl_hw_str (hw)))
-    return 0;
+  int err;
 
-  return -ENOENT;
+  if (ops != GET_IN_OUT_INFO)
+    return -ENOENT;
+
+  if ((err = core->getInputTensorDim (std::addressof (in_info))) != 0)
+    return err;
+
+  return core->getOutputTensorDim (std::addressof (out_info));
 }
 
-static gchar filter_subplugin_pytorch[] = "pytorch";
+/**
+ * @brief Register the pytorch subplugin
+ */
+void
+pytorch_subplugin::init_filter_torch (void)
+{
+  registeredRepresentation
+      = tensor_filter_subplugin::register_subplugin<pytorch_subplugin> ();
+}
 
-static GstTensorFilterFramework NNS_support_pytorch = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-  .open = torch_open,
-  .close = torch_close,
-  { .v0 = {
-        .name = filter_subplugin_pytorch,
-        .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-        .allocate_in_invoke = FALSE,
-        .run_without_model = FALSE,
-        .verify_model_path = TRUE, /* check that the given .pt files are valid */
-        .statistics = nullptr,
-        .invoke_NN = torch_invoke,
-        .getInputDimension = torch_getInputDim,
-        .getOutputDimension = torch_getOutputDim,
-        .setInputDimension = nullptr,
-        .destroyNotify = nullptr,
-        .reloadModel = nullptr,
-        .handleEvent = nullptr,
-        .checkAvailability = torch_checkAvailability,
-        .allocateInInvoke = nullptr,
-    } } };
+/**
+ * @brief Unregister the pytorch subplugin
+ */
+void
+pytorch_subplugin::fini_filter_torch (void)
+{
+  assert (registeredRepresentation != nullptr);
+  tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
+}
+
+} /* namespace tensorfilter_pytorch */
+} /* namespace nnstreamer */
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_torch (void)
 {
-  nnstreamer_filter_probe (&NNS_support_pytorch);
+  nnstreamer::tensorfilter_pytorch::pytorch_subplugin::init_filter_torch ();
 }
 
 /** @brief Destruct the subplugin */
 void
 fini_filter_torch (void)
 {
-  nnstreamer_filter_exit (NNS_support_pytorch.v0.name);
+  nnstreamer::tensorfilter_pytorch::pytorch_subplugin::fini_filter_torch ();
 }

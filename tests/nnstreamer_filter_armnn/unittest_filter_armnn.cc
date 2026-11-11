@@ -12,6 +12,11 @@
 #include <glib.h>
 #include <glib/gstdio.h> /* GStatBuf */
 #include <sys/stat.h>
+#include <unistd.h>
+
+#include <armnn/ArmNN.hpp>
+#include <gst/check/gstharness.h>
+#include <gst/gst.h>
 
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
@@ -29,6 +34,20 @@ _SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar 
   prop->num_models = g_strv_length ((gchar **) models);
 }
 
+/**
+ * @brief Check the tensor info of add.tflite: one rank-1 float32 tensor
+ */
+static void
+_ExpectAddModelInfo (GstTensorsInfo *info)
+{
+  EXPECT_EQ (info->num_tensors, 1U);
+  EXPECT_EQ (info->info[0].type, _NNS_FLOAT32);
+  /** unused dimensions are reported as 0 */
+  EXPECT_EQ (info->info[0].dimension[0], 1U);
+  EXPECT_EQ (info->info[0].dimension[1], 0U);
+  EXPECT_EQ (info->info[0].dimension[2], 0U);
+  EXPECT_EQ (info->info[0].dimension[3], 0U);
+}
 
 /**
  * @brief Test armnn subplugin existence.
@@ -36,7 +55,78 @@ _SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar 
 TEST (nnstreamerFilterArmnn, checkExistence)
 {
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *) NULL);
+  ASSERT_NE (sp, (void *) NULL);
+  EXPECT_EQ (sp->version, GST_TENSOR_FILTER_FRAMEWORK_V1);
+}
+
+/**
+ * @brief Test the framework info of armnn subplugin
+ */
+TEST (nnstreamerFilterArmnn, getFrameworkInfo)
+{
+  GstTensorFilterFrameworkInfo info;
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL };
+  int ret;
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+  _SetFilterProp (&prop, "armnn", model_files);
+
+  memset (&info, 0, sizeof (info));
+  ret = sp->getFrameworkInfo (sp, &prop, NULL, &info);
+  EXPECT_EQ (ret, 0);
+  EXPECT_STREQ (info.name, "armnn");
+  EXPECT_FALSE (info.allow_in_place);
+  EXPECT_FALSE (info.allocate_in_invoke);
+  EXPECT_FALSE (info.run_without_model);
+  EXPECT_FALSE (info.verify_model_path);
+  EXPECT_EQ (info.statistics, nullptr);
+
+  /** the accelerators armnn accepted with v0 checkAvailability */
+  ASSERT_NE (info.hw_list, nullptr);
+#if defined(__aarch64__) || defined(__arm__)
+  ASSERT_EQ (info.num_hw, 3);
+  EXPECT_EQ (info.hw_list[0], ACCL_CPU_NEON);
+  EXPECT_EQ (info.hw_list[1], ACCL_CPU);
+  EXPECT_EQ (info.hw_list[2], ACCL_GPU);
+  EXPECT_EQ (info.accl_auto, ACCL_CPU_NEON);
+  EXPECT_EQ (info.accl_default, ACCL_CPU_NEON);
+#else
+  ASSERT_EQ (info.num_hw, 2);
+  EXPECT_EQ (info.hw_list[0], ACCL_CPU);
+  EXPECT_EQ (info.hw_list[1], ACCL_GPU);
+  EXPECT_EQ (info.accl_auto, ACCL_CPU);
+  EXPECT_EQ (info.accl_default, ACCL_CPU);
+#endif
+}
+
+/**
+ * @brief Test that armnn does not report accelerators it cannot use
+ */
+TEST (nnstreamerFilterArmnn, getFrameworkInfo_n)
+{
+  GstTensorFilterFrameworkInfo info;
+  GstTensorFilterProperties prop;
+  const gchar *model_files[] = { NULL };
+  int idx, ret;
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+  _SetFilterProp (&prop, "armnn", model_files);
+
+  memset (&info, 0, sizeof (info));
+  ret = sp->getFrameworkInfo (sp, &prop, NULL, &info);
+  EXPECT_EQ (ret, 0);
+  EXPECT_GT (info.num_hw, 0);
+  for (idx = 0; idx < info.num_hw; idx++) {
+    EXPECT_NE (info.hw_list[idx], ACCL_NPU);
+    EXPECT_NE (info.hw_list[idx], ACCL_NPU_VIVANTE);
+#if !defined(__aarch64__) && !defined(__arm__)
+    /** v0 never offered cpu.simd, the value cpu.neon has off arm */
+    EXPECT_NE (info.hw_list[idx], ACCL_CPU_SIMD);
+#endif
+  }
 }
 
 /**
@@ -106,7 +196,7 @@ TEST (nnstreamerFilterArmnn, getDimension)
   void *data = NULL;
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  GstTensorsInfo info, res;
+  GstTensorsInfo in_info, out_info;
   GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
@@ -128,47 +218,23 @@ TEST (nnstreamerFilterArmnn, getDimension)
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
-  /** add.tflite tensors are rank 1; unused dimensions are reported as 0 */
-  info.num_tensors = 1;
-  info.info[0].type = _NNS_FLOAT32;
-  info.info[0].dimension[0] = 1;
-  info.info[0].dimension[1] = 0;
-  info.info[0].dimension[2] = 0;
-  info.info[0].dimension[3] = 0;
-
   /** get input/output dimension successfully */
-  ret = sp->getInputDimension (&prop, &data, NULL);
-  EXPECT_NE (ret, 0);
-  ret = sp->getInputDimension (&prop, &data, &res);
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  ret = sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info);
   EXPECT_EQ (ret, 0);
 
-  EXPECT_EQ (res.num_tensors, info.num_tensors);
-  EXPECT_EQ (res.info[0].type, info.info[0].type);
-  EXPECT_EQ (res.info[0].dimension[0], info.info[0].dimension[0]);
-  EXPECT_EQ (res.info[0].dimension[1], info.info[0].dimension[1]);
-  EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
-  EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
-  gst_tensors_info_free (&res);
-
-  ret = sp->getOutputDimension (&prop, &data, NULL);
-  EXPECT_NE (ret, 0);
-  ret = sp->getOutputDimension (&prop, &data, &res);
-  EXPECT_EQ (ret, 0);
-
-  EXPECT_EQ (res.num_tensors, info.num_tensors);
-  EXPECT_EQ (res.info[0].type, info.info[0].type);
-  EXPECT_EQ (res.info[0].dimension[0], info.info[0].dimension[0]);
-  EXPECT_EQ (res.info[0].dimension[1], info.info[0].dimension[1]);
-  EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
-  EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
-  gst_tensors_info_free (&res);
+  _ExpectAddModelInfo (&in_info);
+  _ExpectAddModelInfo (&out_info);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
 
   sp->close (&prop, &data);
   g_free (model_file);
 }
 
 /**
- * @brief Get input dimensions before open
+ * @brief Get input/output dimensions before open
  */
 TEST (nnstreamerFilterArmnn, getDimension1_n)
 {
@@ -176,7 +242,7 @@ TEST (nnstreamerFilterArmnn, getDimension1_n)
   void *data = NULL;
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  GstTensorsInfo res;
+  GstTensorsInfo in_info, out_info;
   GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
@@ -195,15 +261,23 @@ TEST (nnstreamerFilterArmnn, getDimension1_n)
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *) NULL);
 
-  /** get input dimension without open */
-  ret = sp->getInputDimension (&prop, &data, &res);
+  /** get input/output dimension without open */
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  ret = sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info);
   EXPECT_NE (ret, 0);
 
+  /** the registered empty instance has no model either */
+  ret = sp->getModelInfo (sp, &prop, sp->subplugin_data, GET_IN_OUT_INFO, &in_info, &out_info);
+  EXPECT_NE (ret, 0);
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
   g_free (model_file);
 }
 
 /**
- * @brief Get output dimensions before open
+ * @brief Set the input dimension, which armnn does not support
  */
 TEST (nnstreamerFilterArmnn, getDimension2_n)
 {
@@ -211,7 +285,7 @@ TEST (nnstreamerFilterArmnn, getDimension2_n)
   void *data = NULL;
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  GstTensorsInfo res;
+  GstTensorsInfo in_info, out_info;
   GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
@@ -229,10 +303,21 @@ TEST (nnstreamerFilterArmnn, getDimension2_n)
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *) NULL);
 
-  /** get output dimension without open */
-  ret = sp->getOutputDimension (&prop, &data, &res);
-  EXPECT_NE (ret, 0);
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
 
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  in_info.num_tensors = 1;
+  in_info.info[0].type = _NNS_FLOAT32;
+  in_info.info[0].dimension[0] = 2;
+  ret = sp->getModelInfo (sp, &prop, data, SET_INPUT_INFO, &in_info, &out_info);
+  EXPECT_EQ (ret, -ENOENT);
+  EXPECT_EQ (out_info.num_tensors, 0U);
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  sp->close (&prop, &data);
   g_free (model_file);
 }
 
@@ -274,12 +359,12 @@ TEST (nnstreamerFilterArmnn, invoke00)
 
   /** invoke successful */
   *((float *) input.data) = 10.0;
-  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  ret = sp->invoke (sp, &prop, data, &input, &output);
   EXPECT_EQ (ret, 0);
   EXPECT_EQ (*((float *) output.data), 12.0);
 
   *((float *) input.data) = 1.0;
-  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  ret = sp->invoke (sp, &prop, data, &input, &output);
   EXPECT_EQ (ret, 0);
   EXPECT_EQ (*((float *) output.data), 3.0);
 
@@ -323,7 +408,7 @@ TEST (nnstreamerFilterArmnn, invoke01_n)
   output.data = g_malloc (output.size);
 
   /** invoke before open */
-  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  ret = sp->invoke (sp, &prop, data, &input, &output);
   EXPECT_NE (ret, 0);
 
   g_free (input.data);
@@ -367,7 +452,7 @@ TEST (nnstreamerFilterArmnn, invoke02_n)
   EXPECT_EQ (ret, 0);
 
   /** invoke without subplugin data */
-  ret = sp->invoke_NN (&prop, NULL, &input, &output);
+  ret = sp->invoke (sp, &prop, NULL, &input, &output);
   EXPECT_NE (ret, 0);
 
   g_free (input.data);
@@ -411,7 +496,7 @@ TEST (nnstreamerFilterArmnn, invoke03_n)
   EXPECT_EQ (ret, 0);
 
   /** invoke without input */
-  ret = sp->invoke_NN (&prop, &data, NULL, &output);
+  ret = sp->invoke (sp, &prop, data, NULL, &output);
   EXPECT_NE (ret, 0);
 
   g_free (output.data);
@@ -455,11 +540,407 @@ TEST (nnstreamerFilterArmnn, invoke04_n)
   EXPECT_EQ (ret, 0);
 
   /** invoke without output */
-  ret = sp->invoke_NN (&prop, &data, &input, NULL);
+  ret = sp->invoke (sp, &prop, data, &input, NULL);
   EXPECT_NE (ret, 0);
 
   g_free (input.data);
   sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
+ * @brief Get the path of add.tflite, which adds 2 to a float32 scalar
+ */
+static gchar *
+_GetAddModelPath (void)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  if (root_path == NULL)
+    return NULL;
+
+  return g_build_filename (root_path, "tests", "test_models", "models", "add.tflite", NULL);
+}
+
+/**
+ * @brief Open add.tflite with the given accelerator and check one inference
+ */
+static void
+_OpenAndInvokeAdd (const GstTensorFilterFramework *sp, accl_hw hw)
+{
+  int ret;
+  void *data = NULL;
+  float in_val = 10.0f, out_val = 0.0f;
+  GstTensorMemory input, output;
+  GstTensorFilterProperties prop;
+  gchar *model_file = _GetAddModelPath ();
+  const gchar *model_files[] = { model_file, NULL };
+  accl_hw hw_list[] = { hw };
+
+  ASSERT_NE (model_file, nullptr);
+  _SetFilterProp (&prop, "armnn", model_files);
+  prop.hw_list = hw_list;
+  prop.num_hw = 1;
+
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0) << "accelerator " << get_accl_hw_str (hw);
+
+  input.data = &in_val;
+  input.size = sizeof (float);
+  output.data = &out_val;
+  output.size = sizeof (float);
+  ret = sp->invoke (sp, &prop, data, &input, &output);
+  EXPECT_EQ (ret, 0) << "accelerator " << get_accl_hw_str (hw);
+  EXPECT_FLOAT_EQ (out_val, 12.0f) << "accelerator " << get_accl_hw_str (hw);
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (data, nullptr);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test armnn subplugin with the accelerator list given by tensor_filter
+ */
+TEST (nnstreamerFilterArmnn, openAccelerator)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+
+  /** cpu and none run on the reference backend */
+  _OpenAndInvokeAdd (sp, ACCL_CPU);
+  _OpenAndInvokeAdd (sp, ACCL_NONE);
+  /** cpu.neon, auto and default fall back to cpu without NEON */
+  _OpenAndInvokeAdd (sp, ACCL_CPU_NEON);
+  _OpenAndInvokeAdd (sp, ACCL_AUTO);
+  _OpenAndInvokeAdd (sp, ACCL_DEFAULT);
+}
+
+/**
+ * @brief Test armnn subplugin with an accelerator that armnn does not have
+ */
+TEST (nnstreamerFilterArmnn, openAcceleratorFallback)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+
+  /** an unsupported accelerator is not passed to armnn as a backend */
+  _OpenAndInvokeAdd (sp, ACCL_NPU);
+  _OpenAndInvokeAdd (sp, ACCL_NPU_VIVANTE);
+}
+
+/**
+ * @brief Check if armnn has the GpuAcc backend on this system
+ */
+static bool
+_HasGpuBackend (void)
+{
+  armnn::IRuntime::CreationOptions options;
+  armnn::IRuntimePtr runtime = armnn::IRuntime::Create (options);
+
+  if (!runtime)
+    return false;
+
+  return runtime->GetDeviceSpec ().GetSupportedBackends ().count (armnn::Compute::GpuAcc) > 0;
+}
+
+/**
+ * @brief Test that the gpu accelerator selects the GpuAcc backend of armnn
+ */
+TEST (nnstreamerFilterArmnn, openAcceleratorGpu_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorFilterProperties prop;
+  gchar *model_file = _GetAddModelPath ();
+  const gchar *model_files[] = { model_file, NULL };
+  accl_hw hw_list[] = { ACCL_GPU };
+  const bool has_gpu = _HasGpuBackend ();
+  ASSERT_NE (model_file, nullptr);
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+
+  _SetFilterProp (&prop, "armnn", model_files);
+  prop.hw_list = hw_list;
+  prop.num_hw = 1;
+
+  /** without the GpuAcc backend, as in CI, the model cannot be loaded */
+  ret = sp->open (&prop, &data);
+  if (has_gpu) {
+    EXPECT_EQ (ret, 0);
+  } else {
+    EXPECT_EQ (ret, -EINVAL);
+    EXPECT_EQ (data, nullptr);
+  }
+
+  sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test armnn subplugin open without a model
+ */
+TEST (nnstreamerFilterArmnn, openNoModel_n)
+{
+  int ret;
+  void *data = NULL;
+  const gchar *model_files[] = { NULL };
+  GstTensorFilterProperties prop;
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+
+  _SetFilterProp (&prop, "armnn", model_files);
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, -EINVAL);
+  EXPECT_EQ (data, nullptr);
+
+  prop.model_files = NULL;
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, -EINVAL);
+  EXPECT_EQ (data, nullptr);
+}
+
+/**
+ * @brief Test armnn subplugin open with models armnn cannot load
+ */
+TEST (nnstreamerFilterArmnn, openInvalidModel_n)
+{
+  int ret, fd;
+  void *data = NULL;
+  gchar *tmp_file = NULL;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorFilterProperties prop;
+  ASSERT_NE (root_path, nullptr);
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+
+  /** a directory is not a model file */
+  const gchar *dir_files[] = { root_path, NULL };
+  _SetFilterProp (&prop, "armnn", dir_files);
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, -EINVAL);
+  EXPECT_EQ (data, nullptr);
+
+  /** a regular file of a format armnn has no parser for */
+  fd = g_file_open_tmp ("nns-armnn-XXXXXX.onnx", &tmp_file, NULL);
+  ASSERT_GE (fd, 0);
+  close (fd);
+
+  const gchar *onnx_files[] = { tmp_file, NULL };
+  _SetFilterProp (&prop, "armnn", onnx_files);
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, -EINVAL);
+  EXPECT_EQ (data, nullptr);
+
+  g_remove (tmp_file);
+  g_free (tmp_file);
+}
+
+/**
+ * @brief Test armnn invoke with tensors of a wrong size
+ */
+TEST (nnstreamerFilterArmnn, invokeWrongSize_n)
+{
+  int ret;
+  void *data = NULL;
+  float in_val[2] = { 10.0f, 0.0f }, out_val[2] = { 0.0f, 0.0f };
+  GstTensorMemory input, output;
+  GstTensorFilterProperties prop;
+  gchar *model_file = _GetAddModelPath ();
+  const gchar *model_files[] = { model_file, NULL };
+  ASSERT_NE (model_file, nullptr);
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+
+  _SetFilterProp (&prop, "armnn", model_files);
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
+
+  input.data = in_val;
+  input.size = sizeof (in_val);
+  output.data = out_val;
+  output.size = sizeof (float);
+  ret = sp->invoke (sp, &prop, data, &input, &output);
+  EXPECT_EQ (ret, -EINVAL);
+
+  input.size = sizeof (float);
+  output.size = sizeof (out_val);
+  ret = sp->invoke (sp, &prop, data, &input, &output);
+  EXPECT_EQ (ret, -EINVAL);
+  EXPECT_FLOAT_EQ (out_val[0], 0.0f);
+
+  sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test that armnn handles no event, as with v0
+ */
+TEST (nnstreamerFilterArmnn, eventHandler_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorFilterProperties prop;
+  GstTensorFilterFrameworkEventData event;
+  gchar *model_file = _GetAddModelPath ();
+  const gchar *model_files[] = { model_file, NULL };
+  ASSERT_NE (model_file, nullptr);
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+
+  _SetFilterProp (&prop, "armnn", model_files);
+  memset (&event, 0, sizeof (event));
+
+  /** before open */
+  ret = sp->eventHandler (sp, &prop, data, RELOAD_MODEL, &event);
+  EXPECT_NE (ret, 0);
+
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
+
+  /** tensor_filter probes RELOAD_MODEL with NULL to set is-updatable */
+  ret = sp->eventHandler (sp, &prop, data, RELOAD_MODEL, NULL);
+  EXPECT_EQ (ret, -ENOENT);
+
+  event.model_files = model_files;
+  event.num_models = 1;
+  ret = sp->eventHandler (sp, &prop, data, RELOAD_MODEL, &event);
+  EXPECT_EQ (ret, -ENOENT);
+
+  memset (&event, 0, sizeof (event));
+  ret = sp->eventHandler (sp, &prop, data, CUSTOM_PROP, &event);
+  EXPECT_EQ (ret, -ENOENT);
+  ret = sp->eventHandler (sp, &prop, data, SET_ACCELERATOR, &event);
+  EXPECT_EQ (ret, -ENOENT);
+  ret = sp->eventHandler (sp, &prop, data, DESTROY_NOTIFY, &event);
+  EXPECT_EQ (ret, -ENOENT);
+
+  sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
+ * @brief Create a harness of tensor_filter with armnn and add.tflite
+ */
+static GstHarness *
+_CreateAddHarness (const gchar *model_file, const gchar *accelerator)
+{
+  GstHarness *h;
+  gchar *desc;
+
+  desc = g_strdup_printf ("tensor_filter framework=armnn model=%s accelerator=%s",
+      model_file, accelerator);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,num_tensors=(int)1,dimensions=(string)1,types=(string)float32,format=(string)static,framerate=(fraction)0/1");
+  return h;
+}
+
+/**
+ * @brief Test armnn subplugin in a pipeline, through tensor_filter
+ */
+TEST (nnstreamerFilterArmnn, pipelineInvoke)
+{
+  GstHarness *h;
+  GstElement *filter;
+  GstBuffer *in_buf, *out_buf;
+  GstMapInfo map;
+  gchar *str = NULL;
+  gboolean updatable = TRUE;
+  float in_val = 10.0f;
+  gchar *model_file = _GetAddModelPath ();
+  ASSERT_NE (model_file, nullptr);
+
+  h = _CreateAddHarness (model_file, "true:cpu");
+
+  in_buf = gst_buffer_new_allocate (NULL, sizeof (float), NULL);
+  gst_buffer_fill (in_buf, 0, &in_val, sizeof (float));
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_pull (h);
+  ASSERT_NE (out_buf, nullptr);
+  ASSERT_TRUE (gst_buffer_map (out_buf, &map, GST_MAP_READ));
+  ASSERT_EQ (map.size, sizeof (float));
+  EXPECT_FLOAT_EQ (*((float *) map.data), 12.0f);
+  gst_buffer_unmap (out_buf, &map);
+  gst_buffer_unref (out_buf);
+
+  filter = gst_harness_find_element (h, "tensor_filter");
+  ASSERT_NE (filter, nullptr);
+  g_object_get (filter, "accelerator", &str, NULL);
+  EXPECT_STREQ (str, "true:cpu");
+  g_free (str);
+
+  /** armnn refuses SET_ACCELERATOR, so the opened filter keeps true:cpu */
+  g_object_set (filter, "accelerator", "true:gpu", NULL);
+  g_object_get (filter, "accelerator", &str, NULL);
+  EXPECT_STREQ (str, "true:cpu");
+  g_free (str);
+
+  /** armnn cannot reload a model, so the filter stays not updatable */
+  g_object_set (filter, "is-updatable", TRUE, NULL);
+  g_object_get (filter, "is-updatable", &updatable, NULL);
+  EXPECT_FALSE (updatable);
+
+  gst_object_unref (filter);
+  gst_harness_teardown (h);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test armnn subplugin in a pipeline with a model it cannot open
+ */
+TEST (nnstreamerFilterArmnn, pipelineInvoke_n)
+{
+  GstElement *filter;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *model_file;
+  ASSERT_NE (root_path, nullptr);
+
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "no-such-model.tflite", NULL);
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_NE (filter, nullptr);
+  g_object_set (filter, "framework", "armnn", "model", model_file, NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test that the accelerator property of tensor_filter reaches armnn
+ */
+TEST (nnstreamerFilterArmnn, pipelineAcceleratorGpu_n)
+{
+  GstElement *filter;
+  GstStateChangeReturn ret;
+  const bool has_gpu = _HasGpuBackend ();
+  gchar *model_file = _GetAddModelPath ();
+  ASSERT_NE (model_file, nullptr);
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_NE (filter, nullptr);
+  g_object_set (filter, "framework", "armnn", "model", model_file,
+      "accelerator", "true:gpu", NULL);
+
+  /** without the GpuAcc backend, as in CI, the model cannot be loaded */
+  ret = gst_element_set_state (filter, GST_STATE_PAUSED);
+  if (has_gpu)
+    EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
+  else
+    EXPECT_EQ (ret, GST_STATE_CHANGE_FAILURE);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
   g_free (model_file);
 }
 
@@ -509,7 +990,7 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorMemory input, output;
-  GstTensorsInfo info, res;
+  GstTensorsInfo info, res, other;
   char *data_file;
   ssize_t data_read;
   size_t max_idx;
@@ -551,8 +1032,9 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   EXPECT_EQ (ret, 0);
 
   /** get input/output dimension successfully */
-  ret = sp->getInputDimension (&prop, &data, &res);
+  ret = sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &res, &other);
   EXPECT_EQ (ret, 0);
+  gst_tensors_info_free (&other);
 
   EXPECT_EQ (res.num_tensors, info.num_tensors);
   EXPECT_EQ (res.info[0].type, info.info[0].type);
@@ -564,8 +1046,9 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   input.size = gst_tensor_info_get_size (&res.info[0]);
   gst_tensors_info_free (&res);
 
-  ret = sp->getOutputDimension (&prop, &data, &res);
+  ret = sp->getModelInfo (sp, &prop, data, GET_IN_OUT_INFO, &other, &res);
   EXPECT_EQ (ret, 0);
+  gst_tensors_info_free (&other);
 
   /** the output tensor is rank 2; unused dimensions are reported as 0 */
   info.num_tensors = 1;
@@ -600,7 +1083,7 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
     close (fd);
   }
 
-  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  ret = sp->invoke (sp, &prop, data, &input, &output);
   EXPECT_EQ (ret, 0);
 
   /** entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt
@@ -687,7 +1170,7 @@ TEST (nnstreamerFilterArmnn, invoke01)
   EXPECT_EQ (ret, 0);
 
   /** invoke successful */
-  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  ret = sp->invoke (sp, &prop, data, &input, &output);
   EXPECT_EQ (ret, 0);
 
   max_idx = get_argmax<float> ((float *) output.data, num_labels);
@@ -714,7 +1197,7 @@ TEST (nnstreamerFilterArmnn, invoke01)
   EXPECT_EQ (ret, 0);
 
   /** invoke successful */
-  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  ret = sp->invoke (sp, &prop, data, &input, &output);
   EXPECT_EQ (ret, 0);
 
   max_idx = get_argmax<float> ((float *) output.data, num_labels);
@@ -744,6 +1227,8 @@ main (int argc, char **argv)
   } catch (...) {
     g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
   }
+
+  gst_init (&argc, &argv);
 
   try {
     result = RUN_ALL_TESTS ();

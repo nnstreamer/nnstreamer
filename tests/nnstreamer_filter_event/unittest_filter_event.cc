@@ -338,14 +338,33 @@ _count_critical_logs (const gchar *log_domain, GLogLevelFlags log_level,
 }
 
 /**
+ * @brief Count the critical logs of the default domain into @a count, proving the handler live first.
+ * @return The handler id, to be removed with g_log_remove_handler ().
+ */
+static guint
+_watch_critical_logs (guint *count)
+{
+  guint handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _count_critical_logs, count);
+  GLogLevelFlags fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+
+  g_log (NULL, G_LOG_LEVEL_CRITICAL, "[probe] filter event test log handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_EQ (*count, 1U);
+  *count = 0;
+
+  return handler;
+}
+
+/**
  * @brief Unloading a suspended C++ sub-plugin with suspend keeps it suspended,
  *        so it is resumed, not reopened, afterwards.
  */
 TEST_F (testFilterEvent, unloadSuspended)
 {
   guint critical_count = 0;
-  guint handler = g_log_set_handler (
-      NULL, G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
+  guint handler = _watch_critical_logs (&critical_count);
 
   gst_tensor_filter_common_unload_fw (&priv, TRUE);
   gst_tensor_filter_common_unload_fw (&priv, TRUE);
@@ -375,7 +394,7 @@ TEST_F (testFilterEvent, unloadSuspendedResumeFail_n)
   EXPECT_FALSE (gst_tensor_filter_common_open_fw (&priv));
   EXPECT_TRUE (priv.is_suspended);
 
-  handler = g_log_set_handler (NULL, G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
+  handler = _watch_critical_logs (&critical_count);
   gst_tensor_filter_common_unload_fw (&priv, TRUE);
   g_log_remove_handler (NULL, handler);
 
@@ -418,7 +437,7 @@ TEST_F (testFilterEvent, restartAfterSuspend)
   filter = gst_element_factory_make ("tensor_filter", NULL);
   ASSERT_TRUE (filter != nullptr);
   g_object_set (filter, "framework", event_mock_subplugin::mock_name, "suspend", 10, NULL);
-  handler = g_log_set_handler (NULL, G_LOG_LEVEL_CRITICAL, _count_critical_logs, &critical_count);
+  handler = _watch_critical_logs (&critical_count);
 
   EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
   for (i = 0; i < 5000 && g_atomic_int_get (suspend_count) == 0; i++)
@@ -703,6 +722,192 @@ TEST_F (testFilterEvent, isUpdatableUnsupported_n)
 
   EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 1U);
   EXPECT_FALSE (priv.is_updatable);
+}
+
+/**
+ * @brief Before open, the class of a C++ sub-plugin tells whether it is updatable.
+ */
+TEST_F (testFilterEvent, isUpdatableBeforeOpen)
+{
+  GValue value = G_VALUE_INIT;
+
+  gst_tensor_filter_common_unload_fw (&priv, FALSE);
+  ASSERT_TRUE (priv.privateData == NULL);
+  event_mock_subplugin::last_data = &priv;
+
+  g_value_init (&value, G_TYPE_BOOLEAN);
+  g_value_set_boolean (&value, TRUE);
+  EXPECT_TRUE (gst_tensor_filter_common_set_property (&priv, PROP_IS_UPDATABLE, &value, NULL));
+  g_value_unset (&value);
+
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 1U);
+  EXPECT_TRUE (event_mock_subplugin::last_data == nullptr);
+  EXPECT_TRUE (_event_record_is_zeroed ());
+  EXPECT_TRUE (priv.is_updatable);
+}
+
+/**
+ * @brief Before open, a C++ sub-plugin not supporting RELOAD_MODEL is not updatable.
+ */
+TEST_F (testFilterEvent, isUpdatableBeforeOpenUnsupported_n)
+{
+  GValue value = G_VALUE_INIT;
+
+  gst_tensor_filter_common_unload_fw (&priv, FALSE);
+  ASSERT_TRUE (priv.privateData == NULL);
+
+  event_mock_subplugin::event_ret = -ENOENT;
+  g_value_init (&value, G_TYPE_BOOLEAN);
+  g_value_set_boolean (&value, TRUE);
+  EXPECT_TRUE (gst_tensor_filter_common_set_property (&priv, PROP_IS_UPDATABLE, &value, NULL));
+  g_value_unset (&value);
+
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 1U);
+  EXPECT_FALSE (priv.is_updatable);
+}
+
+/**
+ * @brief Without an instance, only the is-updatable probe reaches the class of
+ *        a C++ sub-plugin; a reload with model files or another event is refused.
+ */
+TEST_F (testFilterEvent, eventWithoutInstance_n)
+{
+  GstTensorFilterFrameworkEventData data;
+  const gchar *models[] = { "second.model" };
+
+  gst_tensor_filter_common_unload_fw (&priv, FALSE);
+  ASSERT_TRUE (priv.privateData == NULL);
+
+  memset (&data, 0, sizeof (data));
+  data.model_files = models;
+  data.num_models = 1;
+  EXPECT_EQ (priv.fw->eventHandler (priv.fw, &priv.prop, NULL, RELOAD_MODEL, &data), -EINVAL);
+  EXPECT_EQ (priv.fw->eventHandler (priv.fw, &priv.prop, NULL, SUSPEND, NULL), -EINVAL);
+  EXPECT_EQ (priv.fw->eventHandler (priv.fw, &priv.prop, NULL, CUSTOM_PROP, NULL), -EINVAL);
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 0U);
+  EXPECT_EQ (event_mock_subplugin::num_events[SUSPEND], 0U);
+  EXPECT_EQ (event_mock_subplugin::num_events[CUSTOM_PROP], 0U);
+}
+
+/**
+ * @brief Without the framework, the is-updatable probe finds the class of a
+ *        C++ sub-plugin by the framework name in the properties.
+ */
+TEST_F (testFilterEvent, probeWithoutFramework)
+{
+  gst_tensor_filter_common_unload_fw (&priv, FALSE);
+
+  EXPECT_EQ (priv.fw->eventHandler (NULL, &priv.prop, NULL, RELOAD_MODEL, NULL), 0);
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 1U);
+
+  event_mock_subplugin::event_ret = -ENOENT;
+  EXPECT_EQ (priv.fw->eventHandler (NULL, &priv.prop, NULL, RELOAD_MODEL, NULL), -ENOENT);
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 2U);
+}
+
+/**
+ * @brief The is-updatable probe without an instance is refused when the class
+ *        of a C++ sub-plugin cannot be found.
+ */
+TEST_F (testFilterEvent, probeWithoutClass_n)
+{
+  GstTensorFilterProperties prop;
+  GstTensorFilterFramework fw;
+
+  gst_tensor_filter_common_unload_fw (&priv, FALSE);
+
+  memcpy (&prop, &priv.prop, sizeof (prop));
+  prop.fwname = "event_mock_subplugin_unknown";
+  EXPECT_EQ (priv.fw->eventHandler (NULL, &prop, NULL, RELOAD_MODEL, NULL), -EINVAL);
+  prop.fwname = NULL;
+  EXPECT_EQ (priv.fw->eventHandler (NULL, &prop, NULL, RELOAD_MODEL, NULL), -EINVAL);
+  EXPECT_EQ (priv.fw->eventHandler (NULL, NULL, NULL, RELOAD_MODEL, NULL), -EINVAL);
+
+  /* The framework of an opened instance, not of the class */
+  memcpy (&fw, priv.fw, sizeof (fw));
+  fw.subplugin_data = NULL;
+  EXPECT_EQ (priv.fw->eventHandler (&fw, &priv.prop, NULL, RELOAD_MODEL, NULL), -EINVAL);
+
+  memcpy (&fw, priv.fw, sizeof (fw));
+  fw.version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  EXPECT_EQ (priv.fw->eventHandler (&fw, &priv.prop, NULL, RELOAD_MODEL, NULL), -EINVAL);
+
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], 0U);
+}
+
+/**
+ * @brief A tensor_filter element set updatable before start reloads the model
+ *        of a C++ sub-plugin supporting RELOAD_MODEL.
+ */
+TEST_F (testFilterEvent, isUpdatableElement)
+{
+  GstElement *filter;
+  gboolean updatable = FALSE;
+  g_autofree gchar *model = NULL;
+  guint reloads;
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != nullptr);
+  g_object_set (filter, "framework", event_mock_subplugin::mock_name, "model",
+      "first.model", "is-updatable", TRUE, NULL);
+  g_object_get (filter, "is-updatable", &updatable, NULL);
+  EXPECT_TRUE (updatable);
+
+  ASSERT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  reloads = event_mock_subplugin::num_events[RELOAD_MODEL];
+  g_object_set (filter, "model", "second.model", NULL);
+  g_object_get (filter, "model", &model, NULL);
+
+  EXPECT_STREQ (model, "second.model");
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], reloads + 1);
+  ASSERT_EQ (event_mock_subplugin::last_event.num_models, 1);
+  EXPECT_STREQ (event_mock_subplugin::last_event.model_files[0], "second.model");
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (filter);
+}
+
+/**
+ * @brief A tensor_filter element set updatable before start is not updatable
+ *        with a C++ sub-plugin not supporting RELOAD_MODEL.
+ */
+TEST_F (testFilterEvent, isUpdatableElementUnsupported_n)
+{
+  GstElement *filter;
+  GstPad *sinkpad;
+  GstEvent *event;
+  gboolean updatable = TRUE;
+  g_autofree gchar *model = NULL;
+  guint reloads;
+
+  event_mock_subplugin::event_ret = -ENOENT;
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != nullptr);
+  g_object_set (filter, "framework", event_mock_subplugin::mock_name, "model",
+      "first.model", "is-updatable", TRUE, NULL);
+  g_object_get (filter, "is-updatable", &updatable, NULL);
+  EXPECT_FALSE (updatable);
+
+  ASSERT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  reloads = event_mock_subplugin::num_events[RELOAD_MODEL];
+  g_object_set (filter, "model", "second.model", NULL);
+  g_object_get (filter, "model", &model, NULL);
+
+  /* Not updatable: the new list is kept as set and no reload is tried. */
+  EXPECT_STREQ (model, "second.model");
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], reloads);
+
+  sinkpad = gst_element_get_static_pad (filter, "sink");
+  ASSERT_TRUE (sinkpad != nullptr);
+  event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM,
+      gst_structure_new ("evt_update_model", "model_files", G_TYPE_STRING,
+          "third.model", NULL));
+  EXPECT_FALSE (gst_pad_send_event (sinkpad, event));
+  EXPECT_EQ (event_mock_subplugin::num_events[RELOAD_MODEL], reloads);
+  gst_object_unref (sinkpad);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (filter);
 }
 
 /**

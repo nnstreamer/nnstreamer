@@ -1916,6 +1916,267 @@ TEST (tensorDecoderBoundingBox, trackBoxBackAtThreshold)
 }
 
 /**
+ * @brief Boxes moving over frames are drawn without a tracking id unless option6 asks for one.
+ */
+TEST (tensorDecoderBoundingBox, trackDisabledDrawsNoId_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeLabelFile ("X\n");
+  uint32_t untracked[BOX_OUT_PIXELS] = { 0U };
+  uint32_t tracked[BOX_OUT_PIXELS] = { 0U };
+  uint32_t expected[BOX_OUT_PIXELS] = { 0U };
+  void *pdata = NULL;
+  void *tracked_pdata = NULL;
+  void *expected_pdata = NULL;
+  SsdPpBoxes t;
+
+  ASSERT_TRUE (initSsdPpDecoder (decoder, &pdata, labels, "0", "0"));
+  ASSERT_TRUE (initSsdPpDecoder (decoder, &tracked_pdata, labels, "1", "0"));
+  ASSERT_TRUE (initSsdPpDecoder (decoder, &expected_pdata, labels, "0", "0"));
+
+  t.add (0.0f, TRACK_LEFT);
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &pdata, &t, untracked));
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &tracked_pdata, &t, tracked));
+
+  t.clear ();
+  t.add (0.0f, TRACK_BELOW);
+  t.add (0.0f, TRACK_RIGHT);
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &pdata, &t, untracked));
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &tracked_pdata, &t, tracked));
+  EXPECT_TRUE (decodeSsdPpBoxes (decoder, &expected_pdata, &t, expected));
+
+  EXPECT_GT (countDrawnPixels (expected, BOX_OUT_PIXELS), 0U);
+  EXPECT_EQ (memcmp (untracked, expected, sizeof (untracked)), 0);
+  EXPECT_NE (memcmp (untracked, tracked, sizeof (untracked)), 0);
+
+  decoder->exit (&expected_pdata);
+  decoder->exit (&tracked_pdata);
+  decoder->exit (&pdata);
+  removeTempFile (&labels);
+}
+
+/* yolov5 has three anchors for every cell of its three strides */
+#define YOLOV5_SMALL_BOXES (63U) /* 3 * (1 + 4 + 16) */
+
+/**
+ * @brief Decode one box of the single label of a yolov5 or yolov8 model of the input size YOLO_SMALL_MODEL.
+ * @param[in] option3 the option3 of the mode; its first value tells whether @a box is in pixels
+ * @param[in] box cx, cy, w and h of the box
+ */
+static gboolean
+decodeYoloBox (const gchar *mode, const gchar *option3, const float *box, uint32_t *frame)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gboolean v5 = g_str_equal (mode, "yolov5");
+  const guint info = v5 ? YOLO_BOX_INFO + 1 : YOLO_BOX_INFO;
+  const guint boxes = v5 ? YOLOV5_SMALL_BOXES : YOLO_SMALL_BOXES;
+  float tensor[(YOLO_BOX_INFO + 1) * YOLOV5_SMALL_BOXES] = { 0.0f };
+  gchar *labels = writeLabelFile ("object\n");
+  gchar *dim = g_strdup_printf ("%u:%u:1", info, boxes);
+  const gchar *const dims[] = { dim };
+  GstTensorsConfig config;
+  GstTensorMemory input;
+  void *pdata = NULL;
+  gboolean ret = FALSE;
+
+  memcpy (tensor, box, 4 * sizeof (float));
+  tensor[4] = 0.9f; /* yolov5: the objectness, yolov8: the score of the label */
+  if (v5)
+    tensor[5] = 1.0f; /* the score of the label */
+  input.data = tensor;
+  input.size = info * boxes * sizeof (float);
+  setFloatConfig (&config, 1, dims);
+
+  if (decoder != NULL && labels != NULL && decoder->init (&pdata)) {
+    ret = decoder->setOption (&pdata, 0, mode) && decoder->setOption (&pdata, 1, labels)
+          && decoder->setOption (&pdata, 2, option3)
+          && decoder->setOption (&pdata, 3, "64:48")
+          && decoder->setOption (&pdata, 4, YOLO_SMALL_MODEL)
+          && acceptsConfig (decoder, &pdata, &config)
+          && decodeFrame (decoder, &pdata, &config, &input, frame);
+    decoder->exit (&pdata);
+  }
+
+  gst_tensors_config_free (&config);
+  g_free (dim);
+  removeTempFile (&labels);
+  return ret;
+}
+
+/* The same box, normalized to the model input and in its pixels */
+static const float yolo_box_normalized[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+static const float yolo_box_pixels[] = { 16.0f, 16.0f, 16.0f, 16.0f };
+
+/**
+ * @brief yolov5 and yolov8 take a box in pixels with option3 "1" as they take it normalized with "0".
+ */
+TEST (tensorDecoderBoundingBox, yoloScaledOutputInPixels)
+{
+  const gchar *const modes[] = { "yolov5", "yolov8" };
+
+  for (const gchar *mode : modes) {
+    uint32_t normalized[BOX_OUT_PIXELS] = { 0U };
+    uint32_t pixels[BOX_OUT_PIXELS] = { 0U };
+
+    EXPECT_TRUE (decodeYoloBox (mode, "0:0.25:0.45", yolo_box_normalized, normalized))
+        << mode;
+    EXPECT_TRUE (decodeYoloBox (mode, "1:0.25:0.45", yolo_box_pixels, pixels)) << mode;
+    EXPECT_GT (countDrawnPixels (normalized, BOX_OUT_PIXELS), 0U) << mode;
+    EXPECT_EQ (memcmp (normalized, pixels, sizeof (pixels)), 0) << mode;
+  }
+}
+
+/**
+ * @brief A box in pixels is scaled again by the model input size without option3 "1", out of the frame.
+ */
+TEST (tensorDecoderBoundingBox, yoloScaledOutputNotSet_n)
+{
+  const gchar *const modes[] = { "yolov5", "yolov8" };
+
+  for (const gchar *mode : modes) {
+    uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+
+    EXPECT_TRUE (decodeYoloBox (mode, "0:0.25:0.45", yolo_box_pixels, frame)) << mode;
+    EXPECT_EQ (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U) << mode;
+  }
+}
+
+/**
+ * @brief A decoder switched from yolov8-obb to yolov8 draws the boxes of yolov8.
+ * @details The decoding mode was set only when option1 chose yolov8-obb, so
+ *          the decoder kept drawing the yolov8 boxes as oriented ones, which
+ *          have no label.
+ */
+TEST (tensorDecoderBoundingBox, switchModeFromYoloV8Obb)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeLabelFile ("object\n");
+  float tensor[YOLO_BOX_INFO * YOLO_SMALL_BOXES] = { 0.0f };
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  uint32_t expected[BOX_OUT_PIXELS] = { 0U };
+  GstTensorsConfig config;
+  GstTensorMemory input;
+  void *pdata = NULL;
+  void *expected_pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (labels != NULL);
+  memcpy (tensor, yolo_box_normalized, sizeof (yolo_box_normalized));
+  tensor[4] = 0.9f;
+  input.data = tensor;
+  input.size = sizeof (tensor);
+  setYoloV8Config (&config, YOLO_SMALL_BOXES);
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov8-obb"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov8"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, YOLO_SMALL_MODEL));
+  ASSERT_TRUE (initYoloV8Decoder (decoder, &expected_pdata, labels, YOLO_SMALL_MODEL));
+
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &config, &input, frame));
+  EXPECT_TRUE (acceptsConfig (decoder, &expected_pdata, &config));
+  EXPECT_TRUE (decodeFrame (decoder, &expected_pdata, &config, &input, expected));
+
+  EXPECT_GT (countDrawnPixels (expected, BOX_OUT_PIXELS), 0U);
+  EXPECT_EQ (memcmp (frame, expected, sizeof (frame)), 0);
+
+  decoder->exit (&expected_pdata);
+  decoder->exit (&pdata);
+  gst_tensors_config_free (&config);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief Decode the box of PalmDetectionTensors with the given option2.
+ * @param[in] label_file option2, or NULL to give none
+ * @param[out] label_set whether option2 was taken, if not NULL
+ */
+static gboolean
+decodePalmBox (const gchar *label_file, gboolean *label_set, uint32_t *frame)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  void *pdata = NULL;
+  gboolean ret = FALSE;
+
+  if (!initPalmDecoder (decoder, &pdata))
+    return FALSE;
+
+  if (label_file != NULL) {
+    gboolean set = decoder->setOption (&pdata, 1, label_file);
+    if (label_set != NULL)
+      *label_set = set;
+  }
+
+  ret = decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32)
+        && acceptsConfig (decoder, &pdata, &t.config)
+        && decodeFrame (decoder, &pdata, &t.config, t.input, frame);
+
+  decoder->exit (&pdata);
+  return ret;
+}
+
+/**
+ * @brief mp-palm-detection draws every box with the first label of option2, which is optional.
+ * @details setLabelPath () had a check meant to drop the labels of this mode,
+ *          but it compared a mode that was only ever set for yolov8-obb. The
+ *          labels have been drawn since, and the tracking ids of palm boxes
+ *          are drawn after them, so the labels are what is kept.
+ */
+TEST (tensorDecoderBoundingBox, palmDrawsFirstLabel)
+{
+  gchar *one_label = writeLabelFile ("X\n");
+  gchar *two_labels = writeLabelFile ("X\nY\n");
+  uint32_t unlabelled[BOX_OUT_PIXELS] = { 0U };
+  uint32_t labelled[BOX_OUT_PIXELS] = { 0U };
+  uint32_t first_label[BOX_OUT_PIXELS] = { 0U };
+  gboolean label_set = FALSE;
+
+  ASSERT_TRUE (one_label != NULL);
+  ASSERT_TRUE (two_labels != NULL);
+
+  EXPECT_TRUE (decodePalmBox (NULL, NULL, unlabelled));
+  EXPECT_TRUE (decodePalmBox (one_label, &label_set, labelled));
+  EXPECT_TRUE (label_set);
+  EXPECT_TRUE (decodePalmBox (two_labels, &label_set, first_label));
+  EXPECT_TRUE (label_set);
+
+  EXPECT_GT (countDrawnPixels (unlabelled, BOX_OUT_PIXELS), 0U);
+  EXPECT_GT (countDrawnPixels (labelled, BOX_OUT_PIXELS),
+      countDrawnPixels (unlabelled, BOX_OUT_PIXELS));
+  EXPECT_EQ (memcmp (labelled, first_label, sizeof (labelled)), 0);
+
+  removeTempFile (&two_labels);
+  removeTempFile (&one_label);
+}
+
+/**
+ * @brief An mp-palm-detection decoder whose label file cannot be read still draws its boxes.
+ */
+TEST (tensorDecoderBoundingBox, palmMissingLabelFile_n)
+{
+  gchar *missing = getTempFilename ();
+  uint32_t unlabelled[BOX_OUT_PIXELS] = { 0U };
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  gboolean label_set = TRUE;
+
+  ASSERT_TRUE (missing != NULL);
+  g_remove (missing);
+
+  EXPECT_TRUE (decodePalmBox (NULL, NULL, unlabelled));
+  EXPECT_TRUE (decodePalmBox (missing, &label_set, frame));
+  EXPECT_FALSE (label_set);
+
+  EXPECT_GT (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
+  EXPECT_EQ (memcmp (frame, unlabelled, sizeof (frame)), 0);
+
+  g_free (missing);
+}
+
+/**
  * @brief The element types the box properties decode.
  */
 static const tensor_type decoded_types[] = { _NNS_INT8, _NNS_UINT8, _NNS_INT16, _NNS_UINT16,

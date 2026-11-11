@@ -103,6 +103,21 @@ callCompareTest testcase7_origin.raw testcase7_dv.raw 7 "Compare for case 7" 0 0
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw, width=160, height=120, framerate=5/1,format=GRAY16_LE ! tee name =t t. ! queue ! tensor_converter ! tensor_decoder mode=direct_video option1=GRAY16_LE ! filesink location=\"testcase8_dv.raw\" sync=true t. ! queue ! filesink location=\"testcase8_origin.raw\" sync=true" 8 0 0 $PERFORMANCE
 callCompareTest testcase8_origin.raw testcase8_dv.raw 8 "Compare for case 8" 0 0
 
+# GRAY16 rows of 161 pixels are padded from 322 to 324 bytes, and those of 162 pixels need no padding
+function gray16_width_test() {
+    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw, width=${2}, height=${3}, framerate=5/1,format=${1} ! tee name=t t. ! queue ! tensor_converter ! tensor_decoder mode=direct_video option1=${1} ! filesink location=\"testcase10_${1}_${2}_dv.raw\" sync=true t. ! queue ! filesink location=\"testcase10_${1}_${2}_origin.raw\" sync=true" ${4} 0 0 $PERFORMANCE
+    python3 checkResult.py testcase10_${1}_${2}_origin.raw testcase10_${1}_${2}_dv.raw ${1} ${2} ${3}
+    testResult $? ${4} "Golden Test ${4} comparison" 0 1
+}
+
+gray16_width_test GRAY16_LE 161 120 10-1
+gray16_width_test GRAY16_LE 162 120 10-2
+gray16_width_test GRAY16_BE 161 120 10-3
+gray16_width_test GRAY16_BE 162 120 10-4
+
+# A uint8 tensor is refused for GRAY16
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! video/x-raw, width=161, height=120, format=GRAY8 ! tensor_converter ! tensor_decoder mode=direct_video option1=GRAY16_LE ! fakesink" 10-5_n 0 1 $PERFORMANCE
+
 # Test all supported video formats of direct video
 function video_format_test() {
     gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=${1},width=640,height=480,framerate=0/1 ! filesink location=\"testcase09_${1}.golden.raw\" sync=true" "Generate golden test for ${1}" 0 0 $PERFORMANCE

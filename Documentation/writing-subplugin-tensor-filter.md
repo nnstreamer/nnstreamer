@@ -186,8 +186,17 @@ A reload concerns every instance, so ```nnstreamer_filter_shared_model_replace_c
 
 A subplugin may handle the ```SUSPEND``` and ```RESUME``` events to release the heavy part of a model while the element is stopped or idle. After ```SUSPEND``` returns 0 the model stays opened, ```SUSPEND``` is not sent again, and ```RESUME``` is sent before the next invoke. A suspended model may also be closed without ```RESUME```, for example when the element is finalized or its ```framework``` property is changed, so ```close``` (the destructor in a C++ subplugin) must release a suspended model as well as an active one. The other events, such as ```RELOAD_MODEL```, may reach a suspended model without ```RESUME```, too, and the model stays suspended after them. If the subplugin does not handle ```SUSPEND```, the model is closed instead.
 
+The ```is-updatable``` property asks the subplugin with a ```RELOAD_MODEL``` event that has no data (zero-filled for a C++ subplugin). The property stays ```TRUE``` unless the answer is ```-ENOENT```. When the property is set before the model is opened, a C++ subplugin is asked through the empty object it registered, so its ```eventHandler``` has to answer that event without a model and without changing that object, which every element shares.
+
 ## Writing one from scratch
 
 In normal usage cases, a subplugin exists as a shared library loaded dynamically (dlopen) by yet another shared library, ```tensor_filter```. By registering a ```tensor_filter``` object (a struct instance of GstTensorFilterFramework) with an init function, NNStreamer recognizes it with the given name. In the template code, it is registered with a function ```init_filter_${name}()```. For more information, refer to the doxygen entries of GstTensorFilterFramework in the header file.
 
 For more information about the struct, refer to [Doxygen Doc on GstTensorFilterFramework](http://ci.nnstreamer.ai/nnstreamer/html/struct__GstTensorFilterFramework.html).
+
+## Asynchronous output
+
+A subplugin that produces output after its invocation returns must follow the
+[asynchronous tensor-filter contract](tensor-filter-async.md). The guide covers
+per-result metadata, output ownership, serialized dispatch, worker shutdown and
+the restrictions of the legacy dispatch function.
