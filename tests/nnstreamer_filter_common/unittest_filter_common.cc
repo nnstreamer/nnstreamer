@@ -2022,6 +2022,11 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   static bool closed; /**< records suspend closing the active instance */
   static guint invocations; /**< number of inputs accepted by the mock */
   static std::atomic<guint> released; /**< output allocations released by the framework */
+  static std::atomic<guint> opens; /**< number of configured instances */
+  static std::atomic<guint> queries; /**< capability queries across instances */
+  static bool query_waiting; /**< capability handler reached the test barrier */
+  static bool release_query; /**< release the capability handler */
+  guint generation = 0; /**< instance number used to reject a reopened model */
   bool configured = false; /**< distinguishes an instance from the factory */
   GstTensorFilterProperties *properties = nullptr; /**< configured instance properties */
   static GstTensorFilterProperties *pending; /**< live properties until teardown */
@@ -2047,6 +2052,7 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   {
     properties = const_cast<GstTensorFilterProperties *> (prop);
     configured = true;
+    generation = ++opens;
   }
 
   /** @brief queue an input through the non-dynamic entry point */
@@ -2111,6 +2117,17 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
         && g_strcmp0 (properties->custom_properties, "accept-suspend") == 0)
       return 0;
     if (ops == CHECK_ASYNC_SUPPORT) {
+      queries++;
+      if (g_strcmp0 (properties->custom_properties, "reject-reopen") == 0 && generation > 1)
+        return 0;
+      if (g_strcmp0 (properties->custom_properties, "pause-capability") == 0) {
+        data.async_support = TRUE;
+        std::unique_lock<std::mutex> guard (lock);
+        query_waiting = true;
+        cond.notify_all ();
+        cond.wait (guard, [] { return release_query; });
+        return 0;
+      }
       if (g_strcmp0 (properties->custom_properties, "unsupported") == 0)
         return -ENOENT;
       if (g_strcmp0 (properties->custom_properties, "legacy-success") == 0)
@@ -2178,6 +2195,10 @@ std::condition_variable async_output_subplugin::cond;
 bool async_output_subplugin::closed = false;
 guint async_output_subplugin::invocations = 0;
 std::atomic<guint> async_output_subplugin::released{ 0 };
+std::atomic<guint> async_output_subplugin::opens{ 0 };
+std::atomic<guint> async_output_subplugin::queries{ 0 };
+bool async_output_subplugin::query_waiting = false;
+bool async_output_subplugin::release_query = false;
 GstTensorFilterProperties *async_output_subplugin::pending = nullptr;
 
 /** @brief Record the single-shot fixture's output callback. */
@@ -2201,6 +2222,10 @@ class testFilterAsyncOutput : public ::testing::Test
     async_output_subplugin::closed = false;
     async_output_subplugin::invocations = 0;
     async_output_subplugin::released.store (0);
+    async_output_subplugin::opens.store (0);
+    async_output_subplugin::queries.store (0);
+    async_output_subplugin::query_waiting = false;
+    async_output_subplugin::release_query = false;
     async_output_subplugin::init ();
     ASSERT_NE (async_output_subplugin::registered, nullptr);
     int fd = g_file_open_tmp ("nnstreamer-async-XXXXXX", &model, nullptr);
@@ -2715,6 +2740,89 @@ TEST_F (testFilterAsyncOutput, watchdogKeepsAsynchronousMode_n)
   EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5b));
   if (sample)
     gst_sample_unref (sample);
+}
+
+/** @brief A reopened model that no longer opts in must never receive async input. */
+TEST_F (testFilterAsyncOutput, watchdogRevalidatesCapability_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 1000, true, "reject-reopen"));
+  async_output_subplugin::dispatch (0x5a);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  ASSERT_NE (sample, nullptr);
+  gst_sample_unref (sample);
+  ASSERT_TRUE (async_output_subplugin::waitForClose ());
+
+  g_autoptr (GstElement) source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  GstBuffer *input = gst_buffer_new_allocate (nullptr, 1, nullptr);
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+  g_autoptr (GstBus) bus = gst_element_get_bus (pipeline);
+  GstMessage *message = gst_bus_timed_pop_filtered (bus, 2 * GST_SECOND, GST_MESSAGE_ERROR);
+  EXPECT_NE (message, nullptr);
+  if (message)
+    gst_message_unref (message);
+  EXPECT_EQ (async_output_subplugin::opens.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::queries.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::invocations, 1U);
+  EXPECT_TRUE (async_output_subplugin::closed);
+}
+
+/** @brief Attempt a mode change while the opened model is checking capability. */
+static void
+_change_mode_during_query (GObject *object)
+{
+  {
+    std::unique_lock<std::mutex> guard (async_output_subplugin::lock);
+    EXPECT_TRUE (async_output_subplugin::cond.wait_for (guard, std::chrono::seconds (5),
+        [] { return async_output_subplugin::query_waiting; }));
+  }
+  g_object_set (object, "invoke-async", FALSE, nullptr);
+  gboolean asynchronous = FALSE;
+  g_object_get (object, "invoke-async", &asynchronous, nullptr);
+  EXPECT_TRUE (asynchronous);
+  EXPECT_FALSE (async_output_subplugin::closed);
+  {
+    std::lock_guard<std::mutex> guard (async_output_subplugin::lock);
+    async_output_subplugin::release_query = true;
+    async_output_subplugin::cond.notify_all ();
+  }
+}
+
+/** @brief Element startup owns the mode before calling the capability handler. */
+TEST_F (testFilterAsyncOutput, elementModeLockedDuringStart_n)
+{
+  pipeline = gst_element_factory_make ("tensor_filter", nullptr);
+  ASSERT_NE (pipeline, nullptr);
+  g_object_set (pipeline, "framework", "async_output_mock", "model", model,
+      "invoke-async", TRUE, "custom", "pause-capability", nullptr);
+  GstStateChangeReturn result = GST_STATE_CHANGE_FAILURE;
+  std::thread starter (
+      [&] { result = gst_element_set_state (pipeline, GST_STATE_PAUSED); });
+  _change_mode_during_query (G_OBJECT (pipeline));
+  starter.join ();
+  EXPECT_NE (result, GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (async_output_subplugin::queries.load (), 1U);
+  EXPECT_FALSE (async_output_subplugin::closed);
+}
+
+/** @brief Single-shot startup owns the mode throughout capability validation. */
+TEST_F (testFilterAsyncOutput, singleModeLockedDuringStart_n)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-async", TRUE,
+      "custom", "pause-capability", nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint callbacks = 0;
+  ASSERT_TRUE (klass->set_invoke_async_callback (
+      single, _record_single_async_output, &callbacks));
+  gboolean result = FALSE;
+  std::thread starter ([&] { result = klass->start (single); });
+  _change_mode_during_query (object);
+  starter.join ();
+  EXPECT_TRUE (result);
+  EXPECT_EQ (async_output_subplugin::queries.load (), 1U);
+  EXPECT_FALSE (async_output_subplugin::closed);
+  EXPECT_TRUE (klass->stop (single));
 }
 
 /** @brief Explicit NULL permits mode changes even when suspension retains a model. */

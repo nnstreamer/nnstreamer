@@ -1340,10 +1340,16 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /** Reset suspend timeout. This waits for a running unload, so no object lock. */
   if (priv->prop.suspend != 0) {
+    gboolean reopened;
     nnstreamer_watchdog_release (priv->watchdog_h);
+    reopened = !priv->prop.fw_opened || priv->is_suspended;
 
     if (!gst_tensor_filter_common_open_fw (priv))
       return GST_FLOW_ERROR;
+    if (reopened && !gst_tensor_filter_validate_prop (priv)) {
+      gst_tensor_filter_common_unload_fw (priv, FALSE);
+      return GST_FLOW_ERROR;
+    }
   }
 
   /* 0. Check all properties. */
@@ -2049,9 +2055,15 @@ gst_tensor_filter_start (GstBaseTransform * trans)
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
 
+  if (!g_atomic_int_compare_and_exchange (&priv->invoke_state,
+          INVOKE_MODE_STOPPED, INVOKE_MODE_STARTING))
+    return g_atomic_int_get (&priv->invoke_state) == INVOKE_MODE_ACTIVE;
+
   /* If it is not configured properly, don't allow to start! */
-  if (!gst_tensor_filter_common_open_fw (priv))
+  if (!gst_tensor_filter_common_open_fw (priv)) {
+    g_atomic_int_set (&priv->invoke_state, INVOKE_MODE_STOPPED);
     return FALSE;
+  }
 
   if (priv->prop.invoke_async) {
     gst_tensor_filter_enable_invoke_async (&priv->prop,
@@ -2060,11 +2072,12 @@ gst_tensor_filter_start (GstBaseTransform * trans)
 
   if (!gst_tensor_filter_validate_prop (priv)) {
     gst_tensor_filter_common_unload_fw (priv, FALSE);
+    g_atomic_int_set (&priv->invoke_state, INVOKE_MODE_STOPPED);
     return FALSE;
   }
 
   /* Watchdog unloads do not end the active element lifecycle. */
-  priv->is_started = TRUE;
+  g_atomic_int_set (&priv->invoke_state, INVOKE_MODE_ACTIVE);
 
   if (priv->prop.suspend != 0) {
     GST_OBJECT_LOCK (self);
@@ -2101,7 +2114,7 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
   }
 
   gst_tensor_filter_common_unload_fw (priv, TRUE);
-  priv->is_started = FALSE;
+  g_atomic_int_set (&priv->invoke_state, INVOKE_MODE_STOPPED);
 
   return TRUE;
 }

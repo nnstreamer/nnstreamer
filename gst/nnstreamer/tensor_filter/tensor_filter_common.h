@@ -150,6 +150,15 @@ typedef struct {
   GList *referred_list; /**< the referred list about the instances sharing the same key */
 } GstTensorFilterSharedModelRepresentation;
 
+/** @brief Ownership of the invoke mode across startup and property updates. */
+typedef enum
+{
+  INVOKE_MODE_STOPPED = 0,
+  INVOKE_MODE_STARTING,
+  INVOKE_MODE_ACTIVE,
+  INVOKE_MODE_CHANGING
+} GstTensorFilterInvokeState;
+
 /**
  * @brief Structure definition for common tensor-filter properties.
  */
@@ -177,7 +186,7 @@ typedef struct _GstTensorFilterPrivate
   GstTensorFilterCombination combi;
   nns_watchdog_h watchdog_h; /**< Watchdog to monitor occasional inputs */;
   gboolean is_suspended; /**< True if framework suspends processing current model. */
-  gboolean is_started; /**< Invoke mode is locked until an explicit stop. */
+  gint invoke_state; /**< Atomic lifecycle or property-update ownership. */
 
   GMutex model_lock; /**< Protects the model file list of prop against a concurrent replacement */
   GSList *retired_model_files; /**< Model file lists replaced while the sub-plugin may still read them */

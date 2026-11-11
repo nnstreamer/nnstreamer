@@ -314,9 +314,15 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
   spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
   priv = &spriv->filter_priv;
 
+  if (!g_atomic_int_compare_and_exchange (&priv->invoke_state,
+          INVOKE_MODE_STOPPED, INVOKE_MODE_STARTING))
+    return g_atomic_int_get (&priv->invoke_state) == INVOKE_MODE_ACTIVE;
+
   /** open framework, load model */
-  if (!gst_tensor_filter_common_open_fw (priv))
+  if (!gst_tensor_filter_common_open_fw (priv)) {
+    g_atomic_int_set (&priv->invoke_state, INVOKE_MODE_STOPPED);
     return FALSE;
+  }
 
   gst_tensor_filter_load_tensor_info (priv);
 
@@ -331,7 +337,8 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
   if (!priv->configured)
     gst_tensor_filter_common_unload_fw (priv, FALSE);
 
-  priv->is_started = priv->configured;
+  g_atomic_int_set (&priv->invoke_state,
+      priv->configured ? INVOKE_MODE_ACTIVE : INVOKE_MODE_STOPPED);
 
   return priv->configured;
 }
@@ -353,7 +360,7 @@ g_tensor_filter_single_stop (GTensorFilterSingle * self)
   /** close framework, unload model */
   gst_tensor_filter_disable_invoke_async (&priv->prop);
   gst_tensor_filter_common_unload_fw (priv, TRUE);
-  priv->is_started = FALSE;
+  g_atomic_int_set (&priv->invoke_state, INVOKE_MODE_STOPPED);
 
   return TRUE;
 }
@@ -404,7 +411,8 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   priv = &spriv->filter_priv;
 
   /** start if not already started, including a retained model after stop */
-  if (!priv->is_started || !priv->configured) {
+  if (g_atomic_int_get (&priv->invoke_state) != INVOKE_MODE_ACTIVE
+      || !priv->configured) {
     if (!g_tensor_filter_single_start (self)) {
       return FALSE;
     }
