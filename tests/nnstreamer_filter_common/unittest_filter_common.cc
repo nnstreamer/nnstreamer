@@ -2825,6 +2825,57 @@ TEST_F (testFilterAsyncOutput, singleModeLockedDuringStart_n)
   EXPECT_TRUE (klass->stop (single));
 }
 
+/** @brief Replacing a started single-shot framework must reopen it before invoke. */
+TEST_F (testFilterAsyncOutput, singleFrameworkChangeReopens)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-dynamic", TRUE, nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint8 value = 0x2a;
+  GstTensorMemory input = { &value, 1 };
+  GstTensorMemory output = {};
+
+  ASSERT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  ASSERT_NE (output.data, nullptr);
+  EXPECT_EQ (*(guint8 *) output.data, value);
+  klass->destroy_notify (single, &output);
+  output = {};
+
+  g_object_set (object, "framework", "custom", nullptr);
+  g_object_set (object, "framework", "async_output_mock", nullptr);
+  EXPECT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  EXPECT_EQ (async_output_subplugin::opens.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::invocations, 2U);
+  if (output.data) {
+    EXPECT_EQ (*(guint8 *) output.data, value);
+    klass->destroy_notify (single, &output);
+  }
+  EXPECT_TRUE (klass->stop (single));
+}
+
+/** @brief Reopening after framework replacement must also recheck async support. */
+TEST_F (testFilterAsyncOutput, singleFrameworkChangeRevalidates_n)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-async", TRUE, nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint callbacks = 0;
+  ASSERT_TRUE (klass->set_invoke_async_callback (
+      single, _record_single_async_output, &callbacks));
+  ASSERT_TRUE (klass->start (single));
+
+  g_object_set (object, "framework", "custom", nullptr);
+  g_object_set (object, "framework", "async_output_mock", "custom", "unsupported", nullptr);
+  EXPECT_FALSE (klass->start (single));
+  EXPECT_EQ (async_output_subplugin::opens.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::queries.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::invocations, 0U);
+  EXPECT_EQ (callbacks, 0U);
+  EXPECT_TRUE (async_output_subplugin::closed);
+}
+
 /** @brief Explicit NULL permits mode changes even when suspension retains a model. */
 TEST_F (testFilterAsyncOutput, retainedElementChangesModeAfterStop)
 {

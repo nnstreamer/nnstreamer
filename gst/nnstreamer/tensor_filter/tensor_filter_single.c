@@ -315,8 +315,16 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
   priv = &spriv->filter_priv;
 
   if (!g_atomic_int_compare_and_exchange (&priv->invoke_state,
-          INVOKE_MODE_STOPPED, INVOKE_MODE_STARTING))
-    return g_atomic_int_get (&priv->invoke_state) == INVOKE_MODE_ACTIVE;
+          INVOKE_MODE_STOPPED, INVOKE_MODE_STARTING)) {
+    if (g_atomic_int_get (&priv->invoke_state) != INVOKE_MODE_ACTIVE)
+      return FALSE;
+    if (priv->configured)
+      return TRUE;
+    /* Framework changes invalidate the model without ending the lifecycle. */
+    if (!g_atomic_int_compare_and_exchange (&priv->invoke_state,
+            INVOKE_MODE_ACTIVE, INVOKE_MODE_STARTING))
+      return FALSE;
+  }
 
   /** open framework, load model */
   if (!gst_tensor_filter_common_open_fw (priv)) {
