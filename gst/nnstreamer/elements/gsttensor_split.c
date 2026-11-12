@@ -235,16 +235,18 @@ gst_tensor_split_finalize (GObject * object)
  * @details The element type and the framerate come from the input, and the
  *          dimensions from the segment of tensorseg the pad carries. The caps
  *          the pad already announced are kept with those fields replaced.
- *          Building them from the config again would ask the peer, which
- *          answers other/tensor where a pad created without one, as they all
- *          are, announced other/tensors.
+ *          Building them from the config again would ask the peer, which may
+ *          answer other/tensor, while a pad created without a peer that takes
+ *          it announced other/tensors. New dimensions are written in the rank
+ *          the peer asks for, as they are when the pad is created.
+ * @param pad the source pad
  * @param current the caps the pad announces now
  * @param config the input
  * @param dim the new dimensions of the segment, or NULL to keep them
  * @return the caps of the pad, to be released by the caller
  */
 static GstCaps *
-gst_tensor_split_retyped_caps (GstCaps * current,
+gst_tensor_split_retyped_caps (GstPad * pad, GstCaps * current,
     const GstTensorsConfig * config, const tensor_dim * dim)
 {
   GstCaps *caps = gst_caps_copy (current);
@@ -262,10 +264,17 @@ gst_tensor_split_retyped_caps (GstCaps * current,
 
   if (dim) {
     g_autofree gchar *dim_str = gst_tensor_get_dimension_string (*dim);
+    GstCaps *peer_caps;
 
     field = gst_structure_has_name (structure, NNS_MIMETYPE_TENSORS) ?
         "dimensions" : "dimension";
     gst_structure_set (structure, field, G_TYPE_STRING, dim_str, NULL);
+
+    peer_caps = gst_pad_peer_query_caps (pad, NULL);
+    if (peer_caps) {
+      gst_tensor_caps_update_dimension (caps, peer_caps);
+      gst_caps_unref (peer_caps);
+    }
   }
 
   return caps;
@@ -310,7 +319,8 @@ gst_tensor_split_update_src_caps (GstTensorSplit * split, GArray * tensorseg,
       break;
     }
 
-    caps = gst_tensor_split_retyped_caps (current, &split->in_config,
+    caps = gst_tensor_split_retyped_caps (tensorpad->pad, current,
+        &split->in_config,
         tensorseg ? g_array_index (tensorseg, tensor_dim *, tensorpad->nth) :
         NULL);
     if (gst_caps_is_equal (caps, current)) {
@@ -473,6 +483,8 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GArray * tensorseg,
   g_free (stream_id);
   gst_event_unref (event);
 
+  gst_element_add_pad (GST_ELEMENT_CAST (split), pad);
+
   /* tensor config to set caps */
   gst_tensors_config_init (&pad_config);
   pad_config.info.num_tensors = 1;
@@ -484,10 +496,11 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GArray * tensorseg,
   pad_config.rate_d = split->in_config.rate_d;
 
   caps = gst_tensor_pad_caps_from_config (pad, &pad_config);
+  /* a peer preferring flexible tensors gets none, which the template lacks */
+  if (caps == NULL)
+    caps = gst_tensors_caps_from_config (&pad_config);
 
   gst_pad_set_caps (pad, caps);
-  gst_element_add_pad (GST_ELEMENT_CAST (split), pad);
-
   gst_caps_unref (caps);
 
   if (created) {
