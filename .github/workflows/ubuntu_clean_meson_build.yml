@@ -275,6 +275,21 @@ jobs:
         meson test -C build/ -v
       env:
         CC: gcc
+    # With CpuAcc installed, the armnn tests above cannot tell whether a
+    # cpu.neon request ran on CpuAcc or fell back to CpuRef. Without CpuAcc,
+    # that request has to fail, so run the case checking it once more after
+    # removing the package. The variable makes the case assert that CpuAcc is
+    # gone and CpuRef is there; the grep fails the step if the filter matched
+    # no case, which gtest would report as a pass. The package stays removed,
+    # so keep this after every other arm64 step that runs armnn.
+    - name: armnn cpu.neon without the CpuAcc backend
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04-arm'
+      shell: bash
+      run: |
+        sudo apt-get remove -y libarmnn-cpuacc-backend22
+        NNS_TEST_ARMNN_WITHOUT_CPUACC=1 meson test -C build/ -v unittest_filter_armnn \
+          --test-args=--gtest_filter=nnstreamerFilterArmnn.openAcceleratorNeon_n 2>&1 | tee armnn-without-cpuacc.log
+        grep -q '\[       OK \] nnstreamerFilterArmnn.openAcceleratorNeon_n' armnn-without-cpuacc.log
     # No runner has HailoRT, so everything else compiles the hailort sub-plugin
     # against the reduced mock header of tests/nnstreamer_filter_hailort only.
     # Compile it against the public header of the oldest supported HailoRT
