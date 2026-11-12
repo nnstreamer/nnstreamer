@@ -219,6 +219,8 @@ jobs:
     - name: unit test the PyTorch subplugin
       if: '!cancelled() && steps.build-nnstreamer.outcome == ''success'''
       run: |
+        # Before unittest_plugins: each run rewrites the testlog.txt read below.
+        meson test -C build/ unittest_filter_pytorch --print-errorlogs
         meson test -C build/ unittest_plugins --print-errorlogs \
           --test-args='--gtest_filter=*.frameworkAutoExtPt01:*.frameworkAutoWoOptExtPt01'
         # gtest passes a filter that matches nothing, so check that both ran.
