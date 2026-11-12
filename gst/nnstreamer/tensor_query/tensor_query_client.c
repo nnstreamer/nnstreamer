@@ -58,6 +58,7 @@ enum
 #define DEFAULT_SILENT TRUE
 #define DEFAULT_MAX_REQUEST 2
 #define DEFAULT_MAX_BUFFERS 0
+#define RECONNECT_INTERVAL_US G_USEC_PER_SEC
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_client_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_client_debug
@@ -212,6 +213,9 @@ gst_tensor_query_client_init (GstTensorQueryClient * self)
   self->requested_num = 0;
   self->max_buffers = DEFAULT_MAX_BUFFERS;
   self->dropped_num = 0;
+  self->disconnected = FALSE;
+  self->caps_refused = FALSE;
+  self->reconnect_time = 0;
   self->is_tensor = FALSE;
   gst_tensors_config_init (&self->config);
 }
@@ -515,6 +519,7 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
       }
 
     caps_done:
+      self->caps_refused = (ret != NNS_EDGE_ERROR_NONE);
       if (server_caps)
         gst_caps_unref (server_caps);
       if (client_caps)
@@ -611,6 +616,7 @@ gst_tensor_query_client_create_edge_handle (GstTensorQueryClient * self)
   }
 
   started = TRUE;
+  self->disconnected = FALSE;
 
 done:
   if (!started) {
@@ -619,6 +625,45 @@ done:
   }
 
   return started;
+}
+
+/**
+ * @brief Connect again to the server after the connection is closed, e.g., when the server restarts.
+ */
+static gboolean
+gst_tensor_query_client_reconnect (GstTensorQueryClient * self)
+{
+  gint64 now = g_get_monotonic_time ();
+  int ret;
+
+  /* Do not try for every buffer while the server is down. */
+  if (self->disconnected && now - self->reconnect_time < RECONNECT_INTERVAL_US)
+    return FALSE;
+
+  self->reconnect_time = now;
+  self->caps_refused = FALSE;
+  ret = nns_edge_connect (self->edge_h, self->dest_host, self->dest_port);
+  if (ret != NNS_EDGE_ERROR_NONE || self->caps_refused) {
+    /* The server closes a refused client, try again with the next buffer. */
+    if (ret == NNS_EDGE_ERROR_NONE)
+      nns_edge_disconnect (self->edge_h);
+
+    if (!self->disconnected) {
+      self->disconnected = TRUE;
+      GST_ELEMENT_WARNING (self, RESOURCE, WRITE,
+          ("Lost the connection to the query server %s:%u and cannot connect again.",
+              self->dest_host, self->dest_port),
+          ("The server is down or refuses the client caps. Input buffers are dropped until the client connects again."));
+    }
+    return FALSE;
+  }
+
+  /* The requests sent over the closed connection are never answered. */
+  self->requested_num = 0;
+  self->disconnected = FALSE;
+  nns_logi ("Reconnected to the query server %s:%u.", self->dest_host,
+      self->dest_port);
+  return TRUE;
 }
 
 /**
@@ -732,6 +777,11 @@ gst_tensor_query_client_chain (GstPad * pad,
     g_atomic_int_add (&self->dropped_num, -dropped);
     self->requested_num -= MIN (self->requested_num, (guint) dropped);
   }
+
+  if (self->edge_h && self->connect_type == NNS_EDGE_CONNECT_TYPE_TCP &&
+      nns_edge_is_connected (self->edge_h) != NNS_EDGE_ERROR_NONE &&
+      !gst_tensor_query_client_reconnect (self))
+    goto try_pop;
 
   if (self->max_request > 0 && self->requested_num > self->max_request) {
     nns_logi

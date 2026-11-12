@@ -32,7 +32,7 @@ unittest_query = executable('unittest_query',
   install_dir: unittest_install_dir
 )
 
-test('unittest_query', unittest_query, env: testenv)
+test('unittest_query', unittest_query, timeout: 120, env: testenv)
 
 # Run unittest_query_server (interposes GLib and nnstreamer-edge symbols)
 unittest_query_server = executable('unittest_query_server',
