@@ -2592,6 +2592,11 @@ static const gboolean accel_none[] = { FALSE, FALSE, FALSE, FALSE };
 static const gboolean accel_ts[] = { FALSE, FALSE, FALSE, TRUE };
 
 /**
+ * @brief the accelerometer with everything enabled
+ */
+static const gboolean accel_all[] = { TRUE, TRUE, TRUE, TRUE };
+
+/**
  * @brief the x and z axes of the accelerometer
  */
 static const gboolean accel_xz[] = { TRUE, FALSE, TRUE, FALSE };
@@ -2603,6 +2608,7 @@ static const gboolean accel_xyz[] = { TRUE, TRUE, TRUE, FALSE };
 
 /**
  * @brief tests a subset of the channels of an accelerometer
+ * @note y, disabled for the run, is enabled back if it was enabled before
  */
 TEST (testTensorSrcIio, accelChannelsCustom)
 {
@@ -2610,6 +2616,7 @@ TEST (testTensorSrcIio, accelChannelsCustom)
 
   run_mock_device (accel_channels, num, accel_none, "0,2", NULL, 0, accel_xz);
   run_mock_device (accel_channels, num, accel_ts, "0,2", NULL, 0, accel_xz);
+  run_mock_device (accel_channels, num, accel_all, "0,2", NULL, 0, accel_xz);
 }
 
 /**

@@ -843,22 +843,26 @@ gst_tensor_channel_list_sort_cmp (gconstpointer a, gconstpointer b)
 /**
  * @brief compare channels for filtering if enabled
  * @param[in] data Pointer of the data of the element
- * @param[in/out] user_data Pointer to the address of the list to be filtered
+ * @param[in/out] user_data Tensor src IIO object whose channels are filtered
+ * @note a channel the element disabled is kept aside to be enabled back
  */
 static void
 gst_tensor_channel_list_filter_enabled (gpointer data, gpointer user_data)
 {
   GstTensorSrcIIOChannelProperties *channel;
-  GList **list_addr;
-  GList *list;
+  GstTensorSrcIIO *self;
 
   channel = (GstTensorSrcIIOChannelProperties *) data;
-  list_addr = (GList **) user_data;
-  list = *list_addr;
+  self = (GstTensorSrcIIO *) user_data;
 
   if (!channel->enabled) {
-    *list_addr = g_list_remove (list, data);
-    gst_tensor_src_iio_channel_properties_free (channel);
+    self->channels = g_list_remove (self->channels, data);
+    if (channel->pre_enabled) {
+      self->disabled_channels =
+          g_list_prepend (self->disabled_channels, channel);
+    } else {
+      gst_tensor_src_iio_channel_properties_free (channel);
+    }
   }
 }
 
@@ -1999,8 +2003,7 @@ gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
   }
 
   /** filter out disabled channels */
-  g_list_foreach (self->channels, gst_tensor_channel_list_filter_enabled,
-      &self->channels);
+  g_list_foreach (self->channels, gst_tensor_channel_list_filter_enabled, self);
   self->scan_size =
       gst_tensor_get_size_from_channels (self->channels, self->timestamp_size);
   self->num_channels_enabled = g_list_length (self->channels);
@@ -2026,6 +2029,9 @@ gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
 error_channels_free:
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
   self->channels = NULL;
+  g_list_free_full (self->disabled_channels,
+      gst_tensor_src_iio_channel_properties_free);
+  self->disabled_channels = NULL;
 
 error_return:
   return FALSE;
@@ -2152,6 +2158,9 @@ error_config_free:
 
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
   self->channels = NULL;
+  g_list_free_full (self->disabled_channels,
+      gst_tensor_src_iio_channel_properties_free);
+  self->disabled_channels = NULL;
 
 error_trigger_free:
   g_free (self->trigger.base_dir);
@@ -2185,6 +2194,15 @@ gst_tensor_src_restore_iio_device (GstTensorSrcIIO * self)
     filename = g_strdup_printf ("%s%s", channel_prop->name, EN_SUFFIX);
     gst_tensor_write_sysfs_int (self, filename, channel_prop->base_dir,
         (int) channel_prop->pre_enabled);
+    g_free (filename);
+  }
+
+  /** enable the channels disabled for the custom channels back */
+  for (ch_list = self->disabled_channels; ch_list != NULL;
+      ch_list = ch_list->next) {
+    channel_prop = (GstTensorSrcIIOChannelProperties *) ch_list->data;
+    filename = g_strdup_printf ("%s%s", channel_prop->name, EN_SUFFIX);
+    gst_tensor_write_sysfs_int (self, filename, channel_prop->base_dir, 1);
     g_free (filename);
   }
 
@@ -2240,6 +2258,9 @@ gst_tensor_src_iio_stop (GstBaseSrc * src)
 
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
   self->channels = NULL;
+  g_list_free_full (self->disabled_channels,
+      gst_tensor_src_iio_channel_properties_free);
+  self->disabled_channels = NULL;
 
   g_free (self->trigger.base_dir);
   g_free (self->default_trigger);

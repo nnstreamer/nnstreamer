@@ -116,6 +116,7 @@ struct _GstTensorSrcIIO
   GstTensorSrcIIODeviceProperties device; /**< IIO device */
   GstTensorSrcIIODeviceProperties trigger; /**< IIO trigger */
   GList *channels; /**< list of enabled channels */
+  GList *disabled_channels; /**< channels the element disabled, enabled back when it stops */
   GHashTable *custom_channel_table; /**< table of idx of channels to be enabled */
   channels_enabled_options channels_enabled; /**< enabling which channels */
   guint scan_size; /**< size for a single scan of buffer length 1 */
