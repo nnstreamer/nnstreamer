@@ -1520,7 +1520,7 @@ done:
   g_clear_pointer (&templ, gst_caps_unref);
   g_clear_pointer (&peer_caps, gst_caps_unref);
 
-  return gst_caps_truncate (caps);
+  return caps ? gst_caps_truncate (caps) : NULL;
 }
 
 /**

@@ -16,7 +16,7 @@ One "Always" sink pad exists. It accepts a single tensor (`other/tensor`, or `ot
 
 ## Source Pads
 
-"Sometimes" source pads named `src_0`, `src_1`, ... are created when the first buffer arrives. Each pad carries one segment. Its caps are set when the pad is created: `dimensions` is the segment's rule in `tensorseg`, and `types` and `framerate` are those of the input. When the input is renegotiated later, the pads follow it; see [Changing what the element does](#changing-what-the-element-does).
+"Sometimes" source pads named `src_0`, `src_1`, ... are created when the first buffer arrives. Each pad carries one segment. Its caps are set when the pad is created, right after `pad-added`: `dimensions` is the segment's rule in `tensorseg`, and `types` and `framerate` are those of the input. A pad linked from `pad-added` (as `gst-launch-1.0` links `split. ! ...`) to a peer that takes `other/tensor` announces `other/tensor`, with `dimension` written in the rank the peer asks for (`2:4:4` or `2:4:4:1`), also when `tensorseg` later gives the pad new dimensions; any other pad announces `other/tensors` with `num_tensors=1`, its `dimensions` likewise in the rank the peer asks for. A peer that prefers flexible tensors, which the source pads do not produce, is offered static `other/tensors`. When the input is renegotiated later, the pads follow it; see [Changing what the element does](#changing-what-the-element-does).
 
 ## Properties
 
@@ -59,7 +59,7 @@ The new rule is not taken if a segment that goes out, or one before it, is empty
 
 Upstream may change the input caps while the stream runs. The segments stay as `tensorseg` describes them, so a new input shape alone leaves the pads as they are, and a new type or framerate is passed on to every source pad before the next buffer. An input the rule no longer fits is refused per buffer with an error.
 
-A pad keeps the media type it was created with, `other/tensors` with `num_tensors=1`. If a pad cannot take its new caps, because what is linked to it is pinned to the old ones, the element fails the negotiation instead of pushing buffers that disagree with the caps. Every peer is asked before any pad changes, so a refusal leaves all the pads announcing what they did before, and no other peer is reconfigured for a stream that goes no further.
+A pad keeps the media type it was created with (see [Source Pads](#source-pads)). If a pad cannot take its new caps, because what is linked to it is pinned to the old ones, the element fails the negotiation instead of pushing buffers that disagree with the caps. Every peer is asked before any pad changes, so a refusal leaves all the pads announcing what they did before, and no other peer is reconfigured for a stream that goes no further.
 
 ## Usage Examples
 
