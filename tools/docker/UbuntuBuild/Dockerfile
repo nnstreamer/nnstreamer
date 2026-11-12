@@ -43,7 +43,14 @@ USER ${USERNAME}
 WORKDIR /home/${USERNAME}
 RUN git clone https://github.com/nnstreamer/nnstreamer.git
 WORKDIR /home/${USERNAME}/nnstreamer
-RUN mk-build-deps debian/control
+# Install the build dependencies of the control file that debian/rules
+# selects for this series; keep the 26.04 threshold in sync with it.
+# mk-build-deps finds debian/changelog only for a file named "control".
+RUN . /etc/os-release && \
+    if dpkg --compare-versions "${VERSION_ID}" lt 26.04; then \
+        cp debian/control.ubuntu.ppa debian/control; \
+    fi && \
+    mk-build-deps debian/control
 USER root
 RUN apt-get -f install ./nnstreamer-build-deps*.deb && \
     rm -f ./nnstreamer-build-deps*.deb && \
