@@ -14500,6 +14500,186 @@ TEST (testTensorCrop, cropChainPostsBusError_n)
 }
 
 /**
+ * @brief Prepare the raw data (uint8 3:32:32, element i is i % 251) and @a num
+ *        regions, each set from @a regions as [x, y, w, h].
+ */
+static void
+_crop_test_prepare_rgb_frame (crop_test_data_s *crop_test, const guint *regions, guint num)
+{
+  guint i;
+  guint8 *_data;
+
+  crop_test->raw_info.type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:32:32:1", crop_test->raw_info.dimension);
+
+  crop_test->raw_size = 3U * 32U * 32U;
+  crop_test->raw_data = g_malloc0 (crop_test->raw_size);
+  _data = (guint8 *) crop_test->raw_data;
+
+  for (i = 0; i < crop_test->raw_size; i++)
+    _data[i] = (guint8) (i % 251U);
+
+  crop_test->info_type = _NNS_UINT32;
+  crop_test->info_size = sizeof (guint) * 4U * num;
+  crop_test->info_num = num;
+  crop_test->info_data = _g_memdup (regions, crop_test->info_size);
+}
+
+/**
+ * @brief Check that the cropped tensor in @a mem is the w x h block of the
+ *        3:32:32 frame from _crop_test_prepare_rgb_frame() starting at (x, y).
+ */
+static void
+_crop_test_compare_rgb (GstMemory *mem, guint x, guint y, guint w, guint h)
+{
+  GstMapInfo map;
+  GstTensorMetaInfo meta;
+  gsize hsize;
+  guint c, i, j;
+  guint8 *cropped;
+
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+  ASSERT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+  EXPECT_EQ (meta.type, _NNS_UINT8);
+  EXPECT_EQ (meta.dimension[0], 3U);
+  EXPECT_EQ (meta.dimension[1], w);
+  EXPECT_EQ (meta.dimension[2], h);
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  EXPECT_EQ (map.size - hsize, (gsize) 3U * w * h);
+  cropped = map.data + hsize;
+
+  if (map.size - hsize == (gsize) 3U * w * h) {
+    for (j = 0; j < h; j++) {
+      for (i = 0; i < w; i++) {
+        for (c = 0; c < 3U; c++) {
+          guint src = c + 3U * ((x + i) + 32U * (y + j));
+
+          EXPECT_EQ (cropped[c + 3U * (i + w * j)], (guint8) (src % 251U));
+        }
+      }
+    }
+  }
+
+  gst_memory_unmap (mem, &map);
+}
+
+/**
+ * @brief Test for tensor_crop, a zero-size region at x, y > 0 crops the rest
+ *        of the frame, every channel of it.
+ * @details The other zero-size cases are single-channel and keep one side
+ *          non-zero; this one pins the row stride of a 3-channel frame when
+ *          both the width and the height are derived from the offset.
+ */
+TEST (testTensorCrop, cropRegionZeroSizeRestOfFrame)
+{
+  crop_test_data_s crop_test;
+  const guint region[] = { 10U, 10U, 0U, 0U };
+  GstBuffer *out_buf;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_rgb_frame (&crop_test, region, 1U);
+
+  _crop_test_push_buffer (&crop_test);
+  ASSERT_EQ (crop_test.received, 1U);
+
+  out_buf = gst_harness_pull (crop_test.crop);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
+  _crop_test_compare_rgb (gst_buffer_peek_memory (out_buf, 0), 10U, 10U, 22U, 22U);
+
+  gst_buffer_unref (out_buf);
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, zero-size regions with nothing left after their
+ *        offset are skipped and the others are cropped in order.
+ * @details A zero width at x == width (or a zero height at y == height) is the
+ *          rest of the frame with nothing in it, so it must be skipped and not
+ *          turned into a whole-row or whole-frame crop.
+ */
+TEST (testTensorCrop, cropRegionZeroSizeMixed)
+{
+  crop_test_data_s crop_test;
+  // clang-format off
+  const guint regions[] = {
+    10U, 10U, 0U, 0U, /* the rest of the frame from (10, 10) */
+    32U, 0U, 0U, 0U, /* starts at the right edge, nothing to its right */
+    0U, 32U, 0U, 0U, /* starts at the bottom edge, nothing below it */
+    32U, 0U, 4U, 4U, /* starts at the right edge, with a size */
+    31U, 31U, 0U, 0U, /* the last pixel */
+  };
+  // clang-format on
+  GstBuffer *out_buf;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_rgb_frame (&crop_test, regions, 5U);
+
+  _crop_test_push_buffer (&crop_test);
+  ASSERT_EQ (crop_test.received, 1U);
+
+  out_buf = gst_harness_pull (crop_test.crop);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 2U);
+  _crop_test_compare_rgb (gst_buffer_peek_memory (out_buf, 0), 10U, 10U, 22U, 22U);
+  _crop_test_compare_rgb (gst_buffer_peek_memory (out_buf, 1), 31U, 31U, 1U, 1U);
+
+  gst_buffer_unref (out_buf);
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, a buffer whose regions all start at x >= width
+ *        is refused with a crop error and no output.
+ * @details Zero-size regions are included, so "the rest of the frame" does not
+ *          turn a region at or past the right edge into something to crop.
+ */
+TEST (testTensorCrop, cropRegionZeroSizeOutOfFrame_n)
+{
+  crop_test_data_s crop_test;
+  // clang-format off
+  const guint regions[] = {
+    32U, 0U, 0U, 0U, /* at the right edge */
+    33U, 5U, 0U, 0U, /* past the right edge */
+    40U, 0U, 4U, 4U, /* past the right edge, with a size */
+    G_MAXUINT32, 10U, 0U, 0U, /* the largest offset */
+  };
+  // clang-format on
+  GstBus *bus;
+  GstMessage *msg;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_rgb_frame (&crop_test, regions, 4U);
+
+  bus = gst_bus_new ();
+  gst_element_set_bus (crop_test.crop->element, bus);
+
+  _crop_test_set_raw_caps (&crop_test);
+  _crop_test_push_raw_buffer (&crop_test, crop_test.ts_raw);
+  _crop_test_push_info_buffer (&crop_test, crop_test.ts_info);
+
+  /* the error the chain posts right before it returns GST_FLOW_ERROR */
+  msg = gst_bus_timed_pop_filtered (bus, 2 * GST_SECOND, GST_MESSAGE_ERROR);
+  EXPECT_TRUE (msg != NULL);
+  if (msg) {
+    GError *err = NULL;
+    gchar *debug = NULL;
+
+    gst_message_parse_error (msg, &err, &debug);
+    EXPECT_TRUE (debug != NULL && strstr (debug, "Failed to crop the raw buffer") != NULL);
+    g_clear_error (&err);
+    g_free (debug);
+    gst_message_unref (msg);
+  }
+
+  crop_test.received = _crop_test_wait_for_no_output (&crop_test, 0U);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  gst_element_set_bus (crop_test.crop->element, NULL);
+  gst_object_unref (bus);
+  _crop_test_free (&crop_test);
+}
+
+/**
  * @brief Test for tensor_crop, an info tensor that does not hold whole regions.
  * @details Without the fix the element aborts on the element-count assertion.
  */
