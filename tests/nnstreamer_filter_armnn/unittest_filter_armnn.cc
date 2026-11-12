@@ -564,9 +564,10 @@ _GetAddModelPath (void)
 
 /**
  * @brief Open add.tflite with the given accelerator and check one inference
+ * @param num_hw 0 opens with an empty accelerator list, as with no accelerator property
  */
 static void
-_OpenAndInvokeAdd (const GstTensorFilterFramework *sp, accl_hw hw)
+_OpenAndInvokeAdd (const GstTensorFilterFramework *sp, accl_hw hw, int num_hw = 1)
 {
   int ret;
   void *data = NULL;
@@ -580,7 +581,7 @@ _OpenAndInvokeAdd (const GstTensorFilterFramework *sp, accl_hw hw)
   ASSERT_NE (model_file, nullptr);
   _SetFilterProp (&prop, "armnn", model_files);
   prop.hw_list = hw_list;
-  prop.num_hw = 1;
+  prop.num_hw = num_hw;
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0) << "accelerator " << get_accl_hw_str (hw);
@@ -609,10 +610,6 @@ TEST (nnstreamerFilterArmnn, openAccelerator)
   /** cpu and none run on the reference backend */
   _OpenAndInvokeAdd (sp, ACCL_CPU);
   _OpenAndInvokeAdd (sp, ACCL_NONE);
-  /** cpu.neon, auto and default fall back to cpu without NEON */
-  _OpenAndInvokeAdd (sp, ACCL_CPU_NEON);
-  _OpenAndInvokeAdd (sp, ACCL_AUTO);
-  _OpenAndInvokeAdd (sp, ACCL_DEFAULT);
 }
 
 /**
@@ -629,10 +626,10 @@ TEST (nnstreamerFilterArmnn, openAcceleratorFallback)
 }
 
 /**
- * @brief Check if armnn has the GpuAcc backend on this system
+ * @brief Check if armnn has the given backend on this system
  */
 static bool
-_HasGpuBackend (void)
+_HasBackend (armnn::Compute backend)
 {
   armnn::IRuntime::CreationOptions options;
   armnn::IRuntimePtr runtime = armnn::IRuntime::Create (options);
@@ -640,7 +637,7 @@ _HasGpuBackend (void)
   if (!runtime)
     return false;
 
-  return runtime->GetDeviceSpec ().GetSupportedBackends ().count (armnn::Compute::GpuAcc) > 0;
+  return runtime->GetDeviceSpec ().GetSupportedBackends ().count (backend) > 0;
 }
 
 /**
@@ -654,7 +651,7 @@ TEST (nnstreamerFilterArmnn, openAcceleratorGpu_n)
   gchar *model_file = _GetAddModelPath ();
   const gchar *model_files[] = { model_file, NULL };
   accl_hw hw_list[] = { ACCL_GPU };
-  const bool has_gpu = _HasGpuBackend ();
+  const bool has_gpu = _HasBackend (armnn::Compute::GpuAcc);
   ASSERT_NE (model_file, nullptr);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
@@ -674,6 +671,93 @@ TEST (nnstreamerFilterArmnn, openAcceleratorGpu_n)
   }
 
   sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test that cpu.neon, auto and default run on CpuAcc on aarch64 and on CpuRef elsewhere
+ */
+TEST (nnstreamerFilterArmnn, openAcceleratorNeon)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+
+#if defined(__aarch64__)
+  /** CpuAcc comes in its own package, libarmnn-cpuacc-backend; CI installs it */
+  if (!_HasBackend (armnn::Compute::CpuAcc))
+    GTEST_SKIP () << "armnn has no CpuAcc backend here; see openAcceleratorNeon_n";
+#elif defined(__arm__)
+  GTEST_SKIP () << "NEON is optional on 32-bit arm";
+#else
+  /** CpuAcc is never there off arm, so a request reaching armnn as CpuAcc would fail */
+  ASSERT_FALSE (_HasBackend (armnn::Compute::CpuAcc));
+#endif
+
+  _OpenAndInvokeAdd (sp, ACCL_CPU_NEON);
+  _OpenAndInvokeAdd (sp, ACCL_AUTO);
+  _OpenAndInvokeAdd (sp, ACCL_DEFAULT);
+  /** an empty list, as tensor_filter gives without the accelerator property */
+  _OpenAndInvokeAdd (sp, ACCL_CPU_NEON, 0);
+}
+
+/**
+ * @brief Test that a NEON request does not fall back to another armnn backend
+ */
+TEST (nnstreamerFilterArmnn, openAcceleratorNeon_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorFilterProperties prop;
+
+#if defined(__aarch64__)
+  /** set by the arm64 CI run that removes CpuAcc, so the check below cannot be bypassed */
+  if (g_getenv ("NNS_TEST_ARMNN_WITHOUT_CPUACC") != NULL) {
+    ASSERT_FALSE (_HasBackend (armnn::Compute::CpuAcc));
+    ASSERT_TRUE (_HasBackend (armnn::Compute::CpuRef));
+  }
+#endif
+
+  gchar *model_file = _GetAddModelPath ();
+  const gchar *model_files[] = { model_file, NULL };
+  accl_hw gpu_first[] = { ACCL_GPU, ACCL_CPU_NEON };
+  const bool has_gpu = _HasBackend (armnn::Compute::GpuAcc);
+  ASSERT_NE (model_file, nullptr);
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  ASSERT_NE (sp, (void *) NULL);
+
+  _SetFilterProp (&prop, "armnn", model_files);
+
+  /** the first accelerator decides; cpu.neon after it is not tried */
+  prop.hw_list = gpu_first;
+  prop.num_hw = G_N_ELEMENTS (gpu_first);
+  ret = sp->open (&prop, &data);
+  if (has_gpu) {
+    EXPECT_EQ (ret, 0);
+  } else {
+    EXPECT_EQ (ret, -EINVAL);
+    EXPECT_EQ (data, nullptr);
+  }
+  sp->close (&prop, &data);
+
+#if defined(__aarch64__)
+  /** the plugin has no CpuRef fallback, so without CpuAcc cpu.neon, auto and default fail */
+  if (!_HasBackend (armnn::Compute::CpuAcc)) {
+    const accl_hw neon_requests[] = { ACCL_CPU_NEON, ACCL_AUTO, ACCL_DEFAULT };
+    accl_hw hw_list[1];
+
+    prop.hw_list = hw_list;
+    prop.num_hw = 1;
+    for (accl_hw hw : neon_requests) {
+      hw_list[0] = hw;
+      ret = sp->open (&prop, &data);
+      EXPECT_EQ (ret, -EINVAL) << "accelerator " << get_accl_hw_str (hw);
+      EXPECT_EQ (data, nullptr);
+      sp->close (&prop, &data);
+    }
+  }
+#endif
+
   g_free (model_file);
 }
 
@@ -923,7 +1007,7 @@ TEST (nnstreamerFilterArmnn, pipelineAcceleratorGpu_n)
 {
   GstElement *filter;
   GstStateChangeReturn ret;
-  const bool has_gpu = _HasGpuBackend ();
+  const bool has_gpu = _HasBackend (armnn::Compute::GpuAcc);
   gchar *model_file = _GetAddModelPath ();
   ASSERT_NE (model_file, nullptr);
 
@@ -941,6 +1025,55 @@ TEST (nnstreamerFilterArmnn, pipelineAcceleratorGpu_n)
 
   gst_element_set_state (filter, GST_STATE_NULL);
   gst_object_unref (filter);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test armnn subplugin in a pipeline with accelerator=true:cpu.neon
+ */
+TEST (nnstreamerFilterArmnn, pipelineAcceleratorNeon)
+{
+  GstHarness *h;
+  GstElement *filter;
+  GstBuffer *in_buf, *out_buf;
+  GstMapInfo map;
+  gchar *str = NULL;
+  float in_val = 10.0f;
+  gchar *model_file;
+
+#if defined(__aarch64__)
+  if (!_HasBackend (armnn::Compute::CpuAcc))
+    GTEST_SKIP () << "armnn has no CpuAcc backend here";
+#elif defined(__arm__)
+  GTEST_SKIP () << "NEON is optional on 32-bit arm";
+#else
+  ASSERT_FALSE (_HasBackend (armnn::Compute::CpuAcc));
+#endif
+
+  model_file = _GetAddModelPath ();
+  ASSERT_NE (model_file, nullptr);
+  h = _CreateAddHarness (model_file, "true:cpu.neon");
+
+  in_buf = gst_buffer_new_allocate (NULL, sizeof (float), NULL);
+  gst_buffer_fill (in_buf, 0, &in_val, sizeof (float));
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_pull (h);
+  ASSERT_NE (out_buf, nullptr);
+  ASSERT_TRUE (gst_buffer_map (out_buf, &map, GST_MAP_READ));
+  ASSERT_EQ (map.size, sizeof (float));
+  EXPECT_FLOAT_EQ (*((float *) map.data), 12.0f);
+  gst_buffer_unmap (out_buf, &map);
+  gst_buffer_unref (out_buf);
+
+  filter = gst_harness_find_element (h, "tensor_filter");
+  ASSERT_NE (filter, nullptr);
+  g_object_get (filter, "accelerator", &str, NULL);
+  EXPECT_STREQ (str, "true:cpu.neon");
+  g_free (str);
+
+  gst_object_unref (filter);
+  gst_harness_teardown (h);
   g_free (model_file);
 }
 
