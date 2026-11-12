@@ -59,6 +59,8 @@
  * </itemizedlist>
  * Other dimensions are not utilized. The data in the dimension 0 is sorted on
  * the basis of the indexing of the channels provided by the IIO device.
+ * The timestamp channel of the device is not among them: it is never enabled,
+ * and an enabled one is skipped in every scan.
  *
  * The enabling of buffer for data capture is performed when transitioning from
  * PAUSED to PLAYING state. This leads to automated synchronization handled by
@@ -229,6 +231,7 @@ enum
 #define CHANNELS "scan_elements"
 #define IIO "iio:"
 #define TIMESTAMP "timestamp"
+#define IN_TIMESTAMP "in_" TIMESTAMP
 #define DEVICE_PREFIX IIO DEVICE
 #define TRIGGER_PREFIX IIO TRIGGER
 #define CURRENT_TRIGGER "current_trigger"
@@ -355,7 +358,8 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
           " 1) auto: enable all channels when no channels are enabled automatically,"
           " 2) all: enable all channels,"
           " 3) x,y,z: list the idx of the channels to be enabled,"
-          " in decimal digits only; any other value is rejected",
+          " in decimal digits only; any other value is rejected."
+          " The timestamp channel is never enabled.",
           DEFAULT_OPERATING_CHANNELS_ENABLED, G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_BUFFER_CAPACITY,
@@ -859,6 +863,57 @@ gst_tensor_channel_list_filter_enabled (gpointer data, gpointer user_data)
 }
 
 /**
+ * @brief get the size the timestamp channel takes in a scan
+ * @param[in] self Tensor src IIO object
+ * @param[in] dir_name Directory name with all the scan elements for device
+ * @param[in] name Name of the timestamp channel
+ * @param[out] storage_bytes Size of the timestamp in a scan, 0 if disabled
+ * @return TRUE on success, FALSE if the size of the enabled timestamp is unknown
+ */
+static gboolean
+gst_tensor_src_iio_get_timestamp_size (GstTensorSrcIIO * self,
+    const gchar * dir_name, const gchar * name, guint * storage_bytes)
+{
+  GstTensorSrcIIOChannelProperties prop = { 0 };
+  gchar *filename, *file_contents = NULL;
+  gboolean enabled;
+
+  *storage_bytes = 0;
+
+  filename = g_strdup_printf ("%s/%s%s", dir_name, name, EN_SUFFIX);
+  if (!g_file_get_contents (filename, &file_contents, NULL, NULL)) {
+    GST_ERROR_OBJECT (self, "Unable to read %s.", filename);
+    g_free (filename);
+    return FALSE;
+  }
+  g_free (filename);
+  enabled = (g_ascii_strtoull (file_contents, NULL, 10) != 0);
+  g_free (file_contents);
+
+  if (!enabled)
+    return TRUE;
+
+  filename = g_strdup_printf ("%s/%s%s", dir_name, name, TYPE_SUFFIX);
+  if (!g_file_get_contents (filename, &file_contents, NULL, NULL)) {
+    GST_ERROR_OBJECT (self, "Unable to read %s.", filename);
+    g_free (filename);
+    return FALSE;
+  }
+  g_free (filename);
+
+  prop.name = (gchar *) name;
+  if (!gst_tensor_src_iio_set_channel_type (&prop, file_contents)) {
+    GST_ERROR_OBJECT (self, "Unable to parse the type of %s.", name);
+    g_free (file_contents);
+    return FALSE;
+  }
+  g_free (file_contents);
+
+  *storage_bytes = prop.storage_bytes;
+  return TRUE;
+}
+
+/**
  * @brief get info about all the channels in the device
  * @param[in/out] self Tensor src IIO object
  * @param[in] dir_name Directory name with all the scan elements for device
@@ -891,11 +946,21 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
     return ret;
   }
 
+  self->timestamp_size = 0;
   while ((dir_entry = readdir (dptr)) != NULL) {
     /** check for enable */
     if (g_str_has_suffix (dir_entry->d_name, EN_SUFFIX)) {
-      /** not enabling and handling buffer timestamps for now */
-      if (g_str_has_prefix (dir_entry->d_name, TIMESTAMP)) {
+      /** the timestamp is never enabled nor handed downstream for now */
+      if (g_str_has_prefix (dir_entry->d_name, TIMESTAMP)
+          || g_str_equal (dir_entry->d_name, IN_TIMESTAMP EN_SUFFIX)) {
+        gchar *name = g_strndup (dir_entry->d_name,
+            strlen (dir_entry->d_name) - strlen (EN_SUFFIX));
+        gboolean got_size = gst_tensor_src_iio_get_timestamp_size (self,
+            dir_name, name, &self->timestamp_size);
+
+        g_free (name);
+        if (!got_size)
+          goto error_cleanup_list;
         continue;
       }
 
@@ -1510,15 +1575,17 @@ gst_tensor_set_all_channels (GstTensorSrcIIO * self, const gint contents)
 /**
  * @brief get the size of the combined data from channels
  * @param[in] channels List of all the channels
+ * @param[in] timestamp_size Size of the timestamp, 0 if it is disabled
  * @return Size of one scan of data combined from all the channels
  *
  * Also evaluates the location of each channel in the buffer
  */
 static guint
-gst_tensor_get_size_from_channels (GList * channels)
+gst_tensor_get_size_from_channels (GList * channels, guint timestamp_size)
 {
   guint size_bytes = 0;
   guint remain = 0;
+  guint largest = 0;
   GList *list;
   GstTensorSrcIIOChannelProperties *channel_prop = NULL;
 
@@ -1532,6 +1599,23 @@ gst_tensor_get_size_from_channels (GList * channels)
           size_bytes - remain + channel_prop->storage_bytes;
     }
     size_bytes = channel_prop->location + channel_prop->storage_bytes;
+    largest = MAX (largest, channel_prop->storage_bytes);
+  }
+
+  /** the kernel puts the timestamp after every other channel */
+  if (timestamp_size > 0) {
+    remain = size_bytes % timestamp_size;
+    if (remain != 0)
+      size_bytes += timestamp_size - remain;
+    size_bytes += timestamp_size;
+    largest = MAX (largest, timestamp_size);
+  }
+
+  /** and pads a scan to a multiple of its largest channel */
+  if (largest > 0) {
+    remain = size_bytes % largest;
+    if (remain != 0)
+      size_bytes += largest - remain;
   }
 
   return size_bytes;
@@ -1846,6 +1930,8 @@ gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
   gboolean item_in_table = FALSE;
   gint channel_en;
   GstTensorSrcIIOChannelProperties *channel_prop;
+  GHashTableIter iter;
+  gpointer key;
 
 
   /** get all the channels that exist and then set enable on them */
@@ -1896,12 +1982,27 @@ gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
         g_free (filename);
       }
     }
+
+    g_hash_table_iter_init (&iter, self->custom_channel_table);
+    while (g_hash_table_iter_next (&iter, &key, NULL)) {
+      for (ch_list = self->channels; ch_list != NULL; ch_list = ch_list->next) {
+        channel_prop = (GstTensorSrcIIOChannelProperties *) ch_list->data;
+        if (channel_prop->index == GPOINTER_TO_INT (key))
+          break;
+      }
+      if (ch_list == NULL) {
+        GST_WARNING_OBJECT (self,
+            "Custom channel %d is not a data channel of the device and is ignored.",
+            GPOINTER_TO_INT (key));
+      }
+    }
   }
 
   /** filter out disabled channels */
   g_list_foreach (self->channels, gst_tensor_channel_list_filter_enabled,
       &self->channels);
-  self->scan_size = gst_tensor_get_size_from_channels (self->channels);
+  self->scan_size =
+      gst_tensor_get_size_from_channels (self->channels, self->timestamp_size);
   self->num_channels_enabled = g_list_length (self->channels);
 
   if ((guint64) self->scan_size * self->buffer_capacity > G_MAXINT) {
