@@ -120,6 +120,21 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! tensor_converter ! fake
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! ${TS_CONV} ! mux.sink_0 ${TS_SRC} ! ${TS_CONV} ! mux.sink_1 tensor_mux name=mux ! ${TS_PADDING}fakesink sync=true" 9-9 0 0 $PERFORMANCE 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! ${TS_CONV} ! tensor_aggregator frames-in=1 frames-out=5 frames-flush=5 ! ${TS_PADDING}fakesink sync=true" 9-10 0 0 $PERFORMANCE 30
 
+# Video padding removal with frames-per-tensor (#5191 I3). RGB and GRAY8 rows of
+# width 642 are padded to a 4-byte stride, so frames-per-tensor=2 aggregates the
+# unpadded frames. The reference is the same frames converted one per tensor
+# (padding removal pinned by 2-5 and 2-6), concatenated by filesink.
+PAD_SRC="videotestsrc num-buffers=4 pattern=snow"
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${PAD_SRC} ! video/x-raw,format=RGB,width=642,height=4,framerate=30/1 ! tee name=t ! queue ! tensor_converter frames-per-tensor=2 input-dim=3:642:4:2 input-type=uint8 ! filesink location=\"test.pad.rgb.frames2.log\" t. ! queue ! tensor_converter ! filesink location=\"test.pad.rgb.frames1.log\"" 10-1 0 0 $PERFORMANCE
+callCompareTest test.pad.rgb.frames1.log test.pad.rgb.frames2.log 10-2 "RGB padding removal with frames-per-tensor=2" 0 0
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${PAD_SRC} ! video/x-raw,format=GRAY8,width=642,height=4,framerate=30/1 ! tee name=t ! queue ! tensor_converter frames-per-tensor=2 ! other/tensors,num_tensors=1,dimensions=1:642:4:2,types=uint8,format=static ! filesink location=\"test.pad.gray8.frames2.log\" t. ! queue ! tensor_converter ! filesink location=\"test.pad.gray8.frames1.log\"" 10-3 0 0 $PERFORMANCE
+callCompareTest test.pad.gray8.frames1.log test.pad.gray8.frames2.log 10-4 "GRAY8 padding removal with frames-per-tensor=2" 0 0
+# input-dim or downstream caps that do not match the unpadded width or the frame count fail negotiation.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${PAD_SRC} ! video/x-raw,format=RGB,width=642,height=4,framerate=30/1 ! tensor_converter frames-per-tensor=2 input-dim=3:640:4:2 input-type=uint8 ! fakesink" 10-5_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${PAD_SRC} ! video/x-raw,format=RGB,width=642,height=4,framerate=30/1 ! tensor_converter frames-per-tensor=2 input-dim=3:642:4:1 input-type=uint8 ! fakesink" 10-6_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${PAD_SRC} ! video/x-raw,format=RGB,width=642,height=4,framerate=30/1 ! tensor_converter frames-per-tensor=2 ! other/tensors,num_tensors=1,dimensions=3:642:4:1,types=uint8,format=static ! fakesink" 10-7_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${PAD_SRC} ! video/x-raw,format=GRAY8,width=642,height=4,framerate=30/1 ! tensor_converter frames-per-tensor=2 input-dim=1:640:4:2 input-type=uint8 ! fakesink" 10-8_n 0 1 $PERFORMANCE
+
 rm *.log *.bmp *.png *.golden *.dat
 
 report
