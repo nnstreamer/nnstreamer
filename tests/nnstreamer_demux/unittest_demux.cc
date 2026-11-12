@@ -470,7 +470,7 @@ class TensorMuxDemuxFlexible : public ::testing::Test
     ASSERT_NE (sample, nullptr) << index;
     GstBuffer *buffer = gst_sample_get_buffer (sample);
     GstMapInfo map;
-    EXPECT_EQ (GST_BUFFER_PTS (buffer), 123 * GST_MSECOND);
+    EXPECT_EQ (GST_BUFFER_PTS (buffer), static_cast<GstClockTime> (123 * GST_MSECOND));
     EXPECT_EQ (gst_buffer_n_memory (buffer), 1U);
     EXPECT_STREQ (gst_structure_get_string (
                       gst_caps_get_structure (gst_sample_get_caps (sample), 0), "format"),
