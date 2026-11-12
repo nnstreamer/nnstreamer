@@ -119,6 +119,7 @@ struct _GstTensorSrcIIO
   GHashTable *custom_channel_table; /**< table of idx of channels to be enabled */
   channels_enabled_options channels_enabled; /**< enabling which channels */
   guint scan_size; /**< size for a single scan of buffer length 1 */
+  guint timestamp_size; /**< size of the timestamp in a scan, 0 if disabled */
   struct pollfd *buffer_data_fp; /**< pollfd for reading data buffer */
   guint num_channels_enabled; /**< channels to be enabled */
   gboolean merge_channels_data; /**< merge channel data with same type/size */
