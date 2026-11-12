@@ -1871,6 +1871,268 @@ TEST (tensorFilterOpenvino, invoke3_n)
 }
 
 /**
+ * @brief A test case for the invoke callback with the tensor names a user gives
+ *
+ * A name given by the user is the one used, and a tensor left unnamed takes the
+ * name of the model, tensor by tensor. getModelInfo reports the names of the
+ * model whatever the properties carry.
+ */
+TEST (tensorFilterOpenvino, invokeUserTensorNames)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorsInfo model_in, model_out, in_info, out_info;
+  GstTensorMemory input;
+  GstTensorMemory output;
+  GstTensorInfo *_info;
+  gchar *test_model;
+  gfloat sum;
+  guint i, round;
+  gint ret = -1;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->invoke && fw->getModelInfo);
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  const gchar *model_files[] = {
+    test_model,
+    NULL,
+  };
+
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+  setAccelerator (prop, ACCL_LIST_CPU);
+
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+  ASSERT_EQ (fw->getModelInfo (fw, prop, private_data, GET_IN_OUT_INFO, &model_in, &model_out), 0);
+  fw->close (prop, &private_data);
+  ASSERT_EQ (model_in.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
+  ASSERT_EQ (model_out.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
+  ASSERT_TRUE (gst_tensors_info_get_nth_info (&model_in, 0)->name != NULL);
+  ASSERT_TRUE (gst_tensors_info_get_nth_info (&model_out, 0)->name != NULL);
+
+  input.size = gst_tensors_info_get_size (&model_in, 0);
+  input.data = g_malloc0 (input.size);
+  output.size = gst_tensors_info_get_size (&model_out, 0);
+  output.data = g_malloc0 (output.size);
+
+  /** The user names the input only, then the output only */
+  for (round = 0; round < 2; ++round) {
+    gst_tensors_info_copy (&prop->input_meta, &model_in);
+    gst_tensors_info_copy (&prop->output_meta, &model_out);
+    _info = gst_tensors_info_get_nth_info (
+        (round == 0) ? &prop->output_meta : &prop->input_meta, 0);
+    g_free (_info->name);
+    _info->name = NULL;
+
+    ASSERT_EQ (fw->open (prop, &private_data), 0);
+
+    memset (output.data, 0, output.size);
+    EXPECT_NO_THROW (ret = fw->invoke (fw, prop, private_data, &input, &output));
+    EXPECT_EQ (ret, 0);
+
+    /** The output of the softmax is written to the memory of the tensor */
+    sum = 0.0f;
+    for (i = 0; i < output.size / sizeof (gfloat); ++i)
+      sum += ((gfloat *) output.data)[i];
+    EXPECT_NEAR (sum, 1.0f, 0.01f);
+
+    fw->close (prop, &private_data);
+    gst_tensors_info_free (&prop->input_meta);
+    gst_tensors_info_free (&prop->output_meta);
+  }
+
+  /** Names other than those of the model do not change what getModelInfo reports */
+  gst_tensors_info_copy (&prop->input_meta, &model_in);
+  gst_tensors_info_copy (&prop->output_meta, &model_out);
+  _info = gst_tensors_info_get_nth_info (&prop->input_meta, 0);
+  g_free (_info->name);
+  _info->name = g_strdup ("user_input");
+  _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
+  g_free (_info->name);
+  _info->name = g_strdup ("user_output");
+
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+  ASSERT_EQ (fw->getModelInfo (fw, prop, private_data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+  EXPECT_STREQ (gst_tensors_info_get_nth_info (&in_info, 0)->name,
+      gst_tensors_info_get_nth_info (&model_in, 0)->name);
+  EXPECT_STREQ (gst_tensors_info_get_nth_info (&out_info, 0)->name,
+      gst_tensors_info_get_nth_info (&model_out, 0)->name);
+  EXPECT_STREQ (gst_tensors_info_get_nth_info (&prop->input_meta, 0)->name, "user_input");
+  EXPECT_STREQ (gst_tensors_info_get_nth_info (&prop->output_meta, 0)->name, "user_output");
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  fw->close (prop, &private_data);
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop->input_meta);
+  gst_tensors_info_free (&prop->output_meta);
+  gst_tensors_info_free (&model_in);
+  gst_tensors_info_free (&model_out);
+  g_free (prop);
+  g_free (test_model);
+}
+
+/**
+ * @brief A negative test case for the invoke callback with an output tensor the model does not have
+ *
+ * The tensor info is fixed when the model is opened, so an output past those
+ * of the model is refused at invoke, named by the user or not.
+ */
+TEST (tensorFilterOpenvino, invokeUserTensorNames0_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorMemory input;
+  GstTensorMemory output[2];
+  GstTensorInfo *_info;
+  gchar *test_model;
+  guint i;
+  gint ret = 0;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->invoke && fw->getModelInfo);
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  const gchar *model_files[] = {
+    test_model,
+    NULL,
+  };
+
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+  setAccelerator (prop, ACCL_LIST_CPU);
+
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+  ASSERT_EQ (fw->getModelInfo (fw, prop, private_data, GET_IN_OUT_INFO,
+                 &prop->input_meta, &prop->output_meta),
+      0);
+  fw->close (prop, &private_data);
+  ASSERT_EQ (prop->output_meta.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
+
+  /** A second output, the same as the first one but for the name; slot 1 is in info[], no extra */
+  prop->output_meta.num_tensors = MOBINET_V2_OUT_NUM_TENSOR + 1;
+  _info = gst_tensors_info_get_nth_info (&prop->output_meta, 1);
+  gst_tensor_info_copy (_info, gst_tensors_info_get_nth_info (&prop->output_meta, 0));
+  g_free (_info->name);
+  _info->name = g_strdup ("user_extra_output");
+
+  input.size = gst_tensors_info_get_size (&prop->input_meta, 0);
+  input.data = g_malloc0 (input.size);
+  for (i = 0; i < 2; ++i) {
+    output[i].size = gst_tensors_info_get_size (&prop->output_meta, i);
+    output[i].data = g_malloc0 (output[i].size);
+  }
+
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+  EXPECT_NO_THROW (ret = fw->invoke (fw, prop, private_data, &input, output));
+  EXPECT_EQ (ret, -EINVAL);
+  fw->close (prop, &private_data);
+
+  g_free (_info->name);
+  _info->name = NULL;
+
+  ret = 0;
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+  EXPECT_NO_THROW (ret = fw->invoke (fw, prop, private_data, &input, output));
+  EXPECT_EQ (ret, -EINVAL);
+  fw->close (prop, &private_data);
+
+  g_free (input.data);
+  for (i = 0; i < 2; ++i)
+    g_free (output[i].data);
+  gst_tensors_info_free (&prop->input_meta);
+  gst_tensors_info_free (&prop->output_meta);
+  g_free (prop);
+  g_free (test_model);
+}
+
+/**
+ * @brief A negative test case for the invoke callback with an output name the model does not have
+ */
+TEST (tensorFilterOpenvino, invokeUserTensorNames1_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorMemory input;
+  GstTensorMemory output;
+  GstTensorInfo *_info;
+  gchar *test_model;
+  gint ret = 0;
+
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->invoke && fw->getModelInfo);
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  const gchar *model_files[] = {
+    test_model,
+    NULL,
+  };
+
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+  setAccelerator (prop, ACCL_LIST_CPU);
+
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+  ASSERT_EQ (fw->getModelInfo (fw, prop, private_data, GET_IN_OUT_INFO,
+                 &prop->input_meta, &prop->output_meta),
+      0);
+  fw->close (prop, &private_data);
+
+  _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
+  g_free (_info->name);
+  _info->name = g_strdup ("not_in_the_model");
+
+  input.size = gst_tensors_info_get_size (&prop->input_meta, 0);
+  input.data = g_malloc0 (input.size);
+  output.size = gst_tensors_info_get_size (&prop->output_meta, 0);
+  output.data = g_malloc0 (output.size);
+
+  ASSERT_EQ (fw->open (prop, &private_data), 0);
+  EXPECT_NO_THROW (ret = fw->invoke (fw, prop, private_data, &input, &output));
+  EXPECT_EQ (ret, -EINVAL);
+  fw->close (prop, &private_data);
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop->input_meta);
+  gst_tensors_info_free (&prop->output_meta);
+  g_free (prop);
+  g_free (test_model);
+}
+
+/**
  * @brief Get a harness running the MobileNet v2 model with tensor_filter
  * @param accelerator the value of the accelerator property
  */
