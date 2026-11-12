@@ -297,6 +297,7 @@ gst_tensor_query_serversrc_change_state (GstElement * element,
   GstBaseSrc *bsrc = GST_BASE_SRC (element);
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
   GstCaps *caps;
+  nns_edge_data_h data_h;
 
   switch (transition) {
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -331,6 +332,10 @@ gst_tensor_query_serversrc_change_state (GstElement * element,
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       src->playing = FALSE;
       gst_tensor_query_server_release_edge_handle (src->src_id);
+
+      /* The clients of the queued requests are gone with the edge handle. */
+      while ((data_h = g_async_queue_try_pop (src->msg_queue)))
+        nns_edge_data_destroy (data_h);
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       gst_tensor_query_server_remove_data (src->src_id);

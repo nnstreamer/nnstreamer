@@ -16,6 +16,7 @@ Therefore, there is no need for cloud server by running AI on a local network.
 - The capability of the tensor_client source must match the capability of the tensor_query_serversink.
 - If the source caps describe tensors, an answer from the server that does not carry them (a different number of tensors or a different size for static tensors, a missing or short header for flexible and sparse tensors) is refused with an error instead of being pushed.
 - `max-buffers` bounds the answers received from the server but not yet pushed. If the server sends faster than the client pipeline processes, the oldest answer is dropped. It is 0 (no limit) by default. Set it if the peer is not trusted: without a limit, a peer that keeps sending can exhaust the memory.
+- With `connect-type=TCP`, if the connection to the server is closed (e.g., the server pipeline restarted), the client connects again before it sends the next buffer. The requests sent before are not answered anymore and no longer count against `max-request`. While it cannot connect, or the server refuses its caps, the client drops its input buffers, tries again at most once a second, and posts one warning message until it is connected again.
 
 ### tensor_query_serversrc
 - Used for heavyweight device.
@@ -23,6 +24,7 @@ Therefore, there is no need for cloud server by running AI on a local network.
 - The capability of tensor_query_serversrc is ```ANY```.
 - If the negotiated caps describe tensors, a request that does not carry them is dropped with a log instead of being pushed, and the server keeps serving the other clients. The client that sent it gets no answer to that request.
 - `max-buffers` bounds the requests received from clients but not yet pushed. If clients send faster than the server pipeline processes, the oldest request is dropped and its client gets no answer. It is 0 (no limit) by default. Set it if the peer is not trusted: without a limit, a peer that keeps sending can exhaust the memory. A tensor_query_client counts a request as pending until its answer arrives, so a client with `max-request` stops sending once more than `max-request` of its requests are dropped. Keep `max-buffers` at least the sum of (`max-request` + 1) over the clients served, so that it only drops requests beyond what the clients are allowed to have pending. This does not hold for clients with `max-request=0`, which have no limit on pending requests.
+- When the server stops (PLAYING to PAUSED), the requests not yet pushed are dropped: their clients are disconnected and could not get the answers. This does not cover the requests already pushed downstream: if one of them reaches tensor_query_serversink after the restart, the serversink cannot send its answer and fails with an error.
 
 ### tensor_query_serversink
 - Used for heavyweight device.

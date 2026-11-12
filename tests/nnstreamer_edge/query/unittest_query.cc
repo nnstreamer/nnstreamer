@@ -8,11 +8,15 @@
  */
 
 #include <gtest/gtest.h>
+#include <fcntl.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <tensor_common.h>
+#include <unistd.h>
 #include <unittest_util.h>
 #include "../gst/nnstreamer/tensor_query/tensor_query_common.h"
 
@@ -1964,10 +1968,13 @@ _wait_dropped (DropCounter *counter, guint num, guint timeout_ms)
 
 /**
  * @brief Pad probe callback that keeps buffers blocked until the probe is removed.
+ * @param user_data A gint flag set to 1 once a buffer is blocked (nullable).
  */
 static GstPadProbeReturn
 _block_buffers (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
+  if (user_data)
+    g_atomic_int_set ((gint *) user_data, 1);
   return GST_PAD_PROBE_OK;
 }
 
@@ -2398,6 +2405,511 @@ TEST (tensorQuery, clientChainAfterFailedReconnect_n)
 
   g_free (peer.client_id);
   g_mutex_clear (&peer.lock);
+}
+
+/**
+ * @brief A tensor_query_client pipeline and the tensor_query_serversrc -> tensor_query_serversink pipeline it queries.
+ */
+typedef struct {
+  GstElement *server; /**< the server pipeline */
+  GstElement *client; /**< the client pipeline */
+  guint answers; /**< the number of answers the client pushed */
+  guint port; /**< the port of the server */
+} RoundTrip;
+
+/** The time to wait for an answer that has to come, long enough for a slow run under valgrind. */
+#define ROUND_TRIP_ANSWER_MS 10000U
+
+/**
+ * @brief Wait until a server can listen on @a port again.
+ * nnstreamer-edge binds its listener without SO_REUSEADDR, so a connection the stopped
+ * server accepted holds the port until the client notices it is closed and closes its end.
+ * @return TRUE if the port is free within @a timeout_ms.
+ */
+static gboolean
+_wait_port_free (guint port, guint timeout_ms)
+{
+  struct sockaddr_in sin = {};
+  guint waited;
+  gint sock, ret;
+
+  sin.sin_family = AF_INET;
+  sin.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+  sin.sin_port = htons (port);
+
+  for (waited = 0; waited <= timeout_ms; waited += 10) {
+    sock = socket (AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
+      return FALSE;
+
+    ret = bind (sock, (struct sockaddr *) &sin, sizeof (sin));
+    close (sock);
+    if (ret == 0)
+      return TRUE;
+
+    g_usleep (10000);
+  }
+
+  return FALSE;
+}
+
+/**
+ * @brief Start a server pipeline and a client pipeline that queries it.
+ * @param max_request The max-request property of the client.
+ */
+static void
+_round_trip_start (RoundTrip *rt, guint max_request)
+{
+  gchar *pipeline;
+  GstElement *sink;
+  guint port = get_available_port ();
+
+  rt->answers = 0;
+  rt->port = port;
+
+  pipeline = g_strdup_printf ("tensor_query_serversrc name=srcx host=127.0.0.1 port=%u ! "
+                              "capsfilter name=cf caps=\"%s\" ! tensor_query_serversink async=false",
+      port, QUERY_TEST_CAPS);
+  rt->server = gst_parse_launch (pipeline, nullptr);
+  g_free (pipeline);
+  ASSERT_NE (rt->server, nullptr);
+
+  pipeline = g_strdup_printf ("appsrc name=appsrc caps=\"%s\" ! "
+                              "tensor_query_client name=clientx port=0 dest-host=127.0.0.1 dest-port=%u "
+                              "timeout=%u max-request=%u ! tensor_sink name=sinkx async=false",
+      QUERY_TEST_CAPS, port, ROUND_TRIP_ANSWER_MS, max_request);
+  rt->client = gst_parse_launch (pipeline, nullptr);
+  g_free (pipeline);
+  ASSERT_NE (rt->client, nullptr);
+
+  sink = gst_bin_get_by_name (GST_BIN (rt->client), "sinkx");
+  g_signal_connect (sink, "new-data", (GCallback) _count_new_data, &rt->answers);
+  gst_object_unref (sink);
+
+  EXPECT_EQ (setPipelineStateSync (rt->server, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      0);
+  EXPECT_EQ (setPipelineStateSync (rt->client, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      0);
+}
+
+/**
+ * @brief Set the stopped server pipeline of a round trip to PLAYING again.
+ */
+static void
+_round_trip_play_server (RoundTrip *rt)
+{
+  EXPECT_TRUE (_wait_port_free (rt->port, 5000));
+  EXPECT_EQ (setPipelineStateSync (rt->server, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      0);
+}
+
+/**
+ * @brief Stop and free the pipelines of a round trip.
+ */
+static void
+_round_trip_stop (RoundTrip *rt)
+{
+  EXPECT_EQ (setPipelineStateSync (rt->client, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (rt->server, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (rt->client);
+  gst_object_unref (rt->server);
+}
+
+/**
+ * @brief Push one request of @a size bytes into the client and wait until it
+ * pushes one more answer. The client pushes an answer only while it handles a
+ * buffer and waits for an answer for its timeout, so the client waits as long
+ * as this function does. Otherwise a late answer would be pushed with the next
+ * request instead.
+ * @return TRUE if the answer came within @a timeout_ms.
+ */
+static gboolean
+_round_trip_push (RoundTrip *rt, guint timeout_ms, gsize size = 4)
+{
+  GstElement *appsrc, *client;
+  guint waited, before = (guint) g_atomic_int_get (&rt->answers);
+
+  client = gst_bin_get_by_name (GST_BIN (rt->client), "clientx");
+  g_object_set (client, "timeout", timeout_ms, nullptr);
+  gst_object_unref (client);
+
+  appsrc = gst_bin_get_by_name (GST_BIN (rt->client), "appsrc");
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc),
+                 gst_buffer_new_wrapped (g_malloc0 (size), size)),
+      GST_FLOW_OK);
+  gst_object_unref (appsrc);
+
+  for (waited = 0; waited < timeout_ms; waited += 10) {
+    if ((guint) g_atomic_int_get (&rt->answers) > before)
+      return TRUE;
+    g_usleep (10000);
+  }
+
+  return ((guint) g_atomic_int_get (&rt->answers) > before);
+}
+
+/**
+ * @brief Push requests until the client pushes an answer again, it may take a few after the server restarts.
+ * @return TRUE if a request was answered within @a tries requests.
+ */
+static gboolean
+_round_trip_push_until_answered (RoundTrip *rt, guint tries)
+{
+  guint i;
+
+  for (i = 0; i < tries; i++) {
+    if (_round_trip_push (rt, 2000))
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
+/**
+ * @brief Pop the warnings and the errors waiting on the bus of @a pipeline.
+ * Both are popped in one pass: popping one type discards the messages of the other.
+ * @param[out] warnings The number of warnings popped (nullable).
+ * @return The number of errors popped.
+ */
+static guint
+_pop_bus_errors (GstElement *pipeline, guint *warnings)
+{
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessage *msg;
+  guint num_errors = 0, num_warnings = 0;
+
+  while ((msg = gst_bus_pop_filtered (bus, (GstMessageType) (GST_MESSAGE_WARNING | GST_MESSAGE_ERROR)))
+         != nullptr) {
+    if (GST_MESSAGE_TYPE (msg) == GST_MESSAGE_ERROR)
+      num_errors++;
+    else
+      num_warnings++;
+    gst_message_unref (msg);
+  }
+  gst_object_unref (bus);
+
+  if (warnings)
+    *warnings = num_warnings;
+  return num_errors;
+}
+
+/**
+ * @brief tensor_query_client gets answers from a real server, and again after the server pipeline restarts.
+ */
+TEST (tensorQuery, clientRoundTripAfterServerRestart)
+{
+  RoundTrip rt;
+  guint i;
+
+  _round_trip_start (&rt, 2U);
+
+  for (i = 0; i < 3U; i++)
+    EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS));
+  EXPECT_EQ ((guint) g_atomic_int_get (&rt.answers), 3U);
+
+  EXPECT_EQ (setPipelineStateSync (rt.server, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  _round_trip_play_server (&rt);
+
+  EXPECT_TRUE (_round_trip_push_until_answered (&rt, 10U));
+  for (i = 0; i < 3U; i++)
+    EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS));
+
+  EXPECT_EQ (_pop_bus_errors (rt.client, nullptr), 0U);
+  _round_trip_stop (&rt);
+}
+
+/**
+ * @brief tensor_query_client forgets the requests the server never answered before it restarted.
+ * With max-request=1, two unanswered requests make the client drop its input until they are answered.
+ */
+TEST (tensorQuery, clientRoundTripAfterRestartWithUnansweredRequests)
+{
+  RoundTrip rt;
+  GstElement *srcx;
+  GstPad *pad;
+  gulong probe_id;
+  guint i;
+
+  _round_trip_start (&rt, 1U);
+  EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS));
+
+  /* The server takes the requests but does not answer them. */
+  srcx = gst_bin_get_by_name (GST_BIN (rt.server), "srcx");
+  pad = gst_element_get_static_pad (srcx, "src");
+  gst_object_unref (srcx);
+  probe_id = gst_pad_add_probe (pad,
+      (GstPadProbeType) (GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_BUFFER),
+      _block_buffers, nullptr, nullptr);
+
+  for (i = 0; i < 4U; i++)
+    EXPECT_FALSE (_round_trip_push (&rt, 400));
+
+  /* Stopping the server flushes the blocked request; the restarted one answers. */
+  EXPECT_EQ (setPipelineStateSync (rt.server, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_pad_remove_probe (pad, probe_id);
+  gst_object_unref (pad);
+  _round_trip_play_server (&rt);
+
+  EXPECT_TRUE (_round_trip_push_until_answered (&rt, 10U));
+  EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS));
+
+  EXPECT_EQ (_pop_bus_errors (rt.client, nullptr), 0U);
+  _round_trip_stop (&rt);
+}
+
+/**
+ * @brief tensor_query_client posts one warning and drops its input while the server is down.
+ */
+TEST (tensorQuery, clientWarnsOnceWhileServerDown_n)
+{
+  RoundTrip rt;
+  guint i, warnings;
+
+  _round_trip_start (&rt, 2U);
+  EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS));
+
+  EXPECT_EQ (setPipelineStateSync (rt.server, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  for (i = 0; i < 4U; i++)
+    EXPECT_FALSE (_round_trip_push (&rt, 400));
+  EXPECT_EQ ((guint) g_atomic_int_get (&rt.answers), 1U);
+
+  EXPECT_EQ (_pop_bus_errors (rt.client, &warnings), 0U);
+  EXPECT_EQ (warnings, 1U);
+  _round_trip_stop (&rt);
+}
+
+/**
+ * @brief tensor_query_client posts a warning again when it loses the connection after it reconnected.
+ */
+TEST (tensorQuery, clientWarnsForEachLostConnection)
+{
+  RoundTrip rt;
+  guint round, warnings;
+
+  _round_trip_start (&rt, 2U);
+  EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS));
+
+  for (round = 0; round < 2U; round++) {
+    EXPECT_EQ (setPipelineStateSync (rt.server, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+    EXPECT_FALSE (_round_trip_push (&rt, 400));
+    EXPECT_FALSE (_round_trip_push (&rt, 400));
+    EXPECT_EQ (_pop_bus_errors (rt.client, &warnings), 0U);
+    EXPECT_EQ (warnings, 1U);
+
+    _round_trip_play_server (&rt);
+    EXPECT_TRUE (_round_trip_push_until_answered (&rt, 10U));
+  }
+
+  EXPECT_EQ (_pop_bus_errors (rt.client, nullptr), 0U);
+  _round_trip_stop (&rt);
+}
+
+/**
+ * @brief tensor_query_client connecting with new caps forgets that the old connection was lost,
+ * so it posts a warning again when the new connection is lost.
+ */
+TEST (tensorQuery, clientWarnsAgainAfterNewCaps)
+{
+  RoundTrip rt;
+  GstElement *element;
+  GstCaps *caps;
+  guint warnings;
+
+  _round_trip_start (&rt, 2U);
+  EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS));
+
+  EXPECT_EQ (setPipelineStateSync (rt.server, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_FALSE (_round_trip_push (&rt, 400));
+  EXPECT_EQ (_pop_bus_errors (rt.client, &warnings), 0U);
+  EXPECT_EQ (warnings, 1U);
+
+  /* The server and the client switch to 8-byte tensors: the client opens a new connection. */
+  caps = gst_caps_from_string (QUERY_TEST_CAPS_8);
+  element = gst_bin_get_by_name (GST_BIN (rt.server), "cf");
+  g_object_set (element, "caps", caps, nullptr);
+  gst_object_unref (element);
+  _round_trip_play_server (&rt);
+  element = gst_bin_get_by_name (GST_BIN (rt.client), "appsrc");
+  g_object_set (element, "caps", caps, nullptr);
+  gst_object_unref (element);
+  gst_caps_unref (caps);
+  EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS, 8));
+
+  EXPECT_EQ (setPipelineStateSync (rt.server, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_FALSE (_round_trip_push (&rt, 400, 8));
+  EXPECT_EQ (_pop_bus_errors (rt.client, &warnings), 0U);
+  EXPECT_EQ (warnings, 1U);
+  _round_trip_stop (&rt);
+}
+
+/**
+ * @brief tensor_query_client tries to reconnect at most once a second while the
+ * server is down, not for every buffer. A raw listener on the server port
+ * accepts and closes each connection, so every attempt fails.
+ */
+TEST (tensorQuery, clientLimitsReconnectAttempts_n)
+{
+  struct sockaddr_in sin = {};
+  RoundTrip rt;
+  GstElement *appsrc, *client;
+  guint i, waited, warnings, attempts = 0;
+  gint listener, conn;
+
+  _round_trip_start (&rt, 2U);
+  EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS));
+  EXPECT_EQ (setPipelineStateSync (rt.server, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (_wait_port_free (rt.port, 5000));
+
+  sin.sin_family = AF_INET;
+  sin.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+  sin.sin_port = htons (rt.port);
+  listener = socket (AF_INET, SOCK_STREAM, 0);
+  ASSERT_GE (listener, 0);
+  EXPECT_EQ (bind (listener, (struct sockaddr *) &sin, sizeof (sin)), 0);
+  EXPECT_EQ (listen (listener, 16), 0);
+  fcntl (listener, F_SETFL, fcntl (listener, F_GETFL, 0) | O_NONBLOCK);
+
+  /* The client waits 200 ms for an answer per buffer: 10 buffers take 2 seconds. */
+  client = gst_bin_get_by_name (GST_BIN (rt.client), "clientx");
+  g_object_set (client, "timeout", 200U, nullptr);
+  gst_object_unref (client);
+  appsrc = gst_bin_get_by_name (GST_BIN (rt.client), "appsrc");
+  for (i = 0; i < 10U; i++)
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), _static_input ()), GST_FLOW_OK);
+  gst_object_unref (appsrc);
+
+  for (waited = 0; waited < 2500; waited += 10) {
+    while ((conn = accept (listener, nullptr, nullptr)) >= 0) {
+      close (conn);
+      attempts++;
+    }
+    g_usleep (10000);
+  }
+  close (listener);
+
+  EXPECT_GE (attempts, 1U);
+  EXPECT_LE (attempts, 3U);
+  EXPECT_EQ ((guint) g_atomic_int_get (&rt.answers), 1U);
+  EXPECT_EQ (_pop_bus_errors (rt.client, &warnings), 0U);
+  EXPECT_EQ (warnings, 1U);
+  _round_trip_stop (&rt);
+}
+
+/**
+ * @brief tensor_query_client does not reconnect to a server that restarted with caps the client does not fit.
+ */
+TEST (tensorQuery, clientRefusesRestartedServerWithOtherCaps_n)
+{
+  RoundTrip rt;
+  GstElement *cf;
+  GstCaps *caps;
+  guint warnings;
+
+  _round_trip_start (&rt, 2U);
+  EXPECT_TRUE (_round_trip_push (&rt, ROUND_TRIP_ANSWER_MS));
+
+  EXPECT_EQ (setPipelineStateSync (rt.server, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  cf = gst_bin_get_by_name (GST_BIN (rt.server), "cf");
+  caps = gst_caps_from_string (QUERY_TEST_CAPS_8);
+  g_object_set (cf, "caps", caps, nullptr);
+  gst_caps_unref (caps);
+  gst_object_unref (cf);
+  _round_trip_play_server (&rt);
+
+  EXPECT_FALSE (_round_trip_push_until_answered (&rt, 4U));
+  EXPECT_EQ ((guint) g_atomic_int_get (&rt.answers), 1U);
+
+  EXPECT_EQ (_pop_bus_errors (rt.client, &warnings), 0U);
+  EXPECT_EQ (warnings, 1U);
+  _round_trip_stop (&rt);
+}
+
+/**
+ * @brief tensor_query_serversrc does not push the requests it queued before it stopped once it restarts.
+ * Their clients are gone with the old connections, so the serversink could not answer them.
+ */
+TEST (tensorQuery, serverSrcDropsQueuedRequestsOnRestart_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe, *element;
+  GstPad *pad;
+  nns_edge_data_h data[2];
+  nns_edge_h client_a, client_b;
+  DropCounter counter;
+  IdLog log;
+  gulong probe_id;
+  gint blocked = 0;
+  guint waited, port = get_available_port ();
+
+#ifdef GST_DISABLE_GST_DEBUG
+  GTEST_SKIP () << "The dropped requests are counted with the GStreamer debug log.";
+#endif
+
+  g_mutex_init (&log.lock);
+  log.ids = g_array_new (FALSE, FALSE, sizeof (guint8));
+  _drop_counter_start (&counter, "tensor_query_serversrc");
+
+  pipeline = g_strdup_printf (
+      "tensor_query_serversrc name=srcx host=127.0.0.1 port=%u max-buffers=1 ! "
+      "capsfilter caps=\"%s\" ! tee name=t t. ! queue ! tensor_query_serversink async=false "
+      "t. ! queue ! fakesink name=sinkx signal-handoffs=true sync=false async=false",
+      port, QUERY_TEST_CAPS);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  g_free (pipeline);
+  ASSERT_NE (gstpipe, nullptr);
+  _drop_counter_probe (&counter);
+
+  element = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  g_signal_connect (element, "handoff", (GCallback) _log_id, &log);
+  gst_object_unref (element);
+
+  element = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+  pad = gst_element_get_static_pad (element, "src");
+  gst_object_unref (element);
+  probe_id = gst_pad_add_probe (pad,
+      (GstPadProbeType) (GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_BUFFER),
+      _block_buffers, &blocked, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  /* The serversrc blocks pushing request 0, so nothing takes requests from its queue. */
+  data[0] = _make_id_data (0);
+  client_a = _raw_client_send (port, data, 1);
+  for (waited = 0; waited < 5000 && !g_atomic_int_get (&blocked); waited += 10)
+    g_usleep (10000);
+  EXPECT_TRUE (g_atomic_int_get (&blocked));
+
+  /* Request 2 drops request 1 (max-buffers=1), which shows request 2 is queued. */
+  data[0] = _make_id_data (1);
+  data[1] = _make_id_data (2);
+  client_b = _raw_client_send (port, data, 2);
+  EXPECT_EQ (_wait_dropped (&counter, 1, 5000), 1U);
+  nns_edge_release_handle (client_a);
+  nns_edge_release_handle (client_b);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_pad_remove_probe (pad, probe_id);
+  gst_object_unref (pad);
+  EXPECT_TRUE (_wait_port_free (port, 5000));
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  data[0] = _make_id_data (3);
+  client_a = _raw_client_send (port, data, 1);
+  _wait_ids (&log, 1, 5000);
+  nns_edge_release_handle (client_a);
+
+  EXPECT_EQ (log.ids->len, 1U);
+  if (log.ids->len > 0) {
+    EXPECT_EQ (g_array_index (log.ids, guint8, 0), 3U);
+  }
+  EXPECT_EQ (_pop_bus_errors (gstpipe, nullptr), 0U);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (gstpipe);
+  _drop_counter_stop (&counter);
+  g_array_free (log.ids, TRUE);
+  g_mutex_clear (&log.lock);
 }
 
 /**
