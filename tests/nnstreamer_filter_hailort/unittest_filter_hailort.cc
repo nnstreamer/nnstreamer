@@ -778,6 +778,298 @@ TEST_F (nnstreamerFilterHailort, pipelineInvalidModel_n)
   gst_object_unref (pipeline);
 }
 
+/** @brief The input caps of IDENTITY_MODEL. */
+static const gchar *IDENTITY_CAPS = "other/tensors,num_tensors=1,format=static,"
+                                    "dimensions=3:4:4:1,types=uint8,framerate=0/1";
+
+/**
+ * @brief Push a frame through the identity model and check that it comes back.
+ * @return The result of the push.
+ */
+static GstFlowReturn
+_PushIdentity (GstHarness *h, guint8 seed)
+{
+  GstBuffer *in_buf, *out_buf;
+  GstFlowReturn ret;
+  guint8 values[48];
+
+  for (guint i = 0; i < sizeof (values); i++)
+    values[i] = (guint8) (seed + i);
+  in_buf = gst_harness_create_buffer (h, sizeof (values));
+  gst_buffer_fill (in_buf, 0, values, sizeof (values));
+
+  ret = gst_harness_push (h, in_buf);
+  if (ret != GST_FLOW_OK)
+    return ret;
+
+  out_buf = gst_harness_pull (h);
+  EXPECT_TRUE (out_buf != nullptr);
+  if (out_buf) {
+    EXPECT_EQ (gst_buffer_get_size (out_buf), sizeof (values));
+    EXPECT_EQ (gst_buffer_memcmp (out_buf, 0, values, sizeof (values)), 0);
+    gst_buffer_unref (out_buf);
+  }
+
+  return ret;
+}
+
+/**
+ * @brief Take the harness element to NULL and back to PLAYING.
+ * @details tensor_filter closes the sub-plugin when it stops and opens it
+ *          again when it starts. The input pad lost its sticky events on the
+ *          way down, so they are pushed again once the element is up.
+ * @return The result of the change to PLAYING.
+ */
+static GstStateChangeReturn
+_HarnessRestart (GstHarness *h)
+{
+  GstStateChangeReturn ret;
+
+  ret = gst_element_set_state (h->element, GST_STATE_NULL);
+  if (ret != GST_STATE_CHANGE_SUCCESS)
+    return ret;
+
+  ret = gst_element_set_state (h->element, GST_STATE_PLAYING);
+  if (ret == GST_STATE_CHANGE_SUCCESS) {
+    gst_harness_push_event (h, gst_event_new_stream_start ("hailort-reopen"));
+    gst_harness_set_src_caps_str (h, IDENTITY_CAPS);
+  }
+
+  return ret;
+}
+
+/**
+ * @brief Positive case: the accelerator property reads back as set, and
+ *        is-updatable stays off because the sub-plugin cannot reload a model.
+ */
+TEST_F (nnstreamerFilterHailort, pipelineAccelerator)
+{
+  const gchar *accelerators[] = { "true:npu", "true", "false", nullptr };
+
+  setModel (IDENTITY_MODEL);
+
+  for (int i = 0; accelerators[i]; i++) {
+    GstElement *filter;
+    GstHarness *h;
+    gchar *accl = nullptr;
+    gboolean updatable = TRUE;
+
+    SCOPED_TRACE (accelerators[i]);
+    filter = gst_element_factory_make ("tensor_filter", NULL);
+    ASSERT_TRUE (filter != nullptr);
+    g_object_set (filter, "framework", "hailort", "model", model, "accelerator",
+        accelerators[i], "is-updatable", TRUE, NULL);
+
+    g_object_get (filter, "accelerator", &accl, "is-updatable", &updatable, NULL);
+    EXPECT_STREQ (accl, accelerators[i]);
+    EXPECT_FALSE (updatable);
+    g_free (accl);
+
+    h = gst_harness_new_with_element (filter, "sink", "src");
+    gst_object_unref (filter);
+    gst_harness_set_src_caps_str (h, IDENTITY_CAPS);
+    EXPECT_EQ (_PushIdentity (h, (guint8) i), GST_FLOW_OK);
+
+    /* The opened instance is asked this time, and still refuses. */
+    g_object_set (h->element, "is-updatable", TRUE, NULL);
+    g_object_get (h->element, "accelerator", &accl, "is-updatable", &updatable, NULL);
+    EXPECT_STREQ (accl, accelerators[i]);
+    EXPECT_FALSE (updatable);
+    g_free (accl);
+
+    gst_harness_teardown (h);
+    EXPECT_EQ (hailort_mock_live_objects (), 0);
+  }
+}
+
+/**
+ * @brief Positive case: input and output properties equal to the model.
+ */
+TEST_F (nnstreamerFilterHailort, pipelineInOutProperties)
+{
+  GstElement *filter;
+  GstHarness *h;
+  gchar *str = nullptr;
+
+  setModel (IDENTITY_MODEL);
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != nullptr);
+  g_object_set (filter, "framework", "hailort", "model", model, "input", "3:4:4:1",
+      "inputtype", "uint8", "output", "3:4:4:1", "outputtype", "uint8", NULL);
+  h = gst_harness_new_with_element (filter, "sink", "src");
+  gst_object_unref (filter);
+  gst_harness_set_src_caps_str (h, IDENTITY_CAPS);
+
+  EXPECT_EQ (_PushIdentity (h, 7), GST_FLOW_OK);
+  g_object_get (h->element, "input", &str, NULL);
+  EXPECT_STREQ (str, "3:4:4:1");
+  g_free (str);
+  g_object_get (h->element, "inputtype", &str, NULL);
+  EXPECT_STREQ (str, "uint8");
+  g_free (str);
+  g_object_get (h->element, "output", &str, NULL);
+  EXPECT_STREQ (str, "3:4:4:1");
+  g_free (str);
+  g_object_get (h->element, "outputtype", &str, NULL);
+  EXPECT_STREQ (str, "uint8");
+  g_free (str);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Negative case: input or output properties that differ from the model.
+ * @details The caps follow the properties, so only the model disagrees.
+ */
+TEST_F (nnstreamerFilterHailort, pipelineInOutMismatch_n)
+{
+  const struct {
+    const gchar *name;
+    const gchar *value;
+    const gchar *caps;
+    gsize size;
+  } cases[] = {
+    { "input", "3:2:2:1",
+        "other/tensors,num_tensors=1,format=static,"
+        "dimensions=3:2:2:1,types=uint8,framerate=0/1",
+        12 },
+    { "inputtype", "float32",
+        "other/tensors,num_tensors=1,format=static,"
+        "dimensions=3:4:4:1,types=float32,framerate=0/1",
+        192 },
+    { "output", "3:2:2:1", IDENTITY_CAPS, 48 },
+    { "outputtype", "float32", IDENTITY_CAPS, 48 },
+  };
+
+  setModel (IDENTITY_MODEL);
+
+  for (const auto &c : cases) {
+    GstElement *filter;
+    GstHarness *h;
+    GstBuffer *in_buf;
+
+    SCOPED_TRACE (testing::Message () << c.name << "=" << c.value);
+    hailort_mock_reset ();
+    filter = gst_element_factory_make ("tensor_filter", NULL);
+    ASSERT_TRUE (filter != nullptr);
+    g_object_set (filter, "framework", "hailort", "model", model, c.name, c.value, NULL);
+    h = gst_harness_new_with_element (filter, "sink", "src");
+    gst_object_unref (filter);
+    gst_harness_set_src_caps_str (h, c.caps);
+
+    in_buf = gst_harness_create_buffer (h, c.size);
+    gst_buffer_memset (in_buf, 0, 0, c.size);
+    EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
+    EXPECT_EQ (gst_harness_buffers_in_queue (h), 0U);
+    EXPECT_EQ (hailort_mock_calls ("hailo_vstream_write_raw_buffer"), 0);
+
+    gst_harness_teardown (h);
+  }
+}
+
+/**
+ * @brief Negative case: the element refuses a directory as the model.
+ */
+TEST_F (nnstreamerFilterHailort, modelIsDirectory_n)
+{
+  GstElement *pipeline;
+  gchar *description;
+
+  description = g_strdup_printf (
+      "videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=4,height=4 ! "
+      "tensor_converter ! tensor_filter framework=hailort model=\"%s\" ! fakesink",
+      dir);
+  pipeline = gst_parse_launch (description, NULL);
+  g_free (description);
+  ASSERT_TRUE (pipeline != nullptr);
+
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+
+  /* tensor_filter checks the path before the sub-plugin sees it. */
+  EXPECT_EQ (hailort_mock_calls ("hailo_create_hef_file"), 0);
+  EXPECT_EQ (hailort_mock_calls ("hailo_create_vdevice"), 0);
+}
+
+/**
+ * @brief Make the filter of a harness refuse to infer with a failed transfer.
+ */
+static void
+_FailTransfer (GstHarness *h, const gchar *function)
+{
+  EXPECT_EQ (_PushIdentity (h, 1), GST_FLOW_OK);
+
+  hailort_mock_fail (function, HAILO_TIMEOUT);
+  EXPECT_EQ (_PushIdentity (h, 2), GST_FLOW_ERROR);
+
+  /* The failure is gone, but the instance does not trust its queues. */
+  hailort_mock_reset ();
+  EXPECT_EQ (_PushIdentity (h, 3), GST_FLOW_ERROR);
+  EXPECT_EQ (hailort_mock_calls ("hailo_vstream_write_raw_buffer"), 0);
+  EXPECT_EQ (gst_harness_buffers_in_queue (h), 0U);
+}
+
+/**
+ * @brief Positive case: NULL -> PLAYING after a failed transfer infers again.
+ * @details A failed read leaves the frame in HailoRT; the reopen must not
+ *          return it as the result of the next input.
+ */
+TEST_F (nnstreamerFilterHailort, pipelineReopenAfterFailure)
+{
+  const gchar *functions[]
+      = { "hailo_vstream_write_raw_buffer", "hailo_vstream_read_raw_buffer", nullptr };
+
+  setModel (IDENTITY_MODEL);
+
+  for (int i = 0; functions[i]; i++) {
+    GstHarness *h;
+
+    SCOPED_TRACE (functions[i]);
+    hailort_mock_reset ();
+    h = _HarnessNew (model, NULL);
+    gst_harness_set_src_caps_str (h, IDENTITY_CAPS);
+    _FailTransfer (h, functions[i]);
+
+    EXPECT_EQ (_HarnessRestart (h), GST_STATE_CHANGE_SUCCESS);
+    EXPECT_EQ (hailort_mock_calls ("hailo_release_vdevice"), 1);
+    EXPECT_EQ (hailort_mock_calls ("hailo_create_vdevice"), 1);
+
+    EXPECT_EQ (_PushIdentity (h, 4), GST_FLOW_OK);
+    EXPECT_EQ (_PushIdentity (h, 5), GST_FLOW_OK);
+
+    gst_harness_teardown (h);
+    EXPECT_EQ (hailort_mock_live_objects (), 0);
+  }
+}
+
+/**
+ * @brief Negative case: a reopen that fails after a failed transfer.
+ * @details The failed open releases what it took, and a later reopen without
+ *          the fault still brings the filter back.
+ */
+TEST_F (nnstreamerFilterHailort, pipelineReopenAfterFailure_n)
+{
+  GstHarness *h;
+
+  setModel (IDENTITY_MODEL);
+  h = _HarnessNew (model, NULL);
+  gst_harness_set_src_caps_str (h, IDENTITY_CAPS);
+  _FailTransfer (h, "hailo_vstream_write_raw_buffer");
+
+  hailort_mock_fail ("hailo_create_output_vstreams", HAILO_OUT_OF_HOST_MEMORY);
+  EXPECT_EQ (_HarnessRestart (h), GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (hailort_mock_calls ("hailo_create_output_vstreams"), 1);
+  EXPECT_EQ (hailort_mock_live_objects (), 0);
+
+  hailort_mock_reset ();
+  EXPECT_EQ (_HarnessRestart (h), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (_PushIdentity (h, 6), GST_FLOW_OK);
+
+  gst_harness_teardown (h);
+  EXPECT_EQ (hailort_mock_live_objects (), 0);
+}
+
 /**
  * @brief Main gtest
  */
