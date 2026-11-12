@@ -20,6 +20,7 @@
 
 #include <thread>
 
+#include <grpcpp/alarm.h>
 #include <grpcpp/channel.h>
 #include <grpcpp/client_context.h>
 #include <grpcpp/create_channel.h>
@@ -429,6 +430,16 @@ class AsyncCallDataServer : public AsyncCallDataFlatbuf
       }
 
       if (reader_.get () != nullptr) {
+        /* the queue serves the other calls while this one holds its message for the caps */
+        if (count_ != 0 && service_->waitsForCaps ()) {
+          gpr_timespec retry = gpr_time_add (gpr_now (GPR_CLOCK_MONOTONIC),
+              gpr_time_from_millis (10, GPR_TIMESPAN));
+
+          alarm_.reset (new Alarm ());
+          alarm_->Set (cq_, retry, this);
+          return;
+        }
+
         if (count_ != 0)
           service_->parse_tensors (rpc_tensors_);
         reader_->Read (&rpc_tensors_, this);
@@ -467,6 +478,7 @@ class AsyncCallDataServer : public AsyncCallDataFlatbuf
   private:
   ServerCompletionQueue *cq_;
   ServerContext ctx_;
+  std::unique_ptr<Alarm> alarm_;
 
   std::unique_ptr<ServerAsyncWriter<Message<Tensors>>> writer_;
   std::unique_ptr<ServerAsyncReader<Message<Empty>, Message<Tensors>>> reader_;
