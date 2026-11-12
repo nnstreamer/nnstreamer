@@ -38,6 +38,21 @@
 /** The first label connects to an id one past the last label */
 #define LABEL_TEXT_PAST_LAST "a 2\nb\n"
 
+/** The shapes of posenet_mobilenet_v1_100_257x257_multi_kpt_stripped.tflite */
+#define POSENET_LABELS (17U)
+#define POSENET_GRID (9U)
+#define POSENET_HEATMAP_ELEMENTS (POSENET_LABELS * POSENET_GRID * POSENET_GRID)
+#define POSENET_OFFSET_ELEMENTS (2U * POSENET_HEATMAP_ELEMENTS)
+#define POSENET_OUT_WIDTH (640U)
+#define POSENET_OUT_HEIGHT (480U)
+
+/** The 17 posenet keypoints, as documented in tensordec-pose.c */
+#define POSENET_LABEL_TEXT                                                         \
+  "nose 1 2 3 4\nleftEye 0 2 3\nrightEye 0 1 4\nleftEar 0 1\nrightEar 0 2\n"       \
+  "leftShoulder 6 7 11\nrightShoulder 5 8 12\nleftElbow 5 9\nrightElbow 6 10\n"    \
+  "leftWrist 7\nrightWrist 8\nleftHip 5 12 13\nrightHip 6 11 14\nleftKnee 11 15\n" \
+  "rightKnee 12 16\nleftAnkle 13\nrightAnkle 14\n"
+
 /**
  * @brief Test fixture holding an instance of the pose_estimation decoder.
  */
@@ -601,6 +616,121 @@ TEST_F (tensorDecoderPose, decodeAfterLabelsChanged_n)
 
   EXPECT_TRUE (setLabels ("a 1\nb 2\nc 0\n"));
   EXPECT_EQ (decodeHeatmap (decoder, &pdata, &config), GST_FLOW_ERROR);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief The posenet heatmap and offsets place a keypoint at its pixel in the output.
+ * @details heatmap-offset takes the argmax cell over the grid size minus one,
+ *          scaled to option2, adds the offsets read at that cell (y first, x
+ *          after the offsets of all the labels) and scales the sum from
+ *          option2 to option1. Nothing else pins that arithmetic with an
+ *          option1 that differs from option2 in each direction.
+ */
+TEST_F (tensorDecoderPose, decodePosenetKeypointPosition)
+{
+  GstTensorsConfig config;
+  GstTensorMemory input[2];
+  float *heatmap, *offset;
+  GstBuffer *outbuf;
+  GstMapInfo map;
+  GstFlowReturn ret;
+  const uint32_t *frame;
+  guint i;
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "640:480"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, "257:257"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "heatmap-offset"));
+  ASSERT_TRUE (setLabels (POSENET_LABEL_TEXT));
+
+  setPoseConfig (&config, _NNS_FLOAT32, POSENET_LABELS, POSENET_GRID, POSENET_GRID);
+  EXPECT_TRUE (accepts (&config));
+
+  input[0].size = POSENET_HEATMAP_ELEMENTS * sizeof (float);
+  input[1].size = POSENET_OFFSET_ELEMENTS * sizeof (float);
+  heatmap = (float *) g_malloc (input[0].size);
+  offset = (float *) g_malloc0 (input[1].size);
+  input[0].data = heatmap;
+  input[1].data = offset;
+
+  /* Every keypoint but nose (0) and leftEye (1) is below the 0.5 sigmoid */
+  for (i = 0; i < POSENET_HEATMAP_ELEMENTS; i++)
+    heatmap[i] = -10.0f;
+  heatmap[(2 * POSENET_GRID + 4) * POSENET_LABELS + 0] = 10.0f;
+  heatmap[(1 * POSENET_GRID + 6) * POSENET_LABELS + 1] = 10.0f;
+
+  offset[(2 * POSENET_GRID + 4) * 2 * POSENET_LABELS + 0] = 5.0f;
+  offset[(2 * POSENET_GRID + 4) * 2 * POSENET_LABELS + POSENET_LABELS + 0] = -3.0f;
+  offset[(1 * POSENET_GRID + 6) * 2 * POSENET_LABELS + 1] = 2.0f;
+  offset[(1 * POSENET_GRID + 6) * 2 * POSENET_LABELS + POSENET_LABELS + 1] = 1.0f;
+
+  outbuf = gst_buffer_new ();
+  ret = decoder->decode (&pdata, &config, input, outbuf);
+  g_free (heatmap);
+  g_free (offset);
+  gst_tensors_config_free (&config);
+  EXPECT_EQ (ret, GST_FLOW_OK);
+
+  if (!gst_buffer_map (outbuf, &map, GST_MAP_READ)) {
+    gst_buffer_unref (outbuf);
+    FAIL () << "Cannot map the decoded frame";
+  }
+  if (map.size != POSENET_OUT_WIDTH * POSENET_OUT_HEIGHT * 4U) {
+    gst_buffer_unmap (outbuf, &map);
+    gst_buffer_unref (outbuf);
+    FAIL () << "The decoded frame is not 640x480 RGBA";
+  }
+  frame = (const uint32_t *) map.data;
+
+  /**
+   * nose, cell (4, 2): x = (4 / 8 * 257 - 3) * 640 / 257 = 312.5,
+   * y = (2 / 8 * 257 + 5) * 480 / 257 = 129.3, so (312, 129).
+   * The line to leftEye leaves it up and right, and its label is drawn above
+   * it, so the dot's left and bottom tips pin it to the pixel.
+   */
+  EXPECT_EQ (frame[129 * POSENET_OUT_WIDTH + 308], POSE_PIXEL);
+  EXPECT_EQ (frame[129 * POSENET_OUT_WIDTH + 307], 0U);
+  EXPECT_EQ (frame[133 * POSENET_OUT_WIDTH + 312], POSE_PIXEL);
+  EXPECT_EQ (frame[134 * POSENET_OUT_WIDTH + 312], 0U);
+
+  /**
+   * leftEye, cell (6, 1): x = (6 / 8 * 257 + 1) * 640 / 257 = 482.4,
+   * y = (1 / 8 * 257 + 2) * 480 / 257 = 63.7, so (482, 63).
+   * The line comes from the bottom left, so the right and bottom tips pin it.
+   */
+  EXPECT_EQ (frame[63 * POSENET_OUT_WIDTH + 486], POSE_PIXEL);
+  EXPECT_EQ (frame[63 * POSENET_OUT_WIDTH + 487], 0U);
+  EXPECT_EQ (frame[67 * POSENET_OUT_WIDTH + 482], POSE_PIXEL);
+  EXPECT_EQ (frame[68 * POSENET_OUT_WIDTH + 482], 0U);
+
+  gst_buffer_unmap (outbuf, &map);
+  gst_buffer_unref (outbuf);
+}
+
+/**
+ * @brief The posenet tensors are refused with the 14 built-in keypoints.
+ * @details Without option3 the decoder has 14 keypoints, which a heatmap of
+ *          17 channels and offsets of 34 do not match.
+ */
+TEST_F (tensorDecoderPose, refusePosenetWithDefaultLabels_n)
+{
+  GstTensorsConfig config;
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "640:480"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, "257:257"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "heatmap-offset"));
+
+  setPoseConfig (&config, _NNS_FLOAT32, POSENET_LABELS, POSENET_GRID, POSENET_GRID);
+  EXPECT_FALSE (accepts (&config));
+
+  /* The 17-channel heatmap alone is refused, with offsets fit for 14 keypoints */
+  config.info.info[1].dimension[0] = 2 * DEFAULT_LABELS;
+  EXPECT_FALSE (accepts (&config));
+  config.info.info[1].dimension[0] = 2 * POSENET_LABELS;
+
+  /* The same tensors are taken with the 17 posenet keypoints */
+  EXPECT_TRUE (setLabels (POSENET_LABEL_TEXT));
+  EXPECT_TRUE (accepts (&config));
   gst_tensors_config_free (&config);
 }
 
