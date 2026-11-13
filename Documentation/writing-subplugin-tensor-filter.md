@@ -4,6 +4,14 @@ title: Writing tensor filter subplugin
 
 # Writing a subplugin for NNStreamer's tensor\_filter
 
+A V1 sub-plugin that implements asynchronous output must handle
+`CHECK_ASYNC_SUPPORT` after model open: set `data.async_support = TRUE` and
+return 0 without invoking the model or dispatching a result. Other sub-plugins
+should leave this event unhandled (`-ENOENT`). Both element and single-shot
+start reject `invoke-async=true` without this declaration; V0 cannot opt in.
+See [the asynchronous output contract](tensor-filter-async.md) for result
+ownership, binary compatibility and stopping before changing the invoke mode.
+
 You can support a new neural-network framework (e.g., Tensorflow and Caffe) or a new neural-network hardware accelerator with its own software interface (e.g., openVINO for NCS and some python library for edge-TPU) by writing a tensor\_filter subplugin.
 
 It is called "**subplugin**" because it is a plugin for a GStreamer plugin, ```tensor_filter```.

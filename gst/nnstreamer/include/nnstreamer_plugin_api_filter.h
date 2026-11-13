@@ -173,6 +173,8 @@ typedef struct _GstTensorFilterProperties
    * block if the sub-plugin produces neither output nor EOS.
    * If FALSE, only a synchronous single output is expected and async callbacks
    * are ignored.
+   * A V1 sub-plugin must explicitly accept CHECK_ASYNC_SUPPORT before start.
+   * V0 sub-plugins do not support this mode. Stop the filter before changing it.
    */
   int invoke_async;
   GstTensorDataCallback async_callback; /**< The callback function pointer to be called every time the sub-plugin generates a new output tensor asynchronously. Note that this is internal data for tensor-filter and DO NOT change this value. */
@@ -231,6 +233,12 @@ typedef enum
    */
   RESUME,
   /**< Resume suspended model. This is sent only to a model that has accepted SUSPEND. If a non-zero value is returned, the model stays suspended. */
+  CHECK_ASYNC_SUPPORT,
+  /**< Query an opened V1 model's support for asynchronous output. Return 0 and
+   * set event data's async_support to TRUE only when invoke-async is supported.
+   * The query must not invoke the model or dispatch any output. Unhandled events
+   * and a successful response that leaves async_support FALSE mean unsupported.
+   */
 } event_ops;
 
 /**
@@ -281,6 +289,11 @@ typedef struct _GstTensorFilterFrameworkEventData
     struct {
       accl_hw hw; /**< accelerator to check availability */
       const char *custom; /**< custom option for hardware detection */
+    };
+
+    /** for CHECK_ASYNC_SUPPORT, initialized to FALSE by the caller */
+    struct {
+      int async_support; /**< TRUE only when every result can be delivered through the asynchronous callback. */
     };
   };
 } GstTensorFilterFrameworkEventData;

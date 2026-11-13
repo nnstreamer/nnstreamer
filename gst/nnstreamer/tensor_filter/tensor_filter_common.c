@@ -2078,7 +2078,19 @@ static gint
 _gtfc_setprop_PROP_INVOKE_ASYNC (GstTensorFilterPrivate * priv,
     const GValue * value)
 {
-  priv->prop.invoke_async = g_value_get_boolean (value);
+  if (!g_atomic_int_compare_and_exchange (&priv->invoke_state,
+          INVOKE_MODE_STOPPED, INVOKE_MODE_CHANGING)) {
+    ml_logw ("Stop the filter before changing invoke-async.");
+    return 0;
+  }
+
+  if (priv->prop.invoke_async != g_value_get_boolean (value)) {
+    /** A stopped framework may retain its model through SUSPEND. Reopen it
+     * in the new mode instead of reusing its previous callback ownership. */
+    gst_tensor_filter_common_unload_fw (priv, FALSE);
+    priv->prop.invoke_async = g_value_get_boolean (value);
+  }
+  g_atomic_int_set (&priv->invoke_state, INVOKE_MODE_STOPPED);
 
   return 0;
 }
@@ -2535,6 +2547,8 @@ gboolean
 gst_tensor_filter_validate_prop (GstTensorFilterPrivate * priv)
 {
   if (priv->prop.invoke_async) {
+    GstTensorFilterFrameworkEventData event_data;
+
     if (!priv->prop.async_callback) {
       ml_loge ("Asynchronous invoke is enabled, but its callback is null.");
       return FALSE;
@@ -2543,6 +2557,16 @@ gst_tensor_filter_validate_prop (GstTensorFilterPrivate * priv)
     if (priv->combi.out_combi_i_defined) {
       ml_loge
           ("NNStreamer does not support output-combination (passing input data) when asynchronous invoke is enabled.");
+      return FALSE;
+    }
+
+    memset (&event_data, 0, sizeof (event_data));
+    if (!GST_TF_FW_V1 (priv->fw) ||
+        gst_tensor_filter_send_event (priv->fw, &priv->prop, priv->privateData,
+            CHECK_ASYNC_SUPPORT, &event_data) != 0 ||
+        !event_data.async_support) {
+      ml_loge ("Framework %s does not support asynchronous invoke.",
+          priv->prop.fwname ? priv->prop.fwname : "(unknown)");
       return FALSE;
     }
   }
