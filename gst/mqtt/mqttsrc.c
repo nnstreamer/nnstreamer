@@ -628,11 +628,6 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_NULL_TO_READY");
-      if (self->err) {
-        g_printerr ("%s: %s\n", g_quark_to_string (self->err->domain),
-            self->err->message);
-        return GST_STATE_CHANGE_FAILURE;
-      }
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_READY_TO_PAUSED");
@@ -766,6 +761,11 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
   if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
 
+  /* Errors from a stopped client must not fail the new stream. */
+  g_mutex_lock (&self->mqtt_src_mutex);
+  g_clear_error (&self->err);
+  g_mutex_unlock (&self->mqtt_src_mutex);
+
   /** A restarted element takes its caps from the messages of this client only */
   gst_caps_replace (&self->recv_caps, NULL);
   g_clear_pointer (&self->recv_caps_str, g_free);
@@ -782,6 +782,15 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
       DEFAULT_MQTT_CONN_TIMEOUT_SEC * G_TIME_SPAN_SECOND;
   g_mutex_lock (&self->mqtt_src_mutex);
   while (!self->is_connected) {
+    if (self->err) {
+      gchar *message = g_strdup (self->err->message);
+
+      g_mutex_unlock (&self->mqtt_src_mutex);
+      GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ,
+          ("Cannot connect to the MQTT broker."), ("%s", message));
+      g_free (message);
+      goto error;
+    }
     if (!g_cond_wait_until (&self->mqtt_src_gcond, &self->mqtt_src_mutex,
             end_time)) {
       g_mutex_unlock (&self->mqtt_src_mutex);
@@ -868,7 +877,8 @@ gst_mqtt_src_renegotiate (GstBaseSrc * basesrc)
     gst_caps_unref (thiscaps);
 
   peercaps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (basesrc), self->caps);
-  if (gst_caps_is_empty (peercaps) || peercaps == self->caps) {
+  /* An ANY peer can return self->caps; the pad may still have no caps. */
+  if (gst_caps_is_empty (peercaps)) {
     gst_caps_unref (peercaps);
     goto no_nego_needed;
   }

@@ -115,6 +115,7 @@ typedef struct {
   hold_site_e hold_site;
   gboolean hold_entered;
   gboolean hold_released;
+  gboolean accept_connect_failure;
 } mqtt_mock_s;
 
 static mqtt_mock_s g_mock;
@@ -164,6 +165,7 @@ _mock_reset (void)
   g_mock.hold_site = HOLD_NONE;
   g_mock.hold_entered = FALSE;
   g_mock.hold_released = FALSE;
+  g_mock.accept_connect_failure = FALSE;
   g_mutex_unlock (&g_mock.lock);
 }
 
@@ -355,12 +357,14 @@ MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
   _record_tls_options (options);
   gboolean async;
   gboolean fail;
+  gboolean accepted;
 
   (void) handle;
 
   g_mutex_lock (&g_mock.lock);
   async = g_mock.async_connect;
   fail = g_mock.fail_connect;
+  accepted = g_mock.accept_connect_failure;
   g_mock.has_username = (options->username != NULL);
   g_mock.last_username.assign (options->username ? options->username : "");
   g_mock.has_password = (options->password != NULL);
@@ -371,8 +375,15 @@ MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
   g_mutex_unlock (&g_mock.lock);
 
   if (fail) {
-    _run_failure_cb (options->onFailure, options->context);
-    return MQTTASYNC_FAILURE;
+    if (accepted && async) {
+      g_mutex_lock (&g_mock.lock);
+      g_mock_threads.push_back (
+          std::thread (_run_failure_cb, options->onFailure, options->context));
+      g_mutex_unlock (&g_mock.lock);
+    } else {
+      _run_failure_cb (options->onFailure, options->context);
+    }
+    return accepted ? MQTTASYNC_SUCCESS : MQTTASYNC_FAILURE;
   }
 
   if (async) {
@@ -666,9 +677,11 @@ _buffer_probe (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
  * @brief Build a pipeline that feeds the element's output into a fakesink
  */
 static gboolean
-_fixture_setup (src_fixture_s *fixture, const gchar *topic, const gchar *filter_caps)
+_fixture_setup (src_fixture_s *fixture, const gchar *topic,
+    const gchar *filter_caps, const gchar *downstream = "fakesink sync=false")
 {
   gchar *desc;
+  gchar *filter;
 
   memset (fixture, 0, sizeof (*fixture));
   g_mutex_init (&fixture->lock);
@@ -676,9 +689,11 @@ _fixture_setup (src_fixture_s *fixture, const gchar *topic, const gchar *filter_
 
   _mock_reset ();
 
-  desc = g_strdup_printf ("mqttsrc name=src sub-topic=%s sub-timeout=%" G_GINT64_FORMAT
-                          " ! capsfilter caps=%s ! fakesink sync=false",
-      topic, DEFAULT_SUB_TIMEOUT, filter_caps);
+  filter = filter_caps ? g_strdup_printf ("capsfilter caps=%s ! ", filter_caps) :
+                         g_strdup ("");
+  desc = g_strdup_printf ("mqttsrc name=src sub-topic=%s sub-timeout=%" G_GINT64_FORMAT " ! %s%s",
+      topic, DEFAULT_SUB_TIMEOUT, filter, downstream);
+  g_free (filter);
   fixture->pipeline = gst_parse_launch (desc, NULL);
   g_free (desc);
   if (!fixture->pipeline)
@@ -1033,6 +1048,93 @@ TEST (testMqttSrc, messageArrived)
   EXPECT_TRUE (_fixture_wait_buffers (&fixture, 1));
 
   _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief Unconstrained peers receive header caps, including changes between messages.
+ */
+static void
+_expect_any_peer_caps (const gchar *downstream, gboolean malformed_update)
+{
+  src_fixture_s fixture;
+  GstMQTTMessageHdr hdr = {};
+  const gchar *initial = "video/x-raw,format=RGB,width=640,height=320";
+  const gchar *updated = "video/x-raw,format=RGB,width=320,height=160";
+  GstCaps *expected;
+  GstCaps *caps;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", NULL, downstream));
+  ASSERT_TRUE (_fixture_play (&fixture));
+  _set_header_timestamps (fixture.src, &hdr);
+  _set_header_caps (&hdr, initial, NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 512;
+  EXPECT_TRUE (_deliver (_new_message (&hdr, 512)));
+  EXPECT_TRUE (_fixture_wait_buffers (&fixture, 1));
+
+  /* The caps event must precede the buffer even without a capsfilter. */
+  caps = _fixture_last_caps (&fixture);
+  expected = gst_caps_from_string (initial);
+  EXPECT_NE (caps, nullptr);
+  if (caps) {
+    EXPECT_TRUE (gst_caps_is_equal (caps, expected));
+    gst_caps_unref (caps);
+  }
+  gst_caps_unref (expected);
+
+  _set_header_caps (&hdr, updated, NULL);
+  hdr.size_mems[0] = malformed_update ? 1024 : 512;
+  EXPECT_TRUE (_deliver (_new_message (&hdr, 512)));
+  if (malformed_update) {
+    g_usleep (SETTLE_TIME_US);
+    EXPECT_EQ (_fixture_num_buffers (&fixture), 1U);
+  } else {
+    EXPECT_TRUE (_fixture_wait_buffers (&fixture, 2));
+  }
+
+  /* A rejected packet must not replace the last valid negotiated caps. */
+  caps = gst_pad_get_current_caps (fixture.srcpad);
+  expected = gst_caps_from_string (malformed_update ? initial : updated);
+  EXPECT_NE (caps, nullptr);
+  if (caps) {
+    EXPECT_TRUE (gst_caps_is_equal (caps, expected));
+    gst_caps_unref (caps);
+  }
+  gst_caps_unref (expected);
+  _fixture_teardown (&fixture);
+  EXPECT_EQ (_freed_messages (), 2U);
+}
+
+/**
+ * @brief A direct ANY peer receives the initial and changed header caps.
+ */
+TEST (testMqttSrc, anyPeerCaps)
+{
+  _expect_any_peer_caps ("fakesink sync=false", FALSE);
+}
+
+/**
+ * @brief An intervening queue preserves negotiation with an ANY peer.
+ */
+TEST (testMqttSrc, anyPeerCapsThroughQueue)
+{
+  _expect_any_peer_caps ("queue ! fakesink sync=false", FALSE);
+}
+
+/**
+ * @brief A malformed update cannot replace caps negotiated with an ANY peer.
+ */
+TEST (testMqttSrc, anyPeerCapsMalformedUpdate_n)
+{
+  _expect_any_peer_caps ("fakesink sync=false", TRUE);
+}
+
+/**
+ * @brief A queue cannot expose caps from a malformed incoming packet.
+ */
+TEST (testMqttSrc, anyPeerCapsThroughQueueMalformedUpdate_n)
+{
+  _expect_any_peer_caps ("queue ! fakesink sync=false", TRUE);
 }
 
 /**
@@ -1845,6 +1947,74 @@ TEST (testMqttSrc, credentialsRejected_n)
 }
 
 /**
+ * @brief An accepted connection request reports its callback failure promptly.
+ */
+static void
+_expect_accepted_connect_failure (gboolean callback_on_thread)
+{
+  src_fixture_s fixture;
+  GstMessage *msg;
+  GError *err = NULL;
+  gchar *debug = NULL;
+  gint64 started, elapsed;
+  GstStateChangeReturn result;
+  GstMqttSrc *self;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_mutex_lock (&g_mock.lock);
+  g_mock.fail_connect = TRUE;
+  g_mock.accept_connect_failure = TRUE;
+  g_mock.async_connect = callback_on_thread;
+  g_mutex_unlock (&g_mock.lock);
+
+  started = g_get_monotonic_time ();
+  result = gst_element_set_state (fixture.pipeline, GST_STATE_PLAYING);
+  elapsed = g_get_monotonic_time () - started;
+  _mock_join_threads ();
+
+  EXPECT_EQ (result, GST_STATE_CHANGE_FAILURE);
+  /* A reported failure must not wait for the five-second connection timeout. */
+  EXPECT_LT (elapsed, 2 * G_TIME_SPAN_SECOND);
+  self = GST_MQTT_SRC (fixture.src);
+  EXPECT_FALSE (self->is_connected);
+  EXPECT_EQ (self->mqtt_client_handle, nullptr);
+  ASSERT_NE (self->err, nullptr);
+  EXPECT_EQ (self->err->code, -1);
+  EXPECT_NE (strstr (self->err->message, "mocked failure"), nullptr);
+
+  /* Applications must receive the broker's reason, not just "Failed to start". */
+  msg = gst_bus_pop_filtered (fixture.bus, GST_MESSAGE_ERROR);
+  ASSERT_NE (msg, nullptr);
+  EXPECT_EQ (GST_MESSAGE_SRC (msg), GST_OBJECT (fixture.src));
+  gst_message_parse_error (msg, &err, &debug);
+  EXPECT_TRUE (g_error_matches (err, GST_RESOURCE_ERROR, GST_RESOURCE_ERROR_OPEN_READ));
+  EXPECT_NE (debug, nullptr);
+  if (debug) {
+    EXPECT_NE (strstr (debug, "mocked failure"), nullptr);
+  }
+  g_clear_error (&err);
+  g_free (debug);
+  gst_message_unref (msg);
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief A failure reported before connect returns must not lose its wakeup.
+ */
+TEST (testMqttSrc, acceptedConnectFailureBeforeReturn_n)
+{
+  _expect_accepted_connect_failure (FALSE);
+}
+
+/**
+ * @brief A failure callback on the client thread must end the start wait.
+ */
+TEST (testMqttSrc, acceptedConnectFailureOnThread_n)
+{
+  _expect_accepted_connect_failure (TRUE);
+}
+
+/**
  * @brief mqttsrc refuses to start with a password but no username, before creating a client
  */
 TEST (testMqttSrc, passwordWithoutUsername_n)
@@ -1994,6 +2164,142 @@ _deliver_valid_message (src_fixture_s *fixture)
 
   return _deliver (_new_timed_message (
       epoch - 5 * GST_SECOND, epoch + 1, 5100 * GST_MSECOND, 5 * GST_SECOND));
+}
+
+/**
+ * @brief Wait beyond a queue poll before delivering the first message.
+ */
+static void
+_expect_delayed_first_message (src_fixture_s *fixture)
+{
+  g_object_set (fixture->src, "sub-timeout", LONG_SUB_TIMEOUT, NULL);
+  ASSERT_TRUE (_fixture_play (fixture));
+
+  /* An old error must not shorten the new stream's receive timeout. */
+  g_usleep (QUEUE_POLL_PASSED_US);
+  EXPECT_TRUE (_deliver_valid_message (fixture));
+  EXPECT_TRUE (_fixture_wait_buffers (fixture, 1));
+  EXPECT_EQ (_fixture_num_buffers (fixture), 1U);
+}
+
+/**
+ * @brief Stop the previous client before checking the same source's next stream.
+ */
+static void
+_expect_restart_after_error (src_fixture_s *fixture, GstState stopped_state)
+{
+  EXPECT_NE (gst_element_set_state (fixture->pipeline, stopped_state), GST_STATE_CHANGE_FAILURE);
+  EXPECT_NE (gst_element_get_state (fixture->pipeline, NULL, NULL, WAIT_TIMEOUT_US * GST_USECOND),
+      GST_STATE_CHANGE_FAILURE);
+  _mock_join_threads ();
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.subscribe_count = 0;
+  g_mutex_unlock (&g_mock.lock);
+  _expect_delayed_first_message (fixture);
+}
+
+/**
+ * @brief A fresh source waits for a message for its configured receive timeout.
+ */
+TEST (testMqttSrc, delayedFirstMessage)
+{
+  src_fixture_s fixture;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  _expect_delayed_first_message (&fixture);
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief Correcting rejected credentials recovers the same source instance.
+ */
+TEST (testMqttSrc, restartAfterRejectedCredentials_n)
+{
+  for (GstState stopped_state : { GST_STATE_READY, GST_STATE_NULL }) {
+    src_fixture_s fixture;
+
+    EXPECT_FALSE (_fixture_start (
+        &fixture, "an-mqtt-user", "a-wrong-password", "the-right-password"));
+    ASSERT_NE (fixture.src, nullptr);
+    EXPECT_NE (GST_MQTT_SRC (fixture.src)->err, nullptr);
+
+    g_object_set (fixture.src, "password", "the-right-password", NULL);
+    _expect_restart_after_error (&fixture, stopped_state);
+    _fixture_teardown (&fixture);
+  }
+}
+
+/**
+ * @brief A source restarted after losing its broker accepts a delayed message.
+ */
+TEST (testMqttSrc, restartAfterConnectionLoss_n)
+{
+  for (GstState stopped_state : { GST_STATE_READY, GST_STATE_NULL }) {
+    src_fixture_s fixture;
+    GstMessage *error;
+
+    ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+    g_object_set (fixture.src, "sub-timeout", LONG_SUB_TIMEOUT, NULL);
+    ASSERT_TRUE (_fixture_play (&fixture));
+    _drop_connection ();
+    error = gst_bus_timed_pop_filtered (
+        fixture.bus, WAIT_TIMEOUT_US * GST_USECOND, GST_MESSAGE_ERROR);
+    EXPECT_NE (error, nullptr);
+    if (error)
+      gst_message_unref (error);
+
+    _expect_restart_after_error (&fixture, stopped_state);
+    _fixture_teardown (&fixture);
+  }
+}
+
+/**
+ * @brief A receive timeout does not shorten the next stream's receive timeout.
+ */
+TEST (testMqttSrc, restartAfterReceiveTimeout_n)
+{
+  for (GstState stopped_state : { GST_STATE_READY, GST_STATE_NULL }) {
+    src_fixture_s fixture;
+    GstMessage *error;
+
+    ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+    ASSERT_TRUE (_fixture_play (&fixture));
+    error = gst_bus_timed_pop_filtered (
+        fixture.bus, WAIT_TIMEOUT_US * GST_USECOND, GST_MESSAGE_ERROR);
+    EXPECT_NE (error, nullptr);
+    if (error)
+      gst_message_unref (error);
+
+    _expect_restart_after_error (&fixture, stopped_state);
+    _fixture_teardown (&fixture);
+  }
+}
+
+/**
+ * @brief A retry reports its own failure before a later corrected retry succeeds.
+ */
+TEST (testMqttSrc, restartPreservesNewConnectionFailure_n)
+{
+  src_fixture_s fixture;
+
+  EXPECT_FALSE (_fixture_start (
+      &fixture, "an-mqtt-user", "a-wrong-password", "the-right-password"));
+  ASSERT_NE (fixture.src, nullptr);
+  EXPECT_NE (gst_element_set_state (fixture.pipeline, GST_STATE_NULL), GST_STATE_CHANGE_FAILURE);
+  _mock_join_threads ();
+
+  g_object_set (fixture.src, "password", "another-wrong-password", NULL);
+  EXPECT_EQ (gst_element_set_state (fixture.pipeline, GST_STATE_PLAYING),
+      GST_STATE_CHANGE_FAILURE);
+  EXPECT_NE (GST_MQTT_SRC (fixture.src)->err, nullptr);
+  g_mutex_lock (&g_mock.lock);
+  EXPECT_STREQ (g_mock.last_password.c_str (), "another-wrong-password");
+  g_mutex_unlock (&g_mock.lock);
+
+  g_object_set (fixture.src, "password", "the-right-password", NULL);
+  _expect_restart_after_error (&fixture, GST_STATE_READY);
+  _fixture_teardown (&fixture);
 }
 
 /**
