@@ -263,6 +263,50 @@ nnfw_run (nnfw_session *session)
 }
 
 /**
+ * @brief The backends the nnfw sub-plugin last asked the runtime for.
+ */
+static gchar *nnfw_backends_asked = NULL;
+
+/**
+ * @brief Give the runtime "cpu" in place of the backends the sub-plugin asks for.
+ */
+static gboolean nnfw_backends_on_cpu = FALSE;
+
+/**
+ * @brief Record the backends the nnfw sub-plugin asks the ONE runtime for.
+ * @note Overridden as nnfw_run () is. The runtime here may lack the
+ *       accelerated backends, so it can be made to run on cpu instead.
+ */
+extern "C" NNFW_STATUS
+nnfw_set_available_backends (nnfw_session *session, const char *backends)
+{
+  static NNFW_STATUS (*real_set) (nnfw_session *, const char *) = NULL;
+  const GstTensorFilterFramework *sp;
+  Dl_info dl;
+  void *handle;
+
+  g_free (nnfw_backends_asked);
+  nnfw_backends_asked = g_strdup (backends);
+
+  if (real_set == NULL) {
+    sp = nnstreamer_filter_find ("nnfw");
+    if (sp && dladdr ((void *) sp->open, &dl) != 0) {
+      handle = dlopen (dl.dli_fname, RTLD_LAZY | RTLD_NOLOAD);
+      if (handle) {
+        real_set = (NNFW_STATUS (*) (nnfw_session *, const char *)) dlsym (
+            handle, "nnfw_set_available_backends");
+        dlclose (handle);
+      }
+    }
+  }
+
+  if (real_set == NULL)
+    return NNFW_STATUS_ERROR;
+
+  return real_set (session, nnfw_backends_on_cpu ? "cpu" : backends);
+}
+
+/**
  * @brief Set input dimensions with nnfw subplugin when the dummy invoke fails
  */
 TEST (nnstreamerNnfwRuntimeRawFunctions, setDimensionInvokeFail_n)
@@ -907,7 +951,7 @@ _open_and_invoke (accl_hw *hw_list, int num_hw, const gchar *custom)
 
 /**
  * @brief Test open with no accelerator list, a list, acceleration turned off, and the custom option
- * @note All of them end up on the cpu backend; which backend each accelerator maps to is not observable here.
+ * @note All of them end up on the cpu backend; openAcceleratorBackend checks which backend each accelerator maps to.
  */
 TEST (nnstreamerNnfwRuntimeRawFunctions, openAccelerator)
 {
@@ -936,11 +980,90 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, openAccelerator_n)
 }
 
 /**
+ * @brief Open and run a model with the given accelerators and custom option on cpu.
+ * @return the backends nnfw asked the runtime for (free it), NULL if open failed
+ */
+static gchar *
+_open_backends (accl_hw *hw_list, int num_hw, const gchar *custom)
+{
+  gchar *backends = NULL;
+
+  g_free (nnfw_backends_asked);
+  nnfw_backends_asked = NULL;
+  nnfw_backends_on_cpu = TRUE;
+
+  if (_open_and_invoke (hw_list, num_hw, custom) == 0) {
+    backends = nnfw_backends_asked;
+    nnfw_backends_asked = NULL;
+  }
+
+  nnfw_backends_on_cpu = FALSE;
+  return backends;
+}
+
+/**
+ * @brief Check the backends nnfw asks the runtime for with the given accelerators and custom option.
+ */
+static void
+_expect_backends (accl_hw *hw_list, int num_hw, const gchar *custom, const gchar *expected)
+{
+  gchar *backends = _open_backends (hw_list, num_hw, custom);
+
+  EXPECT_STREQ (backends, expected);
+  g_free (backends);
+}
+
+/**
+ * @brief Test the backends nnfw asks the runtime for, for each accelerator it lists
+ */
+TEST (nnstreamerNnfwRuntimeRawFunctions, openAcceleratorBackend)
+{
+  accl_hw cpu[] = { ACCL_CPU };
+  accl_hw gpu[] = { ACCL_GPU };
+  accl_hw npu[] = { ACCL_NPU };
+  accl_hw srcn[] = { ACCL_NPU_SRCN };
+  accl_hw gpu_cpu[] = { ACCL_GPU, ACCL_CPU };
+  accl_hw none[] = { ACCL_NONE };
+
+  _expect_backends (cpu, 1, NULL, "cpu;bcq");
+#if defined(__aarch64__) || defined(__arm__)
+  /** nnfw lists NEON on ARM only */
+  accl_hw neon[] = { ACCL_CPU_NEON };
+  _expect_backends (neon, 1, NULL, "acl_neon;cpu");
+#endif
+  _expect_backends (gpu, 1, NULL, "acl_cl;cpu");
+  _expect_backends (npu, 1, NULL, "srcn");
+  _expect_backends (srcn, 1, NULL, "srcn");
+  /** the accelerator the user prefers most */
+  _expect_backends (gpu_cpu, 2, NULL, "acl_cl;cpu");
+  /** no accelerator given and acceleration turned off: the default backend */
+  _expect_backends (NULL, 0, NULL, "cpu;bcq");
+  _expect_backends (none, 1, NULL, "cpu;bcq");
+}
+
+/**
+ * @brief Test the custom option and an accelerator nnfw does not list do not get the accelerator's backend
+ */
+TEST (nnstreamerNnfwRuntimeRawFunctions, openAcceleratorBackend_n)
+{
+  accl_hw gpu[] = { ACCL_GPU };
+  accl_hw vivante[] = { ACCL_NPU_VIVANTE };
+
+  /** the custom option overrides the accelerator */
+  _expect_backends (gpu, 1, "Runtime:cpu", "cpu");
+  _expect_backends (gpu, 1, "Runtime:srcn", "srcn");
+  /** an accelerator nnfw does not list, which tensor_filter never passes, gets the default backend */
+  _expect_backends (vivante, 1, NULL, "cpu;bcq");
+}
+
+/**
  * @brief Make a tensor_filter running add.tflite with nnfw on the given accelerator, wrapped in a harness.
+ * @param[in] accelerator the accelerator property
+ * @param[in] custom the custom property, not set if NULL
  * @return the harness, NULL if the model is missing
  */
 static GstHarness *
-_filter_harness (const gchar *accelerator)
+_filter_harness (const gchar *accelerator, const gchar *custom)
 {
   GstElement *filter;
   GstHarness *h;
@@ -956,7 +1079,9 @@ _filter_harness (const gchar *accelerator)
   }
 
   g_object_set (filter, "framework", "nnfw", "model", model_file, "accelerator",
-      accelerator, "custom", "Runtime:cpu", NULL);
+      accelerator, NULL);
+  if (custom)
+    g_object_set (filter, "custom", custom, NULL);
   g_free (model_file);
 
   h = gst_harness_new_with_element (filter, "sink", "src");
@@ -1002,7 +1127,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, tensorFilter)
   gchar *str = NULL;
   gboolean updatable = TRUE;
 
-  h = _filter_harness ("true:cpu");
+  h = _filter_harness ("true:cpu", "Runtime:cpu");
   ASSERT_NE (h, nullptr);
 
   _push_and_check (h, 10.0);
@@ -1029,7 +1154,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, tensorFilterRunning_n)
   GstHarness *h;
   gchar *str = NULL;
 
-  h = _filter_harness ("true:cpu");
+  h = _filter_harness ("true:cpu", "Runtime:cpu");
   ASSERT_NE (h, nullptr);
 
   _push_and_check (h, 10.0);
@@ -1047,6 +1172,65 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, tensorFilterRunning_n)
 
   _push_and_check (h, 1.0);
   gst_harness_teardown (h);
+}
+
+/**
+ * @brief Run tensor_filter with nnfw on the given accelerator and custom option, on cpu.
+ * @return the backends nnfw asked the runtime for (free it), NULL if it did not ask
+ */
+static gchar *
+_filter_backends (const gchar *accelerator, const gchar *custom)
+{
+  GstHarness *h;
+  gchar *backends = NULL;
+
+  g_free (nnfw_backends_asked);
+  nnfw_backends_asked = NULL;
+  nnfw_backends_on_cpu = TRUE;
+
+  h = _filter_harness (accelerator, custom);
+  if (h) {
+    _push_and_check (h, 3.0);
+    gst_harness_teardown (h);
+
+    backends = nnfw_backends_asked;
+    nnfw_backends_asked = NULL;
+  }
+
+  nnfw_backends_on_cpu = FALSE;
+  return backends;
+}
+
+/**
+ * @brief Test tensor_filter passes its accelerator to nnfw, which picks the backend for it
+ */
+TEST (nnstreamerNnfwRuntimeRawFunctions, tensorFilterBackend)
+{
+  gchar *backends;
+
+  backends = _filter_backends ("true:gpu", NULL);
+  EXPECT_STREQ (backends, "acl_cl;cpu");
+  g_free (backends);
+
+  backends = _filter_backends ("true:npu.srcn", NULL);
+  EXPECT_STREQ (backends, "srcn");
+  g_free (backends);
+
+  backends = _filter_backends ("true:cpu", NULL);
+  EXPECT_STREQ (backends, "cpu;bcq");
+  g_free (backends);
+}
+
+/**
+ * @brief Test the custom option keeps tensor_filter off the accelerator's backend
+ */
+TEST (nnstreamerNnfwRuntimeRawFunctions, tensorFilterBackend_n)
+{
+  gchar *backends;
+
+  backends = _filter_backends ("true:gpu", "Runtime:cpu");
+  EXPECT_STREQ (backends, "cpu");
+  g_free (backends);
 }
 
 /**
