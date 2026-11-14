@@ -667,8 +667,8 @@ build_dev_dir_timestamp (const iio_dev_dir_struct *iio_dev)
   if (!g_file_test (iio_dev->scan_el, G_FILE_TEST_IS_DIR)) {
     status += g_mkdir_with_parents (iio_dev->scan_el, 0777);
   }
-  /** total 8 possible cases */
-  status += write_file_int (iio_dev->scan_el_time_en, 1);
+  /** disabled as by default; the element skips an enabled one in a scan */
+  status += write_file_int (iio_dev->scan_el_time_en, 0);
   status += write_file_int (iio_dev->scan_el_time_index, iio_dev->num_scan_elements);
   endianchar = 'b';
   signchar = 's';
@@ -2239,6 +2239,517 @@ TEST (testTensorSrcIio, channelsCustomInvalid_n)
   /** teardown */
   gst_object_unref (src_iio);
   gst_harness_teardown (hrnss);
+}
+
+/**
+ * @brief number of scans in a buffer of the mock devices below
+ */
+#define MOCK_CAPACITY 4U
+
+/**
+ * @brief a scan element of a mock device, named as the kernel names it
+ */
+typedef struct {
+  const gchar *name; /**< channel name without the attribute suffix */
+  gint index; /**< scan index */
+  gboolean is_signed; /**< sign of the data */
+  guint used_bits; /**< bits of the data */
+  guint storage_bytes; /**< bytes the channel takes in a scan */
+  guint shift; /**< shift of the data in its storage */
+  gboolean timestamp; /**< the timestamp, which is never put in the tensor */
+  gint64 samples[MOCK_CAPACITY]; /**< data of each scan */
+} mock_channel;
+
+/**
+ * @brief an accelerometer: three 12-bit axes in the upper bits of 16 bits
+ * ("le:s12/16>>4") and the 64-bit timestamp ("le:s64/64>>0")
+ */
+static const mock_channel accel_channels[] = {
+  { "in_accel_x", 0, TRUE, 12, 2, 4, FALSE, { 100, -2048, -1, 1000 } },
+  { "in_accel_y", 1, TRUE, 12, 2, 4, FALSE, { -200, 0, 512, -1000 } },
+  { "in_accel_z", 2, TRUE, 12, 2, 4, FALSE, { 2047, 1, -512, 7 } },
+  { "in_timestamp", 3, TRUE, 64, 8, 0, TRUE,
+      { G_GINT64_CONSTANT (1700000000000000001), G_GINT64_CONSTANT (1700000000000000002),
+          G_GINT64_CONSTANT (-1), G_GINT64_CONSTANT (1700000000000000004) } },
+};
+
+/**
+ * @brief path of an attribute of a mock scan element
+ */
+static gchar *
+mock_attr_path (const iio_dev_dir_struct *dev0, const gchar *name, const gchar *suffix)
+{
+  g_autofree gchar *file = g_strdup_printf ("%s%s", name, suffix);
+
+  return g_build_filename (dev0->scan_el, file, NULL);
+}
+
+/**
+ * @brief read the enable attribute of a mock scan element
+ * @returns the value read, -1 on failure
+ */
+static gint
+read_mock_enable (const iio_dev_dir_struct *dev0, const gchar *name)
+{
+  g_autofree gchar *path = mock_attr_path (dev0, name, "_en");
+  g_autofree gchar *contents = NULL;
+
+  if (!g_file_get_contents (path, &contents, NULL, NULL))
+    return -1;
+
+  return (gint) g_ascii_strtoll (contents, NULL, 10);
+}
+
+/**
+ * @brief make a device with the given scan elements
+ * @param[in] chs scan elements of the device
+ * @param[in] num number of the scan elements
+ * @param[in] pre_enabled whether each scan element is enabled
+ * @returns allocated device structure on success, NULL on error
+ */
+static iio_dev_dir_struct *
+make_mock_device (const mock_channel *chs, const guint num, const gboolean *pre_enabled)
+{
+  iio_dev_dir_struct *dev0;
+  gint status = 0;
+  gchar *path, *type;
+  guint idx;
+
+  dev0 = make_iio_dev_structure (0);
+  status += build_dev_dir_base (dev0);
+  status += build_dev_dir_buffer (dev0);
+  status += build_dev_dir_dev_data (dev0);
+  status += build_dev_dir_samp_freq (dev0);
+  status += build_dev_dir_samp_freq_avail (dev0);
+  status += g_mkdir_with_parents (dev0->scan_el, 0777);
+
+  for (idx = 0; idx < num; idx++) {
+    path = mock_attr_path (dev0, chs[idx].name, "_en");
+    status += write_file_int (path, pre_enabled[idx] ? 1 : 0);
+    g_free (path);
+
+    path = mock_attr_path (dev0, chs[idx].name, "_index");
+    status += write_file_int (path, chs[idx].index);
+    g_free (path);
+
+    path = mock_attr_path (dev0, chs[idx].name, "_type");
+    type = g_strdup_printf ("le:%c%u/%u>>%u", chs[idx].is_signed ? 's' : 'u',
+        chs[idx].used_bits, chs[idx].storage_bytes * 8, chs[idx].shift);
+    status += write_file_string (path, type);
+    g_free (type);
+    g_free (path);
+  }
+
+  if (status != 0) {
+    destroy_dev_dir (dev0);
+    clean_iio_dev_structure (dev0);
+    return NULL;
+  }
+
+  return dev0;
+}
+
+/**
+ * @brief remove a device made by make_mock_device()
+ */
+static void
+destroy_mock_device (iio_dev_dir_struct *dev0, const mock_channel *chs, const guint num)
+{
+  const gchar *suffixes[] = { "_en", "_index", "_type" };
+  gchar *path;
+
+  for (guint idx = 0; idx < num; idx++) {
+    for (guint s = 0; s < G_N_ELEMENTS (suffixes); s++) {
+      path = mock_attr_path (dev0, chs[idx].name, suffixes[s]);
+      EXPECT_EQ (safe_remove (path), 0);
+      g_free (path);
+    }
+  }
+
+  EXPECT_EQ (destroy_dev_dir (dev0), 0);
+  clean_iio_dev_structure (dev0);
+}
+
+/**
+ * @brief round up to a multiple of the given size
+ */
+#define MOCK_ALIGN(x, a) ((((x) + (a) - 1) / (a)) * (a))
+
+/**
+ * @brief write MOCK_CAPACITY scans of the enabled channels as the kernel
+ * lays them out: the channels in the order of their index, each aligned to
+ * its storage size, then the timestamp, and the scan padded to a multiple of
+ * its largest channel
+ * @note chs has to be sorted by the index; the bits under the data are not
+ * zero, as a device may leave anything there
+ * @returns 0 on success, non-zero on failure
+ */
+static gint
+feed_mock_scans (iio_dev_dir_struct *dev0, const mock_channel *chs, const guint num)
+{
+  g_autofree guint *location = g_new (guint, num);
+  g_autofree guint8 *data = NULL;
+  guint scan_bytes = 0, largest = 0;
+  guint idx, pass, scan, b;
+  guint64 raw;
+  gint enabled;
+
+  for (pass = 0; pass < 2; pass++) {
+    for (idx = 0; idx < num; idx++) {
+      if (chs[idx].timestamp != (pass == 1))
+        continue;
+
+      enabled = read_mock_enable (dev0, chs[idx].name);
+      if (enabled < 0)
+        return -1;
+
+      location[idx] = G_MAXUINT;
+      if (enabled == 0)
+        continue;
+
+      scan_bytes = MOCK_ALIGN (scan_bytes, chs[idx].storage_bytes);
+      location[idx] = scan_bytes;
+      scan_bytes += chs[idx].storage_bytes;
+      largest = MAX (largest, chs[idx].storage_bytes);
+    }
+  }
+
+  if (largest == 0)
+    return -1;
+  scan_bytes = MOCK_ALIGN (scan_bytes, largest);
+
+  data = (guint8 *) g_malloc0 (scan_bytes * MOCK_CAPACITY);
+  for (scan = 0; scan < MOCK_CAPACITY; scan++) {
+    for (idx = 0; idx < num; idx++) {
+      if (location[idx] == G_MAXUINT)
+        continue;
+
+      raw = ((guint64) chs[idx].samples[scan]) & (G_MAXUINT64 >> (64 - chs[idx].used_bits));
+      raw = (raw << chs[idx].shift)
+            | (0x5 & ((G_GUINT64_CONSTANT (1) << chs[idx].shift) - 1));
+      for (b = 0; b < chs[idx].storage_bytes; b++)
+        data[scan * scan_bytes + location[idx] + b] = (guint8) (raw >> (8 * b));
+    }
+  }
+
+  return write_file_string_single_trigger (
+      dev0->dev_device_dir_fd, (const gchar *) data, scan_bytes * MOCK_CAPACITY);
+}
+
+/**
+ * @brief data and caps a fakesink received
+ */
+typedef struct {
+  GByteArray *data; /**< contents of the buffers */
+  GstCaps *caps; /**< caps of the first buffer */
+  guint num_buffers; /**< number of buffers */
+} mock_sink_data;
+
+/**
+ * @brief keep what the fakesink receives
+ */
+static void
+mock_sink_handoff (GstElement *, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  mock_sink_data *sink_data = (mock_sink_data *) user_data;
+  GstMapInfo map;
+
+  if (gst_buffer_map (buffer, &map, GST_MAP_READ)) {
+    g_byte_array_append (sink_data->data, map.data, map.size);
+    gst_buffer_unmap (buffer, &map);
+  }
+  if (sink_data->caps == NULL)
+    sink_data->caps = gst_pad_get_current_caps (pad);
+  sink_data->num_buffers++;
+}
+
+/**
+ * @brief run a mock device and check the buffer the element hands downstream
+ * @param[in] chs scan elements of the device, sorted by the index
+ * @param[in] num number of the scan elements
+ * @param[in] pre_enabled whether each scan element is enabled before the element starts
+ * @param[in] channels value of the channels property, NULL to keep the default
+ * @param[in] refused values set after channels, each of which has to be refused
+ * @param[in] num_refused number of the refused values
+ * @param[in] expected whether each scan element is expected in the tensor
+ */
+static void
+run_mock_device (const mock_channel *chs, const guint num,
+    const gboolean *pre_enabled, const gchar *channels,
+    const gchar *const *refused, const guint num_refused, const gboolean *expected)
+{
+  iio_dev_dir_struct *dev0;
+  GstElement *pipeline, *src_iio, *sink;
+  GstBus *bus;
+  GstMessage *msg;
+  GstTensorsConfig config;
+  mock_sink_data sink_data = { g_byte_array_new (), NULL, 0 };
+  gchar *parse_launch, *before, *after;
+  const gfloat *values;
+  guint idx, scan, col, num_expected = 0;
+
+  for (idx = 0; idx < num; idx++) {
+    if (!chs[idx].timestamp && expected[idx])
+      num_expected++;
+  }
+
+  dev0 = make_mock_device (chs, num, pre_enabled);
+  ASSERT_NE (dev0, nullptr);
+
+  parse_launch = g_strdup_printf ("%s name=src iio-base-dir=%s dev-dir=%s device=%s "
+                                  "buffer-capacity=%u num-buffers=1 silent=FALSE ! "
+                                  "fakesink name=sink signal-handoffs=true sync=false",
+      ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, DEVICE_NAME, MOCK_CAPACITY);
+  pipeline = gst_parse_launch (parse_launch, NULL);
+  g_free (parse_launch);
+  ASSERT_NE (pipeline, nullptr);
+  src_iio = gst_bin_get_by_name (GST_BIN (pipeline), "src");
+  ASSERT_NE (src_iio, nullptr);
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  ASSERT_NE (sink, nullptr);
+  g_signal_connect (sink, "handoff", G_CALLBACK (mock_sink_handoff), &sink_data);
+
+  if (channels != NULL) {
+    g_object_set (src_iio, "channels", channels, NULL);
+    g_object_get (src_iio, "channels", &before, NULL);
+    for (idx = 0; idx < num_refused; idx++) {
+      g_object_set (src_iio, "channels", refused[idx], NULL);
+      g_object_get (src_iio, "channels", &after, NULL);
+      EXPECT_STREQ (after, before) << "with the value " << refused[idx];
+      g_free (after);
+    }
+    g_free (before);
+  }
+
+  /** the element sets the scan elements up when it starts */
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_NO_PREROLL);
+  for (idx = 0; idx < num; idx++) {
+    if (chs[idx].timestamp)
+      EXPECT_EQ (read_mock_enable (dev0, chs[idx].name), pre_enabled[idx] ? 1 : 0)
+          << chs[idx].name << " is not for the element to switch";
+    else
+      EXPECT_EQ (read_mock_enable (dev0, chs[idx].name), expected[idx] ? 1 : 0)
+          << chs[idx].name;
+  }
+  EXPECT_EQ (feed_mock_scans (dev0, chs, num), 0);
+
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  ASSERT_NE (msg, nullptr);
+  EXPECT_EQ (GST_MESSAGE_TYPE (msg), GST_MESSAGE_EOS);
+  gst_message_unref (msg);
+  gst_object_unref (bus);
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+
+  /** the enabled state of the device is restored */
+  for (idx = 0; idx < num; idx++) {
+    EXPECT_EQ (read_mock_enable (dev0, chs[idx].name), pre_enabled[idx] ? 1 : 0)
+        << chs[idx].name;
+  }
+
+  /** a buffer of MOCK_CAPACITY scans of the expected channels */
+  EXPECT_EQ (sink_data.num_buffers, 1U);
+  ASSERT_NE (sink_data.caps, nullptr);
+  EXPECT_TRUE (gst_tensors_config_from_structure (
+      &config, gst_caps_get_structure (sink_data.caps, 0)));
+  EXPECT_EQ (config.info.num_tensors, 1U);
+  EXPECT_EQ (config.info.info[0].type, _NNS_FLOAT32);
+  EXPECT_EQ (config.info.info[0].dimension[0], num_expected);
+  EXPECT_EQ (config.info.info[0].dimension[1], MOCK_CAPACITY);
+  gst_tensors_config_free (&config);
+  ASSERT_EQ (sink_data.data->len, sizeof (gfloat) * num_expected * MOCK_CAPACITY);
+
+  values = (const gfloat *) sink_data.data->data;
+  for (scan = 0; scan < MOCK_CAPACITY; scan++) {
+    col = 0;
+    for (idx = 0; idx < num; idx++) {
+      if (chs[idx].timestamp || !expected[idx])
+        continue;
+      EXPECT_FLOAT_EQ (values[scan * num_expected + col], (gfloat) chs[idx].samples[scan])
+          << chs[idx].name << " of scan " << scan;
+      col++;
+    }
+  }
+
+  gst_caps_unref (sink_data.caps);
+  g_byte_array_unref (sink_data.data);
+  gst_object_unref (sink);
+  gst_object_unref (src_iio);
+  gst_object_unref (pipeline);
+  destroy_mock_device (dev0, chs, num);
+}
+
+/**
+ * @brief the accelerometer with nothing enabled, as the kernel leaves it
+ */
+static const gboolean accel_none[] = { FALSE, FALSE, FALSE, FALSE };
+
+/**
+ * @brief the accelerometer with nothing but the timestamp enabled
+ */
+static const gboolean accel_ts[] = { FALSE, FALSE, FALSE, TRUE };
+
+/**
+ * @brief the accelerometer with everything enabled
+ */
+static const gboolean accel_all[] = { TRUE, TRUE, TRUE, TRUE };
+
+/**
+ * @brief the x and z axes of the accelerometer
+ */
+static const gboolean accel_xz[] = { TRUE, FALSE, TRUE, FALSE };
+
+/**
+ * @brief the three axes of the accelerometer
+ */
+static const gboolean accel_xyz[] = { TRUE, TRUE, TRUE, FALSE };
+
+/**
+ * @brief tests a subset of the channels of an accelerometer
+ * @note y, disabled for the run, is enabled back if it was enabled before
+ */
+TEST (testTensorSrcIio, accelChannelsCustom)
+{
+  const guint num = G_N_ELEMENTS (accel_channels);
+
+  run_mock_device (accel_channels, num, accel_none, "0,2", NULL, 0, accel_xz);
+  run_mock_device (accel_channels, num, accel_ts, "0,2", NULL, 0, accel_xz);
+  run_mock_device (accel_channels, num, accel_all, "0,2", NULL, 0, accel_xz);
+}
+
+/**
+ * @brief tests all the channels of an accelerometer
+ * @note the timestamp, enabled or not, is neither switched nor put in the tensor
+ */
+TEST (testTensorSrcIio, accelChannelsAll)
+{
+  const guint num = G_N_ELEMENTS (accel_channels);
+
+  run_mock_device (accel_channels, num, accel_none, " all ", NULL, 0, accel_xyz);
+  run_mock_device (accel_channels, num, accel_ts, " all ", NULL, 0, accel_xyz);
+}
+
+/**
+ * @brief tests a subset listing the index of the timestamp, which is ignored
+ */
+TEST (testTensorSrcIio, accelChannelsCustomTimestamp)
+{
+  const guint num = G_N_ELEMENTS (accel_channels);
+  const gboolean x[] = { TRUE, FALSE, FALSE, FALSE };
+
+  run_mock_device (accel_channels, num, accel_none, "0,3", NULL, 0, x);
+  run_mock_device (accel_channels, num, accel_ts, "0,3", NULL, 0, x);
+}
+
+/**
+ * @brief tests the automatic selection of the channels of an accelerometer
+ */
+TEST (testTensorSrcIio, accelChannelsAuto)
+{
+  const guint num = G_N_ELEMENTS (accel_channels);
+  const gboolean y_ts[] = { FALSE, TRUE, FALSE, TRUE };
+  const gboolean y[] = { FALSE, TRUE, FALSE, FALSE };
+
+  /** an enabled timestamp does not count as an enabled channel */
+  run_mock_device (accel_channels, num, accel_ts, NULL, NULL, 0, accel_xyz);
+  /** the channels enabled already are kept as they are */
+  run_mock_device (accel_channels, num, y_ts, NULL, NULL, 0, y);
+}
+
+/**
+ * @brief tests the timestamp of an old kernel, named without the direction
+ */
+TEST (testTensorSrcIio, accelLegacyTimestamp)
+{
+  mock_channel chs[G_N_ELEMENTS (accel_channels)];
+
+  memcpy (chs, accel_channels, sizeof (accel_channels));
+  chs[3].name = "timestamp";
+  run_mock_device (chs, G_N_ELEMENTS (chs), accel_ts, " all ", NULL, 0, accel_xyz);
+}
+
+/**
+ * @brief tests that the refused channels values keep the previous selection,
+ * which the device then runs with
+ */
+TEST (testTensorSrcIio, accelChannelsRefused_n)
+{
+  const gchar *refused[] = { "all,1", "0x1" };
+
+  run_mock_device (accel_channels, G_N_ELEMENTS (accel_channels), accel_ts,
+      "0,2", refused, G_N_ELEMENTS (refused), accel_xz);
+}
+
+/**
+ * @brief tests a scan padded after its last channel to the largest channel
+ */
+TEST (testTensorSrcIio, scanPadding)
+{
+  const mock_channel chs[] = {
+    { "in_voltage0", 0, TRUE, 16, 2, 0, FALSE, { -32768, 32767, -1, 1234 } },
+    { "in_voltage1", 1, FALSE, 8, 1, 0, FALSE, { 255, 0, 128, 7 } },
+  };
+  const gboolean none[] = { FALSE, FALSE };
+  const gboolean both[] = { TRUE, TRUE };
+
+  run_mock_device (chs, G_N_ELEMENTS (chs), none, "all", NULL, 0, both);
+}
+
+/**
+ * @brief start the accelerometer with the given timestamp type
+ * @param[in] type contents of the type attribute, NULL to remove it
+ * @param[in] ts_enabled whether the timestamp is enabled
+ * @param[in] expected state change expected
+ */
+static void
+run_accel_timestamp_type (const gchar *type, const gboolean ts_enabled,
+    const GstStateChangeReturn expected)
+{
+  iio_dev_dir_struct *dev0;
+  GstElement *src_iio;
+  gchar *path;
+
+  dev0 = make_mock_device (accel_channels, G_N_ELEMENTS (accel_channels),
+      ts_enabled ? accel_ts : accel_none);
+  ASSERT_NE (dev0, nullptr);
+
+  path = mock_attr_path (dev0, "in_timestamp", "_type");
+  if (type)
+    EXPECT_EQ (write_file_string (path, type), 0);
+  else
+    EXPECT_EQ (safe_remove (path), 0);
+  g_free (path);
+
+  src_iio = gst_element_factory_make (ELEMENT_NAME, NULL);
+  ASSERT_NE (src_iio, nullptr);
+  g_object_set (src_iio, "iio-base-dir", dev0->iio_base_dir_sim, "dev-dir",
+      dev0->dev_dir, "device", DEVICE_NAME, NULL);
+
+  EXPECT_EQ (gst_element_set_state (src_iio, GST_STATE_PAUSED), expected);
+  EXPECT_EQ (gst_element_set_state (src_iio, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (src_iio);
+
+  destroy_mock_device (dev0, accel_channels, G_N_ELEMENTS (accel_channels));
+}
+
+/**
+ * @brief tests that the type of a disabled timestamp is not needed
+ */
+TEST (testTensorSrcIio, accelTimestampTypeDisabled)
+{
+  run_accel_timestamp_type ("le:s0/64>>0", FALSE, GST_STATE_CHANGE_NO_PREROLL);
+  run_accel_timestamp_type (NULL, FALSE, GST_STATE_CHANGE_NO_PREROLL);
+}
+
+/**
+ * @brief tests that an enabled timestamp whose size is unknown is refused
+ */
+TEST (testTensorSrcIio, accelTimestampType_n)
+{
+  run_accel_timestamp_type ("le:s0/64>>0", TRUE, GST_STATE_CHANGE_FAILURE);
+  run_accel_timestamp_type (NULL, TRUE, GST_STATE_CHANGE_FAILURE);
 }
 
 /**
