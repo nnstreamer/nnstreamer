@@ -263,7 +263,7 @@ NNStreamerRPC::_wait_configured ()
     return TRUE;
 
   while (!g_atomic_int_get (&configured_)) {
-    /* an async server call held here keeps its completion queue from shutting down and stop () from joining the thread */
+    /* a call held here keeps stop () from shutting the server down or joining the client thread */
     if (g_atomic_int_get (&stop_))
       return FALSE;
     g_usleep (G_USEC_PER_SEC / 100);

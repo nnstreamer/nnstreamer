@@ -1858,6 +1858,149 @@ _stop_server_src_while_held (const gchar *idl, gboolean blocking,
 }
 
 /**
+ * @brief A client that opens a call, sends nothing, closes its writes and tells
+ * whether the server ended the call within 10 seconds.
+ */
+typedef std::function<gboolean (const std::string &)> IdleCallFunc;
+
+/**
+ * @brief Pad probe: hold the first caps query until the flag at @a user_data
+ * is set, then let it pass; fail it if the pad starts flushing first.
+ */
+static GstPadProbeReturn
+_gate_caps_query (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  GstQuery *query = GST_PAD_PROBE_INFO_QUERY (info);
+
+  if (GST_QUERY_TYPE (query) != GST_QUERY_CAPS)
+    return GST_PAD_PROBE_OK;
+
+  while (!g_atomic_int_get ((gint *) user_data)) {
+    /* a stopping element never gets its caps */
+    if (GST_PAD_IS_FLUSHING (pad))
+      return GST_PAD_PROBE_DROP;
+    g_usleep (10000);
+  }
+
+  return GST_PAD_PROBE_REMOVE;
+}
+
+/**
+ * @brief Flags of _idle_call_while_held (), on the heap: they are left behind with a pipeline that does not stop.
+ */
+typedef struct {
+  gint caps; /**< let the server negotiate its caps */
+  gint release; /**< let the client of the held message close its call */
+  gint sent; /**< the client of the held message has written its messages */
+} HeldGates;
+
+/**
+ * @brief Let @a idle open and close a call while a non-blocking
+ * tensor_src_grpc server holds the messages that @a held sent before its caps.
+ * @param idl the IDL of the server
+ * @param held the client of the held messages; it calls the given function to wait before it closes its writes
+ * @param idle the client that sends nothing
+ * @param stop_held TRUE to bring the server to NULL while it holds the messages, FALSE to let it negotiate first
+ * @param[out] received the number of buffers the server produced, G_MAXUINT if it did not start
+ * @return TRUE if the server ended the idle call before its caps came, produced nothing until then, and reached NULL within 10 seconds
+ */
+static gboolean
+_idle_call_while_held (const gchar *idl, const RecvSendFunc &held,
+    const IdleCallFunc &idle, gboolean stop_held, guint *received)
+{
+  GstElement *pipeline, *src, *sink;
+  GstPad *pad;
+  ClientCall *call;
+  GThread *client;
+  RecvData *data;
+  HeldGates *gates;
+  gchar *str;
+  gint port = 0;
+  gboolean ended, held_only;
+
+  *received = G_MAXUINT;
+  str = g_strdup_printf (
+      "tensor_src_grpc name=src server=TRUE blocking=FALSE idl=%s host=localhost port=0 ! " RECV_STATIC_CAPS
+      " ! tensor_sink name=sink emit-signal=TRUE sync=FALSE async=FALSE",
+      idl);
+  pipeline = gst_parse_launch (str, NULL);
+  g_free (str);
+  if (!pipeline)
+    return FALSE;
+
+  data = new RecvData ();
+  g_mutex_init (&data->lock);
+  data->received = 0;
+  gates = g_new0 (HeldGates, 1);
+
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  g_signal_connect (sink, "new-data", G_CALLBACK (_recv_new_data_cb), data);
+  gst_object_unref (sink);
+
+  /* the caps come only once the idle call is over */
+  src = gst_bin_get_by_name (GST_BIN (pipeline), "src");
+  pad = gst_element_get_static_pad (src, "src");
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM, _gate_caps_query,
+      &gates->caps, NULL);
+  gst_object_unref (pad);
+
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  g_object_get (src, "port", &port, NULL);
+  gst_object_unref (src);
+
+  if (port <= 0) {
+    gst_element_set_state (pipeline, GST_STATE_NULL);
+    gst_object_unref (pipeline);
+    g_mutex_clear (&data->lock);
+    delete data;
+    g_free (gates);
+    return FALSE;
+  }
+
+  call = new ClientCall ();
+  call->address = "localhost:" + std::to_string (port);
+  call->send = [held, gates] (const std::string &address) {
+    held (address, [gates] () {
+      g_atomic_int_set (&gates->sent, 1);
+      for (guint i = 0; i < 1000 && !g_atomic_int_get (&gates->release); i++)
+        g_usleep (10000);
+    });
+  };
+  client = g_thread_new ("grpc-client-call", _client_call, call);
+
+  /* the idle call starts only once the messages are on the wire and the first one is held */
+  for (guint i = 0; i < 1000 && !g_atomic_int_get (&gates->sent); i++)
+    g_usleep (10000);
+  g_usleep (G_USEC_PER_SEC / 2);
+  ended = g_atomic_int_get (&gates->sent) && idle (call->address);
+  g_mutex_lock (&data->lock);
+  held_only = (data->received == 0);
+  g_mutex_unlock (&data->lock);
+
+  if (!stop_held) {
+    g_atomic_int_set (&gates->caps, 1);
+    _wait_for_buffers (*data, 2);
+  }
+
+  g_atomic_int_set (&gates->release, 1);
+  if (!_set_null_in_time (pipeline)) {
+    /* the call the server still holds is left behind with its thread */
+    g_thread_unref (client);
+    return FALSE;
+  }
+
+  g_thread_join (client);
+  delete call;
+  g_free (gates);
+  *received = data->received;
+
+  g_mutex_clear (&data->lock);
+  delete data;
+
+  return ended && held_only;
+}
+
+/**
  * @brief Run a tensor_src_grpc server twice, going down to @a via in between, and let @a send stream to it in each run.
  * @param idl the IDL of the server
  * @param blocking the blocking property of the server
@@ -2517,6 +2660,60 @@ TEST (nnstreamerGrpc, stopWhileHeldServerSrcProtobuf_n)
 TEST (nnstreamerGrpc, stopWhileHeldAsyncServerSrcProtobuf_n)
 {
   EXPECT_TRUE (_stop_server_src_while_held ("protobuf", FALSE, _pb_send_two_closed));
+}
+
+/**
+ * @brief Open a protobuf call that sends nothing and close it.
+ * @return TRUE if the server ended the call within 10 seconds
+ */
+static gboolean
+_pb_idle_call (const std::string &address)
+{
+  auto stub = nnstreamer::protobuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  google::protobuf::Empty reply;
+
+  context.set_deadline (std::chrono::system_clock::now () + std::chrono::seconds (10));
+  auto writer = stub->SendTensors (&context, &reply);
+
+  writer->WritesDone ();
+  return writer->Finish ().ok ();
+}
+
+/**
+ * @brief Send two protobuf messages that fit RECV_STATIC_CAPS and wait before closing the writes.
+ */
+static void
+_pb_send_two_held (const std::string &address, const std::function<void ()> &wait)
+{
+  _pb_send_held (address, wait, { _pb_valid_static (), _pb_valid_static () });
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) server ends another call
+ * while it holds the messages of a call for its caps, and delivers them later.
+ */
+TEST (nnstreamerGrpc, idleCallWhileHeldAsyncServerSrcProtobuf)
+{
+  guint received;
+
+  EXPECT_TRUE (_idle_call_while_held (
+      "protobuf", _pb_send_two_held, _pb_idle_call, FALSE, &received));
+  EXPECT_EQ (received, 2U);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (protobuf) server ends another call
+ * while it holds the messages of a call for its caps, and drops them when it stops first.
+ */
+TEST (nnstreamerGrpc, idleCallWhileHeldAsyncServerSrcProtobuf_n)
+{
+  guint received;
+
+  EXPECT_TRUE (_idle_call_while_held (
+      "protobuf", _pb_send_two_held, _pb_idle_call, TRUE, &received));
+  EXPECT_EQ (received, 0U);
 }
 
 /**
@@ -3354,6 +3551,65 @@ TEST (nnstreamerGrpc, stopWhileHeldServerSrcFlatbuf_n)
 TEST (nnstreamerGrpc, stopWhileHeldAsyncServerSrcFlatbuf_n)
 {
   EXPECT_TRUE (_stop_server_src_while_held ("flatbuf", FALSE, _fb_send_two_closed));
+}
+
+/**
+ * @brief Open a flatbuf call that sends nothing and close it.
+ * @return TRUE if the server ended the call within 10 seconds
+ */
+static gboolean
+_fb_idle_call (const std::string &address)
+{
+  auto stub = nnstreamer::flatbuf::TensorService::NewStub (
+      grpc::CreateChannel (address, grpc::InsecureChannelCredentials ()));
+  grpc::ClientContext context;
+  flatbuffers::grpc::Message<nnstreamer::flatbuf::Empty> reply;
+
+  context.set_deadline (std::chrono::system_clock::now () + std::chrono::seconds (10));
+  auto writer = stub->SendTensors (&context, &reply);
+
+  writer->WritesDone ();
+  return writer->Finish ().ok ();
+}
+
+/**
+ * @brief Send two flatbuf messages that fit RECV_STATIC_CAPS and wait before closing the writes.
+ */
+static void
+_fb_send_two_held (const std::string &address, const std::function<void ()> &wait)
+{
+  const std::vector<gint> valid = { 4, 2 };
+  std::vector<FbMessage> msgs;
+
+  msgs.push_back (_fb_build (2, &valid));
+  msgs.push_back (_fb_build (2, &valid));
+  _fb_send_held (address, wait, msgs);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) server ends another call
+ * while it holds the messages of a call for its caps, and delivers them later.
+ */
+TEST (nnstreamerGrpc, idleCallWhileHeldAsyncServerSrcFlatbuf)
+{
+  guint received;
+
+  EXPECT_TRUE (_idle_call_while_held (
+      "flatbuf", _fb_send_two_held, _fb_idle_call, FALSE, &received));
+  EXPECT_EQ (received, 2U);
+}
+
+/**
+ * @brief A non-blocking tensor_src_grpc (flatbuf) server ends another call
+ * while it holds the messages of a call for its caps, and drops them when it stops first.
+ */
+TEST (nnstreamerGrpc, idleCallWhileHeldAsyncServerSrcFlatbuf_n)
+{
+  guint received;
+
+  EXPECT_TRUE (_idle_call_while_held (
+      "flatbuf", _fb_send_two_held, _fb_idle_call, TRUE, &received));
+  EXPECT_EQ (received, 0U);
 }
 
 /**
