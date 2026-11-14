@@ -17446,14 +17446,12 @@ _split_any_sink_chain (GstPad *pad, GstObject *parent, GstBuffer *buffer)
 }
 
 /**
- * @brief A renegotiated pad keeps the media type it was created with.
- * @details A pad is described before it is added to the element, so its caps
- *          are built without a peer and come out as other/tensors. Building
- *          them from the config once the pad is linked asks the peer instead,
- *          and a peer that takes other/tensor would put that on a pad that has
- *          been announcing other/tensors all along.
+ * @brief A pad created as other/tensor is renegotiated as other/tensor.
+ * @details A peer linked from "pad-added" is there when the pad is described,
+ *          and one that takes other/tensor gets other/tensor, named with the
+ *          singular fields.
  */
-TEST (testTensorSplit, renegotiateKeepsMediaType)
+TEST (testTensorSplit, renegotiateKeepsMediaTypeTensor)
 {
   GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
   splitAnySink sink = { NULL, NULL, 0 };
@@ -17477,12 +17475,67 @@ TEST (testTensorSplit, renegotiateKeepsMediaType)
   EXPECT_TRUE (sink.taken != NULL);
   if (sink.taken) {
     structure = gst_caps_get_structure (sink.taken, 0);
-    EXPECT_STREQ (gst_structure_get_name (structure), "other/tensors");
+    EXPECT_STREQ (gst_structure_get_name (structure), "other/tensor");
+    EXPECT_STREQ (gst_structure_get_string (structure, "type"), "uint8");
   }
 
   size = _split_set_src_caps (h, "3:4:4", _NNS_FLOAT32, 0, 1);
   EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
   EXPECT_EQ (sink.buffers, 2U);
+
+  EXPECT_TRUE (sink.taken != NULL);
+  if (sink.taken) {
+    structure = gst_caps_get_structure (sink.taken, 0);
+    EXPECT_STREQ (gst_structure_get_name (structure), "other/tensor");
+    EXPECT_STREQ (gst_structure_get_string (structure, "type"), "float32");
+    EXPECT_STREQ (gst_structure_get_string (structure, "dimension"), "3:4:4");
+  }
+
+  gst_harness_teardown (h);
+  gst_pad_set_active (sinkpad, FALSE);
+  gst_object_unref (sinkpad);
+  gst_caps_unref (sink.query_caps);
+  if (sink.taken)
+    gst_caps_unref (sink.taken);
+}
+
+/**
+ * @brief A pad created as other/tensors stays other/tensors, whatever its peer takes.
+ * @details The pad is linked after it was described, as an application
+ *          linking by name does. Building its caps from the config again would
+ *          ask the peer, which takes other/tensor, and flip the media type of
+ *          a pad that has been announcing other/tensors.
+ */
+TEST (testTensorSplit, renegotiateKeepsMediaTypeTensors)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  splitAnySink sink = { NULL, NULL, 0 };
+  GstPad *sinkpad = gst_pad_new ("sink", GST_PAD_SINK);
+  GstStructure *structure;
+  GstPad *srcpad;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  sink.query_caps = gst_caps_from_string ("other/tensor; other/tensors");
+  gst_pad_set_event_function (sinkpad, _split_any_sink_event);
+  gst_pad_set_query_function (sinkpad, _split_any_sink_query);
+  gst_pad_set_chain_function (sinkpad, _split_any_sink_chain);
+  gst_pad_set_element_private (sinkpad, &sink);
+  gst_pad_set_active (sinkpad, TRUE);
+
+  g_object_set (h->element, "tensorseg", "3:4:4", NULL);
+
+  size = _split_set_src_caps (h, "3:4:4", _NNS_UINT8, 0, 1);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_NOT_LINKED);
+
+  srcpad = gst_element_get_static_pad (h->element, "src_0");
+  ASSERT_TRUE (srcpad != NULL);
+  EXPECT_EQ (gst_pad_link (srcpad, sinkpad), GST_PAD_LINK_OK);
+  gst_object_unref (srcpad);
+
+  size = _split_set_src_caps (h, "3:4:4", _NNS_FLOAT32, 0, 1);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (sink.buffers, 1U);
 
   EXPECT_TRUE (sink.taken != NULL);
   if (sink.taken) {
@@ -18247,8 +18300,9 @@ TEST (testTensorSplit, resizeRefusedLeavesEveryPad_n)
 
 /**
  * @brief A pad given new dimensions keeps the media type it was created with.
- * @details A peer that can take other/tensor would get it if the caps were
- *          built from the config again once the pad is linked.
+ * @details The pad, linked from "pad-added" to a peer that takes both media
+ *          types, was created as other/tensor, so its new dimensions go in the
+ *          singular field.
  */
 TEST (testTensorSplit, resizeKeepsMediaType)
 {
@@ -18279,9 +18333,9 @@ TEST (testTensorSplit, resizeKeepsMediaType)
   EXPECT_TRUE (sink.taken != NULL);
   if (sink.taken) {
     structure = gst_caps_get_structure (sink.taken, 0);
-    EXPECT_STREQ (gst_structure_get_name (structure), "other/tensors");
-    EXPECT_STREQ (gst_structure_get_string (structure, "dimensions"), "2:4:4");
-    EXPECT_STREQ (gst_structure_get_string (structure, "types"), "float32");
+    EXPECT_STREQ (gst_structure_get_name (structure), "other/tensor");
+    EXPECT_STREQ (gst_structure_get_string (structure, "dimension"), "2:4:4");
+    EXPECT_STREQ (gst_structure_get_string (structure, "type"), "float32");
   }
 
   gst_harness_teardown (h);
@@ -18290,6 +18344,122 @@ TEST (testTensorSplit, resizeKeepsMediaType)
   gst_caps_unref (sink.query_caps);
   if (sink.taken)
     gst_caps_unref (sink.taken);
+}
+
+/**
+ * @brief Give src_0 new dimensions while it is linked to a peer that names the
+ *        dimension in rank 4.
+ * @details src_0 carries 1:4:4 at first and is then given 2:4:4.
+ * @param peer_caps what the peer answers a caps query with
+ * @param[out] sink what the peer took and received
+ * @param[out] warned whether the new tensorseg was refused on the bus
+ * @return the dimension src_0 announces at the end, to be freed
+ */
+static gchar *
+_split_resize_rank4_peer (const gchar *peer_caps, splitAnySink *sink, gboolean *warned)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  GstPad *sinkpad = gst_pad_new ("sink", GST_PAD_SINK);
+  gchar *dimension;
+  GstBus *bus;
+  gsize size;
+
+  sink->query_caps = gst_caps_from_string (peer_caps);
+  gst_pad_set_event_function (sinkpad, _split_any_sink_event);
+  gst_pad_set_query_function (sinkpad, _split_any_sink_query);
+  gst_pad_set_chain_function (sinkpad, _split_any_sink_chain);
+  gst_pad_set_element_private (sinkpad, sink);
+  gst_pad_set_active (sinkpad, TRUE);
+
+  bus = _split_harness_bus (h);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_first_pad), sinkpad);
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", "tensorpick", "0", NULL);
+
+  size = _split_set_src_caps (h, "3:4:4", _NNS_UINT8, 0, 1);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  dimension = _split_pad_dimension (h->element, "src_0");
+  EXPECT_STREQ (dimension, "1:4:4:1");
+  g_free (dimension);
+
+  g_object_set (h->element, "tensorseg", "2:4:4,1:4:4", NULL);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  *warned = _split_pop_settings_warning (bus);
+  dimension = _split_pad_dimension (h->element, "src_0");
+
+  _split_harness_bus_clear (h, bus);
+  gst_harness_teardown (h);
+  gst_pad_set_active (sinkpad, FALSE);
+  gst_object_unref (sinkpad);
+  gst_caps_unref (sink->query_caps);
+
+  return dimension;
+}
+
+/**
+ * @brief New dimensions are written in the rank the peer asks for.
+ * @details The peer takes 2:4:4 only as 2:4:4:1, which is how the pad was
+ *          described when it was created, so a rule written as 2:4:4 is taken.
+ */
+TEST (testTensorSplit, resizeKeepsPeerRank)
+{
+  splitAnySink sink = { NULL, NULL, 0 };
+  gboolean warned = TRUE;
+  gchar *dimension = _split_resize_rank4_peer (
+      "other/tensor,dimension=1:4:4:1; other/tensor,dimension=2:4:4:1", &sink, &warned);
+
+  EXPECT_STREQ (dimension, "2:4:4:1");
+  EXPECT_FALSE (warned);
+  EXPECT_EQ (sink.buffers, 2U);
+  EXPECT_TRUE (sink.taken != NULL);
+  if (sink.taken) {
+    EXPECT_STREQ (gst_structure_get_name (gst_caps_get_structure (sink.taken, 0)), "other/tensor");
+    EXPECT_STREQ (gst_structure_get_string (gst_caps_get_structure (sink.taken, 0), "dimension"),
+        "2:4:4:1");
+    gst_caps_unref (sink.taken);
+  }
+  g_free (dimension);
+}
+
+/**
+ * @brief New dimensions of an other/tensors pad are written in the peer's rank.
+ */
+TEST (testTensorSplit, resizeKeepsPeerRankTensors)
+{
+  splitAnySink sink = { NULL, NULL, 0 };
+  gboolean warned = TRUE;
+  gchar *dimension
+      = _split_resize_rank4_peer ("other/tensors,num_tensors=1,dimensions=1:4:4:1; "
+                                  "other/tensors,num_tensors=1,dimensions=2:4:4:1",
+          &sink, &warned);
+
+  EXPECT_STREQ (dimension, "2:4:4:1");
+  EXPECT_FALSE (warned);
+  EXPECT_EQ (sink.buffers, 2U);
+  EXPECT_TRUE (sink.taken != NULL);
+  if (sink.taken) {
+    EXPECT_STREQ (gst_structure_get_name (gst_caps_get_structure (sink.taken, 0)),
+        "other/tensors");
+    gst_caps_unref (sink.taken);
+  }
+  g_free (dimension);
+}
+
+/**
+ * @brief Dimensions the peer takes in no rank are still refused.
+ */
+TEST (testTensorSplit, resizeKeepsPeerRankRefused_n)
+{
+  splitAnySink sink = { NULL, NULL, 0 };
+  gboolean warned = FALSE;
+  gchar *dimension = _split_resize_rank4_peer (
+      "other/tensor,dimension=1:4:4:1; other/tensor,dimension=3:4:4:1", &sink, &warned);
+
+  EXPECT_STREQ (dimension, "1:4:4:1");
+  EXPECT_TRUE (warned);
+  EXPECT_EQ (sink.buffers, 2U);
+  if (sink.taken)
+    gst_caps_unref (sink.taken);
+  g_free (dimension);
 }
 
 /**
@@ -19544,6 +19714,139 @@ TEST (testTensorSplit, tensorpickRefusesFirstSegment_n)
         "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
         "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
         "other/tensors,num_tensors=1,dimensions=1:4:4,types=uint8 ! fakesink";
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_ERROR);
+}
+
+/**
+ * @brief A picked pad links to a peer asking for other/tensor in rank-3 notation.
+ * @details gst-launch links the pad from "pad-added", so the pad is described
+ *          with the peer there and announces other/tensor, which a pad
+ *          described before it was added could not.
+ */
+TEST (testTensorSplit, tensorpickNegotiatesSingleTensorCaps)
+{
+  const gchar *desc = "videotestsrc num-buffers=2 ! "
+                      "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                      "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+                      "other/tensor,dimension=2:4:4,type=uint8 ! fakesink";
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_EOS);
+}
+
+/**
+ * @brief A peer asking for other/tensor with the first segment's shape is refused.
+ */
+TEST (testTensorSplit, tensorpickRefusesSingleTensorFirstSegment_n)
+{
+  const gchar *desc = "videotestsrc num-buffers=2 ! "
+                      "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                      "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+                      "other/tensor,dimension=1:4:4,type=uint8 ! fakesink";
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_ERROR);
+}
+
+/**
+ * @brief A picked pad announces other/tensor in the rank-4 notation its peer asks for.
+ * @details The caps fields are strings, so a pad announcing 2:4:4 would not
+ *          link to a peer asking for 2:4:4:1.
+ */
+TEST (testTensorSplit, tensorpickNegotiatesSingleTensorRank4)
+{
+  const gchar *desc = "videotestsrc num-buffers=2 ! "
+                      "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                      "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+                      "other/tensor,dimension=2:4:4:1,type=uint8 ! fakesink";
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_EOS);
+}
+
+/**
+ * @brief A picked pad announces other/tensors in the rank-4 notation its peer asks for.
+ */
+TEST (testTensorSplit, tensorpickNegotiatesTensorsRank4)
+{
+  const gchar *desc
+      = "videotestsrc num-buffers=2 ! "
+        "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+        "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+        "other/tensors,num_tensors=1,dimensions=2:4:4:1,types=uint8 ! fakesink";
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_EOS);
+}
+
+/**
+ * @brief A peer listing flexible tensors first still gets static other/tensors.
+ * @details The source pad template has no flexible tensors, so the caps built
+ *          for such a peer are not usable and the pad falls back to the static
+ *          caps it announces with no peer. Building them logs no critical.
+ */
+TEST (testTensorSplit, tensorpickPeerPrefersFlexible)
+{
+  const gchar *desc
+      = "videotestsrc num-buffers=2 ! "
+        "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+        "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+        "other/tensors,format=flexible; other/tensors,format=static,num_tensors=1 ! "
+        "fakesink";
+  guint handler_id;
+  GLogLevelFlags fatal_mask;
+
+  tensor_crop_logged_critical = FALSE;
+  handler_id = g_log_set_handler ("GStreamer",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _crop_record_critical, NULL);
+
+  /* the assertion below says nothing unless the handler is live */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "tensor_split test probe");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_TRUE (tensor_crop_logged_critical);
+  tensor_crop_logged_critical = FALSE;
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_EOS);
+  g_log_remove_handler ("GStreamer", handler_id);
+  EXPECT_FALSE (tensor_crop_logged_critical);
+}
+
+/**
+ * @brief A peer taking only flexible tensors cannot be linked.
+ */
+TEST (testTensorSplit, tensorpickPeerFlexibleOnly_n)
+{
+  const gchar *desc = "videotestsrc num-buffers=2 ! "
+                      "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                      "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+                      "other/tensors,format=flexible ! fakesink";
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_ERROR);
+}
+
+/**
+ * @brief A tensor element taking both media types consumes a picked pad as other/tensor.
+ */
+TEST (testTensorSplit, tensorpickFeedsTensorTransform)
+{
+  const gchar *desc = "videotestsrc num-buffers=2 ! "
+                      "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                      "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+                      "tensor_transform mode=typecast option=float32 ! "
+                      "other/tensor,dimension=2:4:4,type=float32 ! fakesink";
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_EOS);
+}
+
+/**
+ * @brief A tensor element after a picked pad does not take the first segment's shape.
+ */
+TEST (testTensorSplit, tensorpickFeedsTensorTransformFirstSegment_n)
+{
+  const gchar *desc = "videotestsrc num-buffers=2 ! "
+                      "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                      "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+                      "tensor_transform mode=typecast option=float32 ! "
+                      "other/tensor,dimension=1:4:4,type=float32 ! fakesink";
 
   EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_ERROR);
 }
