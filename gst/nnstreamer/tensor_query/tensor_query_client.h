@@ -65,6 +65,9 @@ struct _GstTensorQueryClient
   guint requested_num;
   guint max_buffers; /**< maximum number of answers in msg_queue, 0 for no limit */
   gint dropped_num; /**< answers dropped from msg_queue, not yet taken off requested_num */
+  gboolean disconnected; /**< TRUE once a warning about the lost connection is posted */
+  gboolean caps_refused; /**< TRUE if the server refused the client caps, set by the CAPABILITY event nns_edge_connect() invokes in its caller's thread */
+  gint64 reconnect_time; /**< monotonic time of the last reconnect attempt */
 };
 
 /**
