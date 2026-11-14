@@ -679,6 +679,18 @@ if gtest_dep.found()
     subdir('nnstreamer_filter_pytorch')
   endif
 
+  # PyTorch sub-plugin on the real LibTorch, which scripts its models itself
+  if pytorch_support_is_available
+    unittest_filter_pytorch = executable('unittest_filter_pytorch',
+      join_paths('nnstreamer_filter_pytorch', 'unittest_filter_pytorch.cc'),
+      dependencies: [nnstreamer_unittest_deps, pytorch_support_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_pytorch', unittest_filter_pytorch, timeout: 120, env: testenv)
+  endif
+
   # Tizen NNFW runtime
   if nnfw_runtime_support_is_available
     subdir('tizen_nnfw_runtime')
@@ -898,7 +910,8 @@ if get_option('install-test')
   if pytorch_support_is_available
     install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_install_dir,
       exclude_directories: ['mock'],
-      exclude_files: ['meson.build', 'unittest_filter_pytorch_mock.cc'])
+      exclude_files: ['meson.build', 'unittest_filter_pytorch.cc',
+        'unittest_filter_pytorch_mock.cc'])
   endif
   if caffe2_support_is_available
     install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_install_dir)
