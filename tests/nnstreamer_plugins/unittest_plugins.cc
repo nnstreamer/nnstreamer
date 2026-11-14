@@ -19353,6 +19353,183 @@ TEST (testTensorDemux, renegotiateFollowsPeerDimensionNotation)
 }
 
 /**
+ * @brief Get a harness on "queue ! capsfilter" for a tensor_demux source pad to link to.
+ * @details The harness pushes nothing: its own source pad is unlinked, so the
+ *          source pad of tensor_demux gets the queue for its peer, which
+ *          answers the caps and accept-caps queries by asking the capsfilter.
+ * @param dimensions the dimension the capsfilter takes, in its own notation
+ */
+static GstHarness *
+_demux_queue_harness_new (const gchar *dimensions)
+{
+  g_autofree gchar *desc = g_strdup_printf (
+      "queue ! capsfilter caps=\"other/tensors,format=static,num_tensors=1,dimensions=(string)%s,types=uint8\"",
+      dimensions);
+  GstHarness *h = gst_harness_new_parse (desc);
+
+  if (h) {
+    gst_pad_unlink (h->srcpad, GST_PAD_PEER (h->srcpad));
+    gst_harness_play (h);
+  }
+
+  return h;
+}
+
+/**
+ * @brief Check the dimension and the framerate a pad announces.
+ */
+static void
+_demux_expect_pad_caps (GstPad *pad, const gchar *dimensions, gint rate_n)
+{
+  GstCaps *caps = gst_pad_get_current_caps (pad);
+  GstStructure *structure;
+  gint n = -1, d = -1;
+
+  ASSERT_TRUE (caps != NULL);
+  structure = gst_caps_get_structure (caps, 0);
+  EXPECT_STREQ (gst_structure_get_string (structure, "dimensions"), dimensions);
+  EXPECT_TRUE (gst_structure_get_fraction (structure, "framerate", &n, &d));
+  EXPECT_EQ (n, rate_n);
+  EXPECT_EQ (d, 1);
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Renegotiate the framerate of a tensor_demux pad linked to "queue ! capsfilter".
+ * @details The queue proxies the caps and accept-caps queries of the pad to
+ *          the capsfilter, which compares the dimension as a string.
+ * @param dimensions the dimension the capsfilter takes, in its own notation
+ */
+static void
+_demux_renegotiate_through_queue (const gchar *dimensions)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  GstHarness *peer = _demux_queue_harness_new (dimensions);
+  GstPad *queuepad, *srcpad;
+  GstBuffer *buf;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  ASSERT_TRUE (peer != NULL);
+  queuepad = gst_element_get_static_pad (peer->element, "sink");
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_first_pad), queuepad);
+  g_object_set (h->element, "tensorpick", "0", NULL);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  buf = gst_harness_pull (peer);
+  EXPECT_TRUE (buf != NULL);
+  if (buf)
+    gst_buffer_unref (buf);
+  _demux_expect_pad_caps (peer->sinkpad, dimensions, 0);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 30, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  buf = gst_harness_pull (peer);
+  EXPECT_TRUE (buf != NULL);
+  if (buf) {
+    EXPECT_EQ (gst_buffer_get_size (buf), 16U);
+    gst_buffer_unref (buf);
+  }
+  _demux_expect_pad_caps (peer->sinkpad, dimensions, 30);
+
+  srcpad = gst_element_get_static_pad (h->element, "src_0");
+  EXPECT_TRUE (srcpad != NULL);
+  if (srcpad) {
+    _demux_expect_pad_caps (srcpad, dimensions, 30);
+    gst_object_unref (srcpad);
+  }
+
+  gst_harness_teardown (h);
+  gst_object_unref (queuepad);
+  gst_harness_teardown (peer);
+}
+
+/**
+ * @brief A renegotiation reaches a pad whose peer is a queue.
+ */
+TEST (testTensorDemux, renegotiateThroughQueue)
+{
+  _demux_renegotiate_through_queue ("1:4:4");
+}
+
+/**
+ * @brief A pad renegotiated through a queue writes its dimension the way the element behind does.
+ * @details The queue answers the caps query of the pad with the caps of the
+ *          capsfilter, which spells out the trailing 1 and refuses "1:4:4".
+ */
+TEST (testTensorDemux, renegotiateThroughQueueFollowsNotation)
+{
+  _demux_renegotiate_through_queue ("1:4:4:1");
+}
+
+/**
+ * @brief A renegotiation the element behind a queue refuses fails the stream.
+ * @details The queue would take the caps event and leave the capsfilter to
+ *          refuse it in the queue thread, while tensor_demux kept pushing
+ *          buffers the caps no longer describe. The accept-caps query goes
+ *          through the queue to the capsfilter instead, so the caps event is
+ *          refused and src_0 keeps the caps it had.
+ */
+TEST (testTensorDemux, renegotiateThroughQueueRefused_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  GstHarness *peer = _demux_queue_harness_new ("1:4:4:1");
+  GstPad *queuepad, *srcpad;
+  GstMessage *msg;
+  GstBuffer *buf;
+  GstCaps *caps;
+  GstBus *bus;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  ASSERT_TRUE (peer != NULL);
+  queuepad = gst_element_get_static_pad (peer->element, "sink");
+  bus = _split_harness_bus (h);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_link_first_pad), queuepad);
+  g_object_set (h->element, "tensorpick", "0", NULL);
+
+  size = _demux_set_src_caps (h, "1:4:4,2:4:4", "uint8,uint8", 0, 1);
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_OK);
+  buf = gst_harness_pull (peer);
+  EXPECT_TRUE (buf != NULL);
+  if (buf)
+    gst_buffer_unref (buf);
+
+  caps = _demux_stream_caps ("2:4:4,2:4:4", "uint8,uint8", 30, 1, &size);
+  gst_harness_push_event (h, gst_event_new_caps (caps));
+  gst_caps_unref (caps);
+
+  msg = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  EXPECT_TRUE (msg != NULL);
+  if (msg) {
+    GError *err = NULL;
+
+    gst_message_parse_error (msg, &err, NULL);
+    EXPECT_EQ (err->domain, GST_CORE_ERROR);
+    EXPECT_EQ (err->code, (gint) GST_CORE_ERROR_NEGOTIATION);
+    g_clear_error (&err);
+    gst_message_unref (msg);
+  }
+
+  EXPECT_EQ (_demux_push (h, size), GST_FLOW_NOT_NEGOTIATED);
+
+  srcpad = gst_element_get_static_pad (h->element, "src_0");
+  EXPECT_TRUE (srcpad != NULL);
+  if (srcpad) {
+    _demux_expect_pad_caps (srcpad, "1:4:4:1", 0);
+    gst_object_unref (srcpad);
+  }
+  _demux_expect_pad_caps (peer->sinkpad, "1:4:4:1", 0);
+  EXPECT_EQ (gst_harness_buffers_received (peer), 1U);
+
+  _split_harness_bus_clear (h, bus);
+  gst_harness_teardown (h);
+  gst_object_unref (queuepad);
+  gst_harness_teardown (peer);
+}
+
+/**
  * @brief A renegotiation a source pad cannot pass on fails the stream.
  * @details Pushing buffers of the new type on a pad still announcing the old
  *          one would hand downstream tensors it reads by the wrong type. The
