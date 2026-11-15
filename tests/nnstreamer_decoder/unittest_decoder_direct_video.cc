@@ -926,6 +926,7 @@ typedef struct {
   gsize meta_offset_extra; /**< Added to every offset the video meta declares */
   gint meta_width_delta; /**< Added to the width the video meta declares */
   GstVideoFormat meta_format; /**< Format of the video meta, UNKNOWN for the one of the caps */
+  gsize tail; /**< Bytes in the frame memory after the frame, which the video meta does not describe */
 } MetaPoolLayout;
 
 /**
@@ -1028,7 +1029,7 @@ meta_pool_set_config (GstBufferPool *pool, GstStructure *config)
     self->offset[p] = self->frame_size;
     self->frame_size += (gsize) self->stride[p] * plane_rows (&self->info, p);
   }
-  self->frame_size += layout->meta_offset_extra;
+  self->frame_size += layout->meta_offset_extra + layout->tail;
   gst_buffer_pool_config_set_params (
       config, caps, layout->lead + self->frame_size, min, max);
   return GST_BUFFER_POOL_CLASS (meta_pool_parent_class)->set_config (pool, config);
@@ -1194,7 +1195,7 @@ class DecoderVideoMeta : public testing::Test
 {
   protected:
   GstHarness *h = nullptr;
-  MetaPoolLayout layout = { 64, 0, 0, 0, 0, GST_VIDEO_FORMAT_UNKNOWN };
+  MetaPoolLayout layout = { 64, 0, 0, 0, 0, GST_VIDEO_FORMAT_UNKNOWN, 0 };
   std::vector<MetaPool *> pools;
   GstBuffer *output = nullptr;
   gchar *negotiated = nullptr;
@@ -1410,6 +1411,27 @@ class DecoderVideoMeta : public testing::Test
     EXPECT_EQ (output->pool, GST_BUFFER_POOL (pools.back ()));
     EXPECT_EQ (gst_buffer_peek_memory (output, 0), pools.back ()->frame_mem);
   }
+
+  /**
+   * @brief The output is the pool buffer with its video meta, cut to the frame
+   * of @a info, and the bytes of the pool memory behind the frame are left as
+   * they were.
+   */
+  void checkInPoolCut (const GstVideoInfo *info)
+  {
+    GstMapInfo map;
+    guint written = 0;
+
+    ASSERT_NO_FATAL_FAILURE (checkInPool ());
+    EXPECT_NE (gst_buffer_get_video_meta (output), nullptr);
+    EXPECT_EQ (gst_buffer_get_size (output), GST_VIDEO_INFO_SIZE (info));
+    ASSERT_TRUE (gst_memory_map (pools.back ()->frame_mem, &map, GST_MAP_READ));
+    EXPECT_GT (map.maxsize, GST_VIDEO_INFO_SIZE (info) + GUARD_SIZE);
+    for (gsize i = GST_VIDEO_INFO_SIZE (info); i < map.maxsize; i++)
+      written += map.data[i] != GUARD_BYTE;
+    gst_memory_unmap (pools.back ()->frame_mem, &map);
+    EXPECT_EQ (written, 0U) << "bytes written behind the frame";
+  }
 };
 
 /** @brief A pool with its own pitch and no alignment option is not written into. */
@@ -1541,6 +1563,52 @@ TEST_F (DecoderVideoMeta, defaultPitchDecodedInPlace)
   EXPECT_TRUE (probe_state.saw_meta);
   EXPECT_EQ (probe_state.given_size, GST_VIDEO_INFO_SIZE (&info));
   checkInPool ();
+}
+
+/** @brief A pool buffer larger than the frame, in the default layout, is cut to the frame and decoded in place. */
+TEST_F (DecoderVideoMeta, largerBufferDecodedInPlace)
+{
+  GstVideoInfo info;
+
+  layout.pitch_align = 1;
+  layout.tail = 40;
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "BGRx"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 6, 4));
+  ASSERT_TRUE (gst_video_info_set_format (&info, GST_VIDEO_FORMAT_BGRx, 6, 4));
+  checkInPoolCut (&info);
+}
+
+/** @brief Rows padded to 4 bytes are written in place as well, and nothing behind the frame. */
+TEST_F (DecoderVideoMeta, largerBufferPaddedRowsInPlace)
+{
+  GstVideoInfo info;
+
+  layout.pitch_align = 1;
+  layout.tail = 17;
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "RGB"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("RGB", 3, 5, 3));
+  ASSERT_TRUE (gst_video_info_set_format (&info, GST_VIDEO_FORMAT_RGB, 5, 3));
+  checkInPoolCut (&info);
+}
+
+/** @brief A pool buffer larger than the frame with another pitch is not cut and written into. */
+TEST_F (DecoderVideoMeta, largerBufferOtherPitch_n)
+{
+  layout.tail = 40;
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "BGRx"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("BGRx", 4, 6, 4));
+  checkReplaced ();
+}
+
+/** @brief A pool buffer larger than the frame with another offset is not cut and written into. */
+TEST_F (DecoderVideoMeta, largerBufferOtherOffset_n)
+{
+  layout.pitch_align = 1;
+  layout.meta_offset_extra = 16;
+  layout.tail = 40;
+  ASSERT_NO_FATAL_FAILURE (start ("direct_video", "RGB"));
+  ASSERT_NO_FATAL_FAILURE (decodeDirectVideo ("RGB", 3, 5, 3));
+  checkReplaced ();
 }
 
 /** @brief Every plane of a planar format in the default layout matches, so the pool is used. */
