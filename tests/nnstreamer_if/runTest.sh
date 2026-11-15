@@ -90,4 +90,26 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compare
 # Parsing a token up to its first non-digit would read "0,255x" as "0,255".
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0,0 operator=RANGE_INCLUSIVE supplied-value=0,255x then=PASSTHROUGH else=TENSORPICK else-option=2 tif.src_0 ! filesink location=\"result19_n.log\"" 19_n 0 1 $PERFORMANCE
 
+# NOT_IN_RANGE is the complement of RANGE, including both boundary values.
+# Keep the matching branch as SKIP so the old always-false condition reaches EOS
+# and fails the golden comparison instead of waiting for an uncreated then pad.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0,0 operator=NOT_IN_RANGE_INCLUSIVE supplied-value=10,20 then=SKIP else=PASSTHROUGH tif.src_1 ! filesink location=\"result20.log\"" 20 0 0 $PERFORMANCE
+callCompareTest passthrough_range_inclusive.golden result20.log 20 "A_VALUE NOT_IN_RANGE_INCLUSIVE, else branch" 0 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0,0 operator=NOT_IN_RANGE_EXCLUSIVE supplied-value=10,20 then=SKIP else=PASSTHROUGH tif.src_1 ! filesink location=\"result21.log\"" 21 0 0 $PERFORMANCE
+callCompareTest passthrough_range_exclusive.golden result21.log 21 "A_VALUE NOT_IN_RANGE_EXCLUSIVE, else branch" 0 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 operator=NOT_IN_RANGE_INCLUSIVE supplied-value=10,20 then=SKIP else=TENSORPICK else-option=1 tif.src_1 ! other/tensors,num_tensors=1 ! filesink location=\"result22.log\"" 22 0 0 $PERFORMANCE
+callCompareTest pick_range_inclusive.golden result22.log 22 "TENSOR_AVERAGE_VALUE NOT_IN_RANGE_INCLUSIVE, else branch" 0 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 operator=NOT_IN_RANGE_EXCLUSIVE supplied-value=10,20 then=SKIP else=TENSORPICK else-option=1 tif.src_1 ! other/tensors,num_tensors=1 ! filesink location=\"result23.log\"" 23 0 0 $PERFORMANCE
+callCompareTest pick_range_exclusive.golden result23.log 23 "TENSOR_AVERAGE_VALUE NOT_IN_RANGE_EXCLUSIVE, else branch" 0 0
+
+# A value outside the range must reach then. Tensor 2 does not exist, so
+# TENSORPICK on then must fail; the old always-false condition passes instead.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0,0 operator=NOT_IN_RANGE_INCLUSIVE supplied-value=10,20 then=TENSORPICK then-option=2 else=PASSTHROUGH tif.src_1 ! filesink location=\"result24_n.log\"" 24_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compared-value=A_VALUE compared-value-option=0:0:0:0,0 operator=NOT_IN_RANGE_EXCLUSIVE supplied-value=10,20 then=TENSORPICK then-option=2 else=PASSTHROUGH tif.src_1 ! filesink location=\"result25_n.log\"" 25_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 operator=NOT_IN_RANGE_INCLUSIVE supplied-value=10,20 then=TENSORPICK then-option=2 else=PASSTHROUGH tif.src_1 ! filesink location=\"result26_n.log\"" 26_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${SRC} ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 operator=NOT_IN_RANGE_EXCLUSIVE supplied-value=10,20 then=TENSORPICK then-option=2 else=PASSTHROUGH tif.src_1 ! filesink location=\"result27_n.log\"" 27_n 0 1 $PERFORMANCE
+
 report

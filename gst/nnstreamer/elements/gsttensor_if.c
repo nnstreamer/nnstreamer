@@ -954,9 +954,9 @@ done:
     case TIFOP_RANGE_EXCLUSIVE: \
       ret = (sv1._##t < cv._##t && cv._##t < sv2._##t) ? TRUE : FALSE; break; \
     case TIFOP_NOT_IN_RANGE_INCLUSIVE: \
-      ret = (cv._##t < sv1._##t && sv2._##t < cv._##t) ? TRUE : FALSE; break; \
+      ret = (cv._##t < sv1._##t || sv2._##t < cv._##t) ? TRUE : FALSE; break; \
     case TIFOP_NOT_IN_RANGE_EXCLUSIVE: \
-      ret = (cv._##t <= sv1._##t && sv2._##t <= cv._##t) ? TRUE : FALSE; break; \
+      ret = (cv._##t <= sv1._##t || sv2._##t <= cv._##t) ? TRUE : FALSE; break; \
     default: break; \
   } \
 } while (0)
