@@ -51,6 +51,13 @@ g_try_malloc0 (gsize n_bytes)
 #define SPARSE_HUGE_DIMENSION "1000000000:1000000000"
 
 /**
+ * @brief Whether gsize holds the 10^18 elements of SPARSE_HUGE_DIMENSION. Where
+ *        it does not (32-bit), the element count overflows, so a header
+ *        declaring that dimension is invalid even with no non-zero element.
+ */
+#define SPARSE_HUGE_SIZE_FITS (sizeof (gsize) >= sizeof (guint64))
+
+/**
  * @brief Caps of the dense tensor stream the decoder negotiates in these tests.
  */
 #define SPARSE_DENSE_CAPS_STR                  \
@@ -97,6 +104,34 @@ _sparse_new_memory (const gchar *dimension, guint nnz, const gint32 *values, con
 }
 
 /**
+ * @brief Build the header-only memory of a sparse int32 tensor declaring
+ *        SPARSE_HUGE_DIMENSION with no non-zero element.
+ * @details gst_tensor_meta_info_update_header() refuses this header on 32-bit,
+ * so the header is written the way that function writes it, unvalidated, and
+ * the code under test receives it on every architecture.
+ * @return the memory holding the header
+ */
+static GstMemory *
+_sparse_new_huge_memory (void)
+{
+  GstTensorMetaInfo meta;
+  guint8 *data;
+  gsize size;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_INT32;
+  gst_tensor_parse_dimension (SPARSE_HUGE_DIMENSION, meta.dimension);
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.media_type = _NNS_TENSOR;
+
+  size = gst_tensor_meta_info_get_header_size (&meta);
+  data = (guint8 *) g_malloc0 (size);
+  memcpy (data, &meta, sizeof (meta));
+
+  return gst_memory_new_wrapped ((GstMemoryFlags) 0, data, size, 0, size, data, g_free);
+}
+
+/**
  * @brief Wrap the given memory in a new buffer.
  * @param mem the memory, whose reference the buffer takes
  * @return the buffer
@@ -114,18 +149,43 @@ _sparse_new_buffer (GstMemory *mem)
  * @brief Test for tensor_sparse util, a header declaring a tensor too large to
  *        allocate.
  * @details The 128-byte memory declares 10^18 int32 elements and no non-zero
- * one. Every field is consistent, so the only thing that can refuse it is the
- * allocation. With g_malloc0() the process aborts inside GLib.
+ * one. On 64-bit every field is consistent, so the only thing that can refuse
+ * it is the allocation; with g_malloc0() the process aborts inside GLib. On
+ * 32-bit the element count overflows, so the header is refused before any
+ * allocation.
  */
 TEST (testTensorSparseSize, utilToDenseHugeDimension_n)
 {
   GstTensorMetaInfo meta;
   GstMemory *in, *out;
+  GstMapInfo map;
 
-  in = _sparse_new_memory (SPARSE_HUGE_DIMENSION, 0U, NULL, NULL);
-  ASSERT_TRUE (in != NULL);
+  in = _sparse_new_huge_memory ();
+  if (gst_memory_map (in, &map, GST_MAP_READ)) {
+    EXPECT_EQ (gst_tensor_meta_info_parse_header (&meta, map.data) != FALSE,
+        SPARSE_HUGE_SIZE_FITS);
+    gst_memory_unmap (in, &map);
+  } else {
+    ADD_FAILURE () << "Cannot map the sparse tensor";
+  }
 
+#ifdef NNSTREAMER_TEST_ALLOC_OBSERVER
+  dense_allocation_requests.clear ();
+  observe_dense_allocations = true;
+#endif
   out = gst_tensor_sparse_to_dense (&meta, in);
+#ifdef NNSTREAMER_TEST_ALLOC_OBSERVER
+  observe_dense_allocations = false;
+  if (SPARSE_HUGE_SIZE_FITS) {
+    EXPECT_EQ (dense_allocation_requests.size (), 1U);
+    if (!dense_allocation_requests.empty ()) {
+      EXPECT_EQ ((guint64) dense_allocation_requests[0],
+          G_GUINT64_CONSTANT (4000000000000000000));
+    }
+  } else {
+    EXPECT_EQ (dense_allocation_requests.size (), 0U);
+  }
+#endif
   EXPECT_TRUE (out == NULL);
   if (out)
     gst_memory_unref (out);
@@ -191,8 +251,7 @@ TEST (testTensorSparseSize, decHugeDimension_n)
   gst_harness_set_sink_caps_str (h, SPARSE_DENSE_CAPS_STR);
   gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
 
-  mem = _sparse_new_memory (SPARSE_HUGE_DIMENSION, 0U, NULL, NULL);
-  ASSERT_TRUE (mem != NULL);
+  mem = _sparse_new_huge_memory ();
   EXPECT_EQ (gst_harness_push (h, _sparse_new_buffer (mem)), GST_FLOW_ERROR);
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
 
