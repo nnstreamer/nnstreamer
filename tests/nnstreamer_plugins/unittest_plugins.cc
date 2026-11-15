@@ -6707,6 +6707,187 @@ TEST (testTensorTransform, arithmeticExtraTensorsApply)
 }
 
 /**
+ * @brief Set the caps of uint8[4] and uint8[16] on the harness of tensor_transform
+ */
+static void
+_set_apply_mixed_sizes_caps (GstHarness *h)
+{
+  GstTensorsConfig config;
+  GstTensorInfo *_info;
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 2U;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  _info = gst_tensors_info_get_nth_info (&config.info, 0);
+  _info->type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4", _info->dimension);
+
+  _info = gst_tensors_info_get_nth_info (&config.info, 1);
+  _info->type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("16", _info->dimension);
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Push uint8[4] and uint8[16] to tensor_transform which applies
+ *        'typecast:float32,add:1' to the tensor 0 only, and check the output.
+ * @param seed the first value of the input tensors
+ */
+static void
+_push_apply_mixed_sizes (GstHarness *h, guint8 seed)
+{
+  const gsize in_size[] = { 4U, 16U };
+  const gsize out_size[] = { 16U, 16U };
+  const gchar *out_dim[] = { "4", "16" };
+  const tensor_type out_type[] = { _NNS_FLOAT32, _NNS_UINT8 };
+  GstBuffer *in_buf, *out_buf;
+  GstMemory *in_mem[2];
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorsConfig out_config;
+  GstTensorInfo *_info;
+  tensor_dim dim;
+  guint i, j;
+
+  in_buf = gst_buffer_new ();
+  for (i = 0; i < 2U; i++) {
+    mem = gst_allocator_alloc (NULL, in_size[i], NULL);
+    if (!gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+      gst_memory_unref (mem);
+      gst_buffer_unref (in_buf);
+      FAIL () << "Cannot map the input memory";
+    }
+    for (j = 0; j < in_size[i]; j++)
+      map.data[j] = (guint8) (seed + i * 100 + j);
+    gst_memory_unmap (mem, &map);
+
+    in_mem[i] = mem;
+    gst_buffer_append_memory (in_buf, mem);
+  }
+
+  /* keep the input to check which memory the output carries */
+  gst_buffer_ref (in_buf);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_try_pull (h);
+  EXPECT_TRUE (out_buf != NULL);
+
+  if (out_buf != NULL) {
+    EXPECT_TRUE (_get_harness_sink_config (h, &out_config));
+    EXPECT_FALSE (gst_tensors_config_is_flexible (&out_config));
+    EXPECT_EQ (out_config.info.num_tensors, 2U);
+    EXPECT_EQ (gst_buffer_n_memory (out_buf), 2U);
+
+    for (i = 0; i < 2U && i < gst_buffer_n_memory (out_buf); i++) {
+      _info = gst_tensors_info_get_nth_info (&out_config.info, i);
+      gst_tensor_parse_dimension (out_dim[i], dim);
+      EXPECT_EQ (_info->type, out_type[i]);
+      EXPECT_TRUE (gst_tensor_dimension_is_equal (_info->dimension, dim));
+      EXPECT_EQ (gst_tensor_info_get_size (_info), out_size[i]);
+
+      mem = gst_buffer_peek_memory (out_buf, i);
+      /* the excluded tensor is passed through with the input memory */
+      if (i == 1U)
+        EXPECT_EQ (mem, in_mem[i]);
+      else
+        EXPECT_NE (mem, in_mem[i]);
+
+      if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
+        ADD_FAILURE () << "Cannot map the output memory " << i;
+        continue;
+      }
+      EXPECT_EQ (map.size, out_size[i]);
+      if (map.size == out_size[i]) {
+        for (j = 0; j < in_size[i]; j++) {
+          if (i == 0U)
+            EXPECT_FLOAT_EQ (((float *) map.data)[j], (float) (seed + j) + 1.0f);
+          else
+            EXPECT_EQ (map.data[j], (guint8) (seed + 100 + j));
+        }
+      }
+      gst_memory_unmap (mem, &map);
+    }
+
+    gst_tensors_config_free (&out_config);
+    gst_buffer_unref (out_buf);
+  }
+
+  EXPECT_EQ (GST_MINI_OBJECT_REFCOUNT_VALUE (in_buf), 1);
+  gst_buffer_unref (in_buf);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic with 'apply' on tensors of
+ *        different sizes and a static output. The excluded tensor keeps its
+ *        input type and size in the caps and shares the input memory.
+ */
+TEST (testTensorTransform, arithmeticApplyMixedSizes)
+{
+  GstHarness *h;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
+      "typecast:float32,add:1", "apply", "0", NULL);
+  _set_apply_mixed_sizes_caps (h);
+
+  _push_apply_mixed_sizes (h, 0);
+  _push_apply_mixed_sizes (h, 7);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test that 'apply' with a trailing comma is refused, before and while
+ *        streaming tensors of different sizes, and the previous 'apply' stays
+ *        in effect without a renegotiation (negative)
+ */
+TEST (testTensorTransform, arithmeticApplyMixedSizesTrailingComma_n)
+{
+  GstHarness *h;
+  GstPad *srcpad;
+  gchar *str;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+  srcpad = GST_BASE_TRANSFORM_SRC_PAD (h->element);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
+      "typecast:float32,add:1", "apply", "0", NULL);
+
+  g_object_set (h->element, "apply", "1,", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "0");
+  g_free (str);
+
+  _set_apply_mixed_sizes_caps (h);
+  _push_apply_mixed_sizes (h, 0);
+
+  g_object_set (h->element, "apply", "1,", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "0");
+  g_free (str);
+
+  /* a refused value does not ask for a renegotiation */
+  EXPECT_FALSE (gst_pad_needs_reconfigure (srcpad));
+
+  _push_apply_mixed_sizes (h, 7);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+
+  /* control: a change of 'apply' does */
+  g_object_set (h->element, "apply", "1", NULL);
+  EXPECT_TRUE (gst_pad_needs_reconfigure (srcpad));
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test that a refused 'apply' value does not make tensor_transform apply the operator to every tensor (negative)
  */
 TEST (testTensorTransform, arithmeticApplyRefused_n)
