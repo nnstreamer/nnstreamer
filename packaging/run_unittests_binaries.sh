@@ -8,7 +8,7 @@
 ## @brief Runs all the unittests binaries in the specified folder or file
 
 input=""
-skip_tests=""
+skip_tests=()
 this_script="$(basename -- $0)"
 VALGRIND=""
 RECURSIVE=""
@@ -18,7 +18,7 @@ while (( "$#" )); do
       if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
         tmp=$2
         shift 2
-        readarray -td, skip_tests <<<"$tmp,"; unset 'skip_tests[-1]'; declare skip_tests; >&2
+        readarray -td, -O "${#skip_tests[@]}" skip_tests <<<"$tmp,"; unset 'skip_tests[-1]'; declare skip_tests; >&2
       else
         echo "$this_script: $1: option requires an argument" >&2
         exit 1
@@ -28,6 +28,7 @@ while (( "$#" )); do
       echo "$this_script: usage: $this_script [options] target" >&2
       echo "    -k | --skip  BINARY_NAME[,*]" >&2
       echo "        Skip the test cases whose names are...(valid only if target is a directory)" >&2
+      echo "        Given more than once, the lists add up." >&2
       echo "    -r | --recursive" >&2
       echo "        Look in sub-directories too (valid only if target is a directory)" >&2
       exit 0
