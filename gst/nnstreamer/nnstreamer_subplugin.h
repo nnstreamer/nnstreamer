@@ -62,9 +62,9 @@ extern const void *
 get_subplugin (subpluginType type, const char *name);
 
 /**
- * @brief Get the list of registered subplugins.
+ * @brief Get the list of subplugins, registered or found in the configured paths.
  * @param[in] type Subplugin Type
- * @return The list of subplugin name
+ * @return The list of subplugin names, each name once. Empty if there is none.
  * @note Caller should free the returned value using g_strfreev()
  */
 extern gchar **
