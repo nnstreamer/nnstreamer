@@ -21,6 +21,13 @@
 #include <nnstreamer_util.h>
 #include <unittest_util.h>
 
+extern "C" {
+void init_filter_snpe_tizen_hal (void);
+void fini_filter_snpe_tizen_hal (void);
+void init_filter_vivante_tizen_hal (void);
+void fini_filter_vivante_tizen_hal (void);
+}
+
 #define HAL_MOCK_MAGIC (0x4841u) /**< marks a live mock backend handle */
 
 /**
@@ -908,6 +915,74 @@ TEST_F (tizenHalMock, pipeline)
     gst_harness_teardown (h);
     EXPECT_EQ (hal_mock.destroys, 1U);
     EXPECT_EQ (liveParams (), 0U);
+  }
+}
+
+/**
+ * @brief The functions registering and unregistering snpe or vivante, which
+ *        run when the library is loaded and unloaded.
+ */
+typedef struct {
+  const char *name; /**< the framework name */
+  void (*init) (void); /**< the constructor of the library */
+  void (*fini) (void); /**< the destructor of the library */
+} hal_registration_s;
+
+/**
+ * @brief Loading snpe or vivante where the HAL has no such backend leaves the
+ *        framework unregistered instead of throwing out of the constructor of
+ *        the library, which would abort the process; unloading it then does
+ *        nothing, and so does unloading a registered one twice.
+ */
+TEST_F (tizenHalMock, registerWithoutBackend_n)
+{
+  const hal_registration_s registrations[] = {
+    { "snpe", init_filter_snpe_tizen_hal, fini_filter_snpe_tizen_hal },
+    { "vivante", init_filter_vivante_tizen_hal, fini_filter_vivante_tizen_hal },
+  };
+
+  for (const hal_registration_s &r : registrations) {
+    SCOPED_TRACE (r.name);
+    const GstTensorFilterFramework *fw;
+    gboolean thrown = FALSE;
+    void *pd = NULL;
+
+    r.fini ();
+    hal_mock_reset ();
+    hal_mock.create_ret = HAL_ML_ERROR_NOT_SUPPORTED;
+    try {
+      r.init ();
+    } catch (...) {
+      thrown = TRUE;
+    }
+    EXPECT_FALSE (thrown);
+    EXPECT_EQ (hal_mock.create_calls, 1U);
+    EXPECT_EQ (hal_mock.creates, 0U);
+    hal_mock.create_ret = HAL_ML_ERROR_NONE;
+
+    if (!thrown) {
+      r.fini ();
+      EXPECT_EQ (hal_mock.info_requests, 0U);
+      EXPECT_EQ (hal_mock.destroys, 0U);
+    }
+
+    /* Register it again for the other cases. */
+    r.init ();
+    EXPECT_EQ (hal_mock.creates, 1U);
+    fw = findFw (r.name);
+    ASSERT_TRUE (fw != NULL);
+    EXPECT_EQ (fw->open (&prop, &pd), 0);
+    fw->close (&prop, &pd);
+
+    if (!thrown) {
+      /* Unloading twice unregisters once. */
+      r.fini ();
+      hal_mock_reset ();
+      r.fini ();
+      EXPECT_EQ (hal_mock.info_requests, 0U);
+      EXPECT_EQ (hal_mock.destroys, 0U);
+      r.init ();
+    }
   }
 }
 

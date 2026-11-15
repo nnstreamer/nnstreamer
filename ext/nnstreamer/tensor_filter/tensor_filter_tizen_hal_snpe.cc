@@ -242,16 +242,23 @@ snpe_tizen_hal_subplugin *snpe_tizen_hal_subplugin::registeredRepresentation = n
 void
 snpe_tizen_hal_subplugin::init_filter_snpe_tizen_hal (void)
 {
-  registeredRepresentation
-      = tensor_filter_subplugin::register_subplugin<snpe_tizen_hal_subplugin> ();
+  try {
+    registeredRepresentation
+        = tensor_filter_subplugin::register_subplugin<snpe_tizen_hal_subplugin> ();
+  } catch (const std::exception &e) {
+    nns_loge ("SNPE HAL is not registered: %s", e.what ());
+  }
 }
 
 /** @brief Destruct the subplugin */
 void
 snpe_tizen_hal_subplugin::fini_filter_snpe_tizen_hal (void)
 {
-  assert (registeredRepresentation != nullptr);
+  if (registeredRepresentation == nullptr)
+    return;
+
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
+  registeredRepresentation = nullptr;
 }
 
 /**
