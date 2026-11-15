@@ -86,3 +86,5 @@ gstTest "-v --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA_
     ! filesink location=sj.out.log " 2 0 0 $PERFORMANCE
 python3 CheckMnist.py ./sj.out.log 9
 testResult $? 2 "Golden test comparison" 0 1
+
+report
