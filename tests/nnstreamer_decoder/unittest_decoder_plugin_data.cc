@@ -48,6 +48,7 @@ static struct {
   guint inits;
   guint exits;
   guint caps_calls;
+  guint option_calls;
   GSList *released_data;
   lifedec_hold_e hold;
   gboolean entered;
@@ -64,7 +65,7 @@ static void
 lifedec_reset (void)
 {
   g_mutex_lock (&lifedec.lock);
-  lifedec.inits = lifedec.exits = lifedec.caps_calls = 0;
+  lifedec.inits = lifedec.exits = lifedec.caps_calls = lifedec.option_calls = 0;
   g_mutex_unlock (&lifedec.lock);
 }
 
@@ -183,6 +184,10 @@ lifedec_setOption (void **pdata, int opNum, const char *param)
   lifedec_data_s *data;
 
   lifedec_enter (LIFEDEC_HOLD_OPTION, pdata);
+
+  g_mutex_lock (&lifedec.lock);
+  lifedec.option_calls++;
+  g_mutex_unlock (&lifedec.lock);
 
   if (g_strcmp0 (param, "replace") == 0) {
     lifedec_exit (pdata);
@@ -313,19 +318,20 @@ lifedec_harness_new (void)
 class tensorDecoderPluginData : public ::testing::Test
 {
   protected:
-  GstTensorDecoderDef def[2];
+  GstTensorDecoderDef def[3];
 
-  /** @brief Register lifedec and lifedec2, two modes sharing the callbacks */
+  /** @brief Register lifedec and lifedec2, two modes sharing the callbacks, and lifedec_noopt, which takes no options */
   void SetUp () override
   {
+    static const char *names[] = { "lifedec", "lifedec2", "lifedec_noopt" };
     guint i;
 
     memset (def, 0, sizeof (def));
-    for (i = 0; i < 2; i++) {
-      def[i].modename = (char *) (i == 0 ? "lifedec" : "lifedec2");
+    for (i = 0; i < 3; i++) {
+      def[i].modename = (char *) names[i];
       def[i].init = lifedec_init;
       def[i].exit = lifedec_exit;
-      def[i].setOption = lifedec_setOption;
+      def[i].setOption = (i < 2) ? lifedec_setOption : NULL;
       def[i].getOutCaps = lifedec_getOutCaps;
       def[i].getTransformSize = lifedec_getTransformSize;
       def[i].decode = lifedec_decode;
@@ -340,6 +346,7 @@ class tensorDecoderPluginData : public ::testing::Test
   {
     nnstreamer_decoder_exit ("lifedec");
     nnstreamer_decoder_exit ("lifedec2");
+    nnstreamer_decoder_exit ("lifedec_noopt");
     lifedec_free_released ();
   }
 };
@@ -671,6 +678,11 @@ TEST_F (tensorDecoderPluginData, optionSetKeepsDecoding)
   EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
   EXPECT_EQ (gst_harness_buffers_received (h), 2U);
 
+  /* the renegotiation after the set does not build the data again */
+  EXPECT_EQ (lifedec.inits, 1U);
+  EXPECT_EQ (lifedec.option_calls, 1U);
+  EXPECT_EQ (lifedec.exits, 1U);
+
   gst_harness_teardown (h);
 }
 
@@ -776,6 +788,134 @@ TEST_F (tensorDecoderPluginData, optionSetBeforeNegotiation)
   EXPECT_EQ (lifedec.caps_calls, 0U);
 
   gst_object_unref (dec);
+}
+
+/**
+ * @brief Each option set builds new private data and replays every stored option on it, an option set again is replayed once, and a mode set replays them all
+ */
+TEST_F (tensorDecoderPluginData, optionReplayCount)
+{
+  GstElement *dec = gst_element_factory_make ("tensor_decoder", NULL);
+  ASSERT_TRUE (dec != NULL);
+
+  g_object_set (dec, "mode", "lifedec", NULL);
+  EXPECT_EQ (lifedec.inits, 1U);
+  EXPECT_EQ (lifedec.option_calls, 0U);
+
+  g_object_set (dec, "option1", "any", NULL);
+  EXPECT_EQ (lifedec.inits, 2U);
+  EXPECT_EQ (lifedec.option_calls, 1U);
+  EXPECT_EQ (lifedec.exits, 1U);
+
+  g_object_set (dec, "option2", "any", NULL);
+  EXPECT_EQ (lifedec.inits, 3U);
+  EXPECT_EQ (lifedec.option_calls, 3U);
+  EXPECT_EQ (lifedec.exits, 2U);
+
+  g_object_set (dec, "option3", "any", NULL);
+  EXPECT_EQ (lifedec.inits, 4U);
+  EXPECT_EQ (lifedec.option_calls, 6U);
+  EXPECT_EQ (lifedec.exits, 3U);
+
+  g_object_set (dec, "option1", "again", NULL);
+  EXPECT_EQ (lifedec.inits, 5U);
+  EXPECT_EQ (lifedec.option_calls, 9U);
+  EXPECT_EQ (lifedec.exits, 4U);
+
+  g_object_set (dec, "mode", "lifedec", NULL);
+  EXPECT_EQ (lifedec.inits, 6U);
+  EXPECT_EQ (lifedec.option_calls, 12U);
+  EXPECT_EQ (lifedec.exits, 5U);
+
+  gst_object_unref (dec);
+  EXPECT_EQ (lifedec.exits, 6U);
+}
+
+/**
+ * @brief Options set before any mode build no private data, and the mode set
+ * that follows replays them once each in their numbered order
+ */
+TEST_F (tensorDecoderPluginData, optionsWithoutModeNoInit_n)
+{
+  GstElement *dec = gst_element_factory_make ("tensor_decoder", NULL);
+  GstCaps *result;
+  ASSERT_TRUE (dec != NULL);
+
+  g_object_set (dec, "option3", "any", NULL);
+  g_object_set (dec, "option1", "any", NULL);
+  g_object_set (dec, "option2", "any", NULL);
+  EXPECT_EQ (lifedec.inits, 0U);
+  EXPECT_EQ (lifedec.option_calls, 0U);
+  EXPECT_EQ (lifedec.exits, 0U);
+
+  g_object_set (dec, "mode", "lifedec", NULL);
+  EXPECT_EQ (lifedec.inits, 1U);
+  EXPECT_EQ (lifedec.option_calls, 3U);
+
+  result = (GstCaps *) lifedec_caps_thread (dec);
+  EXPECT_EQ (lifedec.order_seen, 123U);
+  if (result)
+    gst_caps_unref (result);
+
+  gst_object_unref (dec);
+  EXPECT_EQ (lifedec.exits, 1U);
+}
+
+/**
+ * @brief An option set on a sub-plugin without setOption () keeps its private
+ * data, and a later mode that takes options gets the stored option
+ */
+TEST_F (tensorDecoderPluginData, optionNoSetOptionKeepsData_n)
+{
+  GstElement *dec = gst_element_factory_make ("tensor_decoder", NULL);
+  gchar *option = NULL;
+  ASSERT_TRUE (dec != NULL);
+
+  g_object_set (dec, "mode", "lifedec_noopt", NULL);
+  EXPECT_EQ (lifedec.inits, 1U);
+
+  g_object_set (dec, "option1", "any", NULL);
+  EXPECT_EQ (lifedec.inits, 1U);
+  EXPECT_EQ (lifedec.exits, 0U);
+  EXPECT_EQ (lifedec.option_calls, 0U);
+
+  g_object_get (dec, "option1", &option, NULL);
+  EXPECT_STREQ (option, "any");
+  g_free (option);
+
+  g_object_set (dec, "mode", "lifedec", NULL);
+  EXPECT_EQ (lifedec.inits, 2U);
+  EXPECT_EQ (lifedec.exits, 1U);
+  EXPECT_EQ (lifedec.option_calls, 1U);
+
+  gst_object_unref (dec);
+  EXPECT_EQ (lifedec.exits, 2U);
+}
+
+/**
+ * @brief New tensor caps mid-stream build new private data that gets the stored options once each in their numbered order
+ */
+TEST_F (tensorDecoderPluginData, renegotiateReplaysOptions)
+{
+  GstHarness *h = lifedec_harness_new ();
+  ASSERT_TRUE (h != NULL);
+
+  g_object_set (h->element, "option2", "any", NULL);
+  g_object_set (h->element, "option1", "any", NULL);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (lifedec.order_seen, 21U);
+
+  lifedec_reset ();
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,format=static,num_tensors=1,dimensions=(string)8,types=(string)uint8,framerate=(fraction)0/1");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 8)), GST_FLOW_OK);
+  EXPECT_EQ (lifedec.inits, 1U);
+  EXPECT_EQ (lifedec.exits, 1U);
+  EXPECT_EQ (lifedec.option_calls, 2U);
+  EXPECT_EQ (lifedec.order_seen, 12U);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+
+  gst_harness_teardown (h);
 }
 
 /**
