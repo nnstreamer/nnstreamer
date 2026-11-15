@@ -147,3 +147,14 @@ gst-launch-1.0 v4l2src ! videoconvert ! videoscale ! video/x-raw, format=RGB, wi
                     demux.src_1 ! tensor_decoder mode=direct_video ! videoconvert ! ximagesink async=false sync=false \
                 tif.src_1 ! tensor_decoder mode=direct_video ! videoconvert ! ximagesink async=false sync=false
 ```
+
+### Changing an action while streaming
+
+Applications can update `then`, `else`, `then-option` and `else-option` with
+`g_object_set()`. Each buffer uses its action snapshot; a property update made
+while that buffer is being processed applies to a later buffer. A custom
+comparison callback can also change the action for its current buffer; its
+actions are sampled again after the callback returns. When an action
+or selection changes the output tensor count, type or dimensions, the existing
+output pad advertises the corresponding caps before sending the next selected
+buffer. Downstream elements must support those output format changes.
