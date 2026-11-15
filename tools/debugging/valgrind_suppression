@@ -333,3 +333,15 @@
         fun:__resolv_conf_allocate
         ...
 }
+# cpuinfo, which XNNPACK initializes, copies 4 bytes onto themselves (the
+# same address as source and destination) while parsing a /sys cpu list on
+# the hosted x86 runner. The same report comes from libLiteRt.so, where the
+# gate counts it against a library; the tensorflow2-lite package links
+# cpuinfo statically into our sub-plugin, so there it would count as ours.
+# The copy is harmless, and the code is not ours to change.
+{
+        cpuinfo_parse_cpulist_self_copy
+        Memcheck:Overlap
+        fun:__memcpy_chk
+        fun:cpuinfo_linux_parse_cpulist
+}
