@@ -746,6 +746,10 @@ TEST (nnstreamerFilterArmnn, openAcceleratorNeon_n)
     const accl_hw neon_requests[] = { ACCL_CPU_NEON, ACCL_AUTO, ACCL_DEFAULT };
     accl_hw hw_list[1];
 
+    /** while cpu and none, which tensor_filter gives for accelerator=false, stay on CpuRef */
+    _OpenAndInvokeAdd (sp, ACCL_CPU);
+    _OpenAndInvokeAdd (sp, ACCL_NONE);
+
     prop.hw_list = hw_list;
     prop.num_hw = 1;
     for (accl_hw hw : neon_requests) {
@@ -909,15 +913,21 @@ TEST (nnstreamerFilterArmnn, eventHandler_n)
 
 /**
  * @brief Create a harness of tensor_filter with armnn and add.tflite
+ * @param accelerator_first set the accelerator before the framework
  */
 static GstHarness *
-_CreateAddHarness (const gchar *model_file, const gchar *accelerator)
+_CreateAddHarness (const gchar *model_file, const gchar *accelerator,
+    bool accelerator_first = false)
 {
   GstHarness *h;
   gchar *desc;
 
-  desc = g_strdup_printf ("tensor_filter framework=armnn model=%s accelerator=%s",
-      model_file, accelerator);
+  if (accelerator_first)
+    desc = g_strdup_printf ("tensor_filter accelerator=%s framework=armnn model=%s",
+        accelerator, model_file);
+  else
+    desc = g_strdup_printf ("tensor_filter framework=armnn model=%s accelerator=%s",
+        model_file, accelerator);
   h = gst_harness_new_parse (desc);
   g_free (desc);
 
@@ -1074,6 +1084,86 @@ TEST (nnstreamerFilterArmnn, pipelineAcceleratorNeon)
 
   gst_object_unref (filter);
   gst_harness_teardown (h);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test armnn subplugin in a pipeline with the accelerator set before the framework
+ */
+TEST (nnstreamerFilterArmnn, pipelineAcceleratorOrder)
+{
+  GstHarness *h;
+  GstElement *filter;
+  GstBuffer *in_buf, *out_buf;
+  gchar *str = NULL;
+  float in_val = 10.0f, out_val;
+  gchar *model_file = _GetAddModelPath ();
+  ASSERT_NE (model_file, nullptr);
+
+  /** false runs on CpuRef, as with V0, wherever it is set */
+  struct {
+    const gchar *accelerator;
+    bool accelerator_first;
+  } cases[] = {
+    { "true:cpu", true },
+    { "false", true },
+    { "false", false },
+  };
+
+  for (const auto &c : cases) {
+    h = _CreateAddHarness (model_file, c.accelerator, c.accelerator_first);
+
+    in_buf = gst_buffer_new_allocate (NULL, sizeof (float), NULL);
+    gst_buffer_fill (in_buf, 0, &in_val, sizeof (float));
+    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK) << c.accelerator;
+
+    out_buf = gst_harness_pull (h);
+    EXPECT_NE (out_buf, nullptr) << c.accelerator;
+    if (out_buf) {
+      out_val = 0.0f;
+      EXPECT_EQ (gst_buffer_get_size (out_buf), sizeof (float));
+      gst_buffer_extract (out_buf, 0, &out_val, sizeof (float));
+      EXPECT_FLOAT_EQ (out_val, 12.0f) << c.accelerator;
+      gst_buffer_unref (out_buf);
+    }
+
+    filter = gst_harness_find_element (h, "tensor_filter");
+    g_object_get (filter, "accelerator", &str, NULL);
+    EXPECT_STREQ (str, c.accelerator);
+    g_free (str);
+
+    gst_object_unref (filter);
+    gst_harness_teardown (h);
+  }
+
+  g_free (model_file);
+}
+
+/**
+ * @brief Test that the gpu accelerator set before the framework reaches armnn
+ */
+TEST (nnstreamerFilterArmnn, pipelineAcceleratorOrder_n)
+{
+  GstElement *filter;
+  GstStateChangeReturn ret;
+  const bool has_gpu = _HasBackend (armnn::Compute::GpuAcc);
+  gchar *model_file = _GetAddModelPath ();
+  ASSERT_NE (model_file, nullptr);
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_NE (filter, nullptr);
+  g_object_set (filter, "accelerator", "true:gpu", NULL);
+  g_object_set (filter, "framework", "armnn", "model", model_file, NULL);
+
+  /** without the GpuAcc backend, as in CI, the model cannot be loaded */
+  ret = gst_element_set_state (filter, GST_STATE_PAUSED);
+  if (has_gpu)
+    EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
+  else
+    EXPECT_EQ (ret, GST_STATE_CHANGE_FAILURE);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
   g_free (model_file);
 }
 

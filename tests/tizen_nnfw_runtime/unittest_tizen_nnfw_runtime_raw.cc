@@ -1058,12 +1058,13 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, openAcceleratorBackend_n)
 
 /**
  * @brief Make a tensor_filter running add.tflite with nnfw on the given accelerator, wrapped in a harness.
- * @param[in] accelerator the accelerator property
+ * @param[in] accelerator the accelerator property, not set if NULL
  * @param[in] custom the custom property, not set if NULL
+ * @param[in] accelerator_first set the accelerator before the framework
  * @return the harness, NULL if the model is missing
  */
 static GstHarness *
-_filter_harness (const gchar *accelerator, const gchar *custom)
+_filter_harness (const gchar *accelerator, const gchar *custom, bool accelerator_first = false)
 {
   GstElement *filter;
   GstHarness *h;
@@ -1078,8 +1079,11 @@ _filter_harness (const gchar *accelerator, const gchar *custom)
     return NULL;
   }
 
-  g_object_set (filter, "framework", "nnfw", "model", model_file, "accelerator",
-      accelerator, NULL);
+  if (accelerator && accelerator_first)
+    g_object_set (filter, "accelerator", accelerator, NULL);
+  g_object_set (filter, "framework", "nnfw", "model", model_file, NULL);
+  if (accelerator && !accelerator_first)
+    g_object_set (filter, "accelerator", accelerator, NULL);
   if (custom)
     g_object_set (filter, "custom", custom, NULL);
   g_free (model_file);
@@ -1176,10 +1180,11 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, tensorFilterRunning_n)
 
 /**
  * @brief Run tensor_filter with nnfw on the given accelerator and custom option, on cpu.
+ * @param[in] accelerator_first set the accelerator before the framework
  * @return the backends nnfw asked the runtime for (free it), NULL if it did not ask
  */
 static gchar *
-_filter_backends (const gchar *accelerator, const gchar *custom)
+_filter_backends (const gchar *accelerator, const gchar *custom, bool accelerator_first = false)
 {
   GstHarness *h;
   gchar *backends = NULL;
@@ -1188,7 +1193,7 @@ _filter_backends (const gchar *accelerator, const gchar *custom)
   nnfw_backends_asked = NULL;
   nnfw_backends_on_cpu = TRUE;
 
-  h = _filter_harness (accelerator, custom);
+  h = _filter_harness (accelerator, custom, accelerator_first);
   if (h) {
     _push_and_check (h, 3.0);
     gst_harness_teardown (h);
@@ -1229,6 +1234,51 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, tensorFilterBackend_n)
   gchar *backends;
 
   backends = _filter_backends ("true:gpu", "Runtime:cpu");
+  EXPECT_STREQ (backends, "cpu");
+  g_free (backends);
+}
+
+/**
+ * @brief Test the accelerator set before the framework reaches nnfw as when set after it
+ */
+TEST (nnstreamerNnfwRuntimeRawFunctions, tensorFilterBackendOrder)
+{
+  gchar *backends;
+
+  backends = _filter_backends ("true:gpu", NULL, true);
+  EXPECT_STREQ (backends, "acl_cl;cpu");
+  g_free (backends);
+
+  backends = _filter_backends ("true:npu.srcn", NULL, true);
+  EXPECT_STREQ (backends, "srcn");
+  g_free (backends);
+
+  backends = _filter_backends ("true:cpu", NULL, true);
+  EXPECT_STREQ (backends, "cpu;bcq");
+  g_free (backends);
+}
+
+/**
+ * @brief Test acceleration turned off, not set, or overridden by the custom option keeps nnfw on cpu
+ */
+TEST (nnstreamerNnfwRuntimeRawFunctions, tensorFilterBackendOrder_n)
+{
+  gchar *backends;
+
+  /** the default backend, as with V0, whichever of the two comes first */
+  backends = _filter_backends ("false", NULL, true);
+  EXPECT_STREQ (backends, "cpu;bcq");
+  g_free (backends);
+
+  backends = _filter_backends ("false", NULL);
+  EXPECT_STREQ (backends, "cpu;bcq");
+  g_free (backends);
+
+  backends = _filter_backends (NULL, NULL);
+  EXPECT_STREQ (backends, "cpu;bcq");
+  g_free (backends);
+
+  backends = _filter_backends ("true:gpu", "Runtime:cpu", true);
   EXPECT_STREQ (backends, "cpu");
   g_free (backends);
 }
