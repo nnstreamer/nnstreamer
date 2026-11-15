@@ -9,6 +9,8 @@
 #include <gtest/gtest.h>
 #include <dlfcn.h>
 #include <glib.h>
+#include <glib/gstdio.h>
+#include <nnstreamer_conf.h>
 #include <nnstreamer_subplugin.h>
 #include <stdarg.h>
 #include <string.h>
@@ -579,6 +581,290 @@ TEST (nnstreamerSubplugin, lookupWhileUnregistering)
   g_log_remove_handler (NULL, handler);
 
   EXPECT_EQ (g_atomic_int_get (&state.bad), 0);
+}
+
+/**
+ * @brief Count the entries of a name list equal to name.
+ */
+static guint
+_count_name (gchar **names, const char *name)
+{
+  guint i, count = 0;
+
+  for (i = 0; names && names[i]; i++) {
+    if (g_str_equal (names[i], name))
+      count++;
+  }
+
+  return count;
+}
+
+/**
+ * @brief Expect every entry of a name list to be a non-empty name listed once.
+ */
+static void
+_expect_each_name_once (gchar **names)
+{
+  guint i;
+
+  ASSERT_NE (names, nullptr);
+  for (i = 0; names[i]; i++) {
+    EXPECT_STRNE (names[i], "") << "entry " << i;
+    EXPECT_EQ (_count_name (names, names[i]), 1U) << names[i];
+  }
+}
+
+/**
+ * @brief Set an environment variable back to a saved value, or unset it.
+ */
+static void
+_restore_env (const gchar *name, const gchar *value)
+{
+  if (value)
+    g_setenv (name, value, TRUE);
+  else
+    g_unsetenv (name);
+}
+
+/**
+ * @brief Fixture with an ini that enables the env-vars, a decoder directory
+ *        in the ini (j8conf, j8both, j8dup), another one given by
+ *        NNSTREAMER_DECODERS (j8dup), and an empty converter directory given
+ *        by both.
+ */
+class NNSSubpluginNames : public ::testing::Test
+{
+  protected:
+  gchar *dir = NULL;
+  gchar *dirs[3] = { NULL };
+  gchar *files[4] = { NULL };
+  gchar *ini = NULL;
+  gchar *saved_conf = NULL;
+  gchar *saved_decoders = NULL;
+  gchar *saved_converters = NULL;
+  gboolean env_set = FALSE;
+
+  /**
+   * @brief Write the ini and the decoder files, then load the ini.
+   */
+  void SetUp () override
+  {
+    static const gchar *subdirs[3] = { "ini", "env", "empty" };
+    static const gchar *names[4] = { "j8conf", "j8both", "j8dup", "j8dup" };
+    subplugin_info_s info;
+    gchar *content, *file, *path;
+    guint i, total;
+
+    dir = g_dir_make_tmp ("nns-subplugin-XXXXXX", NULL);
+    ASSERT_TRUE (dir != NULL);
+
+    for (i = 0; i < 3; i++) {
+      dirs[i] = g_build_filename (dir, subdirs[i], NULL);
+      ASSERT_EQ (g_mkdir (dirs[i], 0755), 0);
+    }
+
+    for (i = 0; i < 4; i++) {
+      file = g_strdup_printf (
+          "libnnstreamer_decoder_%s" NNSTREAMER_SO_FILE_EXTENSION, names[i]);
+      files[i] = g_build_filename (dirs[i < 3 ? 0 : 1], file, NULL);
+      g_free (file);
+      ASSERT_TRUE (g_file_set_contents (files[i], "", 0, NULL));
+    }
+
+    ini = g_build_filename (dir, "nnstreamer.ini", NULL);
+    content = g_strdup_printf ("[common]\nenable_envvar=True\n"
+                               "[decoder]\ndecoders=%s\n"
+                               "[converter]\nconverters=%s\n",
+        dirs[0], dirs[2]);
+    ASSERT_TRUE (g_file_set_contents (ini, content, -1, NULL));
+    g_free (content);
+
+    saved_conf = g_strdup (g_getenv ("NNSTREAMER_CONF"));
+    saved_decoders = g_strdup (g_getenv ("NNSTREAMER_DECODERS"));
+    saved_converters = g_strdup (g_getenv ("NNSTREAMER_CONVERTERS"));
+    env_set = TRUE;
+    g_setenv ("NNSTREAMER_CONF", ini, TRUE);
+    g_setenv ("NNSTREAMER_DECODERS", dirs[1], TRUE);
+    g_setenv ("NNSTREAMER_CONVERTERS", dirs[2], TRUE);
+    ASSERT_TRUE (nnsconf_loadconf (TRUE));
+
+    path = g_strdup (nnsconf_get_fullpath ("j8conf", NNSCONF_PATH_DECODERS));
+#ifdef __TIZEN__
+    /* Tizen reads NNSTREAMER_CONF only when no system ini exists. */
+    if (g_strcmp0 (path, files[0]) != 0) {
+      g_free (path);
+      GTEST_SKIP () << "The ini given by NNSTREAMER_CONF is not used.";
+    }
+#endif
+    EXPECT_STREQ (path, files[0]);
+    g_free (path);
+
+    /* j8dup is configured twice, once in each decoder directory */
+    total = nnsconf_get_subplugin_info (NNSCONF_PATH_DECODERS, &info);
+    ASSERT_GE (total, 4U);
+    EXPECT_EQ (_count_name (info.names, "j8dup"), 2U);
+  }
+
+  /**
+   * @brief Restore the environment, reload and remove the files.
+   */
+  void TearDown () override
+  {
+    guint i;
+
+    if (env_set) {
+      _restore_env ("NNSTREAMER_CONF", saved_conf);
+      _restore_env ("NNSTREAMER_DECODERS", saved_decoders);
+      _restore_env ("NNSTREAMER_CONVERTERS", saved_converters);
+      nnsconf_loadconf (TRUE);
+    }
+
+    for (i = 0; i < 4; i++) {
+      if (files[i])
+        g_remove (files[i]);
+      g_free (files[i]);
+    }
+    for (i = 0; i < 3; i++) {
+      if (dirs[i])
+        g_rmdir (dirs[i]);
+      g_free (dirs[i]);
+    }
+    if (ini)
+      g_remove (ini);
+    if (dir)
+      g_rmdir (dir);
+    g_free (ini);
+    g_free (dir);
+    g_free (saved_conf);
+    g_free (saved_decoders);
+    g_free (saved_converters);
+  }
+};
+
+/**
+ * @brief Registered and configured names are listed once each, including a
+ *        name found in two configured paths.
+ */
+TEST_F (NNSSubpluginNames, listMergesRegisteredAndConf)
+{
+  gint data = 1;
+  gchar **names;
+
+  EXPECT_TRUE (register_subplugin (NNS_SUBPLUGIN_DECODER, "j8reg", &data));
+  EXPECT_TRUE (register_subplugin (NNS_SUBPLUGIN_DECODER, "j8both", &data));
+
+  names = get_all_subplugins (NNS_SUBPLUGIN_DECODER);
+  _expect_each_name_once (names);
+  EXPECT_EQ (_count_name (names, "j8reg"), 1U);
+  EXPECT_EQ (_count_name (names, "j8both"), 1U);
+  EXPECT_EQ (_count_name (names, "j8conf"), 1U);
+  EXPECT_EQ (_count_name (names, "j8dup"), 1U);
+  g_strfreev (names);
+
+  EXPECT_TRUE (unregister_subplugin (NNS_SUBPLUGIN_DECODER, "j8reg"));
+  EXPECT_TRUE (unregister_subplugin (NNS_SUBPLUGIN_DECODER, "j8both"));
+}
+
+/**
+ * @brief The list owns its strings: registered names stay readable after the
+ *        entry is unregistered, and freeing the list keeps the configuration.
+ */
+TEST_F (NNSSubpluginNames, listIsDeepCopy)
+{
+  subplugin_info_s info;
+  gint data = 1;
+  gchar **names;
+  guint i, j, total;
+
+  EXPECT_TRUE (register_subplugin (NNS_SUBPLUGIN_DECODER, "j8copy", &data));
+  names = get_all_subplugins (NNS_SUBPLUGIN_DECODER);
+  EXPECT_TRUE (unregister_subplugin (NNS_SUBPLUGIN_DECODER, "j8copy"));
+
+  EXPECT_EQ (_count_name (names, "j8copy"), 1U);
+  EXPECT_EQ (_count_name (names, "j8conf"), 1U);
+
+  total = nnsconf_get_subplugin_info (NNSCONF_PATH_DECODERS, &info);
+  for (i = 0; names && names[i]; i++) {
+    for (j = 0; j < total; j++)
+      EXPECT_NE (names[i], info.names[j]);
+  }
+  g_strfreev (names);
+
+  total = nnsconf_get_subplugin_info (NNSCONF_PATH_DECODERS, &info);
+  EXPECT_EQ (_count_name (info.names, "j8conf"), 1U);
+  EXPECT_STREQ (nnsconf_get_fullpath ("j8conf", NNSCONF_PATH_DECODERS), files[0]);
+}
+
+/**
+ * @brief Once every registered name is gone, the configured names are listed
+ *        without an empty entry and without the unregistered name.
+ */
+TEST_F (NNSSubpluginNames, listAfterUnregisterAll_n)
+{
+  gint data = 1;
+  gchar **names;
+
+  EXPECT_TRUE (register_subplugin (NNS_SUBPLUGIN_DECODER, "j8gone", &data));
+  EXPECT_TRUE (unregister_subplugin (NNS_SUBPLUGIN_DECODER, "j8gone"));
+
+  names = get_all_subplugins (NNS_SUBPLUGIN_DECODER);
+  _expect_each_name_once (names);
+  EXPECT_EQ (_count_name (names, "j8gone"), 0U);
+  EXPECT_EQ (_count_name (names, "j8conf"), 1U);
+  EXPECT_EQ (_count_name (names, "j8both"), 1U);
+  EXPECT_EQ (_count_name (names, "j8dup"), 1U);
+  g_strfreev (names);
+}
+
+/**
+ * @brief A type with no configured file gives an empty list, before a name is
+ *        registered and after it is unregistered.
+ */
+TEST_F (NNSSubpluginNames, listEmptyConfType_n)
+{
+  subplugin_info_s info;
+  gint data = 1;
+  gchar **names;
+
+  if (nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info) > 0)
+    GTEST_SKIP () << "A converter is installed in the default path.";
+
+  EXPECT_TRUE (register_subplugin (NNS_SUBPLUGIN_CONVERTER, "j8conv", &data));
+  names = get_all_subplugins (NNS_SUBPLUGIN_CONVERTER);
+  ASSERT_NE (names, nullptr);
+  EXPECT_EQ (g_strv_length (names), 1U);
+  EXPECT_EQ (_count_name (names, "j8conv"), 1U);
+  g_strfreev (names);
+
+  EXPECT_TRUE (unregister_subplugin (NNS_SUBPLUGIN_CONVERTER, "j8conv"));
+  names = get_all_subplugins (NNS_SUBPLUGIN_CONVERTER);
+  ASSERT_NE (names, nullptr);
+  EXPECT_EQ (g_strv_length (names), 0U);
+  g_strfreev (names);
+}
+
+/**
+ * @brief A type with neither a registered nor a configured name gives an
+ *        empty list.
+ */
+TEST (nnstreamerSubplugin, listNeitherEmpty_n)
+{
+  gint data = 1;
+  gchar **names;
+  guint handler;
+
+  /* nnsconf has no path for this type and logs it */
+  handler = g_log_set_handler (NULL, G_LOG_LEVEL_CRITICAL, _drop_log, NULL);
+
+  EXPECT_TRUE (register_subplugin (NNS_IF_CUSTOM, "unittest_subplugin_neither", &data));
+  EXPECT_TRUE (unregister_subplugin (NNS_IF_CUSTOM, "unittest_subplugin_neither"));
+  names = get_all_subplugins (NNS_IF_CUSTOM);
+
+  g_log_remove_handler (NULL, handler);
+
+  ASSERT_NE (names, nullptr);
+  EXPECT_EQ (g_strv_length (names), 0U);
+  g_strfreev (names);
 }
 
 /**

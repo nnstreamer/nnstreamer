@@ -197,7 +197,7 @@ get_all_subplugins (subpluginType type)
   gchar **list = NULL;
   gchar **keys;
   gchar *name;
-  guint i, total;
+  guint i, j, total;
 
   names = g_string_new (NULL);
 
@@ -222,12 +222,21 @@ get_all_subplugins (subpluginType type)
   for (i = 0; i < total; i++) {
     name = info.names[i];
 
-    if (!list || !g_strv_contains ((const gchar * const *) list, name)) {
-      if (list || i > 0)
-        g_string_append (names, ",");
+    if (list && g_strv_contains ((const gchar * const *) list, name))
+      continue;
 
-      g_string_append (names, name);
+    /* the same name may be found in more than one configured path */
+    for (j = 0; j < i; j++) {
+      if (g_str_equal (info.names[j], name))
+        break;
     }
+    if (j < i)
+      continue;
+
+    if (names->len > 0)
+      g_string_append (names, ",");
+
+    g_string_append (names, name);
   }
 
   g_strfreev (list);
