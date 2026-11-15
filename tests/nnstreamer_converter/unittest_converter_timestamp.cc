@@ -28,6 +28,7 @@
 #define ONE_HOUR SEC (3600)
 #define TEST_TIMEOUT_MS (10000U)
 #define IDENTITY_PADDING (40U)
+#define RENDER_LOG_MAX (8)
 
 /**
  * @brief Create a harness around a bare tensor_converter with the given caps.
@@ -442,12 +443,14 @@ wait_for_state (GstElement *pipeline, GstState state)
 }
 
 /**
- * @brief Push an untimestamped frame into the appsrc of a pipeline.
+ * @brief Push a frame with the given timestamp into the appsrc of a pipeline.
  */
 static void
-pipeline_push_frame (GstElement *appsrc)
+pipeline_push_frame (GstElement *appsrc, GstClockTime pts)
 {
   GstBuffer *buffer = gst_buffer_new_allocate (NULL, FRAME_SIZE, NULL);
+
+  GST_BUFFER_PTS (buffer) = pts;
 
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buffer), GST_FLOW_OK);
 }
@@ -510,18 +513,18 @@ TEST (tensorConverterTimestampPipeline, testClockRunningTime_p)
   gst_pipeline_use_clock (GST_PIPELINE (pipeline), clock);
 
   EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_ASYNC);
-  pipeline_push_frame (appsrc);
+  pipeline_push_frame (appsrc, GST_CLOCK_TIME_NONE);
   ASSERT_TRUE (wait_for_state (pipeline, GST_STATE_PLAYING));
   EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), 0U);
   EXPECT_EQ (gst_element_get_base_time (converter), ONE_HOUR);
 
   gst_test_clock_advance_time (GST_TEST_CLOCK (clock), MSEC (300));
-  pipeline_push_frame (appsrc);
+  pipeline_push_frame (appsrc, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), MSEC (300));
 
   gst_element_set_state (pipeline, GST_STATE_PAUSED);
   gst_test_clock_advance_time (GST_TEST_CLOCK (clock), SEC (5));
-  pipeline_push_frame (appsrc);
+  pipeline_push_frame (appsrc, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (pipeline_pull_pts (appsink, TRUE), MSEC (300));
   ASSERT_TRUE (wait_for_state (pipeline, GST_STATE_PAUSED));
 
@@ -530,7 +533,7 @@ TEST (tensorConverterTimestampPipeline, testClockRunningTime_p)
   EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), MSEC (300));
 
   gst_test_clock_advance_time (GST_TEST_CLOCK (clock), MSEC (100));
-  pipeline_push_frame (appsrc);
+  pipeline_push_frame (appsrc, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), MSEC (400));
 
   EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
@@ -596,7 +599,7 @@ TEST (tensorConverterTimestampPipeline, clockWithoutBaseTime_p)
   gst_pad_add_probe (srcpad, GST_PAD_PROBE_TYPE_BUFFER, probe_record_pts, &data, NULL);
 
   EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_ASYNC);
-  pipeline_push_frame (appsrc);
+  pipeline_push_frame (appsrc, GST_CLOCK_TIME_NONE);
   ASSERT_TRUE (wait_for_state (pipeline, GST_STATE_PAUSED));
   EXPECT_EQ (pipeline_pull_pts (appsink, TRUE), 0U);
   ASSERT_TRUE (wait_for_probe (&data, 1));
@@ -605,7 +608,7 @@ TEST (tensorConverterTimestampPipeline, clockWithoutBaseTime_p)
   EXPECT_TRUE (gst_element_set_clock (converter, clock));
   EXPECT_GT (gst_clock_get_time (clock), SEC (1));
 
-  pipeline_push_frame (appsrc);
+  pipeline_push_frame (appsrc, GST_CLOCK_TIME_NONE);
   ASSERT_TRUE (wait_for_probe (&data, 2));
   EXPECT_EQ (data.pts, 0U);
 
@@ -614,6 +617,251 @@ TEST (tensorConverterTimestampPipeline, clockWithoutBaseTime_p)
   gst_object_unref (appsrc);
   gst_object_unref (appsink);
   gst_object_unref (converter);
+  gst_object_unref (pipeline);
+  gst_object_unref (clock);
+}
+
+/**
+ * @brief Timestamps of the buffers a fakesink rendered, in rendering order.
+ */
+typedef struct {
+  gint count;
+  GstClockTime pts[RENDER_LOG_MAX];
+} render_log_s;
+
+/**
+ * @brief Record the timestamp of every buffer the fakesink renders.
+ */
+static void
+sink_record_pts (GstElement *sink, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  render_log_s *log = (render_log_s *) user_data;
+  gint n = g_atomic_int_get (&log->count);
+
+  if (n < RENDER_LOG_MAX)
+    log->pts[n] = GST_BUFFER_PTS (buffer);
+  g_atomic_int_inc (&log->count);
+}
+
+/**
+ * @brief Build appsrc ! tensor_converter ! queue ! fakesink sync=true on a
+ * test clock, recording what the sink renders.
+ */
+static GstElement *
+sync_pipeline_new (GstClock *clock, render_log_s *log, GstElement **appsrc)
+{
+  GstElement *pipeline = gst_parse_launch (
+      "appsrc name=src format=bytes ! " OCTET_CAPS " ! " CONVERTER_LAUNCH
+      " name=conv ! queue ! fakesink name=sink sync=true signal-handoffs=true",
+      NULL);
+  GstElement *sink;
+
+  if (pipeline == NULL)
+    return NULL;
+
+  gst_pipeline_use_clock (GST_PIPELINE (pipeline), clock);
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  g_signal_connect (sink, "handoff", G_CALLBACK (sink_record_pts), log);
+  gst_object_unref (sink);
+  *appsrc = gst_bin_get_by_name (GST_BIN (pipeline), "src");
+  return pipeline;
+}
+
+/**
+ * @brief Release the clock waits of the synchronizing sink until @a rendered
+ * buffers are rendered or, with a negative @a rendered, until EOS. The test
+ * clock never moves by itself, so a wait for a time ahead of the clock is
+ * where the stream would stall: it is left pending and reported in @a ahead.
+ * @return TRUE when the goal is reached.
+ */
+static gboolean
+release_sink_waits (GstElement *pipeline, GstClock *clock, render_log_s *log,
+    gint rendered, GstClockTime *ahead)
+{
+  GstBus *bus = gst_element_get_bus (pipeline);
+  gint64 deadline = g_get_monotonic_time () + TEST_TIMEOUT_MS * G_TIME_SPAN_MILLISECOND;
+  gboolean done = FALSE;
+  GstClockID id;
+
+  *ahead = 0;
+  while (g_get_monotonic_time () < deadline) {
+    GstMessage *message;
+
+    if (rendered >= 0 && g_atomic_int_get (&log->count) >= rendered) {
+      done = TRUE;
+      break;
+    }
+
+    if (gst_test_clock_peek_next_pending_id (GST_TEST_CLOCK (clock), &id)) {
+      GstClockTime target = gst_clock_id_get_time (id);
+      GstClockTime now = gst_clock_get_time (clock);
+
+      gst_clock_id_unref (id);
+      if (target > now) {
+        *ahead = target - now;
+        break;
+      }
+      id = gst_test_clock_process_next_clock_id (GST_TEST_CLOCK (clock));
+      if (id)
+        gst_clock_id_unref (id);
+      continue;
+    }
+
+    message = gst_bus_timed_pop_filtered (
+        bus, MSEC (10), (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+    if (message != NULL) {
+      done = (rendered < 0 && GST_MESSAGE_TYPE (message) == GST_MESSAGE_EOS);
+      if (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ERROR) {
+        GError *error = NULL;
+
+        gst_message_parse_error (message, &error, NULL);
+        ADD_FAILURE () << GST_MESSAGE_SRC_NAME (message) << ": " << error->message;
+        g_clear_error (&error);
+      }
+      gst_message_unref (message);
+      break;
+    }
+  }
+
+  gst_object_unref (bus);
+  return done;
+}
+
+/**
+ * @brief Play two frames, pause, let 5 s pass on the clock and queue three
+ * frames stamped @a paused_pts behind the prerolled sink, then resume. All
+ * three frames leave the converter before the resume.
+ * @return FALSE at the first step that fails, so the caller can skip ahead to
+ * its cleanup.
+ */
+static gboolean
+pause_with_queued_frames (GstElement *pipeline, GstElement *appsrc,
+    GstClock *clock, render_log_s *log, GstClockTime paused_pts)
+{
+  GstElement *converter = gst_bin_get_by_name (GST_BIN (pipeline), "conv");
+  GstPad *srcpad = gst_element_get_static_pad (converter, "src");
+  probe_data_s *converted = g_new0 (probe_data_s, 1);
+  GstClockTime ahead = 0;
+  gboolean ok;
+  gulong probe_id;
+  guint i;
+
+  converted->pts = GST_CLOCK_TIME_NONE;
+  probe_id = gst_pad_add_probe (
+      srcpad, GST_PAD_PROBE_TYPE_BUFFER, probe_record_pts, converted, g_free);
+
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_ASYNC);
+  pipeline_push_frame (appsrc, GST_CLOCK_TIME_NONE);
+  ok = wait_for_state (pipeline, GST_STATE_PLAYING)
+       && release_sink_waits (pipeline, clock, log, 1, &ahead);
+  EXPECT_TRUE (ok) << "first frame";
+  EXPECT_EQ (ahead, 0U);
+
+  if (ok) {
+    gst_test_clock_advance_time (GST_TEST_CLOCK (clock), MSEC (300));
+    pipeline_push_frame (appsrc, GST_CLOCK_TIME_NONE);
+    ok = release_sink_waits (pipeline, clock, log, 2, &ahead);
+    EXPECT_TRUE (ok) << "second frame";
+    EXPECT_EQ (ahead, 0U);
+  }
+
+  if (ok) {
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_ASYNC);
+    gst_test_clock_advance_time (GST_TEST_CLOCK (clock), SEC (5));
+    for (i = 0; i < 3; i++)
+      pipeline_push_frame (appsrc, paused_pts);
+    ok = wait_for_state (pipeline, GST_STATE_PAUSED) && wait_for_probe (converted, 5);
+    EXPECT_TRUE (ok) << "paused frames";
+    EXPECT_EQ (g_atomic_int_get (&log->count), 2);
+  }
+
+  if (ok) {
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+    ok = wait_for_state (pipeline, GST_STATE_PLAYING);
+    EXPECT_TRUE (ok) << "resume";
+  }
+
+  gst_pad_remove_probe (srcpad, probe_id);
+  gst_object_unref (srcpad);
+  gst_object_unref (converter);
+  return ok;
+}
+
+/**
+ * @brief Positive: frames converted while PAUSED and queued before a
+ * synchronizing sink are rendered on resume without waiting for the paused
+ * duration, the stream reaches EOS and the timestamps never decrease.
+ */
+TEST (tensorConverterTimestampPipeline, syncSinkPauseResume_p)
+{
+  GstClock *clock = gst_test_clock_new_with_start_time (ONE_HOUR);
+  render_log_s log = { 0, { 0 } };
+  const GstClockTime expected[]
+      = { 0, MSEC (300), MSEC (300), MSEC (300), MSEC (300), MSEC (400) };
+  GstElement *pipeline, *appsrc;
+  GstClockTime ahead;
+  guint i;
+
+  pipeline = sync_pipeline_new (clock, &log, &appsrc);
+  ASSERT_TRUE (pipeline != NULL);
+
+  if (pause_with_queued_frames (pipeline, appsrc, clock, &log, GST_CLOCK_TIME_NONE)) {
+    EXPECT_TRUE (release_sink_waits (pipeline, clock, &log, 5, &ahead));
+    EXPECT_EQ (ahead, 0U);
+
+    gst_test_clock_advance_time (GST_TEST_CLOCK (clock), MSEC (100));
+    pipeline_push_frame (appsrc, GST_CLOCK_TIME_NONE);
+    EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc)), GST_FLOW_OK);
+    EXPECT_TRUE (release_sink_waits (pipeline, clock, &log, -1, &ahead));
+    EXPECT_EQ (ahead, 0U);
+
+    EXPECT_EQ (g_atomic_int_get (&log.count), (gint) G_N_ELEMENTS (expected));
+    for (i = 0; i < G_N_ELEMENTS (expected); i++)
+      EXPECT_EQ (log.pts[i], expected[i]) << "frame " << i;
+  }
+
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (appsrc);
+  gst_object_unref (pipeline);
+  gst_object_unref (clock);
+}
+
+/**
+ * @brief Negative: frames that carry the clock reading taken while PAUSED,
+ * the pre-#4898 stamping, are ahead of the running time on resume. The
+ * converter keeps valid timestamps, so the sink holds the first of them for
+ * the paused 5 s, and the stream moves on only when the clock gets there.
+ * This proves that release_sink_waits() reports such a stall, so the
+ * ahead == 0 checks of syncSinkPauseResume_p are not vacuous.
+ */
+TEST (tensorConverterTimestampPipeline, syncSinkPausedClockStamp_n)
+{
+  GstClock *clock = gst_test_clock_new_with_start_time (ONE_HOUR);
+  render_log_s log = { 0, { 0 } };
+  GstElement *pipeline, *appsrc;
+  GstClockTime ahead;
+  gint i;
+
+  pipeline = sync_pipeline_new (clock, &log, &appsrc);
+  ASSERT_TRUE (pipeline != NULL);
+
+  if (pause_with_queued_frames (pipeline, appsrc, clock, &log, SEC (5) + MSEC (300))) {
+    EXPECT_FALSE (release_sink_waits (pipeline, clock, &log, 5, &ahead));
+    EXPECT_EQ (ahead, SEC (5));
+    EXPECT_EQ (g_atomic_int_get (&log.count), 2);
+
+    gst_test_clock_advance_time (GST_TEST_CLOCK (clock), SEC (5));
+    EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc)), GST_FLOW_OK);
+    EXPECT_TRUE (release_sink_waits (pipeline, clock, &log, -1, &ahead));
+    EXPECT_EQ (ahead, 0U);
+
+    EXPECT_EQ (g_atomic_int_get (&log.count), 5);
+    for (i = 2; i < 5; i++)
+      EXPECT_EQ (log.pts[i], SEC (5) + MSEC (300)) << "frame " << i;
+  }
+
+  EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (appsrc);
   gst_object_unref (pipeline);
   gst_object_unref (clock);
 }
