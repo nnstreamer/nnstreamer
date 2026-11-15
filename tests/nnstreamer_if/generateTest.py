@@ -74,3 +74,9 @@ save_golden('pick_range_exclusive.golden',
 save_golden('pick_then.golden', lambda f: f[0][0] >= 10,
             lambda f: f[1] + f[0])
 save_golden('pick_else.golden', lambda f: f[0][0] < 10, lambda f: f[0])
+
+# A_VALUE range complements retained on the else branch of NOT_IN_RANGE
+save_golden('passthrough_range_inclusive.golden',
+            lambda f: 10 <= f[0][0] <= 20, lambda f: f[0] + f[1])
+save_golden('passthrough_range_exclusive.golden',
+            lambda f: 10 < f[0][0] < 20, lambda f: f[0] + f[1])
