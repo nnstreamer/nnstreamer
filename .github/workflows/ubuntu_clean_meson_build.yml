@@ -54,6 +54,15 @@ jobs:
         # The armnn subplugin auto-selects the NEON-accelerated CpuAcc backend on arm.
         if [ "$(dpkg --print-architecture)" = "arm64" ]; then sudo apt-get install -y libarmnn-cpuacc-backend22; fi
         if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then sudo apt-get install -y tigervnc-standalone-server python3-gi python3-gi-cairo coreutils procps; fi
+        # Installed before configure so that the tensorflow2-lite sub-plugin and
+        # its unit tests are built, run, and swept by memcheck below; elsewhere
+        # they run only in GBS and pdebuild, without memcheck. x86 only, as the
+        # memcheck sweep is. The package is a static TFLite runtime linked into
+        # the sub-plugin, so memcheck blames an error inside TFLite on our
+        # sub-plugin: such errors are suppressed by name in
+        # tools/debugging/valgrind_suppression, and one a PPA update brings
+        # goes there too.
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then sudo apt-get install -y tensorflow2-lite-dev; fi
         pip install meson ninja
     - name: install llama.cpp for the llamacpp tensor-filter
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
@@ -260,6 +269,9 @@ jobs:
           # Same for ncnn: its SSAT script reports success with zero cases when
           # the .so is absent.
           test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_ncnn.so
+          # Same for tensorflow2-lite: under auto detection its unit tests
+          # would leave this job and the memcheck sweep without a word.
+          test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_tensorflow2-lite.so
         else
           # Same for executorch: its SSAT script reports success with zero cases
           # when the .so is absent.
@@ -403,6 +415,22 @@ jobs:
         export GST_PLUGIN_PATH=`pwd`/build/gst
         export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini
         cd tests/nnstreamer_filter_custom && ssat -n -p=1 --summary summary.txt
+    # Elsewhere these suites run only in GBS and pdebuild. The first one
+    # generates its test data with numpy, which the job's python3 does not have
+    # (see filter-executorch); the system python3 does, so generate the data
+    # with that one and tell the script not to.
+    - name: SSAT run on filter-tensorflow2-lite and filter-reload
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      timeout-minutes: 10
+      run: |
+        export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build
+        export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter
+        export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder
+        export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter
+        export GST_PLUGIN_PATH=`pwd`/build/gst
+        export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini
+        (cd tests/nnstreamer_filter_tensorflow2_lite && /usr/bin/python3 ../nnstreamer_converter/generateTest.py && SKIPGEN=YES ssat -n -p=1 --summary summary.txt)
+        (cd tests/nnstreamer_filter_reload && ssat -n -p=1 --summary summary.txt)
     # numpy goes in here and not with the other requirements: this python3 has
     # none while nnstreamer is configured, which the build above has always seen,
     # and the SSAT script generates its test data with it.
@@ -427,11 +455,26 @@ jobs:
     #   nnstreamerFilterLiteRT.sharedEnvInvokeDuringConfigure    9.9 / 30.1 min
     #   four more LiteRT cases that compile the model repeatedly 4.3 /  6.5 min
     #
-    # Those are excluded by name below. Every other LiteRT and ArmNN case still
-    # runs, so each sub-plugin's open, configure and invoke paths stay covered;
-    # what is dropped is repeated inference, whose cost is the runtime's and
-    # not this project's. They are written out one at a time on purpose: a
-    # wildcard would silently take future cases with it.
+    # and the shared-model cases that classify with MobileNet across reloads,
+    # the first two run with and without XNNPACK and measured locally with
+    # valgrind 3.18 on four cores, the other four measured in 43699647014:
+    #
+    #   nnstreamerFilterSharedModel.tfliteSharedReloadDiffDelegate   6.1 min
+    #   nnstreamerFilterSharedModel.tfliteSharedReloadDiffDelegateUnmatched_n
+    #                                                                3.9 min
+    #   nnstreamerFilterSharedModel.tfliteSharedReload               1.5 min
+    #   nnstreamerFilterSharedModel.tfliteSharedReloadUnmatched_n    1.4 min
+    #   nnstreamerFilterSharedModel.tfliteSharedReloadAfterUnmatched 1.9 min
+    #   nnstreamerFilterSharedModel.tfliteReloadUnmatched_n          1.6 min
+    #
+    # Those are excluded by name below. Every other LiteRT, ArmNN and
+    # tensorflow2-lite case still runs, so each sub-plugin's open, configure
+    # and invoke paths stay covered, and so do the reload of a model shared
+    # by two filters and the reload racing an invoke, both with add.tflite;
+    # what is dropped is repeated inference and repeated model or delegate
+    # builds, whose cost is the runtime's and not this project's. They are
+    # written out one at a time on purpose: a wildcard would silently take
+    # future cases with it.
     #
     # llama.cpp is handled the other way round, by naming the cases to keep.
     # Generating a token under memcheck costs about 1 s on a fast runner and
@@ -487,6 +530,12 @@ jobs:
         skip_cases="${skip_cases}:nnstreamerFilterLiteRT.zeroCopyPathEquivalence"
         skip_cases="${skip_cases}:nnstreamerFilterLiteRT.sharedEnvConcurrentOpen"
         skip_cases="${skip_cases}:nnstreamerFilterLiteRT.sharedEnvMultiInstance"
+        skip_cases="${skip_cases}:nnstreamerFilterSharedModel.tfliteSharedReloadDiffDelegate"
+        skip_cases="${skip_cases}:nnstreamerFilterSharedModel.tfliteSharedReloadDiffDelegateUnmatched_n"
+        skip_cases="${skip_cases}:nnstreamerFilterSharedModel.tfliteSharedReload"
+        skip_cases="${skip_cases}:nnstreamerFilterSharedModel.tfliteSharedReloadUnmatched_n"
+        skip_cases="${skip_cases}:nnstreamerFilterSharedModel.tfliteSharedReloadAfterUnmatched"
+        skip_cases="${skip_cases}:nnstreamerFilterSharedModel.tfliteReloadUnmatched_n"
         llamacpp_cases="NNStreamerFilterLlamaCppTest.negativeNumPredict_n"
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.invalidBatchSize_n"
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.invalidContextLength_n"
@@ -531,17 +580,8 @@ jobs:
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
       timeout-minutes: 30
       run: |
-        # Enable the tflite subplugin only for this app test; installing it
-        # before "build and unit test" would pull tflite unit tests into
-        # meson test, changing the coverage this minimal workflow has today.
-        echo "::group::Rebuild with the tensorflow2-lite subplugin"
-        sudo apt-get install -y tensorflow2-lite-dev
-        meson setup --reconfigure build/
-        meson compile -C build/
-        # The tflite example below needs the sub-plugin; fail here if the
-        # auto-detected build stopped producing it.
-        test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_tensorflow2-lite.so
-        echo "::endgroup::"
+        # The tflite examples below use the tensorflow2-lite sub-plugin, which
+        # "build and unit test" asserts was built.
         export GST_PLUGIN_PATH=$(pwd)/build/gst/nnstreamer
         currentpath=$(pwd)
         sed "s|@SUBPLUGIN_INSTALL_PREFIX@|${currentpath}|" .github/workflows/ubuntu_clean_meson_build.nnstreamer.ini > "${RUNNER_TEMP}/nnstreamer.ini"
@@ -691,10 +731,6 @@ jobs:
     # very same result as its build-tree run above: a skip, or a script that
     # stops early, then fails the step. ncnn is the suite because this leg
     # asserts that its sub-plugin is built, so a skip can only be a regression.
-    #
-    # What gets installed is the tree the example app step rebuilt with
-    # tensorflow2-lite, while the build-tree run of the suite came before that
-    # rebuild; no ncnn case depends on the difference.
     #
     # It is the last step on purpose: it installs over the runner's prefix and
     # replaces /etc/nnstreamer.ini, and no other step should see either.
