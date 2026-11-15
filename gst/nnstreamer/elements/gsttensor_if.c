@@ -863,6 +863,7 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
   GstTensorPad *tensorpad;
   gchar *name;
   GstCaps *caps = NULL;
+  GstEvent *event;
 
   walk = tensor_if->srcpads;
   while (walk) {
@@ -895,6 +896,14 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
 
   gst_pad_use_fixed_caps (pad);
   gst_pad_set_active (pad, TRUE);
+
+  /* The input stream started before this conditional output existed. */
+  event =
+      gst_pad_get_sticky_event (tensor_if->sinkpad, GST_EVENT_STREAM_START, 0);
+  if (event) {
+    gst_pad_store_sticky_event (pad, event);
+    gst_event_unref (event);
+  }
   gst_element_add_pad (GST_ELEMENT_CAST (tensor_if), pad);
 
   caps = gst_tensor_pad_caps_from_config (pad, config);
@@ -1463,9 +1472,16 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       gst_tensor_if_get_tensor_pad (tensor_if, config, &created, which_srcpad);
 
   if (created) {
-    GstSegment segment;
-    gst_segment_init (&segment, GST_FORMAT_TIME);
-    gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
+    GstEvent *event;
+
+    event = gst_pad_get_sticky_event (tensor_if->sinkpad, GST_EVENT_SEGMENT, 0);
+    if (event) {
+      gst_pad_push_event (srcpad->pad, event);
+    } else {
+      GstSegment segment;
+      gst_segment_init (&segment, GST_FORMAT_TIME);
+      gst_pad_push_event (srcpad->pad, gst_event_new_segment (&segment));
+    }
   }
 
   outbuf = gst_buffer_make_writable (outbuf);
