@@ -87,9 +87,13 @@ override_dh_auto_build:
 # an override target at this compat level, so honour it here.
 override_dh_auto_test:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	./packaging/run_unittests_binaries.sh ./tests
-	LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_edge ./packaging/run_unittests_binaries.sh ./tests/nnstreamer_edge
-	./packaging/run_unittests_binaries.sh ./tests/nnstreamer_datarepo
+# --recursive also finds the suites built in sub-directories of tests/, so a
+# new one runs without a line of its own here. unittest_edge dlopens a library
+# from its own directory, which the build-tree RPATH does not cover. The
+# skipped suites run below, for the architectures they are meant for; keep
+# the --skip list in step with those lines.
+	LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_edge ./packaging/run_unittests_binaries.sh --recursive \
+		--skip unittest_nnfw_runtime_raw,unittest_edgetpu,unittest_openvino ./tests
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 ifeq ($(DEB_HOST_ARCH), amd64)
 	if [ -f './tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw' ]; then ./packaging/run_unittests_binaries.sh ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw; fi
