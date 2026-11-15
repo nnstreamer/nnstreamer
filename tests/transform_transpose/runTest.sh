@@ -76,6 +76,24 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test04_%02d
 
 callCompareTest test04_00.dat.golden result08_00.log 8 "Compare 8" 1 0
 
+# A rank-2 tensor: dimensions 0 and 1 swap and the output stays rank 2.
+# The dimension is typed as a string; gst-launch reads a bare 5:4 as a flagset.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test05_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=4:5 input-type=float32 ! tensor_transform mode=transpose option=1:0:2:3 ! \"other/tensor,dimension=(string)5:4\" ! multifilesink location=\"./result09_%02d.log\" sync=true" 9 0 0 $PERFORMANCE
+
+callCompareTest test05_00.dat.golden result09_00.log 9 "Compare 9" 1 0
+
+# A rank-2 tensor cannot take its absent dimension 2 into dimension 0 or 1:
+# the output would have a dimension of 0 and its caps are refused.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test05_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=4:5 input-type=float32 ! tensor_transform mode=transpose option=2:0:1:3 ! multifilesink location=\"./result10_%02d.log\" sync=true" 10_n 0 1 $PERFORMANCE
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test05_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=4:5 input-type=float32 ! tensor_transform mode=transpose option=0:2:1:3 ! multifilesink location=\"./result11_%02d.log\" sync=true" 11_n 0 1 $PERFORMANCE
+
+# A rank-1 tensor: swapping its absent dimensions 1 and 2 still runs the
+# transpose loop, which must copy every element.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test06_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=4 input-type=float32 ! tensor_transform mode=transpose option=0:2:1:3 ! \"other/tensor,dimension=(string)4\" ! multifilesink location=\"./result12_%02d.log\" sync=true" 12 0 0 $PERFORMANCE
+
+callCompareTest test06_00.dat.golden result12_00.log 12 "Compare 12" 1 0
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report
