@@ -2135,9 +2135,10 @@ TEST (tensorFilterOpenvino, invokeUserTensorNames1_n)
 /**
  * @brief Get a harness running the MobileNet v2 model with tensor_filter
  * @param accelerator the value of the accelerator property
+ * @param accelerator_first set the accelerator before the framework
  */
 static GstHarness *
-getFilterHarness (const gchar *accelerator)
+getFilterHarness (const gchar *accelerator, bool accelerator_first = false)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstHarness *h;
@@ -2150,8 +2151,12 @@ getFilterHarness (const gchar *accelerator)
 
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       MODEL_BASE_NAME_MOBINET_V2, NULL);
-  desc = g_strdup_printf ("tensor_filter framework=openvino model=\"%s\" accelerator=%s",
-      test_model, accelerator);
+  if (accelerator_first)
+    desc = g_strdup_printf ("tensor_filter accelerator=%s framework=openvino model=\"%s\"",
+        accelerator, test_model);
+  else
+    desc = g_strdup_printf ("tensor_filter framework=openvino model=\"%s\" accelerator=%s",
+        test_model, accelerator);
   h = gst_harness_new_parse (desc);
   g_free (desc);
   g_free (test_model);
@@ -2233,6 +2238,123 @@ TEST (tensorFilterOpenvino, filterElement0_n)
   }
 
   g_free (test_model);
+}
+
+/**
+ * @brief Test that tensor_filter runs the model with the accelerator set before the framework
+ */
+TEST (tensorFilterOpenvino, filterElementOrder)
+{
+  GstHarness *h;
+  GstElement *filter;
+  GstBuffer *buf;
+  gchar *str = NULL;
+
+  h = getFilterHarness ("true:cpu", true);
+  ASSERT_TRUE (h != NULL);
+
+  buf = gst_harness_create_buffer (h, 224 * 224 * 3 * sizeof (float));
+  gst_buffer_memset (buf, 0, 0, gst_buffer_get_size (buf));
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+
+  buf = gst_harness_pull (h);
+  EXPECT_TRUE (buf != NULL);
+  if (buf != NULL) {
+    EXPECT_EQ (gst_buffer_get_size (buf), 1001 * sizeof (float));
+    gst_buffer_unref (buf);
+  }
+
+  filter = gst_harness_find_element (h, "tensor_filter");
+  EXPECT_TRUE (filter != NULL);
+  if (filter != NULL) {
+    g_object_get (filter, "accelerator", &str, NULL);
+    EXPECT_STREQ (str, "true:cpu");
+    g_free (str);
+    gst_object_unref (filter);
+  }
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Append the logged message to the GString @a user_data
+ */
+static void
+collectLog (const gchar *, GLogLevelFlags, const gchar *message, gpointer user_data)
+{
+  if (message)
+    g_string_append_printf ((GString *) user_data, "%s\n", message);
+}
+
+/**
+ * @brief Start tensor_filter with openvino and the given accelerator
+ * @param accelerator the value of the accelerator property
+ * @param accelerator_first set the accelerator before the framework
+ * @param[out] log the critical messages logged while starting
+ * @return the result of the state change to PAUSED
+ */
+static GstStateChangeReturn
+startFilter (const gchar *accelerator, bool accelerator_first, GString *log)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstStateChangeReturn ret;
+  GstElement *filter;
+  gchar *test_model;
+  guint handler;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  if (filter == NULL)
+    return GST_STATE_CHANGE_FAILURE;
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  if (accelerator_first)
+    g_object_set (filter, "accelerator", accelerator, NULL);
+  g_object_set (filter, "framework", "openvino", "model", test_model, NULL);
+  if (!accelerator_first)
+    g_object_set (filter, "accelerator", accelerator, NULL);
+  g_free (test_model);
+
+  handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      collectLog, log);
+  ret = gst_element_set_state (filter, GST_STATE_PAUSED);
+  g_log_remove_handler (NULL, handler);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+  return ret;
+}
+
+/**
+ * @brief Test that tensor_filter refuses accelerator=false as V0 did, wherever it is set
+ */
+TEST (tensorFilterOpenvino, filterElementOrder_n)
+{
+  const gchar refused[] = "'none' is not a valid value for the 'accelerator' property";
+  GString *log;
+
+  for (bool accelerator_first : { true, false }) {
+    log = g_string_new (NULL);
+    EXPECT_EQ (startFilter ("false", accelerator_first, log), GST_STATE_CHANGE_FAILURE)
+        << "accelerator first: " << accelerator_first;
+    /* the error reaches a GLib log handler unless the platform has a log of its own */
+#if !defined(__TIZEN__) && !defined(__ANDROID__)
+    EXPECT_TRUE (strstr (log->str, refused) != NULL) << log->str;
+#endif
+    g_string_free (log, TRUE);
+  }
+
+  /** 'true' set first stays the auto config, Movidius, and is not refused */
+  log = g_string_new (NULL);
+  /* whether it starts depends on an attached device, so only the reason is checked */
+  (void) startFilter ("true", true, log);
+  EXPECT_TRUE (strstr (log->str, refused) == NULL) << log->str;
+  g_string_free (log, TRUE);
 }
 
 /**
