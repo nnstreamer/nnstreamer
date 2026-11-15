@@ -373,9 +373,18 @@ if gtest_dep.found()
 
       test('unittest_mqtt', unittest_mqtt, env: testenv)
 
-      # ntp util test
+      # ntp util test. Its mocks replace libc and ntputil symbols that
+      # libgstmqtt calls, which needs ELF symbol interposition. -Bsymbolic
+      # (e.g., Debian's -Wl,-Bsymbolic-functions) binds the ntputil ones
+      # inside the library.
+      ntp_util_mockable = host_machine.system() == 'linux'
+      foreach arg : get_option('c_link_args')
+        if arg.contains('-Bsymbolic')
+          ntp_util_mockable = false
+        endif
+      endforeach
       gmock_dep = dependency('gmock', required: false)
-      if get_option('enable-tizen') and gmock_dep.found()
+      if gmock_dep.found() and ntp_util_mockable
         gstreamer_ntp_util_mock = executable('unittest_ntp_util',
             join_paths('gstreamer_mqtt', 'unittest_ntp_util_mock.cc'),
             dependencies: [nnstreamer_unittest_deps, gmock_dep, gstmqtt_dep],
@@ -383,6 +392,8 @@ if gtest_dep.found()
             install_dir: unittest_install_dir)
 
         test('gstreamer_ntp_util_mock', gstreamer_ntp_util_mock, env: testenv)
+      elif gmock_dep.found()
+        message('unittest_ntp_util is not built: its mocks need ELF symbol interposition without -Bsymbolic.')
       endif
     endif
 
