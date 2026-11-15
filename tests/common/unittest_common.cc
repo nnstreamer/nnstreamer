@@ -5730,6 +5730,169 @@ TEST (commonTensorData, float16Typecast)
   EXPECT_DOUBLE_EQ (*avg, 4.0);
   g_free (avg);
 }
+
+/**
+ * @brief Cast a float16 value to the given type with the raw typecast.
+ * @param bits The IEEE 754 binary16 bits of the input.
+ * @details float16 is not used as a parameter or return type: arm (32b)
+ *          compilers may refuse it. A float16 result is read back from the
+ *          _uint16_t member, which shares its bytes.
+ */
+static tensor_element
+_f16_cast_to (uint16_t bits, tensor_type type)
+{
+  float16 in;
+  tensor_element out;
+
+  memcpy (&in, &bits, sizeof (in));
+  memset (&out, 0xa5, sizeof (out));
+  EXPECT_TRUE (gst_tensor_data_raw_typecast (&in, _NNS_FLOAT16, &out, type));
+  return out;
+}
+
+/**
+ * @brief Cast a value of the given type to float16 with the raw typecast.
+ * @return The IEEE 754 binary16 bits of the result.
+ */
+static uint16_t
+_f16_cast_from (const tensor_element *in, tensor_type type)
+{
+  tensor_element copy = *in;
+  uint16_t out = 0xa5a5U;
+
+  EXPECT_TRUE (gst_tensor_data_raw_typecast (&copy, type, &out, _NNS_FLOAT16));
+  return out;
+}
+
+/**
+ * @brief Test for the element typecast from float16 to every tensor type.
+ * @details A float value cast to an unsigned type goes through the signed type
+ *          of the same width, so -3.5 reads back as 2^n - 3, not as 0.
+ */
+TEST (commonTensorData, float16TypecastToAllTypes)
+{
+  const uint16_t neg = 0xc300U; /* -3.5 */
+  const uint16_t pos = 0x564cU; /* 100.75 */
+
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_INT8)._int8_t, -3);
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_UINT8)._uint8_t, 253U);
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_INT16)._int16_t, -3);
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_UINT16)._uint16_t, 65533U);
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_INT32)._int32_t, -3);
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_UINT32)._uint32_t, 4294967293U);
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_INT64)._int64_t, -3);
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_UINT64)._uint64_t,
+      G_GUINT64_CONSTANT (18446744073709551613));
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_FLOAT32)._float, -3.5f);
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_FLOAT64)._double, -3.5);
+  EXPECT_EQ (_f16_cast_to (neg, _NNS_FLOAT16)._uint16_t, neg);
+
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_INT8)._int8_t, 100);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_UINT8)._uint8_t, 100U);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_INT16)._int16_t, 100);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_UINT16)._uint16_t, 100U);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_INT32)._int32_t, 100);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_UINT32)._uint32_t, 100U);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_INT64)._int64_t, 100);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_UINT64)._uint64_t, 100U);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_FLOAT32)._float, 100.75f);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_FLOAT64)._double, 100.75);
+  EXPECT_EQ (_f16_cast_to (pos, _NNS_FLOAT16)._uint16_t, pos);
+}
+
+/**
+ * @brief Test for the element typecast from every tensor type to float16.
+ * @details 2049 is halfway between two float16 values and rounds to the even
+ *          one, 2048; 0.1f rounds to the nearest float16, 0.0999755859375.
+ */
+TEST (commonTensorData, float16TypecastFromAllTypes)
+{
+  tensor_element in;
+
+  in._int8_t = -7;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_INT8), 0xc700U);
+  in._uint8_t = 200U;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_UINT8), 0x5a40U);
+  in._int16_t = -1000;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_INT16), 0xe3d0U);
+  in._uint16_t = 2049U;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_UINT16), 0x6800U);
+  in._int32_t = -65504;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_INT32), 0xfbffU);
+  in._uint32_t = 65504U;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_UINT32), 0x7bffU);
+  in._int64_t = -12;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_INT64), 0xca00U);
+  in._uint64_t = 4096U;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_UINT64), 0x6c00U);
+  in._float = 0.1f;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_FLOAT32), 0x2e66U);
+  in._double = 1.5;
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_FLOAT64), 0x3e00U);
+  in._uint16_t = 0x3c00U; /* 1.0 */
+  EXPECT_EQ (_f16_cast_from (&in, _NNS_FLOAT16), 0x3c00U);
+}
+
+/**
+ * @brief Test for the typecast of float16 tensor data to an unsigned type.
+ * @details The data ends with the requested type, not the signed type of the
+ *          intermediate step, whose value has the same bytes.
+ */
+TEST (commonTensorData, float16TypecastDataToUnsigned)
+{
+  const struct {
+    tensor_type type;
+    uint64_t value;
+  } cases[] = {
+    { _NNS_UINT8, 253U },
+    { _NNS_UINT16, 65533U },
+    { _NNS_UINT32, 4294967293U },
+    { _NNS_UINT64, G_GUINT64_CONSTANT (18446744073709551613) },
+  };
+  tensor_data_s td;
+  uint16_t in = 0xc300U; /* -3.5 */
+
+  for (const auto &c : cases) {
+    ASSERT_TRUE (gst_tensor_data_set (&td, _NNS_FLOAT16, &in));
+    EXPECT_TRUE (gst_tensor_data_typecast (&td, c.type));
+    EXPECT_EQ (td.type, c.type);
+    switch (c.type) {
+      case _NNS_UINT8:
+        EXPECT_EQ (td.data._uint8_t, c.value);
+        break;
+      case _NNS_UINT16:
+        EXPECT_EQ (td.data._uint16_t, c.value);
+        break;
+      case _NNS_UINT32:
+        EXPECT_EQ (td.data._uint32_t, c.value);
+        break;
+      default:
+        EXPECT_EQ (td.data._uint64_t, c.value);
+        break;
+    }
+  }
+}
+
+/**
+ * @brief Test for the element typecast of float16 to and from an unknown type.
+ */
+TEST (commonTensorData, float16TypecastUnknownType_n)
+{
+  const tensor_type unknown = (tensor_type) (_NNS_END + 1);
+  uint16_t f16 = 0xc300U; /* -3.5 */
+  uint64_t other = G_GUINT64_CONSTANT (0xa5a5a5a5a5a5a5a5);
+  tensor_data_s td;
+
+  EXPECT_FALSE (gst_tensor_data_raw_typecast (&f16, _NNS_FLOAT16, &other, unknown));
+  EXPECT_EQ (other, G_GUINT64_CONSTANT (0xa5a5a5a5a5a5a5a5));
+  EXPECT_FALSE (gst_tensor_data_raw_typecast (&other, unknown, &f16, _NNS_FLOAT16));
+  EXPECT_EQ (f16, 0xc300U);
+
+  ASSERT_TRUE (gst_tensor_data_set (&td, _NNS_FLOAT16, &f16));
+  EXPECT_FALSE (gst_tensor_data_typecast (&td, unknown));
+  EXPECT_EQ (td.type, _NNS_FLOAT16);
+  EXPECT_EQ (td.data._uint16_t, 0xc300U);
+}
 #else
 /**
  * @brief Test for the element typecast, float16 is refused without float16 support.
@@ -5747,6 +5910,31 @@ TEST (commonTensorData, float16TypecastUnsupported_n)
   EXPECT_FALSE (gst_tensor_data_raw_typecast (&f32, _NNS_FLOAT32, &f16, _NNS_FLOAT16));
   EXPECT_EQ (u32, 9U);
   EXPECT_EQ (f16, 0x4200U);
+}
+
+/**
+ * @brief Test for the element typecast, float16 to and from every tensor type
+ *        is refused without float16 support.
+ * @details The same input casts to float64, so the refusal comes from float16.
+ */
+TEST (commonTensorData, float16TypecastAllTypesUnsupported_n)
+{
+  const tensor_type types[] = { _NNS_INT8, _NNS_UINT8, _NNS_INT16, _NNS_UINT16,
+    _NNS_INT32, _NNS_UINT32, _NNS_INT64, _NNS_UINT64, _NNS_FLOAT32, _NNS_FLOAT64 };
+  const uint64_t pattern = G_GUINT64_CONSTANT (0x40a5a5a5a5a5a5a5);
+  uint16_t f16 = 0xc300U; /* -3.5 */
+  uint64_t other;
+  double f64;
+
+  for (const tensor_type type : types) {
+    other = pattern;
+    EXPECT_FALSE (gst_tensor_data_raw_typecast (&f16, _NNS_FLOAT16, &other, type));
+    EXPECT_EQ (other, pattern);
+
+    EXPECT_FALSE (gst_tensor_data_raw_typecast (&other, type, &f16, _NNS_FLOAT16));
+    EXPECT_EQ (f16, 0xc300U);
+    EXPECT_TRUE (gst_tensor_data_raw_typecast (&other, type, &f64, _NNS_FLOAT64));
+  }
 }
 
 /**
