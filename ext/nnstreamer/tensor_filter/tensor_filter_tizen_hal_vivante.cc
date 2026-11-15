@@ -241,16 +241,23 @@ vivante_tizen_hal_subplugin *vivante_tizen_hal_subplugin::registeredRepresentati
 void
 vivante_tizen_hal_subplugin::init_filter_vivante_tizen_hal (void)
 {
-  registeredRepresentation
-      = tensor_filter_subplugin::register_subplugin<vivante_tizen_hal_subplugin> ();
+  try {
+    registeredRepresentation
+        = tensor_filter_subplugin::register_subplugin<vivante_tizen_hal_subplugin> ();
+  } catch (const std::exception &e) {
+    nns_loge ("Vivante HAL is not registered: %s", e.what ());
+  }
 }
 
 /** @brief Destruct the subplugin */
 void
 vivante_tizen_hal_subplugin::fini_filter_vivante_tizen_hal (void)
 {
-  assert (registeredRepresentation != nullptr);
+  if (registeredRepresentation == nullptr)
+    return;
+
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
+  registeredRepresentation = nullptr;
 }
 
 /**
