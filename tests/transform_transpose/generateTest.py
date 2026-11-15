@@ -41,3 +41,7 @@ save_test_data('test02_00.dat', 3, 100, 200, 1, 0, 2, 3, 1)
 save_test_data('test03_00.dat', 3, 100, 200, 1, 0, 1, 3, 2)
 # dimensions 3 and 4 (2:3) keep their place, so they transpose as a batch of 6
 save_test_data('test04_00.dat', 3, 50, 100, 6, 0, 2, 3, 1)
+# a rank-2 tensor (4:5) with dimensions 0 and 1 swapped (1:0:2:3) into 5:4
+save_test_data('test05_00.dat', 1, 5, 4, 1, 0, 1, 3, 2)
+# a rank-1 tensor (4) keeps its data when absent dimensions 1 and 2 swap (0:2:1:3)
+save_test_data('test06_00.dat', 1, 1, 4, 1, 0, 1, 2, 3)
