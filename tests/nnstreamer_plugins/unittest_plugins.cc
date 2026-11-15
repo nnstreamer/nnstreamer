@@ -11324,6 +11324,7 @@ TEST_REQUIRE_TFLITE (testTensorTransform, negotiationFilter)
   out_size = 1001;
 
   in_buf = gst_harness_create_buffer (h, in_size);
+  gst_buffer_memset (in_buf, 0, 0, in_size);
   EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
 
   /* get output buffer */
@@ -11402,6 +11403,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite01)
   out_size = 1001;
 
   in_buf = gst_harness_create_buffer (h, in_size);
+  gst_buffer_memset (in_buf, 0, 0, in_size);
   EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
 
   /* get output buffer */
@@ -11829,6 +11831,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSetProperty)
   out_size = 1001;
 
   in_buf = gst_harness_create_buffer (h, in_size);
+  gst_buffer_memset (in_buf, 0, 0, in_size);
   EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
 
   /* get output buffer */
@@ -11846,6 +11849,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSetProperty)
 
   /* push buffer again */
   in_buf = gst_harness_create_buffer (h, in_size);
+  gst_buffer_memset (in_buf, 0, 0, in_size);
   EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
 
   /* get output buffer */
@@ -12859,7 +12863,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank01)
   gchar *str_launch_line;
   GstHarness *hrnss;
   GstElement *filter;
-  gchar *test_model;
+  g_autofree gchar *test_model = NULL;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   /* supposed to run test in build directory */
@@ -12918,7 +12922,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank02)
   gchar *str_launch_line;
   GstHarness *hrnss;
   GstElement *filter;
-  gchar *test_model;
+  g_autofree gchar *test_model = NULL;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   /* supposed to run test in build directory */
@@ -12974,7 +12978,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank03_n)
   gchar *str_launch_line;
   GstHarness *hrnss;
   GstElement *filter;
-  gchar *test_model;
+  g_autofree gchar *test_model = NULL;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
   /* supposed to run test in build directory */
@@ -13033,7 +13037,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer1_n)
   gpointer data;
   gsize data_size;
   gchar *pipeline;
-  gchar *test_model;
+  g_autofree gchar *test_model = NULL;
 
   GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
 
@@ -13104,7 +13108,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer2_n)
   gpointer data;
   gsize data_size;
   gchar *pipeline;
-  gchar *test_model;
+  g_autofree gchar *test_model = NULL;
 
   GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
 
@@ -13158,7 +13162,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
   gpointer data;
   gsize data_size;
   gchar *pipeline;
-  gchar *test_model;
+  g_autofree gchar *test_model = NULL;
   guint received;
 
   GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");

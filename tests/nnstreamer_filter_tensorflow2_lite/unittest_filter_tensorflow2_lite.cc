@@ -435,6 +435,7 @@ TEST (nnstreamerFilterTensorFlow2Lite, suspend)
   GstBuffer *buf = gst_buffer_new ();
   GstMemory *mem = gst_allocator_alloc (NULL, 3 * 224 * 224, NULL);
   gst_buffer_append_memory (buf, mem);
+  gst_buffer_memset (buf, 0, 0, 3 * 224 * 224);
 
   buf = gst_buffer_ref (buf);
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (src_handle), buf), GST_FLOW_OK);
@@ -1382,6 +1383,9 @@ _InvokeUntilStopped (reload_invoker_s *s)
         || *((float *) s->output[0].data) != 12.0f)
       s->failed++;
     s->invoked++;
+    /* without blocking now and then, this loop starves the reloading thread under valgrind */
+    if (s->invoked % 16 == 0)
+      g_usleep (10);
   }
 }
 
@@ -1479,7 +1483,7 @@ TEST_F (nnstreamerFilterTensorFlow2LiteV1, reloadUnmatchedWhileInvoking_n)
 }
 
 /**
- * @brief appsrc need-data handler pushing the add.tflite input 10.
+ * @brief appsrc need-data handler pushing the add.tflite input 10, counting the pushes in user_data.
  */
 static void
 _PushAddInput (GstAppSrc *src, guint length, gpointer user_data)
@@ -1487,10 +1491,12 @@ _PushAddInput (GstAppSrc *src, guint length, gpointer user_data)
   float value = 10.0f;
   GstBuffer *buffer = gst_buffer_new_allocate (NULL, sizeof (value), NULL);
   UNUSED (length);
-  UNUSED (user_data);
 
   gst_buffer_fill (buffer, 0, &value, sizeof (value));
   gst_app_src_push_buffer (src, buffer);
+  /* without blocking now and then, the streams starve the reloading thread under valgrind */
+  if (g_atomic_int_add ((gint *) user_data, 1) % 16 == 15)
+    g_usleep (10);
 }
 
 /**
@@ -1525,7 +1531,7 @@ TEST (nnstreamerFilterTensorFlow2Lite, sharedKeyReloadWhileStreaming)
   gsize length;
   guint count[2] = { 0U, 0U };
   guint i, last, reloaded = 0U;
-  gint wrong = 0, fd;
+  gint wrong = 0, pushed = 0, fd;
 
   ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
   ASSERT_TRUE (g_file_get_contents (model_file, &contents, &length, NULL));
@@ -1550,7 +1556,7 @@ TEST (nnstreamerFilterTensorFlow2Lite, sharedKeyReloadWhileStreaming)
     element = gst_bin_get_by_name (GST_BIN (gstpipe), name);
     ASSERT_TRUE (element != nullptr);
     g_object_set (element, "caps", caps, NULL);
-    g_signal_connect (element, "need-data", (GCallback) _PushAddInput, NULL);
+    g_signal_connect (element, "need-data", (GCallback) _PushAddInput, &pushed);
     gst_object_unref (element);
     g_free (name);
 
