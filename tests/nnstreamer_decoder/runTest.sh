@@ -118,6 +118,19 @@ gray16_width_test GRAY16_BE 162 120 10-4
 # A uint8 tensor is refused for GRAY16
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! video/x-raw, width=161, height=120, format=GRAY8 ! tensor_converter ! tensor_decoder mode=direct_video option1=GRAY16_LE ! fakesink" 10-5_n 0 1 $PERFORMANCE
 
+# A basetransform downstream: RGB rows of 642 pixels are padded from 1926 to 1928 bytes
+## videoconvert converts to BGRx and offers its own buffer pool
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw, width=642, height=4, framerate=5/1, format=RGB ! tee name=t t. ! queue ! tensor_converter ! tensor_decoder mode=direct_video ! videoconvert ! video/x-raw, format=BGRx ! filesink location=\"testcase11_dv.raw\" sync=true t. ! queue ! videoconvert ! video/x-raw, format=BGRx ! filesink location=\"testcase11_origin.raw\" sync=true" 11 0 0 $PERFORMANCE
+callCompareTest testcase11_origin.raw testcase11_dv.raw 11 "Compare for case 11" 0 0
+## videoconvert passes RGB through and offers no buffer pool
+## videotestsrc leaves its row padding unset, so only the pixels are compared
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw, width=642, height=4, framerate=5/1, format=RGB ! tee name=t t. ! queue ! tensor_converter ! tensor_decoder mode=direct_video ! videoconvert ! video/x-raw, format=RGB ! filesink location=\"testcase11-1_dv.raw\" sync=true t. ! queue ! filesink location=\"testcase11-1_origin.raw\" sync=true" 11-1 0 0 $PERFORMANCE
+python3 checkResult.py testcase11-1_origin.raw testcase11-1_dv.raw RGB 642 4
+testResult $? 11-1 "Golden Test 11-1 comparison" 0 1
+## The decoder cannot output I420 for a 3-channel tensor; the RGB twin shows the format is the only cause
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw, width=642, height=4, framerate=5/1, format=RGB ! tensor_converter ! tensor_decoder mode=direct_video ! video/x-raw, format=RGB ! fakesink" 11-2 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw, width=642, height=4, framerate=5/1, format=RGB ! tensor_converter ! tensor_decoder mode=direct_video ! video/x-raw, format=I420 ! fakesink" 11-3_n 0 1 $PERFORMANCE
+
 # Test all supported video formats of direct video
 function video_format_test() {
     gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=${1},width=640,height=480,framerate=0/1 ! filesink location=\"testcase09_${1}.golden.raw\" sync=true" "Generate golden test for ${1}" 0 0 $PERFORMANCE
