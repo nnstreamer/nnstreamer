@@ -1087,6 +1087,7 @@ static struct {
   std::atomic<int> opens; /**< number of opens */
   std::atomic<int> resumes; /**< number of RESUME calls */
   int suspend_ret; /**< return value of SUSPEND */
+  bool requires_model; /**< whether the mock requires a model path */
 } unload_mock;
 
 static const char unload_mock_name[] = "unload_mock_subplugin";
@@ -1157,7 +1158,7 @@ unload_mock_get_fw_info (const GstTensorFilterFramework *self,
   UNUSED (private_data);
   memset (info, 0, sizeof (*info));
   info->name = unload_mock_name;
-  info->run_without_model = 1;
+  info->run_without_model = !unload_mock.requires_model;
   return 0;
 }
 
@@ -1243,9 +1244,10 @@ _push_4bytes (GstElement *src)
  * @brief Push a buffer into tensor_filter with the suspend watchdog while the
  *        watchdog is unloading the sub-plugin.
  * @param suspend_ret the value SUSPEND returns (0: suspended, else: closed)
+ * @param clear_model clear the model path before the second buffer
  */
 static void
-_run_unload_race (int suspend_ret)
+_run_unload_race (int suspend_ret, bool clear_model = false)
 {
   static GstTensorFilterFramework fw;
   GstElement *pipeline, *src;
@@ -1267,12 +1269,13 @@ _run_unload_race (int suspend_ret)
   unload_mock.opens = 0;
   unload_mock.resumes = 0;
   unload_mock.suspend_ret = suspend_ret;
+  unload_mock.requires_model = clear_model;
   ASSERT_TRUE (nnstreamer_filter_probe (&fw));
 
-  pipeline = gst_parse_launch (
-      "appsrc name=src caps=other/tensors,format=static,num_tensors=1,"
-      "dimensions=(string)4,types=(string)uint8,framerate=0/1 ! "
-      "tensor_filter framework=unload_mock_subplugin suspend=50 ! fakesink async=false",
+  pipeline = gst_parse_launch ("appsrc name=src caps=other/tensors,format=static,num_tensors=1,"
+                               "dimensions=(string)4,types=(string)uint8,framerate=0/1 ! "
+                               "tensor_filter name=filter framework=unload_mock_subplugin model=first.model "
+                               "suspend=50 ! fakesink async=false",
       NULL);
   src = pipeline ? gst_bin_get_by_name (GST_BIN (pipeline), "src") : nullptr;
   if (!src) {
@@ -1289,8 +1292,27 @@ _run_unload_race (int suspend_ret)
   /* The watchdog unloads 50 ms after the invoke; push while it is unloading. */
   entered = unload_mock.unload_entered.load ();
   EXPECT_TRUE (_wait_counter (unload_mock.unload_entered, entered + 1));
+  if (clear_model) {
+    g_autoptr (GstElement) filter = gst_bin_get_by_name (GST_BIN (pipeline), "filter");
+    g_autofree gchar *model = NULL;
+    g_object_set (filter, "model", "", NULL);
+    g_object_get (filter, "model", &model, NULL);
+    EXPECT_TRUE (model == NULL || *model == '\0');
+  }
   EXPECT_EQ (_push_4bytes (src), GST_FLOW_OK);
-  EXPECT_TRUE (_wait_counter (unload_mock.invokes, 2));
+  if (clear_model) {
+    g_autoptr (GstBus) bus = gst_element_get_bus (pipeline);
+    g_autoptr (GstMessage) message
+        = gst_bus_timed_pop_filtered (bus, 5 * GST_SECOND, GST_MESSAGE_ERROR);
+    EXPECT_NE (message, nullptr);
+    if (message) {
+      g_autoptr (GError) error = NULL;
+      gst_message_parse_error (message, &error, NULL);
+      EXPECT_NE (strstr (error->message, "requires a model file"), nullptr);
+    }
+  } else {
+    EXPECT_TRUE (_wait_counter (unload_mock.invokes, 2));
+  }
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   gst_object_unref (src);
@@ -1298,7 +1320,13 @@ _run_unload_race (int suspend_ret)
   nnstreamer_filter_exit (unload_mock_name);
 
   EXPECT_EQ (unload_mock.overlaps.load (), 0);
-  EXPECT_EQ (unload_mock.invokes.load (), 2);
+  EXPECT_EQ (unload_mock.invokes.load (), clear_model ? 1 : 2);
+}
+
+/** @brief A suspended model-required filter rejects input after its path is cleared. */
+TEST (testFilterSuspendWatchdog, clearedModelWhileSuspended_n)
+{
+  _run_unload_race (0, true);
 }
 
 /**
