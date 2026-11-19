@@ -1227,6 +1227,74 @@ _wait_counter (std::atomic<int> &counter, int value)
 }
 
 /**
+ * @brief A V1 C callback receives the old properties and the proposed model.
+ *        On rejection the element keeps the last successfully loaded model.
+ */
+TEST (testFilterV1Reload, oldPropertiesAndRejectedUpdate)
+{
+  static const char name[] = "reload_event_v1_mock";
+  static guint reloads;
+  GstTensorFilterFramework fw = {};
+  g_autoptr (GstElement) filter = gst_element_factory_make ("tensor_filter", NULL);
+  g_autofree gchar *model = NULL;
+
+  ASSERT_NE (filter, nullptr);
+  reloads = 0;
+  fw.version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+  fw.open = unload_mock_open;
+  fw.close = [] (const GstTensorFilterProperties *, void **data) {
+    g_clear_pointer (data, g_free);
+  };
+  fw.invoke = unload_mock_invoke;
+  fw.getModelInfo = unload_mock_get_model_info;
+  fw.getFrameworkInfo = [] (const GstTensorFilterFramework *self,
+                            const GstTensorFilterProperties *prop, void *data,
+                            GstTensorFilterFrameworkInfo *info) {
+    unload_mock_get_fw_info (self, prop, data, info);
+    info->name = name;
+    return 0;
+  };
+  fw.eventHandler = [] (const GstTensorFilterFramework *,
+                        const GstTensorFilterProperties *prop, void *private_data,
+                        event_ops op, GstTensorFilterFrameworkEventData *data) {
+    if (op != RELOAD_MODEL)
+      return -ENOENT;
+    if (!data)
+      return 0; /* Capability probe. */
+
+    ++reloads;
+    EXPECT_NE (private_data, nullptr);
+    EXPECT_EQ (prop->num_models, 1);
+    EXPECT_EQ (data->num_models, 1);
+    if (prop->num_models != 1 || data->num_models != 1)
+      return -EINVAL;
+    EXPECT_STREQ (prop->model_files[0], reloads == 1 ? "first.model" : "second.model");
+    EXPECT_STREQ (data->model_files[0], reloads == 1 ? "second.model" : "rejected.model");
+    return reloads == 1 ? 0 : -EINVAL;
+  };
+  ASSERT_TRUE (nnstreamer_filter_probe (&fw));
+
+  g_object_set (filter, "framework", name, "model", "first.model",
+      "is-updatable", TRUE, NULL);
+  if (GST_STATE_CHANGE_SUCCESS == gst_element_set_state (filter, GST_STATE_PAUSED)) {
+    g_object_set (filter, "model", "second.model", NULL);
+    g_object_get (filter, "model", &model, NULL);
+    EXPECT_STREQ (model, "second.model");
+    g_clear_pointer (&model, g_free);
+
+    g_object_set (filter, "model", "rejected.model", NULL);
+    g_object_get (filter, "model", &model, NULL);
+    EXPECT_STREQ (model, "second.model");
+    EXPECT_EQ (reloads, 2U);
+  } else {
+    ADD_FAILURE () << "The V1 filter did not open.";
+  }
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  g_clear_object (&filter);
+  nnstreamer_filter_exit (name);
+}
+
+/**
  * @brief Push a 4-byte buffer to appsrc.
  */
 static GstFlowReturn
