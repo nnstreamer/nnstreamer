@@ -1308,7 +1308,10 @@ _run_unload_race (int suspend_ret, bool clear_model = false)
     if (message) {
       g_autoptr (GError) error = NULL;
       gst_message_parse_error (message, &error, NULL);
-      EXPECT_NE (strstr (error->message, "requires a model file"), nullptr);
+      if (suspend_ret == 0)
+        EXPECT_NE (strstr (error->message, "requires a model file"), nullptr);
+      else
+        EXPECT_TRUE (g_error_matches (error, GST_STREAM_ERROR, GST_STREAM_ERROR_FAILED));
     }
   } else {
     EXPECT_TRUE (_wait_counter (unload_mock.invokes, 2));
@@ -1327,6 +1330,15 @@ _run_unload_race (int suspend_ret, bool clear_model = false)
 TEST (testFilterSuspendWatchdog, clearedModelWhileSuspended_n)
 {
   _run_unload_race (0, true);
+}
+
+/** @brief The watchdog closes the filter and a missing model prevents reopening. */
+TEST (testFilterSuspendWatchdog, clearedModelWhileClosed_n)
+{
+  _run_unload_race (-ENOENT, true);
+
+  EXPECT_EQ (unload_mock.opens.load (), 1);
+  EXPECT_EQ (unload_mock.resumes.load (), 0);
 }
 
 /**
