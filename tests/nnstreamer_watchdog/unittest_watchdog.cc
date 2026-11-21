@@ -25,8 +25,14 @@
  * The watchdog handle is opaque, so the tests steer its worker into a given
  * interleaving by interposing the GLib calls libnnstreamer makes. On ELF the
  * executable's definitions below take precedence over libglib's; each wrapper
- * counts its calls, and a test that needs one skips itself when bypassed.
+ * counts its calls. A test whose wrapper was bypassed fails on ELF, where the
+ * wrappers are known to work, and skips itself elsewhere.
  */
+#if defined(__ELF__)
+#define HOOK_BYPASSED() FAIL ()
+#else
+#define HOOK_BYPASSED() GTEST_SKIP ()
+#endif
 static std::atomic<bool> hook_loop_run_delay{ false };
 static std::atomic<bool> hook_loop_run_entered{ false };
 static std::atomic<bool> hook_thread_new_fail{ false };
@@ -452,7 +458,7 @@ TEST (NnstWatchdog, createLoopAlreadyRunning)
 
   if (hook_thread_new_calls.load () == 0 || hook_cond_signal_calls.load () == 0
       || hook_mutex_calls.load () == 0) {
-    GTEST_SKIP () << "GLib calls from libnnstreamer are not interposable here.";
+    HOOK_BYPASSED () << "GLib calls from libnnstreamer are not interposable here.";
   }
 
   EXPECT_TRUE (hook_loop_run_entered.load ());
@@ -502,7 +508,7 @@ TEST (NnstWatchdog, createTimeout_n)
   hook_loop_run_delay = false;
 
   if (hook_loop_run_calls.load () == 0) {
-    GTEST_SKIP () << "GLib calls from libnnstreamer are not interposable here.";
+    HOOK_BYPASSED () << "GLib calls from libnnstreamer are not interposable here.";
   }
 
   EXPECT_EQ (FALSE, res->created);
@@ -550,7 +556,7 @@ TEST (NnstWatchdog, createThreadFail_n)
   hook_thread_new_fail = false;
 
   if (hook_thread_new_calls.load () == 0) {
-    GTEST_SKIP () << "GLib calls from libnnstreamer are not interposable here.";
+    HOOK_BYPASSED () << "GLib calls from libnnstreamer are not interposable here.";
   }
 
   EXPECT_EQ (FALSE, ret);
@@ -635,7 +641,7 @@ TEST (NnstWatchdog, releaseDuringDispatch_n)
 
   hook_dispatch_lock_delay = true;
   ASSERT_EQ (TRUE, nnstreamer_watchdog_feed (watchdog_h, _watchdog_trigger, 10, &received));
-  for (i = 0; i < 1000 && !hook_dispatch_lock_paused.load (); i++)
+  for (i = 0; i < 5000 && !hook_dispatch_lock_paused.load (); i++)
     g_usleep (1000);
   paused = hook_dispatch_lock_paused.load ();
 
@@ -645,7 +651,7 @@ TEST (NnstWatchdog, releaseDuringDispatch_n)
   hook_dispatch_lock_delay = false;
 
   if (!paused) {
-    GTEST_SKIP () << "The dispatch did not lock from libnnstreamer.";
+    HOOK_BYPASSED () << "The dispatch did not lock from libnnstreamer.";
   }
 
   EXPECT_EQ (0U, received);
@@ -747,7 +753,7 @@ TEST (NnstWatchdog, feedWaitsRunningCallback)
   EXPECT_EQ (10U, received);
 
   if (attached == 0) {
-    GTEST_SKIP () << "GLib calls from libnnstreamer are not interposable here.";
+    HOOK_BYPASSED () << "GLib calls from libnnstreamer are not interposable here.";
   }
 
   EXPECT_EQ (2U, attached);
@@ -798,7 +804,7 @@ TEST (NnstWatchdog, releaseInCallback_n)
   _hook_track_stop ();
   if (hook_mutex_calls.load () == 0) {
     nnstreamer_watchdog_destroy (watchdog_h);
-    GTEST_SKIP () << "GLib calls from libnnstreamer are not interposable here.";
+    HOOK_BYPASSED () << "GLib calls from libnnstreamer are not interposable here.";
   }
 
   state.handle = watchdog_h;
