@@ -35,12 +35,17 @@ jobs:
         else
           gst_android_ver=1.24.13
           gst_android_pkg=gstreamer-1.0-android-universal-${gst_android_ver}.tar.xz
+          gst_android_sha256=f420ab69f252e01dcf1b447d128b36ddeddf02ddc7e9e8104ddcfb830dd395b7
           echo "::group::Download prebuilt Android-GStreamer-${gst_android_ver} libraries"
           mkdir -p ~/android/gst_root_android/
           pushd ~/android/gst_root_android/
-          wget -q https://gstreamer.freedesktop.org/data/pkg/android/${gst_android_ver}/${gst_android_pkg}
-          tar -xf ${gst_android_pkg}
-          rm ${gst_android_pkg}
+          wget --no-verbose --server-response --tries=4 \
+            --retry-on-http-error=429,500,502,503,504 --waitretry=5 --timeout=60 \
+            --output-document="${gst_android_pkg}.part" \
+            "https://gstreamer.freedesktop.org/data/pkg/android/${gst_android_ver}/${gst_android_pkg}"
+          printf '%s  %s\n' "${gst_android_sha256}" "${gst_android_pkg}.part" | sha256sum --check -
+          tar -xf "${gst_android_pkg}.part"
+          rm "${gst_android_pkg}.part"
           popd
           echo "::endgroup::"
         fi
