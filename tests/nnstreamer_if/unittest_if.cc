@@ -8,6 +8,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <errno.h>
 #include <glib.h>
 #include <glib/gstdio.h>
@@ -15,6 +16,7 @@
 #include <gst/gst.h>
 #include <tensor_common.h>
 #include <unittest_util.h>
+#include <vector>
 #include "../gst/nnstreamer/elements/gsttensor_if.h"
 
 #define TEST_TIMEOUT_MS (20000U)
@@ -3277,6 +3279,254 @@ INSTANTIATE_TEST_SUITE_P (NamedTensors, TensorIfPickNamedTest,
     ::testing::Combine (
         ::testing::Bool (), ::testing::Values (1U, NNS_TENSOR_MEMORY_MAX + 1U)));
 
+
+/**
+ * @brief Serialized events and buffers delivered to one conditional branch.
+ */
+struct IfStreamEvents {
+  std::vector<GstEventType> order;
+  GstEvent *start = NULL;
+  GstEvent *caps = NULL;
+  GstEvent *segment = NULL;
+  guint buffers = 0;
+};
+
+/**
+ * @brief Keep the latest sticky event without supplying events from the test.
+ */
+static gboolean
+_record_if_event (GstPad *pad, GstObject *, GstEvent *event)
+{
+  auto *trace = static_cast<IfStreamEvents *> (gst_pad_get_element_private (pad));
+  GstEvent **slot = NULL;
+
+  trace->order.push_back (GST_EVENT_TYPE (event));
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_STREAM_START:
+      slot = &trace->start;
+      break;
+    case GST_EVENT_CAPS:
+      slot = &trace->caps;
+      break;
+    case GST_EVENT_SEGMENT:
+      slot = &trace->segment;
+      break;
+    default:
+      break;
+  }
+  if (slot) {
+    if (*slot)
+      gst_event_unref (*slot);
+    *slot = gst_event_ref (event);
+  }
+  gst_event_unref (event);
+  return TRUE;
+}
+
+/**
+ * @brief Consume a buffer on a real peer pad after checking its preamble.
+ */
+static GstFlowReturn
+_record_if_stream_buffer (GstPad *pad, GstObject *, GstBuffer *buffer)
+{
+  auto *trace = static_cast<IfStreamEvents *> (gst_pad_get_element_private (pad));
+  EXPECT_NE (trace->start, nullptr);
+  EXPECT_NE (trace->caps, nullptr);
+  EXPECT_NE (trace->segment, nullptr);
+  trace->buffers++;
+  gst_buffer_unref (buffer);
+  return GST_FLOW_OK;
+}
+
+/**
+ * @brief Exercise lazy event initialization for both actions and segment formats.
+ */
+class TensorIfStreamEventsTest : public ::testing::TestWithParam<std::tuple<bool, GstFormat>>
+{
+  protected:
+  GstElement *element = NULL;
+  GstPad *input = NULL;
+  GstPad *peers[2] = { NULL, NULL };
+  IfStreamEvents traces[2];
+  GstSegment segment;
+
+  /**
+   * @brief Link an event-recording peer without synthesizing a stream start.
+   */
+  static void PadAdded (GstElement *, GstPad *pad, gpointer data)
+  {
+    auto *self = static_cast<TensorIfStreamEventsTest *> (data);
+    guint branch = g_str_has_suffix (GST_PAD_NAME (pad), "0") ? 0 : 1;
+    GstPad *peer = gst_pad_new (NULL, GST_PAD_SINK);
+    self->peers[branch] = peer;
+    gst_pad_set_element_private (peer, &self->traces[branch]);
+    gst_pad_set_event_function (peer, _record_if_event);
+    gst_pad_set_chain_function (peer, _record_if_stream_buffer);
+    ASSERT_TRUE (gst_pad_set_active (peer, TRUE));
+    ASSERT_EQ (gst_pad_link (pad, peer), GST_PAD_LINK_OK);
+  }
+
+  /**
+   * @brief Send a non-default upstream stream and segment before either output.
+   */
+  void SetUp () override
+  {
+    input = _start_tensor_if (&element);
+    ASSERT_NE (input, nullptr);
+    bool pick = std::get<0> (GetParam ());
+    g_object_set (element, "supplied-value", "1", "then",
+        pick ? TIFB_TENSORPICK : TIFB_PASSTHROUGH, "then-option", "1", "else",
+        pick ? TIFB_TENSORPICK : TIFB_PASSTHROUGH, "else-option", "0", NULL);
+    g_signal_connect (element, "pad-added", G_CALLBACK (PadAdded), this);
+
+    GstEvent *event = gst_event_new_stream_start ("conditional-upstream");
+    gst_event_set_group_id (event, 1234);
+    gst_event_set_seqnum (event, 42);
+    ASSERT_TRUE (gst_pad_send_event (input, event));
+    GstCaps *caps = caps_with_tensors (2, 2);
+    ASSERT_TRUE (gst_pad_send_event (input, gst_event_new_caps (caps)));
+    gst_caps_unref (caps);
+
+    gst_segment_init (&segment, std::get<1> (GetParam ()));
+    guint64 unit = segment.format == GST_FORMAT_TIME ? GST_SECOND : 1;
+    segment.start = 5 * unit;
+    segment.stop = 50 * unit;
+    segment.position = segment.start;
+    segment.time = 3 * unit;
+    segment.base = 7 * GST_SECOND;
+    segment.offset = unit;
+    segment.rate = 0.5;
+    segment.applied_rate = 2.0;
+    SendSegment (99);
+  }
+
+  /**
+   * @brief Release peers and retained events after the element stops streaming.
+   */
+  void TearDown () override
+  {
+    if (element)
+      gst_element_set_state (element, GST_STATE_NULL);
+    for (guint i = 0; i < 2; i++) {
+      if (peers[i]) {
+        gst_pad_set_active (peers[i], FALSE);
+        gst_object_unref (peers[i]);
+      }
+      for (GstEvent *event : { traces[i].start, traces[i].caps, traces[i].segment }) {
+        if (event)
+          gst_event_unref (event);
+      }
+    }
+    if (input)
+      gst_object_unref (input);
+    if (element)
+      gst_object_unref (element);
+  }
+
+  /**
+   * @brief Update the input segment with a recognizable sequence number.
+   */
+  void SendSegment (guint32 seqnum)
+  {
+    GstEvent *event = gst_event_new_segment (&segment);
+    gst_event_set_seqnum (event, seqnum);
+    ASSERT_TRUE (gst_pad_send_event (input, event));
+  }
+
+  /**
+   * @brief Select then or else through an actual input buffer.
+   */
+  void Push (guint8 value)
+  {
+    GstBuffer *buffer
+        = _buffer_with_tensors (&GST_TENSOR_IF (element)->in_config.info);
+    GstMemory *memory = gst_tensor_buffer_get_nth_memory (buffer, 0);
+    GstMapInfo map;
+    ASSERT_TRUE (gst_memory_map (memory, &map, GST_MAP_WRITE));
+    map.data[0] = value;
+    gst_memory_unmap (memory, &map);
+    gst_memory_unref (memory);
+    EXPECT_EQ (gst_pad_chain (input, buffer), GST_FLOW_OK);
+  }
+
+  /**
+   * @brief Compare every segment field and its upstream sequence number.
+   */
+  void ExpectSegment (guint branch, guint32 seqnum)
+  {
+    ASSERT_NE (traces[branch].segment, nullptr);
+    const GstSegment *actual = NULL;
+    gst_event_parse_segment (traces[branch].segment, &actual);
+    EXPECT_TRUE (gst_segment_is_equal (&segment, actual));
+    EXPECT_EQ (gst_event_get_seqnum (traces[branch].segment), seqnum);
+  }
+};
+
+/**
+ * @brief A late branch inherits the current stream and segment, with output caps.
+ */
+TEST_P (TensorIfStreamEventsTest, startsEachBranchWithUpstreamEvents)
+{
+  Push (2);
+  segment.start += 2;
+  segment.position = segment.start;
+  SendSegment (101);
+  Push (0);
+
+  for (guint branch = 0; branch < 2; branch++) {
+    auto &trace = traces[branch];
+    ASSERT_NE (trace.start, nullptr);
+    const gchar *stream_id = NULL;
+    guint group_id = 0;
+    gst_event_parse_stream_start (trace.start, &stream_id);
+    EXPECT_STREQ (stream_id, "conditional-upstream");
+    EXPECT_TRUE (gst_event_parse_group_id (trace.start, &group_id));
+    EXPECT_EQ (group_id, 1234U);
+    EXPECT_EQ (gst_event_get_seqnum (trace.start), 42U);
+    ASSERT_GE (trace.order.size (), 3U);
+    EXPECT_EQ (trace.order[0], GST_EVENT_STREAM_START);
+    EXPECT_EQ (trace.order[1], GST_EVENT_CAPS);
+    EXPECT_EQ (trace.order[2], GST_EVENT_SEGMENT);
+    EXPECT_EQ (trace.buffers, 1U);
+    ExpectSegment (branch, 101);
+
+    GstCaps *caps = NULL;
+    GstTensorsConfig config;
+    gst_tensors_config_init (&config);
+    gst_event_parse_caps (trace.caps, &caps);
+    EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, TRUE));
+    EXPECT_EQ (config.info.num_tensors, std::get<0> (GetParam ()) ? 1U : 2U);
+    gst_tensors_config_free (&config);
+  }
+}
+
+/**
+ * @brief SKIP creates no stream and repeated buffers do not reset an active pad.
+ */
+TEST_P (TensorIfStreamEventsTest, skipDoesNotCreateOrRestartStream_n)
+{
+  g_object_set (element, "else", TIFB_SKIP, NULL);
+  Push (2);
+  segment.start += 2;
+  segment.position = segment.start;
+  SendSegment (101);
+  Push (0);
+  Push (2);
+
+  EXPECT_EQ (peers[1], nullptr);
+  EXPECT_EQ (traces[1].buffers, 0U);
+  EXPECT_TRUE (traces[1].order.empty ());
+  EXPECT_EQ (traces[0].buffers, 2U);
+  EXPECT_EQ (std::count (traces[0].order.begin (), traces[0].order.end (), GST_EVENT_STREAM_START),
+      1);
+  EXPECT_EQ (std::count (traces[0].order.begin (), traces[0].order.end (), GST_EVENT_CAPS), 1);
+  EXPECT_EQ (std::count (traces[0].order.begin (), traces[0].order.end (), GST_EVENT_SEGMENT), 2);
+  ExpectSegment (0, 101);
+}
+
+INSTANTIATE_TEST_SUITE_P (ConditionalStream, TensorIfStreamEventsTest,
+    ::testing::Combine (::testing::Bool (),
+        ::testing::Values (GST_FORMAT_TIME, GST_FORMAT_BYTES)));
 /**
  * @brief Main GTest
  */
