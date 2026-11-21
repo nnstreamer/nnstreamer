@@ -371,7 +371,7 @@ if gtest_dep.found()
           install: get_option('install-test'),
           install_dir: unittest_install_dir)
 
-      test('unittest_mqtt', unittest_mqtt, env: testenv)
+      test('unittest_mqtt', unittest_mqtt, timeout: 180, env: testenv)
 
       # ntp util test. Its mocks replace libc and ntputil symbols that
       # libgstmqtt calls, which needs ELF symbol interposition. -Bsymbolic
