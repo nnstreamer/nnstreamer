@@ -80,8 +80,12 @@ jobs:
         s3_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
         s3_key: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
 
+    # A failure to publish the coverage must not skip the builds below.
+    # The last step fails the job afterwards, so it stays visible.
     - if: matrix.gbs_build_arch == 'x86_64' && steps.gbs-build.outcome == 'success'
       name: extract test coverage result
+      id: coverage-extract
+      continue-on-error: true
       run: |
         pip install pybadges beautifulsoup4 setuptools
         mkdir -p ~/testresult/
@@ -91,8 +95,10 @@ jobs:
         popd
         python3 .github/workflows/gen_coverage_badge.py ~/testresult/usr/share/nnstreamer/unittest/result/index.html ~/testresult/usr/share/nnstreamer/unittest/result/coverage_badge.svg
 
-    - if: matrix.gbs_build_arch == 'x86_64' && steps.gbs-build.outcome == 'success'
+    - if: steps.coverage-extract.outcome == 'success'
       name: update test coverage result to github.io
+      id: coverage-push
+      continue-on-error: true
       uses: ./.github/actions/gitpush
       with:
         source: ~/testresult/usr/share/nnstreamer/unittest/result/*
@@ -138,6 +144,12 @@ jobs:
         pushd mlops-agent
         gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }}
         popd
+
+    - if: ${{ !cancelled() && (steps.coverage-extract.outcome == 'failure' || steps.coverage-push.outcome == 'failure') }}
+      name: fail if the test coverage result was not published
+      run: |
+        echo "::error::Publishing the test coverage result failed (extract: ${{ steps.coverage-extract.outcome }}, push: ${{ steps.coverage-push.outcome }})."
+        exit 1
 
   print_result:
     runs-on: ubuntu-24.04
