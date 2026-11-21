@@ -138,6 +138,7 @@ executorch_subplugin::cleanup ()
   input_tensors.clear ();
   output_tensors.clear ();
   output_nbytes.clear ();
+  module.reset ();
 
   configured = false;
 }
@@ -185,6 +186,8 @@ executorch_subplugin::convertType (ScalarType type)
 void
 executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
+  cleanup ();
+
   try {
     /* Load network (.pte file) */
     if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
