@@ -12,6 +12,7 @@
 #include <glib/gstdio.h>
 #include <gmodule.h>
 #include <gst/app/gstappsrc.h>
+#include <gst/check/gstharness.h>
 #include <gst/gst.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8166,6 +8167,209 @@ TEST (tensorFilterCustomEasy, subpluginUnregister)
 
   init_filter_custom_easy ();
   EXPECT_TRUE (nnstreamer_filter_find ("custom-easy") == fw);
+}
+
+#define CUSTOM_EASY_EXIT_MODEL "custom_easy_exit_model"
+#define CUSTOM_EASY_EXIT_CAPS \
+  "other/tensors,num_tensors=1,format=static,dimensions=(string)1:10:1:1,types=(string)uint8,framerate=(fraction)0/1"
+
+/**
+ * @brief Count the critical logs given to the default log handler.
+ */
+static void
+_custom_easy_count_critical (
+    const gchar *, GLogLevelFlags log_level, const gchar *, gpointer user_data)
+{
+  if (log_level & G_LOG_LEVEL_CRITICAL)
+    g_atomic_int_inc ((gint *) user_data);
+}
+
+/**
+ * @brief Fixture that registers a custom-easy model for a test that exits the
+ *        custom-easy sub-plugin, and restores the model and the sub-plugin.
+ */
+class tensorFilterCustomEasyExit : public ::testing::Test
+{
+  protected:
+  const GstTensorFilterFramework *fw = NULL;
+  gboolean model_registered = FALSE;
+  gint critical_count = 0;
+  gboolean counting = FALSE;
+  GLogFunc old_handler = NULL;
+  GLogLevelFlags old_fatal = (GLogLevelFlags) 0;
+
+  /**
+   * @brief Register the model the test opens.
+   */
+  void SetUp () override
+  {
+    GstTensorsInfo info;
+
+    fw = nnstreamer_filter_find ("custom-easy");
+    ASSERT_TRUE (fw != NULL);
+
+    gst_tensors_info_init (&info);
+    info.num_tensors = 1U;
+    info.info[0].type = _NNS_UINT8;
+    gst_tensor_parse_dimension ("1:10:1:1", info.info[0].dimension);
+    model_registered = (NNS_custom_easy_register (CUSTOM_EASY_EXIT_MODEL,
+                            cef_func_safe_memcpy, NULL, &info, &info)
+                        == 0);
+    gst_tensors_info_free (&info);
+    ASSERT_TRUE (model_registered);
+  }
+
+  /**
+   * @brief Restore the log handler, unregister the model and register the sub-plugin again.
+   */
+  void TearDown () override
+  {
+    stopCountingCritical ();
+
+    if (model_registered) {
+      EXPECT_EQ (NNS_custom_easy_unregister (CUSTOM_EASY_EXIT_MODEL), 0);
+    }
+
+    if (nnstreamer_filter_find ("custom-easy") == NULL)
+      init_filter_custom_easy ();
+    EXPECT_TRUE (nnstreamer_filter_find ("custom-easy") == fw);
+  }
+
+  /**
+   * @brief Count the critical logs from now on, after checking that the handler sees them.
+   */
+  void startCountingCritical ()
+  {
+    /* the default domain of nnstreamer and the GLib domains */
+    const gchar *domains[] = { NULL, "GLib", "GLib-GObject" };
+    guint i;
+
+    old_fatal = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+    old_handler = g_log_set_default_handler (_custom_easy_count_critical, &critical_count);
+    counting = TRUE;
+
+    for (i = 0; i < G_N_ELEMENTS (domains); i++) {
+      g_log (domains[i], G_LOG_LEVEL_CRITICAL, "[probe] custom-easy test log handler self-check");
+      EXPECT_EQ (g_atomic_int_get (&critical_count), 1)
+          << "the default handler misses the domain "
+          << (domains[i] ? domains[i] : "(default)");
+      g_atomic_int_set (&critical_count, 0);
+    }
+  }
+
+  /**
+   * @brief Stop counting the critical logs.
+   */
+  void stopCountingCritical ()
+  {
+    if (counting) {
+      g_log_set_default_handler (old_handler, NULL);
+      g_log_set_always_fatal (old_fatal);
+      counting = FALSE;
+    }
+  }
+};
+
+/**
+ * @brief Push a buffer of 10 bytes, starting from the given value, and check that the model copied it.
+ */
+static void
+_custom_easy_exit_push_and_check (GstHarness *h, guint8 first)
+{
+  GstBuffer *in_buf, *out_buf;
+  GstMapInfo map;
+  guint8 pattern[10];
+  guint i;
+
+  for (i = 0; i < 10U; i++)
+    pattern[i] = (guint8) (first + i);
+
+  in_buf = gst_buffer_new_allocate (NULL, sizeof (pattern), NULL);
+  gst_buffer_fill (in_buf, 0, pattern, sizeof (pattern));
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_try_pull (h);
+  EXPECT_TRUE (out_buf != NULL);
+  if (!out_buf)
+    return;
+
+  if (gst_buffer_map (out_buf, &map, GST_MAP_READ)) {
+    EXPECT_EQ (map.size, sizeof (pattern));
+    if (map.size == sizeof (pattern)) {
+      EXPECT_EQ (memcmp (map.data, pattern, sizeof (pattern)), 0);
+    }
+    gst_buffer_unmap (out_buf, &map);
+  } else {
+    ADD_FAILURE () << "cannot map the output buffer";
+  }
+  gst_buffer_unref (out_buf);
+}
+
+/**
+ * @brief A filter opened before the custom-easy sub-plugin exits keeps invoking
+ *        its model, and its close releases the model without a critical.
+ */
+TEST_F (tensorFilterCustomEasyExit, openedFilterKeepsModel)
+{
+  GstElement *filter;
+  GstHarness *h;
+  gchar *fw_name = NULL;
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  gst_object_ref_sink (filter);
+  g_object_set (filter, "framework", "custom-easy", "model", CUSTOM_EASY_EXIT_MODEL, NULL);
+  g_object_get (filter, "framework", &fw_name, NULL);
+  EXPECT_STREQ (fw_name, "custom-easy");
+  g_free (fw_name);
+
+  h = gst_harness_new_with_element (filter, "sink", "src");
+  gst_object_unref (filter);
+  ASSERT_TRUE (h != NULL);
+
+  gst_harness_set_src_caps_str (h, CUSTOM_EASY_EXIT_CAPS);
+  _custom_easy_exit_push_and_check (h, 0);
+
+  startCountingCritical ();
+
+  fini_filter_custom_easy ();
+  EXPECT_TRUE (nnstreamer_filter_find ("custom-easy") == NULL);
+  _custom_easy_exit_push_and_check (h, 10);
+
+  /* the opened filter holds the last reference of the model */
+  EXPECT_EQ (NNS_custom_easy_unregister (CUSTOM_EASY_EXIT_MODEL), 0);
+  model_registered = FALSE;
+  _custom_easy_exit_push_and_check (h, 20);
+
+  gst_harness_teardown (h);
+
+  stopCountingCritical ();
+  EXPECT_EQ (g_atomic_int_get (&critical_count), 0);
+}
+
+/**
+ * @brief After the custom-easy sub-plugin exits, a new filter does not find it
+ *        for a model registered before the exit, and cannot start.
+ */
+TEST_F (tensorFilterCustomEasyExit, newFilterAfterExit_n)
+{
+  GstElement *filter;
+  gchar *fw_name = NULL;
+
+  fini_filter_custom_easy ();
+  EXPECT_TRUE (nnstreamer_filter_find ("custom-easy") == NULL);
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  gst_object_ref_sink (filter);
+  g_object_set (filter, "framework", "custom-easy", "model", CUSTOM_EASY_EXIT_MODEL, NULL);
+  g_object_get (filter, "framework", &fw_name, NULL);
+  EXPECT_STREQ (fw_name, "");
+  g_free (fw_name);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
 }
 
 static int data_received = 0;
