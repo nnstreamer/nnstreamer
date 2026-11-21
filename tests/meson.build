@@ -895,6 +895,7 @@ if get_option('install-test')
   install_subdir('nnstreamer_merge', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_decoder', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_decoder_boundingbox', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_decoder_image_segment', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_decoder_pose', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_decoder_tensor_region', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_demux', install_dir: unittest_install_dir)
@@ -905,7 +906,6 @@ if get_option('install-test')
   endif
   if tflite2_support_is_available
     install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_install_dir)
-    install_subdir('nnstreamer_decoder_image_segment', install_dir: unittest_install_dir)
     install_subdir('nnstreamer_filter_reload', install_dir: unittest_install_dir)
     install_subdir('nnstreamer_filter_tensorflow2_lite', install_dir: unittest_install_dir)
   endif
