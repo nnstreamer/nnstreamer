@@ -1442,6 +1442,112 @@ TEST (edgeSinkSrc, maxBuffersDropsOldest_n)
 }
 
 /**
+ * @brief edgesink with connect-type HYBRID fails to start without a broker and keeps no handle.
+ */
+TEST (edgeSink, hybridWithoutBroker_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GstElement *sink;
+  GstState state;
+  int i;
+
+  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! "
+                              "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+                              "tensor_converter ! edgesink name=sinkx port=0 connect-type=HYBRID "
+                              "dest-host=127.0.0.1 dest-port=%u topic=hybridTopic",
+      get_available_port ());
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+  sink = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  ASSERT_NE (sink, nullptr);
+
+  /* Starting again after the failure must fail the same way. */
+  for (i = 0; i < 2; i++) {
+    EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+    /* GstBaseSink calls start() on NULL to READY. */
+    gst_element_get_state (sink, &state, nullptr, 0);
+    EXPECT_EQ (state, GST_STATE_NULL);
+    EXPECT_EQ (GST_EDGESINK_CAST (sink)->edge_h, (nns_edge_h) NULL);
+
+    EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  }
+
+  gst_object_unref (sink);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief edgesink with connect-type TCP does not use dest-port, so the pipeline of hybridWithoutBroker_n runs.
+ */
+TEST (edgeSink, tcpIgnoresDestPort)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GstElement *sink;
+
+  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! "
+                              "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+                              "tensor_converter ! edgesink name=sinkx port=0 connect-type=TCP "
+                              "dest-host=127.0.0.1 dest-port=%u topic=hybridTopic",
+      get_available_port ());
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+  sink = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  ASSERT_NE (sink, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (GST_EDGESINK_CAST (sink)->edge_h, (nns_edge_h) NULL);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (GST_EDGESINK_CAST (sink)->edge_h, (nns_edge_h) NULL);
+
+  gst_object_unref (sink);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief edgesrc with connect-type HYBRID fails to start without a broker and keeps no handle.
+ */
+TEST (edgeSrc, hybridWithoutBroker_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GstElement *src;
+  GstState state;
+  int i;
+
+  pipeline = g_strdup_printf ("edgesrc name=srcx connect-type=HYBRID dest-host=127.0.0.1 "
+                              "dest-port=%u topic=hybridTopic ! "
+                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "tensor_sink",
+      get_available_port ());
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+  src = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+  ASSERT_NE (src, nullptr);
+
+  /* Starting again after the failure must fail the same way. */
+  for (i = 0; i < 2; i++) {
+    EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+    /* GstBaseSrc calls start() on READY to PAUSED. */
+    gst_element_get_state (src, &state, nullptr, 0);
+    EXPECT_EQ (state, GST_STATE_READY);
+    EXPECT_EQ (GST_EDGESRC_CAST (src)->edge_h, (nns_edge_h) NULL);
+
+    EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  }
+
+  gst_object_unref (src);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
  * @brief Main GTest
  */
 int
