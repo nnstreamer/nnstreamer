@@ -1936,6 +1936,7 @@ _push_tensor_of_size (GstHarness *h, gsize size)
 typedef struct {
   GstElement *element; /**< tensor_transform to be changed */
   gint stop; /**< set to stop the thread */
+  gint started; /**< set once the thread changed the properties */
   guint changes; /**< number of times the properties were changed */
 } transform_prop_changer_s;
 
@@ -1956,6 +1957,7 @@ _toggle_transform_props (gpointer user_data)
     g_free (option);
 
     data->changes++;
+    g_atomic_int_set (&data->started, 1);
     g_thread_yield ();
   }
 
@@ -1996,8 +1998,13 @@ TEST (testTensorTransform, optionChangeFromAnotherThread)
 
   data.element = h->element;
   data.stop = 0;
+  data.started = 0;
   data.changes = 0;
   thread = g_thread_new ("transform-props", _toggle_transform_props, &data);
+
+  /* The thread may not be scheduled before the last buffer, wait for it. */
+  for (i = 0; i < 10000U && !g_atomic_int_get (&data.started); i++)
+    g_usleep (1000);
 
   for (b = 0; b < num_buffers && mismatched == 0; b++) {
     guint8 delta;
