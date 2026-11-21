@@ -41,7 +41,11 @@
 #include <gst/gst.h>
 
 #include <cstring>
+#include <memory>
+#include <stdexcept>
+#include <string>
 
+#include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api_util.h>
 
@@ -70,6 +74,25 @@ _SetFilterProp (GstTensorFilterProperties *prop, const gchar **models)
   prop->fw_opened = 0;
   prop->model_files = models;
   prop->num_models = models ? g_strv_length ((gchar **) models) : 0;
+}
+
+/**
+ * @brief Make an unconfigured instance from the object the sub-plugin registered.
+ *
+ * open() configures each instance once, so configuring one again is only
+ * reachable by calling the instance itself.
+ */
+static std::unique_ptr<nnstreamer::tensor_filter_subplugin>
+_NewInstance (void)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+
+  if (!sp || sp->version != GST_TENSOR_FILTER_FRAMEWORK_V1 || !sp->subplugin_data)
+    return nullptr;
+
+  auto *rep = static_cast<nnstreamer::tensor_filter_subplugin *> (sp->subplugin_data);
+  return std::unique_ptr<nnstreamer::tensor_filter_subplugin> (
+      std::addressof (rep->getEmptyInstance ()));
 }
 
 /**
@@ -1205,6 +1228,111 @@ TEST (nnstreamerFilterExecutorch, invokeUnplannedShortOutput_n)
     g_free (output[i].data);
   }
   sp->close (&prop, &data);
+}
+
+/**
+ * @brief Configuring an instance again leaves only the second model's tensors.
+ *
+ * The rank-5 model goes first, so a descriptor left over from it shows up as
+ * a stale dimension or as its 4096-byte output refusing the 3:4 buffers.
+ */
+TEST (nnstreamerFilterExecutorch, openReconfigureKeepsOneDescriptorSet)
+{
+  GstTensorsInfo in_info, out_info;
+  GstTensorMemory input[2], output[2];
+  tensor_dim expected;
+  GstTensorFilterProperties first_prop, second_prop;
+  const gsize num_elems = 3 * 4;
+  const gsize tensor_size = sizeof (float) * num_elems;
+  g_autofree gchar *first_file
+      = _GetModelFilePath ("sample_4x4x4x4x4_two_input_one_output.pte");
+  g_autofree gchar *second_file = _GetModelFilePath ("sample_3x4_two_input_two_output.pte");
+  const gchar *first_models[] = { first_file, NULL };
+  const gchar *second_models[] = { second_file, NULL };
+
+  std::unique_ptr<nnstreamer::tensor_filter_subplugin> obj = _NewInstance ();
+  ASSERT_NE (obj, nullptr);
+
+  _SetFilterProp (&first_prop, first_models);
+  _SetFilterProp (&second_prop, second_models);
+  ASSERT_NO_THROW (obj->configure_instance (&first_prop));
+  ASSERT_NO_THROW (obj->configure_instance (&second_prop));
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  gst_tensor_parse_dimension ("4:3", expected);
+
+  EXPECT_EQ (obj->getModelInfo (GET_IN_OUT_INFO, in_info, out_info), 0);
+  EXPECT_EQ (in_info.num_tensors, 2U);
+  EXPECT_EQ (out_info.num_tensors, 2U);
+  for (guint i = 0; i < 2; i++) {
+    EXPECT_TRUE (gst_tensor_dimension_is_equal (
+        gst_tensors_info_get_nth_info (&in_info, i)->dimension, expected));
+    EXPECT_TRUE (gst_tensor_dimension_is_equal (
+        gst_tensors_info_get_nth_info (&out_info, i)->dimension, expected));
+  }
+
+  for (int i = 0; i < 2; i++) {
+    input[i].size = tensor_size;
+    input[i].data = g_malloc0 (tensor_size);
+    output[i].size = tensor_size;
+    output[i].data = g_malloc0 (tensor_size);
+  }
+
+  for (gsize i = 0; i < num_elems; i++) {
+    ((float *) input[0].data)[i] = (float) i;
+    ((float *) input[1].data)[i] = (float) (2 * i);
+  }
+
+  EXPECT_NO_THROW (obj->invoke (input, output));
+  for (gsize i = 0; i < num_elems; i++) {
+    EXPECT_FLOAT_EQ (((float *) output[0].data)[i], (float) i + 1.0f);
+    EXPECT_FLOAT_EQ (((float *) output[1].data)[i], (float) (2 * i) + 2.0f);
+  }
+
+  for (int i = 0; i < 2; i++) {
+    g_free (input[i].data);
+    g_free (output[i].data);
+  }
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief A refused second model leaves nothing of the first one behind.
+ */
+TEST (nnstreamerFilterExecutorch, openReconfigureRefused_n)
+{
+  GstTensorsInfo in_info, out_info;
+  GstTensorFilterProperties first_prop, second_prop;
+  std::string message;
+  g_autofree gchar *first_file = _GetModelFilePath ("sample_3x4_two_input_two_output.pte");
+  g_autofree gchar *second_file = _GetModelFilePath ("sample_3x4_bfloat16_add_one.pte");
+  const gchar *first_models[] = { first_file, NULL };
+  const gchar *second_models[] = { second_file, NULL };
+
+  std::unique_ptr<nnstreamer::tensor_filter_subplugin> obj = _NewInstance ();
+  ASSERT_NE (obj, nullptr);
+
+  _SetFilterProp (&first_prop, first_models);
+  _SetFilterProp (&second_prop, second_models);
+  ASSERT_NO_THROW (obj->configure_instance (&first_prop));
+
+  try {
+    obj->configure_instance (&second_prop);
+  } catch (const std::invalid_argument &e) {
+    message = e.what ();
+  }
+  EXPECT_NE (message.find ("Unsupported data type of input tensor 0"), std::string::npos)
+      << "message: " << message;
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  EXPECT_EQ (obj->getModelInfo (GET_IN_OUT_INFO, in_info, out_info), 0);
+  EXPECT_EQ (in_info.num_tensors, 0U);
+  EXPECT_EQ (out_info.num_tensors, 0U);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
 }
 
 /**

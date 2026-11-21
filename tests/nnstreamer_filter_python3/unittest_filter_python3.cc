@@ -17,7 +17,12 @@
 #include <unittest_python3_util.h>
 #include <unittest_util.h>
 
+#include <memory>
+#include <stdexcept>
+#include <string>
+
 #include <nnstreamer_conf.h>
+#include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
 #include <tensor_common.h>
@@ -978,6 +983,108 @@ TEST (nnstreamerFilterPython3, openInvalidScriptKeepsSysPath_n)
   EXPECT_GT (first, 0);
   EXPECT_EQ (last, first);
   g_free (model_file);
+}
+
+/**
+ * @brief Make an unconfigured instance from the object the sub-plugin registered.
+ * @note open() configures each instance once, so configuring one again is only
+ *       reachable by calling the instance itself.
+ */
+static std::unique_ptr<nnstreamer::tensor_filter_subplugin>
+_python3_new_instance (void)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+
+  if (!sp || sp->version != GST_TENSOR_FILTER_FRAMEWORK_V1 || !sp->subplugin_data)
+    return nullptr;
+
+  auto *rep = static_cast<nnstreamer::tensor_filter_subplugin *> (sp->subplugin_data);
+  return std::unique_ptr<nnstreamer::tensor_filter_subplugin> (
+      std::addressof (rep->getEmptyInstance ()));
+}
+
+/**
+ * @brief Configuring an instance with another script replaces the script it runs.
+ */
+TEST (nnstreamerFilterPython3, openReconfigureReplacesScript)
+{
+  GstTensorFilterProperties first_prop, second_prop;
+  GstTensorsInfo in_info, out_info;
+  tensor_dim expected;
+  g_autofree gchar *first_file = _python3_model_path ("passthrough.py");
+  g_autofree gchar *second_file = _python3_model_path ("scaler.py");
+  const gchar *first_models[] = { first_file, NULL };
+  const gchar *second_models[] = { second_file, NULL };
+
+  std::unique_ptr<nnstreamer::tensor_filter_subplugin> obj = _python3_new_instance ();
+  ASSERT_NE (obj, nullptr);
+
+  _SetFilterProp (&first_prop, "python3", first_models);
+  _SetFilterProp (&second_prop, "python3", second_models);
+  second_prop.custom_properties = "8x6";
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+
+  ASSERT_NO_THROW (obj->configure_instance (&first_prop));
+  EXPECT_EQ (obj->getModelInfo (GET_IN_OUT_INFO, in_info, out_info), 0);
+  gst_tensor_parse_dimension ("3:280:40", expected);
+  EXPECT_TRUE (gst_tensor_dimension_is_equal (in_info.info[0].dimension, expected));
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+
+  ASSERT_NO_THROW (obj->configure_instance (&second_prop));
+  EXPECT_EQ (obj->getModelInfo (GET_IN_OUT_INFO, in_info, out_info), -ENOENT);
+  gst_tensors_info_free (&out_info);
+
+  in_info.num_tensors = 1;
+  in_info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:4:4:1", in_info.info[0].dimension);
+  EXPECT_EQ (obj->getModelInfo (SET_INPUT_INFO, in_info, out_info), 0);
+  gst_tensor_parse_dimension ("3:8:6:1", expected);
+  EXPECT_EQ (out_info.num_tensors, 1U);
+  EXPECT_TRUE (gst_tensor_dimension_is_equal (out_info.info[0].dimension, expected));
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief A second script that fails to initialize leaves an instance that can be configured again.
+ */
+TEST (nnstreamerFilterPython3, openReconfigureInitError_n)
+{
+  GstTensorFilterProperties first_prop, second_prop;
+  GstTensorsInfo in_info, out_info;
+  std::string message;
+  g_autofree gchar *first_file = _python3_model_path ("passthrough.py");
+  g_autofree gchar *second_file = _python3_model_path ("filter_output_cases.py");
+  const gchar *first_models[] = { first_file, NULL };
+  const gchar *second_models[] = { second_file, NULL };
+
+  std::unique_ptr<nnstreamer::tensor_filter_subplugin> obj = _python3_new_instance ();
+  ASSERT_NE (obj, nullptr);
+
+  _SetFilterProp (&first_prop, "python3", first_models);
+  _SetFilterProp (&second_prop, "python3", second_models);
+  second_prop.custom_properties = "init_error";
+
+  ASSERT_NO_THROW (obj->configure_instance (&first_prop));
+
+  try {
+    obj->configure_instance (&second_prop);
+  } catch (const std::runtime_error &e) {
+    message = e.what ();
+  }
+  EXPECT_EQ (message, "Failed to initialize the object: Python");
+
+  ASSERT_NO_THROW (obj->configure_instance (&first_prop));
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  EXPECT_EQ (obj->getModelInfo (GET_IN_OUT_INFO, in_info, out_info), 0);
+  EXPECT_EQ (in_info.num_tensors, 1U);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
 }
 
 /**
