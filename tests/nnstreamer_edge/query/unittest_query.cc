@@ -18,6 +18,7 @@
 #include <tensor_common.h>
 #include <unistd.h>
 #include <unittest_util.h>
+#include "../gst/nnstreamer/tensor_query/tensor_query_client.h"
 #include "../gst/nnstreamer/tensor_query/tensor_query_common.h"
 
 static const char *CUSTOM_LIB_PATH = "./libnnstreamer-edge-custom-test.so";
@@ -190,6 +191,55 @@ TEST (tensorQuery, serverRun)
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PAUSED, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief A query server with connect-type HYBRID fails to play without a broker, and stopping
+ *        it releases the handle: a TCP server of the same id would otherwise reuse it and fail.
+ */
+TEST (tensorQuery, serverHybridWithoutBroker_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GstElement *serversrc;
+  GstElement *serversink;
+  GstState state;
+  int i;
+
+  pipeline = g_strdup_printf (
+      "tensor_query_serversrc name=serversrc id=5184 port=0 connect-type=HYBRID "
+      "dest-host=127.0.0.1 dest-port=%u topic=hybridTopic ! "
+      "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
+      "tensor_query_serversink name=serversink id=5184 connect-type=HYBRID "
+      "sync=false async=false",
+      get_available_port ());
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_NE (gstpipe, nullptr);
+  serversrc = gst_bin_get_by_name (GST_BIN (gstpipe), "serversrc");
+  ASSERT_NE (serversrc, nullptr);
+  serversink = gst_bin_get_by_name (GST_BIN (gstpipe), "serversink");
+  ASSERT_NE (serversink, nullptr);
+
+  /* Starting again after the failure must fail the same way. */
+  for (i = 0; i < 2; i++) {
+    EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+    /* tensor_query_serversrc starts its edge handle on PAUSED to PLAYING. */
+    gst_element_get_state (serversrc, &state, nullptr, 0);
+    EXPECT_EQ (state, GST_STATE_PAUSED);
+
+    EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  }
+
+  gst_util_set_object_arg (G_OBJECT (serversrc), "connect-type", "TCP");
+  gst_util_set_object_arg (G_OBJECT (serversink), "connect-type", "TCP");
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (serversink);
+  gst_object_unref (serversrc);
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
@@ -2337,6 +2387,34 @@ TEST (tensorQuery, clientChainWithoutServer_n)
 
   client = _make_bare_client (get_available_port (), &sinkpad);
   EXPECT_FALSE (_send_caps (sinkpad, caps));
+
+  EXPECT_EQ (gst_pad_chain (sinkpad, _static_input ()), GST_FLOW_OK);
+
+  gst_object_unref (sinkpad);
+  EXPECT_EQ (gst_element_set_state (client, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+  gst_object_unref (client);
+}
+
+/**
+ * @brief tensor_query_client with connect-type HYBRID refuses the caps without a broker and keeps no handle.
+ */
+TEST (tensorQuery, clientHybridWithoutBroker_n)
+{
+  const gchar *caps = "other/tensors,format=(string)static,num_tensors=(int)1,"
+                      "dimensions=(string)4,types=(string)uint8,framerate=(fraction)0/1";
+  GstElement *client;
+  GstPad *sinkpad;
+  int i;
+
+  client = _make_bare_client (get_available_port (), &sinkpad);
+  gst_util_set_object_arg (G_OBJECT (client), "connect-type", "HYBRID");
+  g_object_set (client, "topic", "hybridTopic", nullptr);
+
+  /* Every caps event tries again with a new handle. */
+  for (i = 0; i < 2; i++) {
+    EXPECT_FALSE (_send_caps (sinkpad, caps));
+    EXPECT_EQ (((GstTensorQueryClient *) client)->edge_h, (nns_edge_h) NULL);
+  }
 
   EXPECT_EQ (gst_pad_chain (sinkpad, _static_input ()), GST_FLOW_OK);
 
