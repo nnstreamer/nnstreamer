@@ -128,6 +128,8 @@ struct _GstTensorIf
 
   GstTensorsConfig in_config; /**< input tensor info */
   GstTensorsConfig out_config[2]; /**< output tensor info */
+  guint64 action_version[2]; /**< action and option revision, under lock */
+  guint64 config_version[2]; /**< revision of each successful output config */
   guint32 num_srcpads;
 
   tensor_if_compared_value cv; /**< compared value */

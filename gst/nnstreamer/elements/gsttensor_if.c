@@ -96,6 +96,7 @@ typedef struct
   tensor_if_sv_s sv;
   tensor_if_behavior act[2]; /**< indexed by tensor_if_srcpads */
   GList *option[2]; /**< indexed by tensor_if_srcpads */
+  guint64 action_version[2]; /**< revision of the action snapshot */
   gboolean custom_configured;
   tensor_if_custom custom_func;
   void *custom_data;
@@ -621,15 +622,19 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
       break;
     case PROP_THEN:
       self->act_then = g_value_get_enum (value);
+      self->action_version[TIFSP_THEN_PAD]++;
       break;
     case PROP_THEN_OPTION:
       gst_tensor_if_set_property_glist (self, value, &self->then_option, ",");
+      self->action_version[TIFSP_THEN_PAD]++;
       break;
     case PROP_ELSE:
       self->act_else = g_value_get_enum (value);
+      self->action_version[TIFSP_ELSE_PAD]++;
       break;
     case PROP_ELSE_OPTION:
       gst_tensor_if_set_property_glist (self, value, &self->else_option, ",");
+      self->action_version[TIFSP_ELSE_PAD]++;
       break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
@@ -1299,6 +1304,8 @@ gst_tensor_if_get_actions (GstTensorIf * tensor_if, tensor_if_props_s * props)
   props->option[TIFSP_THEN_PAD] = tensor_if->then_option;
   props->act[TIFSP_ELSE_PAD] = tensor_if->act_else;
   props->option[TIFSP_ELSE_PAD] = tensor_if->else_option;
+  memcpy (props->action_version, tensor_if->action_version,
+      sizeof (props->action_version));
 }
 
 /**
@@ -1353,11 +1360,11 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   tensor_if_behavior curr_act = TIFB_PASSTHROUGH;
   tensor_if_srcpads which_srcpad = TIFSP_THEN_PAD;
   GList *curr_act_option = NULL;
-  GstTensorsConfig *config;
+  GstTensorsConfig *config, new_config;
   GstTensorPad *srcpad;
   GstBuffer *outbuf = NULL;
   GstMemory *mem = NULL;
-  gboolean created;
+  gboolean created, config_changed;
   GstClockTime ts;
   tensor_if_props_s props;
   UNUSED (pad);
@@ -1395,8 +1402,14 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   curr_act_option = props.option[which_srcpad];
 
   config = &tensor_if->out_config[which_srcpad];
+  config_changed = config->info.num_tensors == 0 ||
+      tensor_if->config_version[which_srcpad] !=
+      props.action_version[which_srcpad];
+  gst_tensors_config_init (&new_config);
+  if (config_changed)
+    config = &new_config;
 
-  if (config->info.num_tensors == 0) {
+  if (config_changed) {
     config->rate_n = tensor_if->in_config.rate_n;
     config->rate_d = tensor_if->in_config.rate_d;
   }
@@ -1459,8 +1472,25 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     goto done;
   }
 
+  if (config_changed) {
+    /* Commit only a valid selection; failures keep the previous configuration. */
+    gst_tensors_config_free (&tensor_if->out_config[which_srcpad]);
+    tensor_if->out_config[which_srcpad] = new_config;
+    gst_tensors_config_init (&new_config);
+    tensor_if->config_version[which_srcpad] =
+        props.action_version[which_srcpad];
+    config = &tensor_if->out_config[which_srcpad];
+  }
+
   srcpad =
       gst_tensor_if_get_tensor_pad (tensor_if, config, &created, which_srcpad);
+
+  if (!created && config_changed) {
+    GstCaps *caps = gst_tensor_pad_caps_from_config (srcpad->pad, config);
+
+    gst_pad_set_caps (srcpad->pad, caps);
+    gst_caps_unref (caps);
+  }
 
   if (created) {
     GstSegment segment;
@@ -1485,6 +1515,7 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   res = gst_tensor_if_combine_flows (tensor_if, srcpad, res);
 
 done:
+  gst_tensors_config_free (&new_config);
   gst_buffer_unref (buf);
   return res;
 }

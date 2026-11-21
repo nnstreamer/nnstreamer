@@ -3278,6 +3278,213 @@ INSTANTIATE_TEST_SUITE_P (NamedTensors, TensorIfPickNamedTest,
         ::testing::Bool (), ::testing::Values (1U, NNS_TENSOR_MEMORY_MAX + 1U)));
 
 /**
+ * @brief Observe the caps accompanying buffers after an action property changes.
+ */
+class TensorIfActionCaps : public ::testing::Test
+{
+  protected:
+  GstElement *element = nullptr;
+  GstPad *sinkpad = nullptr;
+  GstBus *bus = nullptr;
+  GstBuffer *output = nullptr;
+  GstCaps *output_caps = nullptr;
+  const gchar *action = nullptr;
+  const gchar *option = nullptr;
+
+  /** @brief Start either branch with two distinguishable input tensors. */
+  void Start (bool then_branch)
+  {
+    sinkpad = _start_tensor_if (&element);
+    ASSERT_NE (sinkpad, nullptr);
+    bus = gst_bus_new ();
+    gst_element_set_bus (element, bus);
+    action = then_branch ? "then" : "else";
+    option = then_branch ? "then-option" : "else-option";
+    g_object_set (element, "operator", then_branch ? TIFOP_EQ : TIFOP_NE,
+        action, TIFB_TENSORPICK, option, "0", NULL);
+    g_signal_connect (element, "pad-added", G_CALLBACK (WatchPad), this);
+    GstCaps *caps = gst_caps_from_string (
+        "other/tensors,format=static,num_tensors=2,types=(string)\"uint8,int32\","
+        "dimensions=(string)\"4:1:1:1,2:1:1:1\",framerate=30/1");
+    ASSERT_NE (caps, nullptr);
+    EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+    gst_caps_unref (caps);
+    GstSegment segment;
+    gst_segment_init (&segment, GST_FORMAT_TIME);
+    EXPECT_TRUE (gst_pad_send_event (sinkpad, gst_event_new_segment (&segment)));
+  }
+
+  /** @brief Retain the output and its caps at the instant the buffer is pushed. */
+  static GstPadProbeReturn Capture (GstPad *pad, GstPadProbeInfo *info, gpointer data)
+  {
+    auto *self = static_cast<TensorIfActionCaps *> (data);
+    self->output = gst_buffer_ref (GST_PAD_PROBE_INFO_BUFFER (info));
+    self->output_caps = gst_pad_get_current_caps (pad);
+    return GST_PAD_PROBE_DROP;
+  }
+
+  /** @brief Observe either lazy output without adding a downstream dependency. */
+  static void WatchPad (GstElement *, GstPad *pad, gpointer data)
+  {
+    gst_pad_push_event (pad, gst_event_new_stream_start ("action-caps"));
+    gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, Capture, data, NULL);
+  }
+
+  /** @brief Drop the captured output before processing another frame. */
+  void ClearOutput ()
+  {
+    gst_clear_buffer (&output);
+    gst_clear_caps (&output_caps);
+  }
+
+  /** @brief Chain a frame with a zero first tensor and a distinct second tensor. */
+  GstFlowReturn Push ()
+  {
+    ClearOutput ();
+    GstBuffer *input = gst_buffer_new ();
+    for (guint i = 0; i < 2; i++) {
+      GstMemory *memory = gst_allocator_alloc (NULL, i == 0 ? 4 : 8, NULL);
+      GstMapInfo map;
+      if (gst_memory_map (memory, &map, GST_MAP_WRITE)) {
+        memset (map.data, i == 0 ? 0 : 0x22, map.size);
+        gst_memory_unmap (memory, &map);
+      } else {
+        ADD_FAILURE () << "Cannot initialize input tensor";
+      }
+      gst_buffer_append_memory (input, memory);
+    }
+    return gst_pad_chain (sinkpad, input);
+  }
+
+  /** @brief Check the selected bytes against the caps seen before the buffer. */
+  void ExpectOutput (std::initializer_list<guint> indices)
+  {
+    ASSERT_NE (output, nullptr);
+    ASSERT_NE (output_caps, nullptr);
+    GstTensorsConfig config;
+    gst_tensors_config_init (&config);
+    ASSERT_TRUE (gst_tensors_config_from_caps (&config, output_caps, TRUE));
+    EXPECT_EQ (config.info.num_tensors, indices.size ());
+    EXPECT_EQ (config.rate_n, 30);
+    EXPECT_EQ (config.rate_d, 1);
+    EXPECT_EQ (gst_tensor_buffer_get_count (output), indices.size ());
+    guint position = 0;
+    for (guint index : indices) {
+      GstTensorInfo *info = gst_tensors_info_get_nth_info (&config.info, position);
+      EXPECT_EQ (info->type, index == 0 ? _NNS_UINT8 : _NNS_INT32);
+      EXPECT_EQ (info->dimension[0], index == 0 ? 4U : 2U);
+      GstMemory *memory = gst_tensor_buffer_get_nth_memory (output, position++);
+      GstMapInfo map;
+      if (gst_memory_map (memory, &map, GST_MAP_READ)) {
+        EXPECT_EQ (map.size, index == 0 ? 4U : 8U);
+        for (gsize i = 0; i < map.size; i++)
+          EXPECT_EQ (map.data[i], index == 0 ? 0 : 0x22);
+        gst_memory_unmap (memory, &map);
+      } else {
+        ADD_FAILURE () << "Cannot read selected tensor";
+      }
+      gst_memory_unref (memory);
+    }
+    gst_tensors_config_free (&config);
+  }
+
+  /** @brief Release pads, bus and captured references on success or assertion failure. */
+  void TearDown () override
+  {
+    ClearOutput ();
+    if (element) {
+      gst_element_set_state (element, GST_STATE_NULL);
+      gst_element_set_bus (element, NULL);
+    }
+    gst_clear_object (&sinkpad);
+    gst_clear_object (&bus);
+    gst_clear_object (&element);
+  }
+};
+
+/** @brief Run output renegotiation through both conditional branches. */
+class TensorIfActionCapsTest : public TensorIfActionCaps,
+                               public ::testing::WithParamInterface<bool>
+{
+  /** @brief Select the branch under test. */
+  void SetUp () override
+  {
+    Start (GetParam ());
+  }
+};
+
+/** @brief A new selection must update type and dimensions before its buffer. */
+TEST_P (TensorIfActionCapsTest, selectedTensorChanges)
+{
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 0 });
+  g_object_set (element, option, "1", NULL);
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 1 });
+}
+
+/** @brief Growing and shrinking the selection updates the advertised tensor count. */
+TEST_P (TensorIfActionCapsTest, selectionCountChanges)
+{
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 0 });
+  g_object_set (element, option, "1,0", NULL);
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 1, 0 });
+  g_object_set (element, option, "1", NULL);
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 1 });
+}
+
+/** @brief Switching between passthrough and tensorpick cannot reuse stale caps. */
+TEST_P (TensorIfActionCapsTest, actionChanges)
+{
+  g_object_set (element, action, TIFB_PASSTHROUGH, NULL);
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 0, 1 });
+  g_object_set (element, action, TIFB_TENSORPICK, NULL);
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 0 });
+  g_object_set (element, action, TIFB_PASSTHROUGH, NULL);
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 0, 1 });
+}
+
+INSTANTIATE_TEST_SUITE_P (BothBranches, TensorIfActionCapsTest, ::testing::Bool ());
+
+/** @brief Exercise invalid selections after an output pad has already negotiated. */
+class TensorIfActionCapsInvalidTest
+    : public TensorIfActionCaps,
+      public ::testing::WithParamInterface<std::tuple<bool, const char *>>
+{
+  /** @brief Start the requested branch before changing its selection. */
+  void SetUp () override
+  {
+    Start (std::get<0> (GetParam ()));
+  }
+};
+
+/** @brief Refuse an absent tensor without emitting partial data, then recover. */
+TEST_P (TensorIfActionCapsInvalidTest, invalidSelectionAfterOutput_n)
+{
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 0 });
+  g_object_set (element, option, std::get<1> (GetParam ()), NULL);
+  EXPECT_EQ (Push (), GST_FLOW_ERROR);
+  EXPECT_EQ (output, nullptr);
+  GstMessage *message = gst_bus_pop_filtered (bus, GST_MESSAGE_ERROR);
+  ASSERT_NE (message, nullptr);
+  gst_message_unref (message);
+  g_object_set (element, option, "1", NULL);
+  ASSERT_EQ (Push (), GST_FLOW_OK);
+  ExpectOutput ({ 1 });
+}
+
+INSTANTIATE_TEST_SUITE_P (BothBranches, TensorIfActionCapsInvalidTest,
+    ::testing::Combine (::testing::Bool (),
+        ::testing::Values ("2", "0,2", "256", "2147483647")));
+
+/**
  * @brief Main GTest
  */
 int
