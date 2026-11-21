@@ -680,9 +680,67 @@ jobs:
         run_example "Sink examples with more tensor paths (C/GStreamer, videotestsrc)" \
           "received start message" ./nnstreamer_sink_example_play
 
-        kill ${producer_id} || true
-
         popd
+
+        # The example apps above only show that frames arrive. Here the camera
+        # streams a known object and the labels the model gives it are checked.
+        # The run on the test pattern first must not see that object, so a
+        # pass cannot come from the model or the check ignoring the stream.
+        model=tests/test_models/models/mobilenet_v1_1.0_224_quant.tflite
+        labels=tests/test_models/labels/labels.txt
+        # Classify 40 camera frames; print one label per frame.
+        classify_camera () {
+          out=$(mktemp)
+          timeout 30 gst-launch-1.0 -q v4l2src device=/dev/video0 num-buffers=40 ! \
+            videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224 ! \
+            tensor_converter ! \
+            tensor_filter framework=tensorflow2-lite model=${model} ! \
+            tensor_decoder mode=image_labeling option1=${labels} ! \
+            filesink location=${out} || return 1
+          tr '\0' '\n' < "${out}" | tr -d '\r' | sed '/^$/d'
+        }
+
+        echo "::group::V4L2Cam test pattern --> Image Classification, label check"
+        classify_camera > "${RUNNER_TEMP}/pattern-labels.txt"
+        sort "${RUNNER_TEMP}/pattern-labels.txt" | uniq -c
+        if [[ $(wc -l < "${RUNNER_TEMP}/pattern-labels.txt") -ne 40 ]]; then
+          echo "::error::Expected 40 labels from the test pattern."
+          exit 1
+        fi
+        if grep -qx orange "${RUNNER_TEMP}/pattern-labels.txt"; then
+          echo "::error::The test pattern was classified as orange."
+          exit 1
+        fi
+        echo "::endgroup::"
+
+        echo "::group::V4L2Cam orange --> Image Classification, label check"
+        kill ${producer_id}
+        wait ${producer_id} || true
+        gst-launch-1.0 filesrc location=tests/test_models/data/orange.png ! pngdec ! \
+          imagefreeze ! videoconvert ! videoscale ! \
+          video/x-raw,format=YUY2,width=640,height=480,framerate=30/1 ! \
+          identity drop-allocation=true ! v4l2sink device=/dev/video0 &
+        producer_id=$!
+        sleep 2
+        if ! kill -0 ${producer_id} 2>/dev/null; then
+          echo "::error::The orange producer pipeline has died."
+          exit 1
+        fi
+        classify_camera > "${RUNNER_TEMP}/orange-labels.txt"
+        sort "${RUNNER_TEMP}/orange-labels.txt" | uniq -c
+        if [[ $(wc -l < "${RUNNER_TEMP}/orange-labels.txt") -ne 40 ]]; then
+          echo "::error::Expected 40 labels from the orange stream."
+          exit 1
+        fi
+        # The loopback may still hand out a few test pattern frames that were
+        # queued before the switch; every frame after those must be orange.
+        if [[ $(tail -n 30 "${RUNNER_TEMP}/orange-labels.txt" | grep -cx orange) -ne 30 ]]; then
+          echo "::error::The last 30 frames of the orange stream are not all orange."
+          exit 1
+        fi
+        echo "::endgroup::"
+
+        kill ${producer_id} || true
     # A runTest.sh that probes for a sub-plugin looks in ../../build, and where
     # that is absent - as in an installed tree - in the path it reads from
     # /etc/nnstreamer.ini. Nothing else runs that second branch, and when it
