@@ -2022,6 +2022,11 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   static bool closed; /**< records suspend closing the active instance */
   static guint invocations; /**< number of inputs accepted by the mock */
   static std::atomic<guint> released; /**< output allocations released by the framework */
+  static std::atomic<guint> opens; /**< number of configured instances */
+  static std::atomic<guint> queries; /**< capability queries across instances */
+  static bool query_waiting; /**< capability handler reached the test barrier */
+  static bool release_query; /**< release the capability handler */
+  guint generation = 0; /**< instance number used to reject a reopened model */
   bool configured = false; /**< distinguishes an instance from the factory */
   GstTensorFilterProperties *properties = nullptr; /**< configured instance properties */
   static GstTensorFilterProperties *pending; /**< live properties until teardown */
@@ -2047,6 +2052,7 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   {
     properties = const_cast<GstTensorFilterProperties *> (prop);
     configured = true;
+    generation = ++opens;
   }
 
   /** @brief queue an input through the non-dynamic entry point */
@@ -2107,6 +2113,28 @@ class async_output_subplugin : public nnstreamer::tensor_filter_subplugin
   /** @brief provide the framework's optional event hook */
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data) override
   {
+    if ((ops == SUSPEND || ops == RESUME)
+        && g_strcmp0 (properties->custom_properties, "accept-suspend") == 0)
+      return 0;
+    if (ops == CHECK_ASYNC_SUPPORT) {
+      queries++;
+      if (g_strcmp0 (properties->custom_properties, "reject-reopen") == 0 && generation > 1)
+        return 0;
+      if (g_strcmp0 (properties->custom_properties, "pause-capability") == 0) {
+        data.async_support = TRUE;
+        std::unique_lock<std::mutex> guard (lock);
+        query_waiting = true;
+        cond.notify_all ();
+        cond.wait (guard, [] { return release_query; });
+        return 0;
+      }
+      if (g_strcmp0 (properties->custom_properties, "unsupported") == 0)
+        return -ENOENT;
+      if (g_strcmp0 (properties->custom_properties, "legacy-success") == 0)
+        return 0;
+      data.async_support = TRUE;
+      return g_strcmp0 (properties->custom_properties, "capability-error") == 0 ? -EIO : 0;
+    }
     if (ops == DESTROY_NOTIFY) {
       if (data.data) {
         released.fetch_add (1);
@@ -2167,7 +2195,15 @@ std::condition_variable async_output_subplugin::cond;
 bool async_output_subplugin::closed = false;
 guint async_output_subplugin::invocations = 0;
 std::atomic<guint> async_output_subplugin::released{ 0 };
+std::atomic<guint> async_output_subplugin::opens{ 0 };
+std::atomic<guint> async_output_subplugin::queries{ 0 };
+bool async_output_subplugin::query_waiting = false;
+bool async_output_subplugin::release_query = false;
 GstTensorFilterProperties *async_output_subplugin::pending = nullptr;
+
+/** @brief Record the single-shot fixture's output callback. */
+static int _record_single_async_output (
+    GstTensorMemory *data, GstTensorsInfo *info, void *user_data);
 
 /** @brief Exercise queued inputs and callback outputs without an ML runtime. */
 class testFilterAsyncOutput : public ::testing::Test
@@ -2186,6 +2222,10 @@ class testFilterAsyncOutput : public ::testing::Test
     async_output_subplugin::closed = false;
     async_output_subplugin::invocations = 0;
     async_output_subplugin::released.store (0);
+    async_output_subplugin::opens.store (0);
+    async_output_subplugin::queries.store (0);
+    async_output_subplugin::query_waiting = false;
+    async_output_subplugin::release_query = false;
     async_output_subplugin::init ();
     ASSERT_NE (async_output_subplugin::registered, nullptr);
     int fd = g_file_open_tmp ("nnstreamer-async-XXXXXX", &model, nullptr);
@@ -2210,7 +2250,8 @@ class testFilterAsyncOutput : public ::testing::Test
   }
 
   /** @brief submit one byte to a dynamic or non-dynamic C++ filter */
-  void start (bool asynchronous, bool fail = false, guint suspend = 0, bool dynamic = true)
+  void start (bool asynchronous, bool fail = false, guint suspend = 0,
+      bool dynamic = true, const gchar *custom = nullptr)
   {
     g_autofree gchar *description = g_strdup_printf (
         "appsrc name=source caps=\"other/tensors,num_tensors=1,types=uint8,"
@@ -2219,7 +2260,7 @@ class testFilterAsyncOutput : public ::testing::Test
         "invoke-async=%s custom=%s suspend=%u ! other/tensors,format=flexible ! "
         "appsink name=sink sync=false async=false",
         model, dynamic ? "true" : "false", asynchronous ? "true" : "false",
-        fail ? "fail" : "ok", suspend);
+        custom ? custom : (fail ? "fail" : "ok"), suspend);
     GError *error = nullptr;
     pipeline = gst_parse_launch (description, &error);
     ASSERT_EQ (error, nullptr);
@@ -2235,6 +2276,46 @@ class testFilterAsyncOutput : public ::testing::Test
     EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
     gst_object_unref (source);
     ASSERT_TRUE (async_output_subplugin::waitForInput ());
+  }
+
+  /** @brief Refuse an asynchronous element before it can invoke a synchronous framework. */
+  void rejectElement (const gchar *custom)
+  {
+    pipeline = gst_element_factory_make ("tensor_filter", nullptr);
+    ASSERT_NE (pipeline, nullptr);
+    g_object_set (pipeline, "framework", "async_output_mock", "model", model,
+        "invoke-async", TRUE, "custom", custom, nullptr);
+    EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+    gboolean asynchronous = FALSE;
+    g_object_get (pipeline, "invoke-async", &asynchronous, nullptr);
+    EXPECT_TRUE (asynchronous);
+    EXPECT_EQ (async_output_subplugin::invocations, 0U);
+    EXPECT_TRUE (async_output_subplugin::closed);
+  }
+
+  /** @brief Refuse both explicit and implicit single-shot start without touching output. */
+  void rejectSingle (const gchar *custom)
+  {
+    g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+        "framework", "async_output_mock", "model", model, "invoke-async", TRUE,
+        "custom", custom, nullptr);
+    auto *single = G_TENSOR_FILTER_SINGLE (object);
+    auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+    guint callbacks = 0;
+    guint8 value = 0x2a, guard = 0xa5;
+    GstTensorMemory input = { &value, 1 };
+    GstTensorMemory output = { &guard, 1 };
+
+    ASSERT_TRUE (klass->set_invoke_async_callback (
+        single, _record_single_async_output, &callbacks));
+    EXPECT_FALSE (klass->start (single));
+    EXPECT_FALSE (klass->invoke (single, &input, &output, TRUE));
+    EXPECT_EQ (async_output_subplugin::invocations, 0U);
+    EXPECT_TRUE (async_output_subplugin::closed);
+    EXPECT_EQ (callbacks, 0U);
+    EXPECT_EQ (output.data, &guard);
+    EXPECT_EQ (output.size, 1U);
+    EXPECT_EQ (guard, 0xa5);
   }
 
   /** @brief Select after flexible caps negotiation, before the worker returns. */
@@ -2473,6 +2554,444 @@ TEST_F (testFilterAsyncOutput, singleShotAsyncSuccess)
   EXPECT_EQ (count, 0U);
   async_output_subplugin::dispatch (0x5a);
   EXPECT_EQ (count, 1U);
+}
+
+/** @brief An unhandled asynchronous capability query must prevent element start. */
+TEST_F (testFilterAsyncOutput, unsupportedElement_n)
+{
+  rejectElement ("unsupported");
+}
+
+/** @brief Old handlers returning success for unknown events must not opt into async. */
+TEST_F (testFilterAsyncOutput, legacySuccessElement_n)
+{
+  rejectElement ("legacy-success");
+}
+
+/** @brief A capability flag must not override an event-handler failure. */
+TEST_F (testFilterAsyncOutput, capabilityErrorElement_n)
+{
+  rejectElement ("capability-error");
+}
+
+/** @brief Single-shot start must also reject a framework without async support. */
+TEST_F (testFilterAsyncOutput, unsupportedSingleShot_n)
+{
+  rejectSingle ("unsupported");
+}
+
+/** @brief A legacy success response must not enable single-shot asynchronous invoke. */
+TEST_F (testFilterAsyncOutput, legacySuccessSingleShot_n)
+{
+  rejectSingle ("legacy-success");
+}
+
+/** @brief Single-shot invoke must not bypass a failed capability query. */
+TEST_F (testFilterAsyncOutput, capabilityErrorSingleShot_n)
+{
+  rejectSingle ("capability-error");
+}
+
+/** @brief V0 has no asynchronous capability contract even with a callback installed. */
+TEST_F (testFilterAsyncOutput, legacyFramework_n)
+{
+  GstTensorFilterFramework framework = {};
+  GstTensorFilterPrivate priv = {};
+  char name[] = "legacy_sync_mock";
+  framework.version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  priv.fw = &framework;
+  priv.prop.fwname = name;
+  priv.prop.invoke_async = TRUE;
+  priv.prop.async_callback = _record_single_async_output;
+  EXPECT_FALSE (gst_tensor_filter_validate_prop (&priv));
+}
+
+/** @brief An opened synchronous filter cannot bypass start validation by changing mode. */
+TEST_F (testFilterAsyncOutput, enableAsyncWhileOpen_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (false, false, 0, true, "unsupported"));
+  GstElement *filter = gst_bin_get_by_name (GST_BIN (pipeline), "filter");
+  ASSERT_NE (filter, nullptr);
+  g_object_set (filter, "invoke-async", TRUE, nullptr);
+  gboolean asynchronous = TRUE;
+  g_object_get (filter, "invoke-async", &asynchronous, nullptr);
+  EXPECT_FALSE (asynchronous);
+  gst_object_unref (filter);
+}
+
+/** @brief An opened async filter keeps its callback ownership mode until it is stopped. */
+TEST_F (testFilterAsyncOutput, disableAsyncWhileOpen_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true));
+  GstElement *filter = gst_bin_get_by_name (GST_BIN (pipeline), "filter");
+  ASSERT_NE (filter, nullptr);
+  g_object_set (filter, "invoke-async", FALSE, nullptr);
+  gboolean asynchronous = FALSE;
+  g_object_get (filter, "invoke-async", &asynchronous, nullptr);
+  EXPECT_TRUE (asynchronous);
+  gst_object_unref (filter);
+  if (asynchronous) {
+    async_output_subplugin::dispatch (0x5a);
+    GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+    EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
+    if (sample)
+      gst_sample_unref (sample);
+  }
+}
+
+/** @brief A synchronous framework does not need to implement the new async query. */
+TEST_F (testFilterAsyncOutput, unsupportedSynchronousOutput)
+{
+  ASSERT_NO_FATAL_FAILURE (start (false, false, 0, true, "unsupported"));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x2a));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Single-shot synchronous output still works without an async capability. */
+TEST_F (testFilterAsyncOutput, unsupportedSynchronousSingleShot)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "custom", "unsupported", nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint8 value = 0x2a;
+  GstTensorMemory input = { &value, 1 };
+  GstTensorMemory output = {};
+  ASSERT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  ASSERT_NE (output.data, nullptr);
+  EXPECT_EQ (output.size, 1U);
+  EXPECT_EQ (*(guint8 *) output.data, value);
+  klass->destroy_notify (single, &output);
+}
+
+/** @brief Stopping the model permits selecting and validating a new invoke mode. */
+TEST_F (testFilterAsyncOutput, asyncModeChangesAfterStop)
+{
+  ASSERT_NO_FATAL_FAILURE (start (false));
+  GstElement *filter = gst_bin_get_by_name (GST_BIN (pipeline), "filter");
+  ASSERT_NE (filter, nullptr);
+  ASSERT_NE (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_FAILURE);
+  g_object_set (filter, "invoke-async", TRUE, nullptr);
+  gboolean asynchronous = FALSE;
+  g_object_get (filter, "invoke-async", &asynchronous, nullptr);
+  EXPECT_TRUE (asynchronous);
+  gst_object_unref (filter);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+}
+
+/** @brief Watchdog unloading must not unlock the active element's invoke mode. */
+TEST_F (testFilterAsyncOutput, watchdogKeepsSynchronousMode_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (false, false, 1000, true, "unsupported"));
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  ASSERT_NE (sample, nullptr);
+  gst_sample_unref (sample);
+  ASSERT_TRUE (async_output_subplugin::waitForClose ());
+  /* The mock destructor notifies before common_unload_fw finishes returning. */
+  g_usleep (100000);
+  g_autoptr (GstElement) filter = gst_bin_get_by_name (GST_BIN (pipeline), "filter");
+  g_object_set (filter, "invoke-async", TRUE, nullptr);
+  gboolean asynchronous = TRUE;
+  g_object_get (filter, "invoke-async", &asynchronous, nullptr);
+  EXPECT_FALSE (asynchronous);
+  if (asynchronous)
+    return;
+
+  g_autoptr (GstElement) source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  guint8 value = 0x2b;
+  GstBuffer *input = gst_buffer_new_allocate (nullptr, 1, nullptr);
+  gst_buffer_fill (input, 0, &value, 1);
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+  ASSERT_TRUE (async_output_subplugin::waitForInput (2));
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, value));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief Watchdog unloading must keep asynchronous callback ownership too. */
+TEST_F (testFilterAsyncOutput, watchdogKeepsAsynchronousMode_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 1000));
+  async_output_subplugin::dispatch (0x5a);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  ASSERT_NE (sample, nullptr);
+  gst_sample_unref (sample);
+  ASSERT_TRUE (async_output_subplugin::waitForClose ());
+  g_usleep (100000);
+  g_autoptr (GstElement) filter = gst_bin_get_by_name (GST_BIN (pipeline), "filter");
+  g_object_set (filter, "invoke-async", FALSE, nullptr);
+  gboolean asynchronous = FALSE;
+  g_object_get (filter, "invoke-async", &asynchronous, nullptr);
+  EXPECT_TRUE (asynchronous);
+  if (!asynchronous)
+    return;
+
+  g_autoptr (GstElement) source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  guint8 value = 0x2b;
+  GstBuffer *input = gst_buffer_new_allocate (nullptr, 1, nullptr);
+  gst_buffer_fill (input, 0, &value, 1);
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+  ASSERT_TRUE (async_output_subplugin::waitForInput (2));
+  async_output_subplugin::dispatch (0x5b);
+  sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5b));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief A reopened model that no longer opts in must never receive async input. */
+TEST_F (testFilterAsyncOutput, watchdogRevalidatesCapability_n)
+{
+  ASSERT_NO_FATAL_FAILURE (start (true, false, 1000, true, "reject-reopen"));
+  async_output_subplugin::dispatch (0x5a);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  ASSERT_NE (sample, nullptr);
+  gst_sample_unref (sample);
+  ASSERT_TRUE (async_output_subplugin::waitForClose ());
+
+  g_autoptr (GstElement) source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  GstBuffer *input = gst_buffer_new_allocate (nullptr, 1, nullptr);
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+  g_autoptr (GstBus) bus = gst_element_get_bus (pipeline);
+  GstMessage *message = gst_bus_timed_pop_filtered (bus, 2 * GST_SECOND, GST_MESSAGE_ERROR);
+  EXPECT_NE (message, nullptr);
+  if (message)
+    gst_message_unref (message);
+  EXPECT_EQ (async_output_subplugin::opens.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::queries.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::invocations, 1U);
+  EXPECT_TRUE (async_output_subplugin::closed);
+}
+
+/** @brief Attempt a mode change while the opened model is checking capability. */
+static void
+_change_mode_during_query (GObject *object)
+{
+  {
+    std::unique_lock<std::mutex> guard (async_output_subplugin::lock);
+    EXPECT_TRUE (async_output_subplugin::cond.wait_for (guard, std::chrono::seconds (5),
+        [] { return async_output_subplugin::query_waiting; }));
+  }
+  g_object_set (object, "invoke-async", FALSE, nullptr);
+  gboolean asynchronous = FALSE;
+  g_object_get (object, "invoke-async", &asynchronous, nullptr);
+  EXPECT_TRUE (asynchronous);
+  EXPECT_FALSE (async_output_subplugin::closed);
+  {
+    std::lock_guard<std::mutex> guard (async_output_subplugin::lock);
+    async_output_subplugin::release_query = true;
+    async_output_subplugin::cond.notify_all ();
+  }
+}
+
+/** @brief Element startup owns the mode before calling the capability handler. */
+TEST_F (testFilterAsyncOutput, elementModeLockedDuringStart_n)
+{
+  pipeline = gst_element_factory_make ("tensor_filter", nullptr);
+  ASSERT_NE (pipeline, nullptr);
+  g_object_set (pipeline, "framework", "async_output_mock", "model", model,
+      "invoke-async", TRUE, "custom", "pause-capability", nullptr);
+  GstStateChangeReturn result = GST_STATE_CHANGE_FAILURE;
+  std::thread starter (
+      [&] { result = gst_element_set_state (pipeline, GST_STATE_PAUSED); });
+  _change_mode_during_query (G_OBJECT (pipeline));
+  starter.join ();
+  EXPECT_NE (result, GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (async_output_subplugin::queries.load (), 1U);
+  EXPECT_FALSE (async_output_subplugin::closed);
+}
+
+/** @brief Single-shot startup owns the mode throughout capability validation. */
+TEST_F (testFilterAsyncOutput, singleModeLockedDuringStart_n)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-async", TRUE,
+      "custom", "pause-capability", nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint callbacks = 0;
+  ASSERT_TRUE (klass->set_invoke_async_callback (
+      single, _record_single_async_output, &callbacks));
+  gboolean result = FALSE;
+  std::thread starter ([&] { result = klass->start (single); });
+  _change_mode_during_query (object);
+  starter.join ();
+  EXPECT_TRUE (result);
+  EXPECT_EQ (async_output_subplugin::queries.load (), 1U);
+  EXPECT_FALSE (async_output_subplugin::closed);
+  EXPECT_TRUE (klass->stop (single));
+}
+
+/** @brief Replacing a started single-shot framework must reopen it before invoke. */
+TEST_F (testFilterAsyncOutput, singleFrameworkChangeReopens)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-dynamic", TRUE, nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint8 value = 0x2a;
+  GstTensorMemory input = { &value, 1 };
+  GstTensorMemory output = {};
+
+  ASSERT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  ASSERT_NE (output.data, nullptr);
+  EXPECT_EQ (*(guint8 *) output.data, value);
+  klass->destroy_notify (single, &output);
+  output = {};
+
+  g_object_set (object, "framework", "custom", nullptr);
+  g_object_set (object, "framework", "async_output_mock", nullptr);
+  EXPECT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  EXPECT_EQ (async_output_subplugin::opens.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::invocations, 2U);
+  if (output.data) {
+    EXPECT_EQ (*(guint8 *) output.data, value);
+    klass->destroy_notify (single, &output);
+  }
+  EXPECT_TRUE (klass->stop (single));
+}
+
+/** @brief Reopening after framework replacement must also recheck async support. */
+TEST_F (testFilterAsyncOutput, singleFrameworkChangeRevalidates_n)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-async", TRUE, nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint callbacks = 0;
+  ASSERT_TRUE (klass->set_invoke_async_callback (
+      single, _record_single_async_output, &callbacks));
+  ASSERT_TRUE (klass->start (single));
+
+  g_object_set (object, "framework", "custom", nullptr);
+  g_object_set (object, "framework", "async_output_mock", "custom", "unsupported", nullptr);
+  EXPECT_FALSE (klass->start (single));
+  EXPECT_EQ (async_output_subplugin::opens.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::queries.load (), 2U);
+  EXPECT_EQ (async_output_subplugin::invocations, 0U);
+  EXPECT_EQ (callbacks, 0U);
+  EXPECT_TRUE (async_output_subplugin::closed);
+}
+
+/** @brief Explicit NULL permits mode changes even when suspension retains a model. */
+TEST_F (testFilterAsyncOutput, retainedElementChangesModeAfterStop)
+{
+  ASSERT_NO_FATAL_FAILURE (start (false, false, 0, true, "accept-suspend"));
+  g_autoptr (GstElement) filter = gst_bin_get_by_name (GST_BIN (pipeline), "filter");
+  ASSERT_NE (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (async_output_subplugin::closed);
+  g_object_set (filter, "invoke-async", TRUE, nullptr);
+  gboolean asynchronous = FALSE;
+  g_object_get (filter, "invoke-async", &asynchronous, nullptr);
+  EXPECT_TRUE (asynchronous);
+  EXPECT_TRUE (async_output_subplugin::closed);
+  if (!asynchronous)
+    return;
+
+  ASSERT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  g_autoptr (GstElement) source = gst_bin_get_by_name (GST_BIN (pipeline), "source");
+  guint8 value = 0x2b;
+  GstBuffer *input = gst_buffer_new_allocate (nullptr, 1, nullptr);
+  gst_buffer_fill (input, 0, &value, 1);
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (source), input), GST_FLOW_OK);
+  ASSERT_TRUE (async_output_subplugin::waitForInput (2));
+  async_output_subplugin::dispatch (0x5b);
+  GstSample *sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), GST_SECOND);
+  EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5b));
+  if (sample)
+    gst_sample_unref (sample);
+}
+
+/** @brief A retained single-shot model must reopen before enabling async mode. */
+TEST_F (testFilterAsyncOutput, retainedSingleEnablesAsyncAfterStop)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-dynamic", TRUE,
+      "custom", "accept-suspend", nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  ASSERT_TRUE (klass->start (single));
+  ASSERT_TRUE (klass->stop (single));
+  EXPECT_FALSE (async_output_subplugin::closed);
+  g_object_set (object, "invoke-async", TRUE, nullptr);
+  gboolean asynchronous = FALSE;
+  g_object_get (object, "invoke-async", &asynchronous, nullptr);
+  EXPECT_TRUE (asynchronous);
+  EXPECT_TRUE (async_output_subplugin::closed);
+  if (!asynchronous)
+    return;
+
+  guint count = 0;
+  guint8 value = 0x2a;
+  GstTensorMemory input = { &value, 1 };
+  GstTensorMemory output = {};
+  ASSERT_TRUE (klass->set_invoke_async_callback (single, _record_single_async_output, &count));
+  ASSERT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  async_output_subplugin::dispatch (0x5a);
+  EXPECT_EQ (count, 1U);
+}
+
+/** @brief A retained callback must not be enabled when restarting synchronously. */
+TEST_F (testFilterAsyncOutput, retainedSingleDisablesAsyncAfterStop)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE,
+      "framework", "async_output_mock", "model", model, "invoke-dynamic", TRUE,
+      "invoke-async", TRUE, "custom", "accept-suspend", nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  guint count = 0;
+  ASSERT_TRUE (klass->set_invoke_async_callback (single, _record_single_async_output, &count));
+  ASSERT_TRUE (klass->start (single));
+  ASSERT_TRUE (klass->stop (single));
+  EXPECT_FALSE (async_output_subplugin::closed);
+  g_object_set (object, "invoke-async", FALSE, nullptr);
+  gboolean asynchronous = TRUE;
+  g_object_get (object, "invoke-async", &asynchronous, nullptr);
+  EXPECT_FALSE (asynchronous);
+  if (asynchronous)
+    return;
+
+  guint8 value = 0x2a;
+  GstTensorMemory input = { &value, 1 };
+  GstTensorMemory output = {};
+  ASSERT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  ASSERT_NE (output.data, nullptr);
+  EXPECT_EQ (output.size, 1U);
+  EXPECT_EQ (*(guint8 *) output.data, value);
+  EXPECT_EQ (count, 0U);
+  klass->destroy_notify (single, &output);
+}
+
+/** @brief Implicit invoke after stop must lock the resumed single-shot lifecycle. */
+TEST_F (testFilterAsyncOutput, retainedSingleImplicitRestartLocksMode_n)
+{
+  g_autoptr (GObject) object = (GObject *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, "framework",
+      "async_output_mock", "model", model, "custom", "accept-suspend", nullptr);
+  auto *single = G_TENSOR_FILTER_SINGLE (object);
+  auto *klass = G_TENSOR_FILTER_SINGLE_CLASS (G_OBJECT_GET_CLASS (single));
+  ASSERT_TRUE (klass->start (single));
+  ASSERT_TRUE (klass->stop (single));
+  guint8 value = 0x2a;
+  GstTensorMemory input = { &value, 1 };
+  GstTensorMemory output = {};
+  ASSERT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  klass->destroy_notify (single, &output);
+  g_object_set (object, "invoke-async", TRUE, nullptr);
+  gboolean asynchronous = TRUE;
+  g_object_get (object, "invoke-async", &asynchronous, nullptr);
+  EXPECT_FALSE (asynchronous);
+}
+
+/** @brief A rejected async start closes the model and permits a synchronous retry. */
+TEST_F (testFilterAsyncOutput, rejectedAsyncCanRestartSynchronously)
+{
+  ASSERT_NO_FATAL_FAILURE (rejectElement ("unsupported"));
+  g_object_set (pipeline, "invoke-async", FALSE, nullptr);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (async_output_subplugin::invocations, 0U);
 }
 
 /** @brief Accepting an async input still arms the idle suspend watchdog. */

@@ -1051,8 +1051,10 @@ _flex_in_async_event (const GstTensorFilterFramework *self,
   UNUSED (self);
   UNUSED (prop);
   UNUSED (private_data);
-  UNUSED (ops);
-  UNUSED (data);
+  if (ops == CHECK_ASYNC_SUPPORT) {
+    data->async_support = TRUE;
+    return 0;
+  }
   return -ENOENT;
 }
 
