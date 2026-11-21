@@ -21,6 +21,29 @@ testInit $1
 # NNStreamer and plugins path for test
 PATH_TO_PLUGIN="../../build"
 
+# The snpe modes decode a tensor file directly, so these cases need no
+# sub-plugin and run before the tensorflow2-lite check below. The frame is
+# 257 x 255, a pixel count that is not a multiple of four, and the capsfilter
+# pins the frame size so that a width and height swap fails to link.
+python3 generateTest.py
+testResult $? 4-0 "generate the snpe tensor files" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=snpe_depth.raw blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=1:257:255 input-type=float32 ! tensor_transform mode=typecast option=float32 ! tensor_decoder mode=image_segment option1=snpe-depth ! video/x-raw,format=RGBA,width=257,height=255 ! filesink location=test_output.4" 4 0 0 $PERFORMANCE
+callCompareTest snpe_depth.golden test_output.4 4-1 "snpe-depth golden frame" 0
+
+# The same pipeline with an int32 tensor, the only difference from case 4
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=snpe_depth.raw blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=1:257:255 input-type=float32 ! tensor_transform mode=typecast option=int32 ! tensor_decoder mode=image_segment option1=snpe-depth ! video/x-raw,format=RGBA,width=257,height=255 ! fakesink" 4_n 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=snpe_deeplab.raw blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=257:255:1 input-type=float32 ! tensor_transform mode=typecast option=float32 ! tensor_decoder mode=image_segment option1=snpe-deeplab ! video/x-raw,format=RGBA,width=257,height=255 ! filesink location=test_output.5" 5 0 0 $PERFORMANCE
+# 20 is the number of labels option2 defaults to
+python3 checkResult.py snpe_deeplab.raw test_output.5 20
+testResult $? 5-1 "snpe-deeplab colors follow the labels" 0 1
+
+# The same pipeline with an int32 tensor, the only difference from case 5
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=snpe_deeplab.raw blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=257:255:1 input-type=float32 ! tensor_transform mode=typecast option=int32 ! tensor_decoder mode=image_segment option1=snpe-deeplab ! video/x-raw,format=RGBA,width=257,height=255 ! fakesink" 5_n 0 1
+
+rm -f snpe_depth.raw snpe_depth.golden snpe_deeplab.raw test_output.4 test_output.5
+
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
     if [[ -d ${ini_path} ]]; then
