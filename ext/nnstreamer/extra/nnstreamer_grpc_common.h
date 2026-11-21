@@ -74,6 +74,12 @@ class NNStreamerRPC {
       g_atomic_int_set (&configured_, 1);
     }
 
+    /** @brief tell whether a received message has to wait for the caps before it is parsed; it waits no more once stopping */
+    bool waitsForCaps () {
+      return direction_ == GRPC_DIRECTION_BUFFER_TO_TENSORS
+          && !g_atomic_int_get (&configured_) && !g_atomic_int_get (&stop_);
+    }
+
     /** @brief set library module handle */
     void setModuleHandle (void * handle) {
       if (handle_ == NULL)
