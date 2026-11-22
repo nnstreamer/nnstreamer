@@ -81,24 +81,18 @@ class TensorFilterLlama2c : public tensor_filter_subplugin
   private:
   static TensorFilterLlama2c *registered;
   static const char *name;
-  static const accl_hw hw_list[];
-  static const int num_hw;
 
-  static Transformer *transformer;
-  static Tokenizer *tokenizer;
-  static Sampler *sampler;
-  static Config *config;
+  Transformer transformer{};
+  Tokenizer tokenizer{};
+  Sampler sampler{};
+  bool built = false; /* the three above are built */
   int steps = 0; /* number of steps to run for */
 
-  static void *allocate (size_t size);
+  void release ();
 };
 
 TensorFilterLlama2c *TensorFilterLlama2c::registered = nullptr;
 const char *TensorFilterLlama2c::name = "llama2c";
-Transformer *TensorFilterLlama2c::transformer = nullptr;
-Tokenizer *TensorFilterLlama2c::tokenizer = nullptr;
-Sampler *TensorFilterLlama2c::sampler = nullptr;
-Config *TensorFilterLlama2c::config = nullptr;
 
 /**
  * @brief Construct a new llama2c subplugin instance
@@ -112,6 +106,22 @@ TensorFilterLlama2c::TensorFilterLlama2c ()
  */
 TensorFilterLlama2c::~TensorFilterLlama2c ()
 {
+  release ();
+}
+
+/**
+ * @brief Free the llama2c objects of this instance.
+ */
+void
+TensorFilterLlama2c::release ()
+{
+  if (!built)
+    return;
+
+  free_transformer (&transformer);
+  free_tokenizer (&tokenizer);
+  free_sampler (&sampler);
+  built = false;
 }
 
 /**
@@ -129,18 +139,24 @@ TensorFilterLlama2c::getEmptyInstance ()
 void
 TensorFilterLlama2c::configure_instance (const GstTensorFilterProperties *prop)
 {
+  if (prop->num_models != 2 || !prop->model_files[0] || !prop->model_files[1]) {
+    throw std::invalid_argument (
+        "llama2c requires a model and a tokenizer. Example) model=model.bin,tokenizer.bin");
+  }
+
   /* build the Transformer via the model file */
-  build_transformer (transformer, (char *) prop->model_files[0]);
-  config = &transformer->config;
+  build_transformer (&transformer, (char *) prop->model_files[0]);
+  Config *config = &transformer.config;
 
   if (steps == 0 || steps > config->seq_len)
     steps = config->seq_len; /* override to ~max length */
 
   /* build the Tokenizer via the tokenizer file */
-  build_tokenizer (tokenizer, (char *) prop->model_files[1], config->vocab_size);
+  build_tokenizer (&tokenizer, (char *) prop->model_files[1], config->vocab_size);
 
   /* build the Sampler */
-  build_sampler (sampler, config->vocab_size, TEMPERATURE, TOPP, RNG_SEED);
+  build_sampler (&sampler, config->vocab_size, TEMPERATURE, TOPP, RNG_SEED);
+  built = true;
 }
 
 /**
@@ -178,18 +194,18 @@ TensorFilterLlama2c::invoke_dynamic (GstTensorFilterProperties *prop,
       prompt[len - 1] = '\0';
   }
 
-  result = get_tokens (transformer, tokenizer, sampler, prompt, steps);
+  result = get_tokens (&transformer, &tokenizer, &sampler, prompt, steps);
+  g_free (prompt);
 
   if (!result) {
-    nns_loge ("Failed to get tokens from llama2c.");
-    goto free_prompt;
+    throw std::runtime_error ("Failed to get tokens from llama2c.");
   }
 
   len = strlen (result);
 
   if (len == 0) {
-    nns_loge ("llama2c did not generate any text.");
-    goto free_result;
+    free (result);
+    throw std::runtime_error ("llama2c did not generate any text.");
   }
 
   output[0].size = len + 1;
@@ -204,10 +220,7 @@ TensorFilterLlama2c::invoke_dynamic (GstTensorFilterProperties *prop,
   _info->type = _NNS_UINT8;
   _info->dimension[0] = output[0].size;
 
-free_result:
   free (result);
-free_prompt:
-  free (prompt);
 }
 
 /**
@@ -257,30 +270,10 @@ TensorFilterLlama2c::eventHandler (event_ops ops, GstTensorFilterFrameworkEventD
   return -ENOENT;
 }
 
-/**
- * @brief Allocate new memory.
- */
-void *
-TensorFilterLlama2c::allocate (size_t size)
-{
-  void *mem = nullptr;
-
-  if (size > 0)
-    mem = malloc (size);
-
-  assert (mem != nullptr);
-  memset (mem, 0, size);
-
-  return mem;
-}
-
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 TensorFilterLlama2c::init_filter_llama2c ()
 {
-  transformer = (Transformer *) allocate (sizeof (Transformer));
-  tokenizer = (Tokenizer *) allocate (sizeof (Tokenizer));
-  sampler = (Sampler *) allocate (sizeof (Sampler));
   registered = tensor_filter_subplugin::register_subplugin<TensorFilterLlama2c> ();
 }
 
@@ -288,19 +281,6 @@ TensorFilterLlama2c::init_filter_llama2c ()
 void
 TensorFilterLlama2c::fini_filter_llama2c ()
 {
-  free_transformer (transformer);
-  free_tokenizer (tokenizer);
-  free_sampler (sampler);
-
-  free (transformer);
-  free (tokenizer);
-  free (sampler);
-
-  transformer = nullptr;
-  tokenizer = nullptr;
-  sampler = nullptr;
-  config = nullptr;
-
   /* internal logic error */
   assert (registered != nullptr);
   tensor_filter_subplugin::unregister_subplugin (registered);
