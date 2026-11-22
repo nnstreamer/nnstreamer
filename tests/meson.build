@@ -47,6 +47,11 @@ if get_option('enable-filter-cpp-class')
   subdir('nnstreamer_filter_hailort')
 endif
 
+# trix-engine sub-plugin on a mock npu-engine. It is a C++ class sub-plugin.
+if get_option('enable-filter-cpp-class')
+  subdir('nnstreamer_filter_trix_engine')
+endif
+
 # filter_reload (Currently, the reload test for tensor filter requires tflite)
 if tflite2_support_is_available
   subdir('nnstreamer_filter_reload')
@@ -553,6 +558,19 @@ if gtest_dep.found()
     )
 
     test('unittest_filter_hailort', unittest_filter_hailort, env: testenv)
+  endif
+
+  # trix-engine sub-plugin unit tests on the mock of
+  # tests/nnstreamer_filter_trix_engine, declared here for the same reason as
+  # the HailoRT ones.
+  if get_option('enable-filter-cpp-class')
+    unittest_filter_trix_engine = executable('unittest_filter_trix_engine',
+      [join_paths('nnstreamer_filter_trix_engine', 'unittest_filter_trix_engine.cc'), trix_subplugin_src],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_single_dep, trix_mock_dep],
+      install: false
+    )
+
+    test('unittest_filter_trix_engine', unittest_filter_trix_engine, env: testenv)
   endif
 
   # Tizen HAL sub-plugins on a mock of the HAL ML API. They build only with

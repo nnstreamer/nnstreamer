@@ -270,7 +270,7 @@ TensorFilterTRIxEngine::invoke (const GstTensorMemory *input, GstTensorMemory *o
   status = createNPU_request (dev_, model_id_, &req_id);
   if (status != 0) {
     nns_loge ("Unable to create NPU request with model id (%u): %d", model_id_, status);
-    return;
+    throw runtime_error ("Unable to create NPU request");
   }
 
   input_buffers input_buf;
@@ -281,14 +281,16 @@ TensorFilterTRIxEngine::invoke (const GstTensorMemory *input, GstTensorMemory *o
   status = setNPU_requestData (
       dev_, req_id, &input_buf, &trix_in_info_, &output_buf, &trix_out_info_);
   if (status != 0) {
-    nns_loge ("Unable to create NPU request for model %u", model_id_);
-    return;
+    nns_loge ("Unable to set the data of NPU request for model %u", model_id_);
+    removeNPU_request (dev_, req_id);
+    throw runtime_error ("Unable to set the data of NPU request");
   }
 
   status = submitNPU_request (dev_, req_id);
   if (status != 0) {
     nns_loge ("Unable to submit NPU request with id (%u): %d", req_id, status);
-    return;
+    removeNPU_request (dev_, req_id);
+    throw runtime_error ("Unable to submit NPU request");
   }
   /* extract output data from npu-engine */
   extract_output_data (&output_buf, output);
