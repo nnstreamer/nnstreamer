@@ -154,6 +154,10 @@ For example, you can embed a Mediapipe pipeline inside your nnstreamer pipeline.
 This could also be implemented as a custom subplugin
 
 ### LLAMA2
+- subplugin name: 'llama2c'
+- model: ```model=model.bin,tokenizer.bin```, a checkpoint and a tokenizer of [llama2.c](https://github.com/nnsuite/llama2.c), with ```invoke-dynamic=true```. Each input buffer is a prompt; the output is a flexible uint8 tensor of the generated text and its terminating NUL.
+
+The subplugin itself is built only with the ```llama2c-support``` meson option, against the llama2c library. That library is not available to CI, so every pull request builds a test-only copy of the subplugin against the mock llama2c in ```tests/nnstreamer_filter_llama2c/mock``` and runs ```unittest_filter_llama2c``` on it.
 
 
 # How to write a new subplugin
