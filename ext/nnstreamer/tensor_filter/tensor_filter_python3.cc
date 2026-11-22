@@ -765,6 +765,7 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
     }
 
     delete core;
+    core = nullptr;
   }
 
   core = new PYCore (script_path, prop->custom_properties);

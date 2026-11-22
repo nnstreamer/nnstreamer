@@ -595,7 +595,7 @@ if gtest_dep.found()
   if have_python3
     unittest_filter_python3 = executable('unittest_filter_python3',
       join_paths('nnstreamer_filter_python3', 'unittest_filter_python3.cc'),
-      dependencies: [nnstreamer_unittest_deps, python3_dep],
+      dependencies: [nnstreamer_unittest_deps, libdl_dep, python3_dep],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
