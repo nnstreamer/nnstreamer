@@ -507,6 +507,59 @@ TEST_F (nnstreamerFilterTRIxEngine, registerFails_n)
 }
 
 /**
+ * @brief Negative case: the device cannot create a request.
+ */
+TEST_F (nnstreamerFilterTRIxEngine, createRequestFails_n)
+{
+  guint8 in_data[48] = { 0 };
+  GstTensorMemory in = { in_data, sizeof (in_data) };
+  GstTensorMemory out[2] = { { nullptr, 0 }, { nullptr, 0 } };
+
+  ASSERT_EQ (open (), 0);
+  trix_mock_fail ("createNPU_request");
+  EXPECT_NE (invoke (&in, out), 0);
+  EXPECT_TRUE (out[0].data == nullptr);
+  EXPECT_EQ (trix_mock_calls ("setNPU_requestData"), 0);
+  /* a device and a model, no request */
+  EXPECT_EQ (trix_mock_live_objects (), 2);
+}
+
+/**
+ * @brief Negative case: the device refuses the data of a request, which is removed.
+ */
+TEST_F (nnstreamerFilterTRIxEngine, setDataFails_n)
+{
+  guint8 in_data[48] = { 0 };
+  GstTensorMemory in = { in_data, sizeof (in_data) };
+  GstTensorMemory out[2] = { { nullptr, 0 }, { nullptr, 0 } };
+
+  ASSERT_EQ (open (), 0);
+  trix_mock_fail ("setNPU_requestData");
+  EXPECT_NE (invoke (&in, out), 0);
+  EXPECT_TRUE (out[0].data == nullptr);
+  EXPECT_EQ (trix_mock_calls ("submitNPU_request"), 0);
+  EXPECT_EQ (trix_mock_calls ("removeNPU_request"), 1);
+  EXPECT_EQ (trix_mock_live_objects (), 2);
+}
+
+/**
+ * @brief Negative case: a request fails to run, and is removed.
+ */
+TEST_F (nnstreamerFilterTRIxEngine, submitFails_n)
+{
+  guint8 in_data[48] = { 0 };
+  GstTensorMemory in = { in_data, sizeof (in_data) };
+  GstTensorMemory out[2] = { { nullptr, 0 }, { nullptr, 0 } };
+
+  ASSERT_EQ (open (), 0);
+  trix_mock_fail ("submitNPU_request");
+  EXPECT_NE (invoke (&in, out), 0);
+  EXPECT_TRUE (out[0].data == nullptr);
+  EXPECT_EQ (trix_mock_calls ("removeNPU_request"), 1);
+  EXPECT_EQ (trix_mock_live_objects (), 2);
+}
+
+/**
  * @brief Main gtest
  */
 int
