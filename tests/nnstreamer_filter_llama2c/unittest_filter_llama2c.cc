@@ -46,9 +46,11 @@ class nnstreamerFilterLlama2c : public ::testing::Test
     tokenizer = writeFile ("tokenizer.bin", "tokenizer", 9);
   }
 
-  /** @brief Remove the files and the directory. */
+  /** @brief Check that nothing is left built, and remove the files. */
   void TearDown () override
   {
+    EXPECT_EQ (llama2c_mock_live_objects (), 0);
+    EXPECT_EQ (llama2c_mock_rebuilds (), 0);
     for (GSList *l = files; l; l = l->next)
       g_remove ((const gchar *) l->data);
     g_slist_free_full (files, g_free);
@@ -258,6 +260,166 @@ TEST_F (nnstreamerFilterLlama2c, invokeStatic_n)
   EXPECT_NE (sp->invoke (sp, &prop, data, &in, &out), 0);
   EXPECT_TRUE (out.data == nullptr);
   EXPECT_EQ (llama2c_mock_calls ("get_tokens"), 0);
+
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: closing a filter frees its llama2c objects.
+ */
+TEST_F (nnstreamerFilterLlama2c, closeReleases)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[3];
+  void *data = nullptr;
+  gchar *model = writeCheckpoint ("model.bin", 512, 32);
+
+  setProp (&prop, model_files, model, tokenizer);
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  /* a transformer, a tokenizer and a sampler */
+  EXPECT_EQ (llama2c_mock_live_objects (), 3);
+
+  sp->close (&prop, &data);
+  EXPECT_EQ (llama2c_mock_live_objects (), 0);
+  EXPECT_EQ (llama2c_mock_calls ("free_transformer"), 1);
+  EXPECT_EQ (llama2c_mock_calls ("free_tokenizer"), 1);
+  EXPECT_EQ (llama2c_mock_calls ("free_sampler"), 1);
+}
+
+/**
+ * @brief Positive case: two filters at a time each run their own model.
+ */
+TEST_F (nnstreamerFilterLlama2c, twoInstances)
+{
+  GstTensorFilterProperties prop_a, prop_b;
+  const gchar *files_a[3], *files_b[3];
+  void *data_a = nullptr, *data_b = nullptr;
+  gchar *model_a = writeCheckpoint ("a.bin", 512, 32);
+  gchar *model_b = writeCheckpoint ("b.bin", 256, 8);
+  gchar *text;
+
+  setProp (&prop_a, files_a, model_a, tokenizer);
+  setProp (&prop_b, files_b, model_b, tokenizer);
+  ASSERT_EQ (sp->open (&prop_a, &data_a), 0);
+  ASSERT_EQ (sp->open (&prop_b, &data_b), 0);
+  EXPECT_EQ (llama2c_mock_live_objects (), 6);
+
+  text = generate (&prop_a, data_a, "A");
+  EXPECT_STREQ (text, "A -> 32 of 32");
+  g_free (text);
+  text = generate (&prop_b, data_b, "B");
+  EXPECT_STREQ (text, "B -> 8 of 8");
+  g_free (text);
+
+  sp->close (&prop_b, &data_b);
+  text = generate (&prop_a, data_a, "A again");
+  EXPECT_STREQ (text, "A again -> 32 of 32");
+  g_free (text);
+  sp->close (&prop_a, &data_a);
+}
+
+/**
+ * @brief Negative case: a model without a tokenizer.
+ */
+TEST_F (nnstreamerFilterLlama2c, oneModelFile_n)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[3];
+  void *data = nullptr;
+  gchar *model = writeCheckpoint ("model.bin", 512, 32);
+
+  setProp (&prop, model_files, model, nullptr);
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_TRUE (data == nullptr);
+  EXPECT_EQ (llama2c_mock_calls ("build_transformer"), 0);
+}
+
+/**
+ * @brief Negative case: three model files instead of a model and a tokenizer.
+ */
+TEST_F (nnstreamerFilterLlama2c, threeModelFiles_n)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[4];
+  void *data = nullptr;
+  gchar *model = writeCheckpoint ("model.bin", 512, 32);
+
+  setProp (&prop, model_files, model, tokenizer);
+  model_files[2] = tokenizer;
+  model_files[3] = nullptr;
+  prop.num_models = 3;
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_TRUE (data == nullptr);
+  EXPECT_EQ (llama2c_mock_calls ("build_transformer"), 0);
+}
+
+/**
+ * @brief Negative case: two model files, one of which is NULL.
+ */
+TEST_F (nnstreamerFilterLlama2c, nullModelFile_n)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[3];
+  void *data = nullptr;
+  gchar *model = writeCheckpoint ("model.bin", 512, 32);
+
+  setProp (&prop, model_files, model, tokenizer);
+  model_files[1] = nullptr;
+  prop.num_models = 2;
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_TRUE (data == nullptr);
+
+  model_files[0] = nullptr;
+  model_files[1] = tokenizer;
+  EXPECT_NE (sp->open (&prop, &data), 0);
+  EXPECT_TRUE (data == nullptr);
+  EXPECT_EQ (llama2c_mock_calls ("build_transformer"), 0);
+}
+
+/**
+ * @brief Negative case: llama2c returns no text.
+ */
+TEST_F (nnstreamerFilterLlama2c, noResult_n)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[3];
+  void *data = nullptr;
+  gchar *model = writeCheckpoint ("model.bin", 512, 32);
+  gchar prompt[] = "prompt";
+  GstTensorMemory in = { prompt, strlen (prompt) };
+  GstTensorMemory out = { nullptr, 0 };
+
+  setProp (&prop, model_files, model, tokenizer);
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  llama2c_mock_set_result (LLAMA2C_MOCK_RESULT_NULL);
+  EXPECT_NE (sp->invoke (sp, &prop, data, &in, &out), 0);
+  EXPECT_TRUE (out.data == nullptr);
+  EXPECT_EQ (llama2c_mock_calls ("get_tokens"), 1);
+
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: llama2c returns an empty text.
+ */
+TEST_F (nnstreamerFilterLlama2c, emptyResult_n)
+{
+  GstTensorFilterProperties prop;
+  const gchar *model_files[3];
+  void *data = nullptr;
+  gchar *model = writeCheckpoint ("model.bin", 512, 32);
+  gchar prompt[] = "prompt";
+  GstTensorMemory in = { prompt, strlen (prompt) };
+  GstTensorMemory out = { nullptr, 0 };
+
+  setProp (&prop, model_files, model, tokenizer);
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  llama2c_mock_set_result (LLAMA2C_MOCK_RESULT_EMPTY);
+  EXPECT_NE (sp->invoke (sp, &prop, data, &in, &out), 0);
+  EXPECT_TRUE (out.data == nullptr);
+  EXPECT_EQ (llama2c_mock_calls ("get_tokens"), 1);
 
   sp->close (&prop, &data);
 }
