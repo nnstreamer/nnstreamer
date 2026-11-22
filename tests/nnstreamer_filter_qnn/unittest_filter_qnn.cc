@@ -533,6 +533,97 @@ TEST_F (nnstreamerFilterQnn, executeFails_n)
 }
 
 /**
+ * @brief Positive case: per-axis quantization parameters reach the backend
+ *        and are freed (Valgrind and LeakSanitizer report the array if not).
+ */
+TEST_F (nnstreamerFilterQnn, axisQuantization)
+{
+  qnn_mock_model_set_quantization (QNN_QUANTIZATION_ENCODING_AXIS_SCALE_OFFSET, 3);
+  ASSERT_EQ (open (), 0);
+  expectInvokeWorks (1);
+}
+
+/**
+ * @brief Positive case: per-axis quantization with no pair reaches the
+ *        backend with no array.
+ */
+TEST_F (nnstreamerFilterQnn, axisQuantizationEmpty)
+{
+  qnn_mock_model_set_quantization (QNN_QUANTIZATION_ENCODING_AXIS_SCALE_OFFSET, 0);
+  ASSERT_EQ (open (), 0);
+  expectInvokeWorks (4);
+}
+
+/**
+ * @brief Negative case: more inputs than nnstreamer takes.
+ */
+TEST_F (nnstreamerFilterQnn, tooManyInputs_n)
+{
+  qnn_mock_model_set_num_tensors (NNS_TENSOR_SIZE_LIMIT + 1, 2);
+  expectOpenFails ();
+}
+
+/**
+ * @brief Negative case: more outputs than nnstreamer takes.
+ */
+TEST_F (nnstreamerFilterQnn, tooManyOutputs_n)
+{
+  qnn_mock_model_set_num_tensors (1, NNS_TENSOR_SIZE_LIMIT + 1);
+  expectOpenFails ();
+}
+
+/**
+ * @brief Negative case: an input of a rank above the limit of nnstreamer.
+ */
+TEST_F (nnstreamerFilterQnn, inputRankTooHigh_n)
+{
+  qnn_mock_model_set_ranks (NNS_TENSOR_RANK_LIMIT + 1, 4);
+  expectOpenFails ();
+}
+
+/**
+ * @brief Negative case: an output of a rank above the limit of nnstreamer.
+ */
+TEST_F (nnstreamerFilterQnn, outputRankTooHigh_n)
+{
+  qnn_mock_model_set_ranks (4, NNS_TENSOR_RANK_LIMIT + 1);
+  expectOpenFails ();
+}
+
+/**
+ * @brief Negative case: the backend fails to list its providers.
+ */
+TEST_F (nnstreamerFilterQnn, getProvidersFails_n)
+{
+  qnn_mock_backend_fail ("getProviders");
+  expectOpenFails ();
+  EXPECT_EQ (qnn_mock_backend_calls ("getProviders"), 1);
+  EXPECT_EQ (qnn_mock_backend_calls ("backendCreate"), 0);
+}
+
+/**
+ * @brief Negative case: the model library has no QnnModel_composeGraphs.
+ */
+TEST_F (nnstreamerFilterQnn, modelWithoutCompose_n)
+{
+  setModel (QNN_MOCK_BACKEND_PATH, QNN_MOCK_BACKEND_PATH);
+  expectOpenFails ();
+  EXPECT_EQ (qnn_mock_backend_calls ("contextCreate"), 1);
+  EXPECT_EQ (qnn_mock_backend_calls ("graphCreate"), 0);
+}
+
+/**
+ * @brief Negative case: a model of two graphs is refused and both are freed.
+ */
+TEST_F (nnstreamerFilterQnn, twoGraphs_n)
+{
+  qnn_mock_model_set_graph_count (2);
+  expectOpenFails ();
+  EXPECT_EQ (qnn_mock_backend_calls ("graphCreate"), 2);
+  EXPECT_EQ (qnn_mock_backend_calls ("graphFinalize"), 0);
+}
+
+/**
  * @brief Main gtest
  */
 int
