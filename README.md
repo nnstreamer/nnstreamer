@@ -141,7 +141,7 @@ Although a framework may accelerate transparently as Tensorflow-GPU does, nnstre
 - Hailo NPUs via hailort subplugin: Experimental
 - TRI-x NPUs: Released
 - NXP i.MX series: [via the vendor](https://www.nxp.com/docs/en/user-guide/IMX-MACHINE-LEARNING-UG.pdf)
-- Others: TVM, TensorFlow, TensorFlow-lite, PyTorch, Caffe2, SNAP, ...
+- Others: TVM, TensorFlow, TensorFlow-lite, PyTorch, Caffe2, ...
 
 
 [gitter-url]: https://gitter.im/nnstreamer/Lobby

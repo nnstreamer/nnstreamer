@@ -57,6 +57,10 @@ Custom properties (```custom=Key1:Value1,Key2:Value2```):
 To build, provide the LiteRT SDK via pkg-config (```litert.pc```) or the ```LITERT_ROOT``` environment variable (expecting ```$LITERT_ROOT/lib/libLiteRt.so``` and ```$LITERT_ROOT/include/litert/c/*.h```), and use the ```litert-support``` meson option. The "install LiteRT SDK" steps in ```.github/workflows/ubuntu_clean_meson_build.yml``` and ```.github/workflows/macos.yaml``` are working examples that assemble the SDK from the official LiteRT releases (headers from ```litert_cc_sdk.zip```, the runtime library from the ```ai-edge-litert``` wheel).
 
 ### SNAP
+- subplugin name: 'snap'
+
+This subplugin is deprecated (#5182). It runs only on Samsung Android devices with SNAP (Samsung Neural Acceleration Platform) 3.0, and no build of nnstreamer has compiled it for years; use the ```tensorflow2-lite``` or ```qnn``` subplugin instead. Opening a model with it logs a deprecation warning. If you still depend on it, please comment on #5182.
+
 ### NCNN
 - subplugin name: 'ncnn'
 ### ExecuTorch
@@ -110,6 +114,10 @@ With ```invoke-async=true```, the text is streamed instead: the prompt (when ech
 It needs ExecuTorch built with the LLM runner, which ```tools/executorch-install.sh``` does, and the ```executorch-llama-support``` meson option.
 
 ### MXNET
+- subplugin name: 'mxnet'
+
+This subplugin is deprecated (#5182). Apache MXNet is retired (moved to the Apache Attic in 2023; its last release is 1.9.1); use the ```onnxruntime``` or ```pytorch``` subplugin instead. Opening a model with it logs a deprecation warning. If you still depend on it, please comment on #5182.
+
 ### NNFW
 ### ONNX Runtime
 ### Openvino
@@ -131,6 +139,9 @@ Note: due to API disruptions, there are two versions.
 
 Note: due to API disruptions, there are two versions.
 
+- subplugin name: 'tensorrt10': TensorRT 10 or later, with an ONNX model.
+- subplugin name: 'tensorrt': TensorRT 9 or older, with a UFF model. This subplugin is deprecated (#5182): TensorRT deprecated the UFF format in 8.x and removed the UFF parser in 10; convert the model to ONNX and use ```tensorrt10``` instead. Opening a model with it logs a deprecation warning. If you still depend on it, please comment on #5182.
+
 ### HailoRT (Hailo NPU)
 - subplugin name: 'hailort'
 - model: one compiled ```.hef``` file with one network group. HailoRT 4.18 or later.
@@ -139,14 +150,23 @@ Note: due to API disruptions, there are two versions.
 - After a failed transfer, invoke is refused until the model is opened again.
 - Not built with ```tizen-hal-support```. There, Hailo NPUs need a Hailo backend of the ```tizen-hal``` subplugin, which does not exist yet (#4680).
 
+### DeepViewRT (NXP)
+- subplugin name: 'deepview-rt'
+
+This subplugin is deprecated (#5182). NXP no longer ships DeepViewRT in its i.MX Linux BSP, and points to TensorFlow Lite with the VX delegate instead; use the ```tensorflow2-lite``` subplugin. Opening a model with it logs a deprecation warning. If you still depend on it, please comment on #5182.
+
 ### TRIx-engine (Samsung TV/CE)
 
 ## Adaptors for other pipeline frameworks
 
 You may insert pipelines of other frameworks into nnstmreamer pipeline as well.
-For example, you can embed a Mediapipe pipeline inside your nnstreamer pipeline.
+For example, you can embed a DALI pipeline inside your nnstreamer pipeline.
 
 ### Mediapipe
+- subplugin name: 'mediapipe'
+
+This subplugin is deprecated (#5182). It needs a MediaPipe source tree built with Bazel (```enable-mediapipe```, ```MEDIAPIPE_HOME```) and has no test; use the ```tensorflow2-lite``` or ```litert``` subplugin for the models of a MediaPipe graph instead. Opening a graph with it logs a deprecation warning. If you still depend on it, please comment on #5182.
+
 ### DALI
 
 ## Adaptors for individual usage cases

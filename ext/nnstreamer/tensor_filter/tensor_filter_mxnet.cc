@@ -81,6 +81,7 @@
  *                custom=input_rank=4:1
  */
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 #include <stdexcept>
@@ -202,6 +203,10 @@ void
 TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
 {
   GstTensorInfo *_info;
+
+  ml_logw ("tensor_filter subplugin mxnet is deprecated "
+           "(nnstreamer issue #5182). Apache MXNet is retired; use the "
+           "onnxruntime or pytorch subplugin instead.");
 
   if (prop->num_models != 1) {
     throw std::invalid_argument ("Multiple models is not supported.");

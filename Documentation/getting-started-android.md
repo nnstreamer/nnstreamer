@@ -132,7 +132,7 @@ Run the build script in NNStreamer.
       - `--enable_tflite_qnn_delegate` to build with tflite QNN delegate.
       - `--enable_snpe=yes` to build with SNPE (Qualcomm Snapdragon Neural Processing Engine).
       - `--enable_nnfw=yes` to build with NNFW (Samsung on-device neural network inference framework).
-      - `--enable_snap=yes` to build with SNAP (Samsung Neural Acceleration Platform).
+      - `--enable_snap=yes` to build with SNAP (Samsung Neural Acceleration Platform). Deprecated: use TensorFlow-Lite or QNN instead.
       - `--enable_qnn=yes` to build with QNN (Qualcomm® AI Engine Direct).
   4. Enabling tracing: Default no.
       - `--enable_tracing=yes` to build with tracing and Gst-Shark.

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
@@ -179,6 +180,10 @@ void
 tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   GstTensorInfo *_info;
+
+  ml_logw ("tensor_filter subplugin tensorrt is deprecated "
+           "(nnstreamer issue #5182). TensorRT 10 removed the UFF parser; use "
+           "the tensorrt10 subplugin with an ONNX model instead.");
 
   /* Set model path */
   if (prop->num_models != 1 || !prop->model_files[0]) {
