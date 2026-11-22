@@ -47,6 +47,11 @@ if get_option('enable-filter-cpp-class')
   subdir('nnstreamer_filter_hailort')
 endif
 
+# QNN sub-plugin on a mock QNN backend and model. It is a C++ class sub-plugin.
+if get_option('enable-filter-cpp-class')
+  subdir('nnstreamer_filter_qnn')
+endif
+
 # filter_reload (Currently, the reload test for tensor filter requires tflite)
 if tflite2_support_is_available
   subdir('nnstreamer_filter_reload')
@@ -553,6 +558,23 @@ if gtest_dep.found()
     )
 
     test('unittest_filter_hailort', unittest_filter_hailort, env: testenv)
+  endif
+
+  # QNN sub-plugin unit tests on the mock of tests/nnstreamer_filter_qnn,
+  # declared here for the same reason as the HailoRT ones.
+  if get_option('enable-filter-cpp-class')
+    qnn_subplugin_args = []
+    if cxx.has_argument('-Wno-missing-braces')
+      qnn_subplugin_args += '-Wno-missing-braces'
+    endif
+    unittest_filter_qnn = executable('unittest_filter_qnn',
+      [join_paths('nnstreamer_filter_qnn', 'unittest_filter_qnn.cc'), qnn_subplugin_src],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_single_dep, gmodule_dep, qnn_mock_dep],
+      cpp_args: qnn_subplugin_args,
+      install: false
+    )
+
+    test('unittest_filter_qnn', unittest_filter_qnn, env: testenv)
   endif
 
   # Tizen HAL sub-plugins on a mock of the HAL ML API. They build only with
