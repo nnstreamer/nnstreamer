@@ -113,6 +113,7 @@ deepCopyQnnTensor (Qnn_Tensor_t *dst, const Qnn_Tensor_t *src)
     qParams.axisScaleOffsetEncoding.axis = srcQParams.axisScaleOffsetEncoding.axis;
     qParams.axisScaleOffsetEncoding.numScaleOffsets
         = srcQParams.axisScaleOffsetEncoding.numScaleOffsets;
+    qParams.axisScaleOffsetEncoding.scaleOffset = nullptr;
     if (srcQParams.axisScaleOffsetEncoding.numScaleOffsets > 0) {
       qParams.axisScaleOffsetEncoding.scaleOffset = (Qnn_ScaleOffset_t *) g_malloc0 (
           srcQParams.axisScaleOffsetEncoding.numScaleOffsets * sizeof (Qnn_ScaleOffset_t));
@@ -208,6 +209,7 @@ class QnnManager
     uint32_t numOutputTensors;
   } GraphInfo_t;
   GraphInfo_t **graphs_info_ = nullptr;
+  uint32_t graph_count_ = 0U;
 
   using QnnInterfaceGetProvidersFn = decltype (QnnInterface_getProviders);
   using ComposeGraphsFn = ModelError_t (Qnn_BackendHandle_t, QNN_INTERFACE_VER_TYPE,
@@ -223,7 +225,8 @@ const char *
 QnnManager::qnnErrorHandleToString (Qnn_ErrorHandle_t err)
 {
   const char *error_msg = nullptr;
-  if (qnn_interface_.errorGetMessage (err, &error_msg) == QNN_SUCCESS) {
+  if (qnn_interface_.errorGetMessage
+      && qnn_interface_.errorGetMessage (err, &error_msg) == QNN_SUCCESS) {
     return error_msg;
   }
 
@@ -311,19 +314,19 @@ QnnManager::init (const char *model_path, const char *backend_path)
   if (!g_module_symbol (model_module, "QnnModel_composeGraphs", (void **) &compose_graphs)) {
     nns_loge ("Failed to get symbol 'QnnModel_composeGraphs' from the model: %s",
         g_module_error ());
+    return false;
   }
 
-  uint32_t graph_count = 0U;
   ModelError_t mrt = compose_graphs (backend_handle_, qnn_interface_, context_handle_,
-      nullptr, 0U, &graphs_info_, &graph_count, false, nullptr, QNN_LOG_LEVEL_ERROR);
+      nullptr, 0U, &graphs_info_, &graph_count_, false, nullptr, QNN_LOG_LEVEL_ERROR);
   if (mrt != MODEL_NO_ERROR) {
     nns_loge ("Failed to compose graphs. Error: %d", (int) mrt);
     return false;
   }
 
   /** @todo Support multiple graphs. Assume graph_count == 1 for now. */
-  if (graph_count != 1U) {
-    nns_loge ("Only support single graph for now. graph_count: %u", graph_count);
+  if (graph_count_ != 1U) {
+    nns_loge ("Only support single graph for now. graph_count: %u", graph_count_);
     return false;
   }
 
@@ -376,6 +379,9 @@ QnnManager::fini ()
   auto _free_qnn_tensor = [] (Qnn_Tensor_t &tensor) {
     free ((void *) tensor.v1.name);
     free (tensor.v1.dimensions);
+    if (tensor.v1.quantizeParams.quantizationEncoding == QNN_QUANTIZATION_ENCODING_AXIS_SCALE_OFFSET) {
+      g_free (tensor.v1.quantizeParams.axisScaleOffsetEncoding.scaleOffset);
+    }
     if (tensor.version == QNN_TENSOR_VERSION_2) {
       if (tensor.v2.isDynamicDimensions) {
         free (tensor.v2.isDynamicDimensions);
@@ -401,7 +407,7 @@ QnnManager::fini ()
       nns_logw ("Failed to resolve symbol 'QnnModel_freeGraphsInfo' from model: %s",
           g_module_error ());
     } else {
-      free_graphs (&graphs_info_, 1U);
+      free_graphs (&graphs_info_, graph_count_);
     }
 
     g_module_close (model_module);
@@ -526,6 +532,15 @@ qnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     throw std::invalid_argument ("Failed to prepare backend and model");
   }
 
+  if (qnn_manager.input_tensors_.size () > NNS_TENSOR_SIZE_LIMIT) {
+    throw std::invalid_argument (
+        "The model has more than " NNS_TENSOR_SIZE_LIMIT_STR " inputs.");
+  }
+  if (qnn_manager.output_tensors_.size () > NNS_TENSOR_SIZE_LIMIT) {
+    throw std::invalid_argument (
+        "The model has more than " NNS_TENSOR_SIZE_LIMIT_STR " outputs.");
+  }
+
   /* parse input tensors info */
   inputInfo.num_tensors = qnn_manager.input_tensors_.size ();
   for (size_t i = 0; i < inputInfo.num_tensors; ++i) {
@@ -535,6 +550,9 @@ qnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     info->name = g_strdup (tensor.v1.name);
 
     uint32_t rank = tensor.v1.rank;
+    if (rank > NNS_TENSOR_RANK_LIMIT) {
+      throw std::invalid_argument ("An input tensor has a rank above the limit.");
+    }
     for (size_t j = 0; j < rank; ++j) {
       info->dimension[rank - 1 - j] = (tensor.v1.dimensions)[j];
     }
@@ -554,6 +572,9 @@ qnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     info->name = g_strdup (tensor.v1.name);
 
     uint32_t rank = tensor.v1.rank;
+    if (rank > NNS_TENSOR_RANK_LIMIT) {
+      throw std::invalid_argument ("An output tensor has a rank above the limit.");
+    }
     for (size_t j = 0; j < rank; ++j) {
       info->dimension[rank - 1 - j] = (tensor.v1.dimensions)[j];
     }
