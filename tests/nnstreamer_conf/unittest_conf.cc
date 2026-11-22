@@ -31,9 +31,14 @@
  * GLib calls libnnstreamer makes while it touches them. On ELF the executable's
  * definitions below take precedence over libglib's. A thread that armed a hook
  * waits inside the hooked call for a second armed thread: two threads inside at
- * once means the two calls are not serialized. A test that needs a hook skips
- * itself when the hook was bypassed.
+ * once means the two calls are not serialized. A test whose hook was bypassed
+ * fails on ELF, where the hooks are known to work, and skips itself elsewhere.
  */
+#if defined(__ELF__)
+#define HOOK_BYPASSED() FAIL ()
+#else
+#define HOOK_BYPASSED() GTEST_SKIP ()
+#endif
 #define HOOK_KEYFILE (1U << 0)
 #define HOOK_LOOKUP (1U << 1)
 #define HOOK_INSERT (1U << 2)
@@ -325,7 +330,7 @@ TEST_F (NNSConfConcurrency, loadWaitsForLoad)
 
   if (!_region_wait_entered ()) {
     loader.join ();
-    GTEST_SKIP () << "g_key_file_load_from_file() is not interposed.";
+    HOOK_BYPASSED () << "g_key_file_load_from_file() is not interposed.";
   }
 
   std::thread reader ([&path] {
@@ -369,7 +374,7 @@ TEST_F (NNSConfConcurrency, customInsertExcludesLookup)
     g_free (inserted);
     g_free (envname);
     g_free (key);
-    GTEST_SKIP () << "g_hash_table_insert() is not interposed.";
+    HOOK_BYPASSED () << "g_hash_table_insert() is not interposed.";
   }
 
   std::thread reader ([&looked_up] {
@@ -415,7 +420,7 @@ TEST_F (NNSConfConcurrency, customMissWaitsForReload)
   if (!_gate_wait_arrived (GATE_LOOKUP)) {
     reader.join ();
     g_free (value);
-    GTEST_SKIP () << "g_hash_table_lookup() is not interposed.";
+    HOOK_BYPASSED () << "g_hash_table_lookup() is not interposed.";
   }
 
   std::thread reloader ([] {
@@ -428,7 +433,7 @@ TEST_F (NNSConfConcurrency, customMissWaitsForReload)
     reloader.join ();
     reader.join ();
     g_free (value);
-    GTEST_SKIP () << "g_strfreev() is not interposed.";
+    HOOK_BYPASSED () << "g_strfreev() is not interposed.";
   }
 
   _gate_open (GATE_LOOKUP);
@@ -462,7 +467,7 @@ TEST_F (NNSConfConcurrency, loadWaitsForReloadReset)
 
   if (!_gate_wait_arrived (GATE_STRFREEV)) {
     reloader.join ();
-    GTEST_SKIP () << "g_strfreev() is not interposed.";
+    HOOK_BYPASSED () << "g_strfreev() is not interposed.";
   }
 
   std::thread finder ([&path, &done] {
