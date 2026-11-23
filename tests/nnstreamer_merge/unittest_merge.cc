@@ -498,12 +498,10 @@ class TensorMergeNotation : public testing::Test
   }
 
   /**
-   * @brief Push one 3:4:4 tensor on each sink pad and wait for the end.
+   * @brief Start two rank-3 appsrcs through tensor_merge.
    * @param downstream the elements after tensor_merge, ending with a sink named "out"
-   * @param[out] debug the debug text of the error the pipeline posted, nullable
-   * @return the pipeline's EOS or error message type, or UNKNOWN on timeout
    */
-  GstMessageType run (const gchar *downstream, gchar **debug = nullptr)
+  bool start (const gchar *downstream)
   {
     g_autofree gchar *desc = g_strdup_printf (
         "tensor_merge name=merge mode=linear option=0 sync-mode=nosync ! %s "
@@ -513,7 +511,7 @@ class TensorMergeNotation : public testing::Test
 
     pipeline = gst_parse_launch (desc, NULL);
     if (!pipeline)
-      return GST_MESSAGE_UNKNOWN;
+      return false;
 
     g_autoptr (GstElement) sink = gst_bin_get_by_name (GST_BIN (pipeline), "out");
     if (g_signal_lookup ("new-data", G_OBJECT_TYPE (sink))) {
@@ -521,7 +519,20 @@ class TensorMergeNotation : public testing::Test
       g_signal_connect (sink, "new-data", G_CALLBACK (count_output), &received_count);
     }
 
-    gst_element_set_state (pipeline, GST_STATE_PLAYING);
+    return gst_element_set_state (pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE;
+  }
+
+  /**
+   * @brief Push one 3:4:4 tensor on each sink pad and wait for the end.
+   * @param downstream the elements after tensor_merge, ending with a sink named "out"
+   * @param[out] debug the debug text of the error the pipeline posted, nullable
+   * @return the pipeline's EOS or error message type, or UNKNOWN on timeout
+   */
+  GstMessageType run (const gchar *downstream, gchar **debug = nullptr)
+  {
+    if (!start (downstream))
+      return GST_MESSAGE_UNKNOWN;
+
     for (guint i = 0; i < 2; i++) {
       guint8 bytes[MERGE_RANK3_SIZE];
       for (guint j = 0; j < MERGE_RANK3_SIZE; j++)
@@ -567,6 +578,55 @@ class TensorMergeNotation : public testing::Test
     return g_strdup (dim);
   }
 };
+
+/**
+ * @brief Keep the later input's timestamps without changing channel order.
+ */
+TEST_F (TensorMergeNotation, timestampsFollowLaterInput)
+{
+  const GstClockTime pts[2][2] = {
+    { 10 * GST_MSECOND, 12 * GST_MSECOND },
+    { 24 * GST_MSECOND, 22 * GST_MSECOND },
+  };
+  const GstClockTime duration[2] = { GST_MSECOND, 2 * GST_MSECOND };
+
+  ASSERT_TRUE (start ("appsink name=out sync=false async=false wait-on-eos=false"));
+  g_autoptr (GstElement) sink = gst_bin_get_by_name (GST_BIN (pipeline), "out");
+
+  for (guint frame = 0; frame < 2; frame++) {
+    SCOPED_TRACE (frame);
+    guint8 expected[MERGE_RANK3_SIZE * 2];
+    for (guint pad = 0; pad < 2; pad++) {
+      const guint8 value = 1 + frame * 2 + pad;
+      GstBuffer *in = gst_buffer_new_allocate (NULL, MERGE_RANK3_SIZE, NULL);
+      ASSERT_NE (in, nullptr);
+      gst_buffer_memset (in, 0, value, MERGE_RANK3_SIZE);
+      GST_BUFFER_PTS (in) = pts[frame][pad];
+      GST_BUFFER_DTS (in) = pts[frame][pad] - GST_MSECOND;
+      GST_BUFFER_DURATION (in) = duration[pad];
+
+      for (guint offset = 0; offset < sizeof (expected); offset += 6)
+        memset (expected + offset + pad * 3, value, 3);
+
+      g_autofree gchar *name = g_strdup_printf ("in%u", pad);
+      g_autoptr (GstElement) src = gst_bin_get_by_name (GST_BIN (pipeline), name);
+      ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (src), in), GST_FLOW_OK);
+    }
+
+    g_autoptr (GstSample) sample = gst_app_sink_try_pull_sample (
+        GST_APP_SINK (sink), MERGE_TIMEOUT_MS * GST_MSECOND);
+    ASSERT_NE (sample, nullptr);
+    GstBuffer *out = gst_sample_get_buffer (sample);
+    ASSERT_NE (out, nullptr);
+
+    const guint later = frame == 0 ? 1 : 0;
+    EXPECT_EQ (GST_BUFFER_PTS (out), pts[frame][later]);
+    EXPECT_EQ (GST_BUFFER_DTS (out), pts[frame][later] - GST_MSECOND);
+    EXPECT_EQ (GST_BUFFER_DURATION (out), duration[later]);
+    ASSERT_EQ (gst_buffer_get_size (out), sizeof (expected));
+    EXPECT_EQ (gst_buffer_memcmp (out, 0, expected, sizeof (expected)), 0);
+  }
+}
 
 /**
  * @brief A peer pinning the rank-3 notation negotiates it and gets the
