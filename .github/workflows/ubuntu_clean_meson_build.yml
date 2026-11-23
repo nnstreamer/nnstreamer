@@ -415,6 +415,26 @@ jobs:
         export GST_PLUGIN_PATH=`pwd`/build/gst
         export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini
         cd tests/nnstreamer_filter_custom && ssat -n -p=1 --summary summary.txt
+    # Exercise the tensor_transform pipelines and their NumPy reference data.
+    - name: SSAT run on tensor transform modes
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      timeout-minutes: 10
+      run: |
+        export GST_PLUGIN_PATH="$(pwd)/build/gst"
+        export NNSTREAMER_CONF="$(pwd)/build/nnstreamer-test.ini"
+        for mode in clamp stand transpose; do
+          (
+            cd "tests/transform_${mode}"
+            /usr/bin/python3 generateTest.py
+            summary="${RUNNER_TEMP}/transform-${mode}-summary.txt"
+            rm -f "$summary"
+            SKIPGEN=YES ssat -n -p=1 --summary "$summary"
+            if ! grep -Eq '^passed=[1-9][0-9]*, failed=0, ignored=0$' "$summary"; then
+              echo "::error::Transform ${mode} did not run its SSAT cases successfully."
+              exit 1
+            fi
+          )
+        done
     # Elsewhere these suites run only in GBS and pdebuild. The first one
     # generates its test data with numpy, which the job's python3 does not have
     # (see filter-executorch); the system python3 does, so generate the data
