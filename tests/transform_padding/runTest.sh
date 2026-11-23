@@ -86,6 +86,14 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_05.dat\" bl
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_05.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=20:30 input-type=uint8 ! tensor_transform mode=padding option=left:1,,right:1 ! filesink location=\"./result_15.dat\" sync=true" 15_n 0 1 $PERFORMANCE
 
+# NHWC maps left/right to width and front/back to channels.
+# The two outer dimensions must retain every slice in the original order.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_07.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=2:3:4:2:3 input-type=uint16 ! tensor_transform mode=padding option=left:1,right:2,top:2,back:3,layout:NHWC ! filesink location=\"./result_16.dat\" sync=true" 16 0 0 $PERFORMANCE
+callCompareTest result_16.dat test_07.dat.golden 16 "Golden test comparison 16 (asymmetric NHWC)" 0 0
+
+# Reject an unsupported layout instead of silently using the default.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_07.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=2:3:4:2:3 input-type=uint16 ! tensor_transform mode=padding option=left:1,right:2,top:2,back:3,layout:CHWN ! filesink location=\"./result_17.dat\" sync=true" 17_n 0 1 $PERFORMANCE
+
 rm *.golden *.dat
 
 report
