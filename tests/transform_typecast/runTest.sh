@@ -63,6 +63,18 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
 python3 checkResult.py typecast testcase05.direct.log testcase05.typecast.log uint8 1 B float32 4 f
 testResult $? 5 "Golden test comparison" 0 1
 
+# Require a value mismatch when a float output contains an unexpected NaN.
+python3 - <<'PY'
+import struct
+from pathlib import Path
+
+Path('testcase05-nan.direct.log').write_bytes(bytes([1, 2]))
+Path('testcase05-nan.typecast.log').write_bytes(struct.pack('2f', 1.0, float('nan')))
+PY
+python3 checkResult.py typecast testcase05-nan.direct.log testcase05-nan.typecast.log uint8 1 B float32 4 f
+test "$?" -eq 21
+testResult $? 5-nan "Reject NaN instead of a finite typecast value" 0 1
+
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=typecast option=float64 ! filesink location=\"testcase06.typecast.log\" sync=true t. ! queue ! filesink location=\"testcase06.direct.log\" sync=true" 6 0 0 $PERFORMANCE
 # uint8 -> float64
 python3 checkResult.py typecast testcase06.direct.log testcase06.typecast.log uint8 1 B float64 8 d
