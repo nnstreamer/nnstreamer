@@ -2726,31 +2726,6 @@ TEST_F (testFilterAsyncOutput, noCallbackResult_n)
   gst_tensors_info_free (&info);
 }
 
-/**
- * @brief Main gtest
- */
-int
-main (int argc, char **argv)
-{
-  int result = -1;
-
-  try {
-    testing::InitGoogleTest (&argc, argv);
-  } catch (...) {
-    g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
-  }
-
-  gst_init (&argc, &argv);
-
-  try {
-    result = RUN_ALL_TESTS ();
-  } catch (...) {
-    g_warning ("catch `testing::internal::GoogleTestFailureException`");
-  }
-
-  return result;
-}
-
 /** @brief Flexible non-dynamic output uses its own tensor description. */
 TEST_F (testFilterAsyncOutput, nonDynamicFlexibleOutput)
 {
@@ -2813,4 +2788,29 @@ TEST_F (testFilterAsyncOutput, nonDynamicFlexibleInvalidLaterMetadata_n)
   EXPECT_NO_FATAL_FAILURE (expectValue (sample, 0x5a));
   if (sample)
     gst_sample_unref (sample);
+}
+
+/**
+ * @brief Main gtest
+ */
+int
+main (int argc, char **argv)
+{
+  int result = -1;
+
+  try {
+    testing::InitGoogleTest (&argc, argv);
+  } catch (...) {
+    g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
+  }
+
+  gst_init (&argc, &argv);
+
+  try {
+    result = RUN_ALL_TESTS ();
+  } catch (...) {
+    g_warning ("catch `testing::internal::GoogleTestFailureException`");
+  }
+
+  return result;
 }
