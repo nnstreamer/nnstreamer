@@ -65,14 +65,8 @@
 #include "../extra/nnstreamer_flatbuf.h"
 #include "tensor_converter_util.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-void init_flxc (void) __attribute__ ((constructor));
-void fini_flxc (void) __attribute__ ((destructor));
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
+static void init_flxc (void) __attribute__ ((constructor));
+static void fini_flxc (void) __attribute__ ((destructor));
 
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback */
 static GstCaps *
@@ -190,22 +184,16 @@ static NNStreamerExternalConverter flexBuf = { .name = converter_subplugin_flexb
   .open = NULL,
   .close = NULL };
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 /** @brief Initialize this object for tensor converter sub-plugin */
-void
+static void
 init_flxc (void)
 {
   registerExternalConverter (&flexBuf);
 }
 
 /** @brief Destruct this object for tensor converter sub-plugin */
-void
+static void
 fini_flxc (void)
 {
   unregisterExternalConverter (flexBuf.name);
 }
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */

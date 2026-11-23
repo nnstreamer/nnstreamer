@@ -65,14 +65,8 @@
 #include "../extra/nnstreamer_flatbuf.h"
 #include "tensordecutil.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-void init_flxd (void) __attribute__ ((constructor));
-void fini_flxd (void) __attribute__ ((destructor));
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
+static void init_flxd (void) __attribute__ ((constructor));
+static void fini_flxd (void) __attribute__ ((destructor));
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
@@ -238,23 +232,16 @@ static GstTensorDecoderDef flexBuf = { .modename = decoder_subplugin_flexbuf,
   .decode = flxd_decode,
   .getTransformSize = NULL };
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /** @brief Initialize this object for tensordec-plugin */
-void
+static void
 init_flxd (void)
 {
   nnstreamer_decoder_probe (&flexBuf);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
-void
+static void
 fini_flxd (void)
 {
   nnstreamer_decoder_exit (flexBuf.modename);
 }
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
