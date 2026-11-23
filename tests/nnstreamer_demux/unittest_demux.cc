@@ -9,6 +9,8 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <gst/app/gstappsink.h>
+#include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #include <tensor_common.h>
 #include <unittest_util.h>
@@ -171,13 +173,14 @@ _buffer_with_memories (guint num_mems, gsize size)
 }
 
 /**
- * @brief Build a buffer of the zeroed tensors the caps declare, more tensors
+ * @brief Build a buffer of the tensors the caps declare, more tensors
  *        than NNS_TENSOR_MEMORY_MAX gathered in its last memory.
  * @param caps the caps declaring the tensors
+ * @param distinct fill each tensor with its index instead of zero
  * @return the buffer, which the caller should unref
  */
 static GstBuffer *
-_buffer_with_tensors (GstCaps *caps)
+_buffer_with_tensors (GstCaps *caps, gboolean distinct = FALSE)
 {
   GstTensorsConfig config;
   GstBuffer *buffer = gst_buffer_new ();
@@ -191,7 +194,7 @@ _buffer_with_tensors (GstCaps *caps)
     GstMapInfo map;
 
     EXPECT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
-    memset (map.data, 0, map.size);
+    memset (map.data, distinct ? i : 0, map.size);
     gst_memory_unmap (mem, &map);
 
     EXPECT_TRUE (gst_tensor_buffer_append_memory (buffer, mem, _info));
@@ -248,6 +251,97 @@ TEST (tensorDemuxTensorCount, matchingExtraBuffer)
   EXPECT_FALSE (posted);
 
   gst_caps_unref (caps);
+}
+
+/**
+ * @brief Pick a packed extra tensor and group two tensors in reverse index order.
+ */
+TEST (tensorDemuxExtraTensors, selectsPackedTensorData)
+{
+  GstElement *pipeline, *src, *single, *group;
+  GstCaps *caps;
+  GstBuffer *buffer;
+  GstSample *sample;
+  gchar *description;
+  const guint extra = NNS_TENSOR_MEMORY_MAX + 1;
+  const guint last = EXTRA_NUM_TENSORS - 1;
+  const guint indices[2][2] = { { extra, 0 }, { last, 0 } };
+
+  description = g_strdup_printf (
+      "appsrc name=input format=time ! tensor_demux name=demux tensorpick=%u,%u:0 "
+      "demux.src_0 ! appsink name=single async=false sync=false "
+      "demux.src_1 ! appsink name=group async=false sync=false",
+      extra, last);
+  pipeline = gst_parse_launch_full (description, NULL, GST_PARSE_FLAG_FATAL_ERRORS, NULL);
+  g_free (description);
+  ASSERT_NE (pipeline, nullptr);
+
+  src = gst_bin_get_by_name (GST_BIN (pipeline), "input");
+  single = gst_bin_get_by_name (GST_BIN (pipeline), "single");
+  group = gst_bin_get_by_name (GST_BIN (pipeline), "group");
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  gst_app_src_set_caps (GST_APP_SRC (src), caps);
+  buffer = _buffer_with_tensors (caps, TRUE);
+  gst_caps_unref (caps);
+
+  EXPECT_EQ (gst_buffer_n_memory (buffer), (guint) NNS_TENSOR_MEMORY_MAX);
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (src), buffer), GST_FLOW_OK);
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (src)), GST_FLOW_OK);
+
+  GstElement *sinks[] = { single, group };
+  for (guint i = 0; i < G_N_ELEMENTS (sinks); i++) {
+    sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sinks[i]), GST_SECOND);
+    EXPECT_NE (sample, nullptr);
+    if (!sample)
+      continue;
+
+    const GstStructure *structure
+        = gst_caps_get_structure (gst_sample_get_caps (sample), 0);
+    gint num_tensors = 0;
+    EXPECT_STREQ (gst_structure_get_name (structure), "other/tensors");
+    EXPECT_TRUE (gst_structure_get_int (structure, "num_tensors", &num_tensors));
+    EXPECT_EQ (num_tensors, (gint) i + 1);
+    buffer = gst_sample_get_buffer (sample);
+    EXPECT_EQ (gst_buffer_n_memory (buffer), i + 1);
+    for (guint j = 0; j <= i && j < gst_buffer_n_memory (buffer); j++) {
+      GstMemory *mem = gst_buffer_peek_memory (buffer, j);
+      GstMapInfo map;
+      const gboolean mapped = gst_memory_map (mem, &map, GST_MAP_READ);
+      EXPECT_TRUE (mapped);
+      if (mapped) {
+        EXPECT_EQ (map.size, 4U);
+        for (gsize k = 0; k < map.size; k++)
+          EXPECT_EQ (map.data[k], indices[i][j]);
+        gst_memory_unmap (mem, &map);
+      }
+    }
+    gst_sample_unref (sample);
+  }
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (group);
+  gst_object_unref (single);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Reject a packed buffer with fewer tensors than the negotiated caps.
+ */
+TEST (tensorDemuxTensorCount, shortPackedBuffer_n)
+{
+  GstCaps *buffer_caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  GstCaps *input_caps = caps_with_tensors (EXTRA_NUM_TENSORS + 1, EXTRA_NUM_TENSORS + 1);
+  GstBuffer *buffer = _buffer_with_tensors (buffer_caps);
+  gboolean posted = FALSE;
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buffer), EXTRA_NUM_TENSORS);
+  EXPECT_EQ (_chain_tensor_demux (input_caps, buffer, &posted), GST_FLOW_ERROR);
+  EXPECT_TRUE (posted);
+
+  gst_caps_unref (input_caps);
+  gst_caps_unref (buffer_caps);
 }
 
 /**
