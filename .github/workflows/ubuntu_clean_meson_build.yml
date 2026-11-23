@@ -369,6 +369,21 @@ jobs:
       with:
         name: Meson_Testlog
         path: build/meson-logs/testlog.txt
+    - name: SSAT run on tensor rate
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      timeout-minutes: 3
+      run: |
+        export GST_PLUGIN_PATH="${GITHUB_WORKSPACE}/build/gst"
+        export NNSTREAMER_CONF="${GITHUB_WORKSPACE}/build/nnstreamer-test.ini"
+        summary="${RUNNER_TEMP}/tensor-rate-summary.txt"
+        rm -f "$summary"
+        cd tests/nnstreamer_rate
+        ssat -n -p=1 --summary "$summary"
+        if ! grep -Eq '^passed=[1-9][0-9]*, failed=0, ignored=0$' "$summary"; then
+          echo "::error::Tensor rate SSAT cases did not run successfully."
+          exit 1
+        fi
+
     # SSAT discards what valgrind prints, so VALGRIND_OPTS sends each run to a log
     # of its own and asks for the leak stacks the checker judges. A child that is
     # forked to exec something else - the plugin scanner - would otherwise open a
