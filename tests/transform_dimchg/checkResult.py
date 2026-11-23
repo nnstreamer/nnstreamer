@@ -25,7 +25,7 @@ from test_utils import read_file
 # @brief Check dimchg mode with option 0:b, b>0.
 #
 def test_dimchg(dataa, datab, dim, repeatblocksize, elementsize):
-    if len(dataa) != len(datab):
+    if len(dataa) == 0 or len(dataa) != len(datab):
         return 1
     loop = len(dataa) // repeatblocksize
     if (loop * repeatblocksize) != len(dataa):
@@ -35,9 +35,10 @@ def test_dimchg(dataa, datab, dim, repeatblocksize, elementsize):
         return 3
     for x, y, z in product(range(0, loop), range(0, dim), range(0, ncpy)):
         b = x * repeatblocksize + y * ncpy * elementsize + z * elementsize
-        a = x * repeatblocksize + z * dim * elementsize + y
+        a = x * repeatblocksize + (z * dim + y) * elementsize
         if dataa[a:a + elementsize] != datab[b:b + elementsize]:
             return 4
+    return 0
 
 
 ##

@@ -105,6 +105,16 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" bl
 # TO_DIM beyond the rank limit is refused as an option string (11_n)
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=int8 ! tensor_transform mode=dimchg option=1:16 ! filesink location=\"testcase11.dimchg116.log\" sync=true" 11_n 0 1 $PERFORMANCE
 
+# Move the innermost axis of a rank-5 float32 tensor to axis 3 (12).
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=8:4:2:4:4 input-type=float32 ! tee name=t ! queue ! tensor_transform mode=dimchg option=0:3 ! filesink location=\"testcase12.dimchg03.log\" sync=true t. ! queue ! filesink location=\"testcase12.direct.log\" sync=true" 12 0 0 $PERFORMANCE
+# A repeated block contains 8 * 4 * 2 * 4 float32 elements.
+python3 checkResult.py dimchg0:b testcase12.direct.log testcase12.dimchg03.log 8 1024 4
+testResult $? 12 "Golden test comparison (float32)" 0 1
+
+# Two empty outputs cannot demonstrate that a transform produced data (13_n).
+python3 checkResult.py dimchg0:b /dev/null /dev/null 8 1024 4
+testResult $? 13_n "Reject empty tensor streams" 0 0
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report
