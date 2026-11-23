@@ -56,7 +56,8 @@ callCompareTest testcase03.golden testcase03.log 6 "Compare 6" 1 0
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux ! filesink location=testcase04.log multifilesrc location=\"testsequence04_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence04_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence04_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_2 multifilesrc location=\"testsequence04_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_3" 7 0 0 $PERFORMANCE
 
-callCompareTest testcase03.golden testcase03.log 7 "Compare 7" 1 0
+# Compare the whole four-input stream, including its length.
+callCompareTest testcase04.golden testcase04.log 7 "Compare 7" 0 0
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux sync-mode=slowest ! multifilesink location=testsynch00_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_1" 8 0 0 $PERFORMANCE
 
