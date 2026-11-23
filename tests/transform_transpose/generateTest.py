@@ -45,3 +45,13 @@ save_test_data('test04_00.dat', 3, 50, 100, 6, 0, 2, 3, 1)
 save_test_data('test05_00.dat', 1, 5, 4, 1, 0, 1, 3, 2)
 # a rank-1 tensor (4) keeps its data when absent dimensions 1 and 2 swap (0:2:1:3)
 save_test_data('test06_00.dat', 1, 1, 4, 1, 0, 1, 2, 3)
+
+# Three tensors of the same shape with disjoint values expose routing mistakes.
+shape = (3, 100, 200)
+size = np.prod(shape)
+for index in range(3):
+    filename = 'test_mux_%d.dat' % index
+    array = np.arange(index * size, (index + 1) * size, dtype=np.float32)
+    array = array.reshape(shape)
+    array.tofile(filename)
+    array.transpose(0, 2, 1).tofile(filename + '.golden')
