@@ -72,14 +72,14 @@ testResult $? 4-OK "Golden test comparison" 0 1
 # Test for add,mul with floating-point operands
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float64 ! tee name=t ! queue ! tensor_transform mode=arithmetic option=add:-9.3,mul:-11.4823e-002 ! filesink location=\"testcase05.arithmetic.log\" sync=true t. ! queue ! filesink location=\"testcase05.direct.log\" sync=true" 5 0 0 $PERFORMANCE
 
-testResult $? 5 "Golden test comparison" 0 1
 python3 checkResult.py arithmetic testcase05.direct.log testcase05.arithmetic.log 8 8 d d add-mul -9.3 -11.4823e-002
+testResult $? 5 "Golden test comparison" 0 1
 
 # Test for mul,add with floating-point operands
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float64 ! tee name=t ! queue ! tensor_transform mode=arithmetic option=mul:-50.0987e+003,add:15.3 ! filesink location=\"testcase06.arithmetic.log\" sync=true t. ! queue ! filesink location=\"testcase06.direct.log\" sync=true" 6 0 0 $PERFORMANCE
 
+python3 checkResult.py arithmetic testcase06.direct.log testcase06.arithmetic.log 8 8 d d mul-add -50.0987e+003 15.3
 testResult $? 6 "Golden test comparison" 0 1
-python3 checkResult.py arithmetic testcase06.direct.log testcase06.arithmetic.log 8 8 d d add-mul -50.0987e+003 15.3
 
 # Test for mul with tensors typecasted to int8 (acceleration=false)
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_transform mode=arithmetic option=typecast:int8,mul:-3 acceleration=false ! filesink location=\"testcase07.arithmetic.1.log\" sync=true t. ! queue ! tensor_transform mode=typecast option=int8 acceleration=false ! filesink location=\"testcase07.direct.1.log\" sync=true" 7-1 0 0 $PERFORMANCE
