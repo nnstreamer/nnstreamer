@@ -20,8 +20,10 @@ from test_utils import read_file
 
 
 def compare_float(a, b):
-    diff = float(a) - float(b)
-    return not (diff > 0.01 or diff < -0.01)
+    expected = float(a)
+    actual = float(b)
+    # Require agreement explicitly: a NaN is unordered, even with itself.
+    return expected == actual or abs(expected - actual) <= 0.01
 
 
 def compare_int(a, b, maskb):
