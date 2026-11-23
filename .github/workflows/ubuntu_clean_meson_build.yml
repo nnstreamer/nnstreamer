@@ -774,3 +774,65 @@ jobs:
 # TODO: add more subplugins to be built
 # TODO: add unit testing
 # TODO: add valgrind testing
+
+  python-converter-ssat:
+    name: Python converter FlexBuffers round trips
+    # Jammy's FlatBuffers 1.12 is below NNStreamer's Meson dependency floor.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Check if rebuild required
+      uses: ./.github/actions/check-rebuild
+      with:
+        mode: rebuild
+    - name: Check out SSAT
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: myungjoo/SSAT
+        ref: 3e1b14a09998b8dbadc721f922ddd1765b7591de
+        path: .ci-ssat
+        persist-credentials: false
+    - name: Install converter test dependencies
+      if: env.rebuild == '1'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential meson ninja-build pkg-config \
+          libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev \
+          libgstreamer-plugins-base1.0-dev libunwind-dev libpng-dev \
+          flatbuffers-compiler libflatbuffers-dev python3-flatbuffers python3-numpy python3-dev \
+          gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+    - name: Build the core and converter test plugins
+      if: env.rebuild == '1'
+      env:
+        CC: gcc
+        CXX: g++
+      run: |
+        meson setup build --wrap-mode=nodownload -Dauto_features=disabled \
+          -Dpython3-support=enabled -Dflatbuf-support=enabled
+        meson compile -C build nnstreamer:shared_library nnstreamer_converter_python3:shared_library \
+          nnstreamer_converter_flexbuf:shared_library nnstreamer_decoder_flexbuf:shared_library \
+          nnstreamer_python3:shared_library copy-bmp2png
+    - name: Check video, audio, multiplexing and repeated conversions
+      if: env.rebuild == '1'
+      run: |
+        export NNSTREAMER_BUILD_ROOT_PATH="$PWD/build"
+        export NNSTREAMER_FILTERS="$PWD/build/ext/nnstreamer/tensor_filter"
+        export NNSTREAMER_DECODERS="$PWD/build/ext/nnstreamer/tensor_decoder"
+        export NNSTREAMER_CONVERTERS="$PWD/build/ext/nnstreamer/tensor_converter"
+        export GST_PLUGIN_PATH="$PWD/build/gst"
+        export NNSTREAMER_CONF="$PWD/build/nnstreamer-test.ini"
+        ssat="$PWD/.ci-ssat/ssat.sh"
+        cd tests/nnstreamer_converter_python3
+        bash "$ssat" -n -p=1 --summary summary.txt
+        # SSAT can return success when a missing dependency leaves zero cases.
+        if ! grep -Eq '^passed=[1-9][0-9]*, failed=0, ignored=0$' summary.txt; then
+          echo "::error::The Python converter suite did not execute successfully."
+          exit 1
+        fi
