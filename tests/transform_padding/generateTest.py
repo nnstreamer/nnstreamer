@@ -29,3 +29,7 @@ save_test_data('test_04.dat', np.int8, -50, 50, [2, 3, 50, 10], ((0,0),(10,12),(
 save_test_data('test_05.dat', np.uint8, 0, 255, [30, 20], ((1,1),(0,0)))
 save_test_data('test_06.dat', np.uint8, 0, 255, [1, 30, 20], ((1,0),(0,0),(0,0)))
 
+# Use distinct values across both leading dimensions to check every slice.
+nhwc = np.arange(1, 3 * 2 * 4 * 3 * 2 + 1, dtype=np.uint16).reshape(3, 2, 4, 3, 2)
+nhwc.tofile('test_07.dat')
+np.pad(nhwc, ((0, 0), (0, 0), (1, 2), (2, 0), (0, 3))).tofile('test_07.dat.golden')
