@@ -989,6 +989,48 @@ TEST (testTensorAggregatorCaps, defaultFramesDimIndivisible_n)
 }
 
 /**
+ * @brief A flushing seek discards a partial group before a new segment starts.
+ */
+TEST (testTensorAggregatorEvents, flushDiscardsQueuedFrame)
+{
+  GstHarness *h = gst_harness_new ("tensor_aggregator");
+  g_object_set (h->element, "frames-out", 2, NULL);
+  gst_harness_set_src_caps (h, _aggr_caps_new ("1"));
+
+  auto push_frame = [h] (gint value) {
+    GstBuffer *buffer = gst_harness_create_buffer (h, sizeof (value));
+    gst_buffer_fill (buffer, 0, &value, sizeof (value));
+    EXPECT_EQ (gst_harness_push (h, buffer), GST_FLOW_OK);
+  };
+
+  push_frame (10);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  EXPECT_TRUE (gst_harness_push_event (h, gst_event_new_flush_start ()));
+  EXPECT_TRUE (gst_harness_push_event (h, gst_event_new_flush_stop (TRUE)));
+  GstSegment segment;
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  EXPECT_TRUE (gst_harness_push_event (h, gst_event_new_segment (&segment)));
+
+  push_frame (20);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  push_frame (30);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  GstBuffer *output = gst_harness_try_pull (h);
+  EXPECT_NE (output, nullptr);
+  if (output) {
+    const gint expected[] = { 20, 30 };
+    gint actual[G_N_ELEMENTS (expected)] = {};
+    EXPECT_EQ (gst_buffer_get_size (output), sizeof (expected));
+    EXPECT_EQ (gst_buffer_extract (output, 0, actual, sizeof (actual)), sizeof (actual));
+    EXPECT_EQ (memcmp (actual, expected, sizeof (expected)), 0);
+    gst_buffer_unref (output);
+  }
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Main GTest
  */
 int
