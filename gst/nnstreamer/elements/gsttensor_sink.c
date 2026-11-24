@@ -498,7 +498,8 @@ gst_tensor_sink_render_buffer (GstTensorSink * self, GstBuffer * buffer)
       last_render_time = gst_tensor_sink_get_last_render_time (self);
 
       /** time for next signal */
-      render_time = (1000 / signal_rate) * GST_MSECOND + last_render_time;
+      render_time = last_render_time +
+          gst_util_uint64_scale_ceil (GST_SECOND, 1, signal_rate);
 
       if (!GST_CLOCK_TIME_IS_VALID (last_render_time) ||
           GST_CLOCK_DIFF (now, render_time) <= 0) {
