@@ -37,15 +37,14 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest gdb
         sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
-        sudo add-apt-repository -y ppa:nnstreamer/ppa
-        sudo apt-get update
+        bash .github/workflows/refresh_ppa.sh
         # nnstreamer-edge-dev turns on the edge and query elements, which
         # brings unittest_edge and unittest_query into the memcheck pass
         # below; without it neither element is built and nothing checks them.
         # This PPA follows nnstreamer-edge daily, and a leak of its own is
         # reported against whichever of our elements called into it, so if one
         # ever arrives, fix it there and suppress it here meanwhile.
-        sudo apt-get install -y ssat libpaho-mqtt-dev libssl-dev nnstreamer-edge-dev
+        sudo apt-get -o Acquire::Retries=3 install -y ssat libpaho-mqtt-dev libssl-dev nnstreamer-edge-dev
         # A broker for the MQTT cases that need one: see "build and unit test"
         # and the edge/query SSAT step.
         sudo apt-get install -y mosquitto mosquitto-clients
@@ -62,7 +61,7 @@ jobs:
         # sub-plugin: such errors are suppressed by name in
         # tools/debugging/valgrind_suppression, and one a PPA update brings
         # goes there too.
-        if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then sudo apt-get install -y tensorflow2-lite-dev; fi
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then sudo apt-get -o Acquire::Retries=3 install -y tensorflow2-lite-dev; fi
         pip install meson ninja
     - name: install llama.cpp for the llamacpp tensor-filter
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
