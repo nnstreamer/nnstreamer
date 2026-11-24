@@ -44,7 +44,7 @@ jobs:
         # This PPA follows nnstreamer-edge daily, and a leak of its own is
         # reported against whichever of our elements called into it, so if one
         # ever arrives, fix it there and suppress it here meanwhile.
-        sudo apt-get install -y ssat libpaho-mqtt-dev libssl-dev nnstreamer-edge-dev
+        sudo apt-get -o Acquire::Retries=3 install -y ssat libpaho-mqtt-dev libssl-dev nnstreamer-edge-dev
         # A broker for the MQTT cases that need one: see "build and unit test"
         # and the edge/query SSAT step.
         sudo apt-get install -y mosquitto mosquitto-clients
@@ -61,7 +61,7 @@ jobs:
         # sub-plugin: such errors are suppressed by name in
         # tools/debugging/valgrind_suppression, and one a PPA update brings
         # goes there too.
-        if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then sudo apt-get install -y tensorflow2-lite-dev; fi
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then sudo apt-get -o Acquire::Retries=3 install -y tensorflow2-lite-dev; fi
         pip install meson ninja
     - name: install llama.cpp for the llamacpp tensor-filter
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
