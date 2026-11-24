@@ -22591,6 +22591,60 @@ TEST (testTensorMerge, unknownMode_n)
 }
 
 /**
+ * @brief Count tensor_sink's emitted new-data signals.
+ */
+static void
+_count_sink_rate_signal (GstElement *, GstBuffer *, guint *count)
+{
+  ++*count;
+}
+
+/**
+ * @brief Assert signal counts before and at successive rate boundaries.
+ */
+static void
+_check_sink_signal_rate (guint rate, GstClockTime early, GstClockTime interval)
+{
+  guint count = 0;
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_sink", "sink", NULL);
+  ASSERT_NE (h, nullptr);
+
+  gst_harness_use_testclock (h);
+  g_object_set (h->element, "signal-rate", rate, "emit-signal", TRUE, "sync",
+      FALSE, "async", FALSE, NULL);
+  g_signal_connect (h->element, "new-data", G_CALLBACK (_count_sink_rate_signal), &count);
+  gst_harness_set_src_caps_str (h,
+      "other/tensor,dimension=(string)1:1:1:1,type=(string)uint8,framerate=(fraction)0/1");
+  gst_harness_play (h);
+
+  const GstClockTime times[] = { 0, early, interval, interval + early, 2 * interval };
+  const guint expected[] = { 1, 1, 2, 2, 3 };
+  for (guint i = 0; i < G_N_ELEMENTS (times); ++i) {
+    EXPECT_TRUE (gst_harness_set_time (h, times[i]));
+    EXPECT_EQ (gst_harness_push (h, gst_buffer_new_allocate (NULL, 1, NULL)), GST_FLOW_OK);
+    EXPECT_EQ (count, expected[i]) << "buffer " << i;
+  }
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief 400 Hz needs 2.5 ms, so a buffer at 2 ms must not signal.
+ */
+TEST (tensorSinkSignalRate, respectsSubMillisecondInterval)
+{
+  _check_sink_signal_rate (400, 2 * GST_MSECOND, 2500 * GST_USECOND);
+}
+
+/**
+ * @brief 300 Hz needs 3333334 ns, so even 3333333 ns is too early.
+ */
+TEST (tensorSinkSignalRate, roundsFractionalNanosecondUp)
+{
+  _check_sink_signal_rate (300, 3333333, 3333334);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
