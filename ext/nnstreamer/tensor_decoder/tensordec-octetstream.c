@@ -22,8 +22,8 @@
 #include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
-void init_os (void) __attribute__ ((constructor));
-void fini_os (void) __attribute__ ((destructor));
+static void init_os (void) __attribute__ ((constructor));
+static void fini_os (void) __attribute__ ((destructor));
 
 #define OCTET_CAPS_STR "application/octet-stream"
 
@@ -135,14 +135,14 @@ static GstTensorDecoderDef octetSTream = {
 };
 
 /** @brief Initialize this object for tensordec-plugin */
-void
+static void
 init_os (void)
 {
   nnstreamer_decoder_probe (&octetSTream);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
-void
+static void
 fini_os (void)
 {
   nnstreamer_decoder_exit (octetSTream.modename);
