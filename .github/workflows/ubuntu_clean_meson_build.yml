@@ -13,6 +13,8 @@ env:
 jobs:
   build:
     name: Build with meson and test with Valgrind in Ubuntu
+    needs: python-converter-ssat
+    if: ${{ !cancelled() }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,6 +22,10 @@ jobs:
         os: [ ubuntu-22.04, ubuntu-22.04-arm ]
 
     steps:
+    - name: Require Python converter FlexBuffers round trips
+      env:
+        CONVERTER_RESULT: ${{ needs.python-converter-ssat.result }}
+      run: test "$CONVERTER_RESULT" = success
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
