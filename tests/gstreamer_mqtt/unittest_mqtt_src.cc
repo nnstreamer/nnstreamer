@@ -115,6 +115,7 @@ typedef struct {
   hold_site_e hold_site;
   gboolean hold_entered;
   gboolean hold_released;
+  gboolean accept_connect_failure;
 } mqtt_mock_s;
 
 static mqtt_mock_s g_mock;
@@ -164,6 +165,7 @@ _mock_reset (void)
   g_mock.hold_site = HOLD_NONE;
   g_mock.hold_entered = FALSE;
   g_mock.hold_released = FALSE;
+  g_mock.accept_connect_failure = FALSE;
   g_mutex_unlock (&g_mock.lock);
 }
 
@@ -355,12 +357,14 @@ MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
   _record_tls_options (options);
   gboolean async;
   gboolean fail;
+  gboolean accepted;
 
   (void) handle;
 
   g_mutex_lock (&g_mock.lock);
   async = g_mock.async_connect;
   fail = g_mock.fail_connect;
+  accepted = g_mock.accept_connect_failure;
   g_mock.has_username = (options->username != NULL);
   g_mock.last_username.assign (options->username ? options->username : "");
   g_mock.has_password = (options->password != NULL);
@@ -371,8 +375,15 @@ MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
   g_mutex_unlock (&g_mock.lock);
 
   if (fail) {
-    _run_failure_cb (options->onFailure, options->context);
-    return MQTTASYNC_FAILURE;
+    if (accepted && async) {
+      g_mutex_lock (&g_mock.lock);
+      g_mock_threads.push_back (
+          std::thread (_run_failure_cb, options->onFailure, options->context));
+      g_mutex_unlock (&g_mock.lock);
+    } else {
+      _run_failure_cb (options->onFailure, options->context);
+    }
+    return accepted ? MQTTASYNC_SUCCESS : MQTTASYNC_FAILURE;
   }
 
   if (async) {
@@ -1842,6 +1853,74 @@ TEST (testMqttSrc, credentialsRejected_n)
   EXPECT_TRUE (_fixture_start (
       &fixture, "an-mqtt-user", "the-right-password", "the-right-password"));
   _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief An accepted connection request reports its callback failure promptly.
+ */
+static void
+_expect_accepted_connect_failure (gboolean callback_on_thread)
+{
+  src_fixture_s fixture;
+  GstMessage *msg;
+  GError *err = NULL;
+  gchar *debug = NULL;
+  gint64 started, elapsed;
+  GstStateChangeReturn result;
+  GstMqttSrc *self;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  g_mutex_lock (&g_mock.lock);
+  g_mock.fail_connect = TRUE;
+  g_mock.accept_connect_failure = TRUE;
+  g_mock.async_connect = callback_on_thread;
+  g_mutex_unlock (&g_mock.lock);
+
+  started = g_get_monotonic_time ();
+  result = gst_element_set_state (fixture.pipeline, GST_STATE_PLAYING);
+  elapsed = g_get_monotonic_time () - started;
+  _mock_join_threads ();
+
+  EXPECT_EQ (result, GST_STATE_CHANGE_FAILURE);
+  /* A reported failure must not wait for the five-second connection timeout. */
+  EXPECT_LT (elapsed, 2 * G_TIME_SPAN_SECOND);
+  self = GST_MQTT_SRC (fixture.src);
+  EXPECT_FALSE (self->is_connected);
+  EXPECT_EQ (self->mqtt_client_handle, nullptr);
+  ASSERT_NE (self->err, nullptr);
+  EXPECT_EQ (self->err->code, -1);
+  EXPECT_NE (strstr (self->err->message, "mocked failure"), nullptr);
+
+  /* Applications must receive the broker's reason, not just "Failed to start". */
+  msg = gst_bus_pop_filtered (fixture.bus, GST_MESSAGE_ERROR);
+  ASSERT_NE (msg, nullptr);
+  EXPECT_EQ (GST_MESSAGE_SRC (msg), GST_OBJECT (fixture.src));
+  gst_message_parse_error (msg, &err, &debug);
+  EXPECT_TRUE (g_error_matches (err, GST_RESOURCE_ERROR, GST_RESOURCE_ERROR_OPEN_READ));
+  EXPECT_NE (debug, nullptr);
+  if (debug) {
+    EXPECT_NE (strstr (debug, "mocked failure"), nullptr);
+  }
+  g_clear_error (&err);
+  g_free (debug);
+  gst_message_unref (msg);
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief A failure reported before connect returns must not lose its wakeup.
+ */
+TEST (testMqttSrc, acceptedConnectFailureBeforeReturn_n)
+{
+  _expect_accepted_connect_failure (FALSE);
+}
+
+/**
+ * @brief A failure callback on the client thread must end the start wait.
+ */
+TEST (testMqttSrc, acceptedConnectFailureOnThread_n)
+{
+  _expect_accepted_connect_failure (TRUE);
 }
 
 /**
