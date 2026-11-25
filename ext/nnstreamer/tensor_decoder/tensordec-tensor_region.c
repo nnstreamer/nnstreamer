@@ -61,8 +61,8 @@
 #include "tensordecutil.h"
 
 #define _tensor_region_size_default_ 1
-void init_tr (void) __attribute__ ((constructor));
-void fini_tr (void) __attribute__ ((destructor));
+static void init_tr (void) __attribute__ ((constructor));
+static void fini_tr (void) __attribute__ ((destructor));
 
 #define BOX_SIZE (4)
 #define MOBILENET_SSD_DETECTION_MAX (2034) /**add ssd_mobilenet v3 */
@@ -804,7 +804,7 @@ static GstTensorDecoderDef tensorRegion = { .modename = decoder_subplugin_tensor
   .decode = tr_decode };
 
 /** @brief Initialize this object for tensordec-plugin */
-void
+static void
 init_tr (void)
 {
   nnstreamer_decoder_probe (&tensorRegion);
@@ -821,7 +821,7 @@ init_tr (void)
 }
 
 /** @brief Destruct this object for tensordec-plugin */
-void
+static void
 fini_tr (void)
 {
   nnstreamer_decoder_exit (tensorRegion.modename);
