@@ -131,6 +131,21 @@ Every way to set ```model``` is as trusted as the pipeline description: the prop
 An application that builds a pipeline from input it does not trust must check ```framework``` and ```model``` itself, e.g., allow an explicit list of frameworks instead of ```auto```, accept models only from a directory writable only by a trusted account (```lua``` takes a script in ```model``` itself), and not pass such input in ```config-file```.
 The ini files and the environment are trusted as well; see "Configuration file and the environment" in [getting-started-meson-build.md](../../../Documentation/getting-started-meson-build.md).
 
+## Changing properties while streaming
+Setting a property never fails from the caller's point of view: ```g_object_set()``` has no return value, and ```ml_pipeline_element_set_property_*()``` of the ML API returns ```ML_ERROR_NONE```. A tensor_filter that cannot take a new value in its current state keeps the old one (for ```model```, the old model) and only writes a log, so read the property back if the application must know.
+
+```framework``` keeps its old value, with a warning (```Cannot change the framework from ... while the tensor-filter is running```), while the element may be streaming:
+- the element was started (PAUSED or PLAYING) with a non-zero ```suspend```, or
+- the framework is opened, the input caps are negotiated, the model is not suspended, and the negotiated framerate has a denominator greater than 0 (```framerate=0/1``` included).
+
+Otherwise the old framework is closed and the new one is taken: before the input caps are negotiated, after the element is stopped (READY or NULL), and in the single-shot filter, which opens the new framework at its next invoke. Note that a pipeline in PAUSED may already be negotiated: with GStreamer 1.24, for example, ```appsrc``` pushes the caps of its ```caps``` property before its first buffer, while GStreamer 1.20 sends them with the first buffer. To replace the framework of a running pipeline, set the pipeline to READY, set ```framework```, and start it again.
+
+Other properties are also kept, with a log, once the element has gone that far:
+- ```input```, ```inputtype```, ```inputname``` and their ```output``` counterparts, once the tensors are configured.
+- ```inputlayout``` and ```outputlayout``` once the tensors are configured, and ```accelerator``` and ```custom``` once the framework is opened, unless the sub-plugin accepts the new value: a V1 sub-plugin is asked with the ```SET_INPUT_PROP```, ```SET_OUTPUT_PROP```, ```SET_ACCELERATOR``` and ```CUSTOM_PROP``` events, and a V0 sub-plugin never takes it.
+
+A new ```model``` for an opened framework is loaded only with ```is-updatable=true``` (if the reload fails, the old model and its path are kept, with an error log); otherwise the new path is stored without a log and the opened model stays in use until the framework is opened again.
+
 ## Sub-Components
 
 ### Main ```tensor_filter.c```
