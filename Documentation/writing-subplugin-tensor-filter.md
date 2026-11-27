@@ -21,7 +21,7 @@ Then, you can register the derived class, usually by calling ```tensor_filter_su
 ## A tensor\_filter subplugin C++ class
 
 - Interface: [/gst/nnstreamer/include/nnstreamer_cppplugin_api_filter.hh](../gst/nnstreamer/include/nnstreamer_cppplugin_api_filter.hh)
-- Reference (example): [/ext/nnstreamer/tensor_filter/tensor_filter_snap.cc](../ext/nnstreamer/tensor_filter/tensor_filter_snap.cc)
+- Reference (example): [/ext/nnstreamer/tensor_filter/tensor_filter_onnxruntime.cc](../ext/nnstreamer/tensor_filter/tensor_filter_onnxruntime.cc)
 
 You may also find other subplugins inheriting the ```tensor_filter_subplugin``` class in [/ext/nnstreamer/tensor_filter] that can be used as examples.
 
@@ -32,7 +32,7 @@ Mandatory methods to be filled are declared as pure virtual function and optiona
 
 
 As in C subplugin, the derived (concrete) class should be registered at init and unregistered at exit.
-Subplugin writers are supposed to use the static methods of the base class, ```register_subplugin()``` and ```unregister_subplugin()```; refer to the function ```init_filter_snap()``` and ```fini_filter_snap()``` in the reference example.
+Subplugin writers are supposed to use the static methods of the base class, ```register_subplugin()``` and ```unregister_subplugin()```; refer to the function ```init_filter_onnxruntime()``` and ```fini_filter_onnxruntime()``` in the reference example.
 
 
 ### Object ownership and exception rules

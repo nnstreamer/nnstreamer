@@ -57,7 +57,7 @@ This list shows a release corresponding to "full".
     - Enabled
         - tensorflow2-lite (2.8.1, 2.16.1) w/ delegation support (GPU, XNNPACK, NNAPI, QNN, ...)
         - nnfw runtime (a.k.a. ONERT)
-        - (depending on options) snap / snpe (you cannot install both simultaneously)
+        - (depending on options) snap / snpe (you cannot install both simultaneously; snap is deprecated)
         - qnn
         - pytorch
         - all trivial filter/converter/decoder subplugins.

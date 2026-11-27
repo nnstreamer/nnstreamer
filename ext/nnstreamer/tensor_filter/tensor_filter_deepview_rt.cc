@@ -448,6 +448,10 @@ dvrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   struct dvrt_options_s options = {};
   int ret;
 
+  ml_logw ("tensor_filter subplugin deepview-rt is deprecated "
+           "(nnstreamer issue #5182). NXP no longer ships DeepViewRT; use the "
+           "tensorflow2-lite subplugin instead.");
+
   ret = parseCustomOptions (prop, &options);
   if (ret)
     goto done;

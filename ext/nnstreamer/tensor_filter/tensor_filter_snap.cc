@@ -158,6 +158,9 @@ tensor_filter_snap::configure_instance (const GstTensorFilterProperties *prop)
   snap_option_s snap_option;
   std::string snap_ver = snap_sdk::GetSnapSDKVersionName ();
 
+  snap_logw ("tensor_filter subplugin snap is deprecated "
+             "(nnstreamer issue #5182); use the tensorflow2-lite or qnn "
+             "subplugin instead.");
   snap_logi ("Start to open SNAP session (%s).", snap_ver.c_str ());
 
   if (!configure_option (prop, snap_option)) {

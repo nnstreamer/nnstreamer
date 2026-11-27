@@ -19,6 +19,7 @@
 #include <string>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 
 #include <mediapipe/framework/calculator_framework.h>
@@ -152,6 +153,9 @@ mediapipe_subplugin::getEmptyInstance ()
 void
 mediapipe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
+  ml_logw ("tensor_filter subplugin mediapipe is deprecated "
+           "(nnstreamer issue #5182). It needs a MediaPipe source tree built "
+           "with Bazel; use the tensorflow2-lite or litert subplugin instead.");
   if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
     std::cerr << "Model path is not given." << std::endl;
     throw std::invalid_argument ("Model path is not given.");
